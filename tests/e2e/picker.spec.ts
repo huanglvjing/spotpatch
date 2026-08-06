@@ -1,9 +1,47 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 const activatePicker = async (page: Page): Promise<void> => {
   await page.getByRole("button", { name: "Select element" }).click();
   await expect(page.getByRole("button", { name: "Stop selecting" })).toBeVisible();
 };
+
+const expectHighlightToMatch = async (page: Page, target: Locator): Promise<void> => {
+  const targetBox = await target.boundingBox();
+  const highlightBox = await page
+    .locator("spotpatch-root")
+    .locator(".spotpatch-highlight")
+    .boundingBox();
+
+  expect(targetBox).not.toBeNull();
+  expect(highlightBox).not.toBeNull();
+
+  if (targetBox === null || highlightBox === null) {
+    return;
+  }
+
+  expect(Math.abs(highlightBox.x - targetBox.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(highlightBox.y - targetBox.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(highlightBox.width - targetBox.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(highlightBox.height - targetBox.height)).toBeLessThanOrEqual(1);
+};
+
+test("keeps the highlight aligned with the hovered and selected element", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const target = page.getByRole("heading", { name: "SpotPatch Playground" });
+  await activatePicker(page);
+
+  await target.hover();
+  await expect(
+    page.locator("spotpatch-root").locator(".spotpatch-highlight"),
+  ).toBeVisible();
+  await expectHighlightToMatch(page, target);
+
+  await target.click();
+  await expect(page.getByRole("dialog", { name: "Selected element" })).toBeVisible();
+  await expectHighlightToMatch(page, target);
+});
 
 test("selects a native element and sends an authorized editor request", async ({
   page,

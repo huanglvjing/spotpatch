@@ -83,6 +83,8 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-trigger[aria-pressed="true"] { background: #4f46e5; }
     .spotpatch-highlight {
       position: fixed;
+      top: 0;
+      left: 0;
       z-index: ${String(UI_Z_INDEX.highlight)};
       box-sizing: border-box;
       border: 2px solid #6366f1;

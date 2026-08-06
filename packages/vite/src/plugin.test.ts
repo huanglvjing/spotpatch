@@ -7,10 +7,13 @@ describe("spotPatch", () => {
     expect(spotPatch({ enabled: false })).toEqual([]);
   });
 
-  it("registers a pre-transform that only applies to serve", () => {
+  it("registers isolated development-only plugins", () => {
     const plugins = spotPatch();
 
-    expect(plugins.map(({ name }) => name)).toEqual(["spotpatch:transform"]);
+    expect(plugins.map(({ name }) => name)).toEqual([
+      "spotpatch:transform",
+      "spotpatch:server",
+    ]);
     expect(plugins.every(({ apply }) => apply === "serve")).toBe(true);
     expect(plugins.every(({ enforce }) => enforce === "pre")).toBe(true);
   });

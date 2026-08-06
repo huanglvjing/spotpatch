@@ -1,0 +1,6 @@
+.moduleCard {
+  border: 2px dashed rgb(139 92 246);
+  border-radius: 0.75rem;
+  background: rgb(245 243 255);
+  padding: 1rem;
+}

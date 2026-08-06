@@ -59,7 +59,7 @@ test("collects context and copies a bounded prompt", async ({ context, page }) =
   });
   await page.goto("/");
   await activatePicker(page);
-  await page.getByRole("heading", { name: "SpotPatch Playground" }).click();
+  await page.getByTestId("business-card-content").click();
 
   const selectedDialog = page.getByRole("dialog", { name: "Selected element" });
   await expect(selectedDialog).toBeVisible();
@@ -73,7 +73,7 @@ test("collects context and copies a bounded prompt", async ({ context, page }) =
   });
   await annotationDialog
     .getByRole("textbox", { name: "What should change?" })
-    .fill("Align the playground heading with its description.");
+    .fill("Align the business fixture content with its heading.");
   await annotationDialog.getByRole("button", { name: "Save note" }).click();
 
   await expect(selectedDialog).toBeVisible();
@@ -87,10 +87,10 @@ test("collects context and copies a bounded prompt", async ({ context, page }) =
   const promptOutput = previewDialog.getByLabel("Generated prompt");
   await expect(promptOutput).toContainText("## 问题");
   await expect(promptOutput).toContainText(
-    "Align the playground heading with its description.",
+    "Align the business fixture content with its heading.",
   );
   await expect(promptOutput).toContainText("## 相关样式");
-  await expect(promptOutput).toContainText(".user-info h1");
+  await expect(promptOutput).toContainText(".fixture-card p");
   await expect(promptOutput).toContainText("## 附近代码");
   await expect(promptOutput).toContainText("- Boundary: component");
 

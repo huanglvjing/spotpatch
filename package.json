@@ -20,9 +20,11 @@
     "package:validate": "pnpm build && pnpm --filter './packages/*' exec publint && pnpm --filter './packages/*' exec attw --pack .",
     "release": "pnpm build && changeset publish",
     "test": "pnpm test:unit",
+    "test:compatibility": "pnpm --filter './playgrounds/compat-*' build && pnpm --filter './playgrounds/compat-*' verify",
     "test:e2e": "playwright test",
     "test:e2e:chromium": "playwright test --project=chromium",
-    "test:production-leakage": "vitest run tests/production",
+    "test:performance": "vitest run tests/performance",
+    "test:production-leakage": "pnpm build && vitest run tests/production",
     "test:unit": "vitest run packages tests/unit",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present typecheck"
   },

@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   color: #172033;
   background: #f5f7fb;
@@ -8,15 +12,21 @@ body {
   margin: 0;
 }
 
-.page-shell {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
+button,
+input {
+  font: inherit;
 }
 
-.profile-card {
+.page-shell {
+  display: grid;
+  width: min(72rem, calc(100% - 2rem));
+  margin: 0 auto;
+  gap: 1.5rem;
+  padding: 2rem 0 6rem;
+}
+
+.hero-panel {
   display: flex;
-  width: min(36rem, calc(100vw - 3rem));
   align-items: flex-start;
   gap: 1rem;
   border: 1px solid #d9deea;
@@ -38,16 +48,76 @@ body {
   font-weight: 700;
 }
 
-.user-info h1 {
+.user-info h1,
+.fixture-section h2,
+.fixture-card h3 {
   margin: 0;
-  font-size: 1.25rem;
 }
 
-.user-info p {
+.user-info p,
+.fixture-card p {
   margin: 0.5rem 0 0;
   color: #667085;
 }
 
-.fixture-actions {
-  margin-top: 1rem;
+.fixture-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.fixture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.75rem;
+}
+
+.fixture-card,
+.security-form {
+  border: 1px solid #d9deea;
+  border-radius: 0.75rem;
+  background: white;
+  padding: 1rem;
+}
+
+.fixture-card,
+.fixture-actions,
+.security-form,
+.security-form label {
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+}
+
+.fixture-card button,
+.fixture-card input,
+.security-form button,
+.security-form input {
+  border: 1px solid #94a3b8;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.fixture-card button,
+.security-form button {
+  cursor: pointer;
+  background: #f8fafc;
+}
+
+.fixture-card svg {
+  width: 4rem;
+  height: 4rem;
+}
+
+.lazy-panel {
+  border-left: 3px solid #0ea5e9;
+  padding-left: 0.75rem;
+}
+
+.security-form {
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  align-items: end;
+}
+
+.security-form a {
+  overflow-wrap: anywhere;
 }

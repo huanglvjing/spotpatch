@@ -30,6 +30,7 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test:unit
       - run: pnpm build
+      - run: pnpm test:compatibility
 
   e2e:
     name: Chromium E2E
@@ -43,5 +44,19 @@ jobs:
       - run: corepack enable
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:performance
       - run: pnpm test:e2e:chromium
       - run: pnpm test:production-leakage
+
+  package:
+    name: Package validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm package:validate

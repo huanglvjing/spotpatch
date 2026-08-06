@@ -1,0 +1,8 @@
+packages:
+  - "packages/*"
+  - "playgrounds/*"
+
+onlyBuiltDependencies:
+  - "@swc/core"
+  - "esbuild"
+  - "oxc-parser"

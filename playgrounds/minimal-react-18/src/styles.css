@@ -1,0 +1,49 @@
+:root {
+  color: #172033;
+  background: #f5f7fb;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+.page-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+
+.profile-card {
+  display: flex;
+  width: min(36rem, calc(100vw - 3rem));
+  align-items: flex-start;
+  gap: 1rem;
+  border: 1px solid #d9deea;
+  border-radius: 1rem;
+  background: white;
+  padding: 1.5rem;
+  box-shadow: 0 1rem 3rem rgb(23 32 51 / 8%);
+}
+
+.avatar {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: white;
+  background: #635bff;
+  font-weight: 700;
+}
+
+.user-info h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.user-info p {
+  margin: 0.5rem 0 0;
+  color: #667085;
+}

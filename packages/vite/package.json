@@ -1,0 +1,50 @@
+{
+  "name": "@spotpatch/vite",
+  "version": "0.0.0",
+  "description": "Vite development plugin for SpotPatch.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@rollup/pluginutils": "5.4.0",
+    "@spotpatch/react-adapter": "workspace:^",
+    "@spotpatch/runtime": "workspace:^",
+    "@spotpatch/shared": "workspace:^",
+    "launch-editor": "2.14.1",
+    "magic-string": "1.1.0",
+    "oxc-parser": "0.143.0",
+    "zod": "4.4.3"
+  },
+  "peerDependencies": {
+    "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

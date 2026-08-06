@@ -1,5 +1,6 @@
 import { SPOTPATCH_API_BASE } from "@spotpatch/shared";
 import { describe, expect, it } from "vitest";
+import { version as VITE_VERSION } from "vite";
 
 import { resolveOptions } from "../options.js";
 import type { SpotPatchSession } from "../session/session.js";
@@ -63,7 +64,7 @@ describe("runtime injection plugin", () => {
     expect(code).toContain("browser-session-token");
     expect(code).toContain("Alt+S");
     expect(code).toContain('"spotPatchVersion":"0.0.0"');
-    expect(code).toContain('"viteVersion"');
+    expect(code).toContain(`"viteVersion":"${VITE_VERSION}"`);
     expect(code).toContain("SPOTPATCH_API_BASE");
     expect(code).not.toContain(SPOTPATCH_API_BASE);
     expect(code).not.toContain(process.cwd());

@@ -24,9 +24,31 @@ function readClientBundle(root: string): string {
   return readFileSync(bundlePath, "utf8");
 }
 
+function readConsumerViteVersion(root: string): string {
+  try {
+    const resolveFromProject = createRequire(path.join(root, "package.json"));
+    const manifestPath = resolveFromProject.resolve("vite/package.json");
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as unknown;
+
+    if (
+      typeof manifest === "object" &&
+      manifest !== null &&
+      "version" in manifest &&
+      typeof manifest.version === "string"
+    ) {
+      return manifest.version;
+    }
+  } catch {
+    // Vite itself remains the safe fallback if package metadata is not exported.
+  }
+
+  return VITE_VERSION;
+}
+
 function createClientModule(
   input: RuntimeInjectionPluginInput,
   clientBundle: string,
+  viteVersion: string,
 ): string {
   const runtimeConfig = {
     budget: input.options.budget,
@@ -35,7 +57,7 @@ function createClientModule(
     sessionToken: input.session.token,
     shortcut: input.options.shortcut,
     spotPatchVersion: packageMetadata.version,
-    viteVersion: VITE_VERSION,
+    viteVersion,
   };
 
   return [
@@ -50,6 +72,7 @@ export function createRuntimeInjectionPlugin(
 ): Plugin {
   let root = process.cwd();
   let clientBundle = input.clientBundle;
+  let viteVersion = VITE_VERSION;
 
   return {
     name: "spotpatch:runtime-injection",
@@ -58,6 +81,7 @@ export function createRuntimeInjectionPlugin(
 
     configResolved(config) {
       root = path.resolve(config.root);
+      viteVersion = readConsumerViteVersion(root);
     },
 
     resolveId(id) {
@@ -72,7 +96,7 @@ export function createRuntimeInjectionPlugin(
       }
 
       clientBundle ??= readClientBundle(root);
-      return createClientModule(input, clientBundle);
+      return createClientModule(input, clientBundle, viteVersion);
     },
 
     transformIndexHtml() {

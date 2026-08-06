@@ -53,6 +53,55 @@ test("selects a native element and sends an authorized editor request", async ({
   await expect(page.getByRole("button", { name: "Select element" })).toBeVisible();
 });
 
+test("collects context and copies a bounded prompt", async ({ context, page }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], {
+    origin: "http://127.0.0.1:4173",
+  });
+  await page.goto("/");
+  await activatePicker(page);
+  await page.getByRole("heading", { name: "SpotPatch Playground" }).click();
+
+  const selectedDialog = page.getByRole("dialog", { name: "Selected element" });
+  await expect(selectedDialog).toBeVisible();
+  await expect(selectedDialog.locator(".spotpatch-summary")).toContainText(
+    "Boundary: component",
+  );
+  await selectedDialog.getByRole("button", { name: "Add note" }).click();
+
+  const annotationDialog = page.getByRole("dialog", {
+    name: "Describe the issue",
+  });
+  await annotationDialog
+    .getByRole("textbox", { name: "What should change?" })
+    .fill("Align the playground heading with its description.");
+  await annotationDialog.getByRole("button", { name: "Save note" }).click();
+
+  await expect(selectedDialog).toBeVisible();
+  const previewButton = selectedDialog.getByRole("button", {
+    name: "Preview prompt",
+  });
+  await expect(previewButton).toBeEnabled();
+  await previewButton.click();
+
+  const previewDialog = page.getByRole("dialog", { name: "Prompt preview" });
+  const promptOutput = previewDialog.getByLabel("Generated prompt");
+  await expect(promptOutput).toContainText("## 问题");
+  await expect(promptOutput).toContainText(
+    "Align the playground heading with its description.",
+  );
+  await expect(promptOutput).toContainText("## 相关样式");
+  await expect(promptOutput).toContainText(".user-info h1");
+  await expect(promptOutput).toContainText("## 附近代码");
+  await expect(promptOutput).toContainText("- Boundary: component");
+
+  const expectedPrompt = await promptOutput.textContent();
+  await previewDialog.getByRole("button", { name: "Copy prompt" }).click();
+  await expect(selectedDialog).toBeVisible();
+  await expect
+    .poll(async () => page.evaluate(() => navigator.clipboard.readText()))
+    .toBe(expectedPrompt);
+});
+
 test("resolves an Ant Design Button to its probable business call site", async ({
   page,
 }) => {

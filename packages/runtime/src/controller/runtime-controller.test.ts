@@ -28,6 +28,8 @@ const config = Object.freeze({
   redact: true,
   sessionToken: "runtime-session-token",
   shortcut: "Mod+Shift+S",
+  spotPatchVersion: "0.0.0",
+  viteVersion: "7.3.6",
 }) satisfies RuntimeConfig;
 
 const context = Object.freeze({
@@ -67,6 +69,21 @@ function setHitTarget(target: Element): void {
     configurable: true,
     value: vi.fn(() => [target, document.body, document.documentElement]),
   });
+}
+
+function findShadowButton(
+  shadowRoot: ShadowRoot | null | undefined,
+  label: string,
+): HTMLButtonElement {
+  const button = Array.from(
+    shadowRoot?.querySelectorAll<HTMLButtonElement>("button") ?? [],
+  ).find((candidate) => candidate.textContent === label);
+
+  if (button === undefined) {
+    throw new Error(`Expected the ${label} button.`);
+  }
+
+  return button;
 }
 
 beforeEach(() => {
@@ -148,10 +165,7 @@ describe("runtime controller", () => {
       ).toContain("src/App.tsx:36:5");
     });
 
-    const openEditor = host?.shadowRoot?.querySelector<HTMLButtonElement>(
-      ".spotpatch-actions button:nth-child(2)",
-    );
-    openEditor?.click();
+    findShadowButton(host?.shadowRoot ?? undefined, "Open in VS Code").click();
     await vi.waitFor(() => {
       expect(api.openEditor).toHaveBeenCalledWith({
         fileId: "file-id",
@@ -181,6 +195,103 @@ describe("runtime controller", () => {
     expect(applicationClick).toHaveBeenCalledOnce();
     expect(event.defaultPrevented).toBe(false);
     expect(controller.getState().status).toBe("idle");
+    controller.dispose();
+  });
+
+  it("collects context and completes the annotation, preview, and copy flow", async () => {
+    document.title = "Runtime workflow";
+    const target = document.createElement("button");
+    target.className = "primary-action";
+    target.textContent = "Save profile";
+    target.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-id:36:5");
+    target.setAttribute("data-api-token", "never-copy-this");
+    document.body.append(target);
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue(visibleRect());
+    setHitTarget(target);
+    const writeText = vi
+      .fn<(value: string) => Promise<void>>()
+      .mockResolvedValue(undefined);
+    const workflowConfig = Object.freeze({
+      ...config,
+      budget: Object.freeze({
+        ...budget,
+        totalCharacters: 4_000,
+        domCharacters: 1_000,
+        cssCharacters: 2_000,
+        codeCharacters: 1_000,
+      }),
+    }) satisfies RuntimeConfig;
+    const controller = createController(workflowConfig, {
+      api: createApi(),
+      clipboard: { writeText },
+      createId: () => "annotation-id",
+      now: () => "2026-08-06T00:00:00.000Z",
+    });
+    controller.mount();
+    const shadowRoot = document.querySelector("spotpatch-root")?.shadowRoot;
+
+    shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+    target.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 30,
+      }),
+    );
+
+    findShadowButton(shadowRoot, "Add note").click();
+    expect(controller.getState().status).toBe("annotating");
+    const noteInput = shadowRoot?.querySelector<HTMLTextAreaElement>("textarea");
+
+    if (noteInput === null || noteInput === undefined) {
+      throw new Error("Expected the annotation input.");
+    }
+
+    noteInput.value = "Align the profile action.";
+    findShadowButton(shadowRoot, "Save note").click();
+    expect(controller.getState().status).toBe("selected");
+
+    const previewButton = findShadowButton(shadowRoot, "Preview prompt");
+    await vi.waitFor(() => {
+      expect(previewButton.disabled).toBe(false);
+    });
+    expect(shadowRoot?.querySelector(".spotpatch-summary")?.textContent).toContain(
+      "CSS warnings:",
+    );
+
+    previewButton.click();
+    expect(controller.getState().status).toBe("previewing");
+    const prompt = shadowRoot?.querySelector(".spotpatch-prompt")?.textContent ?? "";
+    expect(prompt).toContain("## 问题");
+    expect(prompt).toContain("Align the profile action.");
+    expect(prompt).toContain("src/App.tsx:36:5");
+    expect(prompt).not.toContain("never-copy-this");
+
+    findShadowButton(shadowRoot, "Copy prompt").click();
+    await vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(prompt);
+      expect(controller.getState().status).toBe("selected");
+    });
+
+    previewButton.click();
+    writeText.mockRejectedValueOnce(new Error("clipboard denied"));
+    findShadowButton(shadowRoot, "Copy prompt").click();
+    await vi.waitFor(() => {
+      expect(controller.getState().status).toBe("previewing");
+      expect(shadowRoot?.activeElement?.classList.contains("spotpatch-prompt")).toBe(
+        true,
+      );
+    });
+
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    expect(controller.getState().status).toBe("selected");
+    expect(shadowRoot?.activeElement?.classList.contains("spotpatch-dialog")).toBe(
+      true,
+    );
+
     controller.dispose();
   });
 

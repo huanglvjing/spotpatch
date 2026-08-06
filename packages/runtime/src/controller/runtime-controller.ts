@@ -1,10 +1,23 @@
 import { createReact18Adapter, type ReactAdapter } from "@spotpatch/react-adapter";
-import type { CodeContext, SourceConfidence, SourceMarker } from "@spotpatch/shared";
+import type {
+  CodeContext,
+  ElementContext,
+  SourceMarker,
+  SpotAnnotation,
+  StyleContext,
+} from "@spotpatch/shared";
 
+import { createAnnotation } from "../annotation/create-annotation.js";
 import { createRuntimeApi, type RuntimeApi } from "../api/runtime-api.js";
+import { collectStyleContext } from "../collectors/css-collector.js";
+import { collectElementContext } from "../collectors/dom-collector.js";
 import { isTextEntryTarget, matchesShortcut } from "../keyboard/shortcut.js";
 import { getElementRect } from "../picker/geometry.js";
 import { isSpotPatchUIEventTarget, pickElementAt } from "../picker/hit-test.js";
+import {
+  createPromptComposer,
+  type PromptComposer,
+} from "../prompt/prompt-composer.js";
 import {
   INITIAL_RUNTIME_STATE,
   reduceRuntimeState,
@@ -17,6 +30,17 @@ import {
   type ElementSourceResolution,
 } from "../source/source-resolver.js";
 import { createRuntimeView, type RuntimeView } from "../ui/runtime-view.js";
+import {
+  createSelectionSummary,
+  type ApiConnectionStatus,
+  type CollectionStatus,
+} from "../ui/selection-summary.js";
+import {
+  collectPageContext,
+  createBrowserAnnotationId,
+  resolveClipboardWriter,
+  type ClipboardWriter,
+} from "./runtime-environment.js";
 import type { RuntimeConfig } from "./runtime-config.js";
 
 export interface SpotPatchController {
@@ -27,8 +51,12 @@ export interface SpotPatchController {
 
 export interface RuntimeControllerDependencies {
   readonly api?: RuntimeApi;
+  readonly clipboard?: ClipboardWriter;
+  readonly createId?: () => string;
   readonly document?: Document;
   readonly mutationObserver?: typeof MutationObserver;
+  readonly now?: () => string;
+  readonly promptComposer?: PromptComposer;
   readonly reactAdapter?: ReactAdapter;
   readonly resizeObserver?: typeof ResizeObserver;
   readonly view?: RuntimeView;
@@ -40,6 +68,13 @@ interface PointerPosition {
   readonly y: number;
 }
 
+const EMPTY_STYLE_CONTEXT = Object.freeze({
+  classNames: Object.freeze([]),
+  matchedRules: Object.freeze([]),
+  computed: Object.freeze({}),
+  warnings: Object.freeze(["CSS context collection failed."]),
+}) satisfies StyleContext;
+
 function elementLabel(element: Element): string {
   const id = element.id.length > 0 ? `#${element.id}` : "";
   const className = Array.from(element.classList)
@@ -47,70 +82,6 @@ function elementLabel(element: Element): string {
     .map((name) => `.${name}`)
     .join("");
   return `<${element.tagName.toLowerCase()}${id}${className}>`;
-}
-
-const CONFIDENCE_LABELS = Object.freeze({
-  exact: "精确元素源码",
-  probable: "可能的所属组件",
-  approximate: "最近业务容器",
-  unknown: "未找到源码",
-} satisfies Record<SourceConfidence, string>);
-
-function sourceLocation(
-  resolution: ElementSourceResolution,
-  context: CodeContext | undefined,
-): string {
-  const path = context?.relativePath ?? resolution.source.relativePath;
-  const line = resolution.source.line;
-  const column = resolution.source.column;
-
-  if (path !== undefined && line !== undefined) {
-    return `${path}:${String(line)}${column === undefined ? "" : `:${String(column)}`}`;
-  }
-
-  if (path !== undefined) {
-    return path;
-  }
-
-  if (line !== undefined) {
-    return `line ${String(line)}${column === undefined ? "" : `, column ${String(column)}`}`;
-  }
-
-  return "Unavailable";
-}
-
-function selectionSummary(
-  resolution: ElementSourceResolution,
-  context?: CodeContext,
-  requestStatus?: "loading" | "failed",
-): string {
-  const lines = [
-    `Source: ${sourceLocation(resolution, context)}`,
-    `Confidence: ${resolution.source.confidence} (${CONFIDENCE_LABELS[resolution.source.confidence]})`,
-    `Origin: ${resolution.source.origin}`,
-  ];
-
-  if (resolution.react.componentName !== undefined) {
-    lines.push(`Component: ${resolution.react.componentName}`);
-  }
-
-  if (resolution.react.componentStack.length > 0) {
-    lines.push(`Stack: ${resolution.react.componentStack.join(" > ")}`);
-  }
-
-  if (!resolution.react.supported && resolution.react.version !== undefined) {
-    lines.push(`React ${resolution.react.version}: unsupported`);
-  }
-
-  if (context !== undefined) {
-    lines.push(`Boundary: ${context.boundary}`);
-  } else if (requestStatus === "loading") {
-    lines.push("Source context: loading…");
-  } else if (requestStatus === "failed") {
-    lines.push("Source context: unavailable");
-  }
-
-  return lines.join("\n");
 }
 
 function resolveBrowserDependencies(
@@ -146,6 +117,14 @@ export function createController(
       fetch: browser.window.fetch.bind(browser.window),
       sessionToken: config.sessionToken,
     });
+  const promptComposer =
+    dependencies.promptComposer ??
+    createPromptComposer({ maxCharacters: config.budget.totalCharacters });
+  const clipboard =
+    dependencies.clipboard ?? resolveClipboardWriter(browser.window.navigator);
+  const createId =
+    dependencies.createId ?? (() => createBrowserAnnotationId(browser.window));
+  const now = dependencies.now ?? (() => new Date().toISOString());
   const sourceResolver = createSourceResolver({
     adapter:
       dependencies.reactAdapter ??
@@ -165,10 +144,18 @@ export function createController(
   let state: RuntimeState = INITIAL_RUNTIME_STATE;
   let mounted = false;
   let animationFrame: number | undefined;
+  let collectionTimer: number | undefined;
   let lastPointer: PointerPosition | undefined;
   let selectedElement: Element | undefined;
+  let selectedElementContext: ElementContext | undefined;
   let selectedMarker: SourceMarker | undefined;
   let selectedResolution: ElementSourceResolution | undefined;
+  let selectedStyleContext: StyleContext | undefined;
+  let selectedCodeContext: CodeContext | undefined;
+  let apiConnectionStatus: ApiConnectionStatus = "not-required";
+  let collectionStatus: CollectionStatus = "loading";
+  let annotationNote = "";
+  let previewPrompt = "";
   let selectionRevision = 0;
   let previousFocus: HTMLElement | undefined;
   let resizeObserver: ResizeObserver | undefined;
@@ -177,6 +164,76 @@ export function createController(
   function transition(event: RuntimeEvent): void {
     state = reduceRuntimeState(state, event);
     view.renderStatus(state.status);
+  }
+
+  function canPreview(): boolean {
+    return (
+      annotationNote.trim().length > 0 &&
+      selectedElementContext !== undefined &&
+      selectedStyleContext !== undefined &&
+      apiConnectionStatus !== "loading"
+    );
+  }
+
+  function hasActiveSelection(): boolean {
+    return (
+      state.status === "selected" ||
+      state.status === "annotating" ||
+      state.status === "previewing"
+    );
+  }
+
+  function refreshSelectionView(): void {
+    if (selectedResolution === undefined) {
+      return;
+    }
+
+    view.updateSelection(
+      createSelectionSummary({
+        resolution: selectedResolution,
+        ...(selectedCodeContext === undefined ? {} : { code: selectedCodeContext }),
+        ...(selectedStyleContext === undefined ? {} : { styles: selectedStyleContext }),
+        apiStatus: apiConnectionStatus,
+        collectionStatus,
+        spotPatchVersion: config.spotPatchVersion,
+        viteVersion: config.viteVersion,
+      }),
+      selectedMarker !== undefined,
+      canPreview(),
+    );
+  }
+
+  function selectedAnnotation(): SpotAnnotation | undefined {
+    if (
+      selectedResolution === undefined ||
+      selectedElementContext === undefined ||
+      selectedStyleContext === undefined ||
+      !canPreview()
+    ) {
+      return undefined;
+    }
+
+    const warnings = [
+      ...(apiConnectionStatus === "failed"
+        ? ["Source context could not be loaded."]
+        : []),
+      ...(collectionStatus === "failed"
+        ? ["Part of the browser context could not be collected."]
+        : []),
+    ];
+
+    return createAnnotation({
+      id: createId(),
+      note: annotationNote,
+      createdAt: now(),
+      page: collectPageContext(browser.document, browser.window),
+      source: selectedResolution.source,
+      react: selectedResolution.react,
+      element: selectedElementContext,
+      styles: selectedStyleContext,
+      ...(selectedCodeContext === undefined ? {} : { code: selectedCodeContext }),
+      warnings,
+    });
   }
 
   function showElementHighlight(element: Element): void {
@@ -194,10 +251,21 @@ export function createController(
   function releaseSelection(): void {
     selectionRevision += 1;
     api.cancelPending();
+    if (collectionTimer !== undefined) {
+      browser.window.clearTimeout(collectionTimer);
+      collectionTimer = undefined;
+    }
     resizeObserver?.disconnect();
     selectedElement = undefined;
+    selectedElementContext = undefined;
     selectedMarker = undefined;
     selectedResolution = undefined;
+    selectedStyleContext = undefined;
+    selectedCodeContext = undefined;
+    apiConnectionStatus = "not-required";
+    collectionStatus = "loading";
+    annotationNote = "";
+    previewPrompt = "";
     view.hideSelection();
     restoreFocus();
   }
@@ -253,20 +321,17 @@ export function createController(
         maxLines: config.budget.maxCodeLines,
       });
 
-      if (mounted && revision === selectionRevision && state.status === "selected") {
-        if (selectedResolution !== undefined) {
-          view.updateSelection(selectionSummary(selectedResolution, context), true);
-        }
+      if (mounted && revision === selectionRevision && hasActiveSelection()) {
+        selectedCodeContext = context;
+        apiConnectionStatus = "connected";
+        refreshSelectionView();
         view.announce("Source context loaded.");
       }
     } catch (error: unknown) {
-      if (mounted && revision === selectionRevision && state.status === "selected") {
-        if (selectedResolution !== undefined) {
-          view.updateSelection(
-            selectionSummary(selectedResolution, undefined, "failed"),
-            true,
-          );
-        }
+      if (mounted && revision === selectionRevision && hasActiveSelection()) {
+        selectedCodeContext = undefined;
+        apiConnectionStatus = "failed";
+        refreshSelectionView();
         view.announce("Source context could not be loaded.");
 
         if (
@@ -279,29 +344,87 @@ export function createController(
     }
   }
 
+  function scheduleBrowserContextCollection(element: Element, revision: number): void {
+    collectionTimer = browser.window.setTimeout(() => {
+      collectionTimer = undefined;
+
+      if (!mounted || revision !== selectionRevision || !hasActiveSelection()) {
+        return;
+      }
+
+      let failed = false;
+
+      try {
+        selectedElementContext = collectElementContext({
+          element,
+          maxCharacters: config.budget.domCharacters,
+        });
+      } catch {
+        selectedElementContext = undefined;
+        failed = true;
+      }
+
+      try {
+        selectedStyleContext = collectStyleContext({
+          document: browser.document,
+          element,
+          maxCharacters: config.budget.cssCharacters,
+        });
+      } catch {
+        selectedStyleContext = EMPTY_STYLE_CONTEXT;
+        failed = true;
+      }
+
+      collectionStatus = failed ? "failed" : "ready";
+      refreshSelectionView();
+      view.announce(
+        failed
+          ? "Browser context collection completed with a warning."
+          : "Browser context collected.",
+      );
+
+      if (config.debug && selectedStyleContext.warnings.length > 0) {
+        console.warn(
+          `[spotpatch:runtime] CSS collection completed with ${String(selectedStyleContext.warnings.length)} warning(s).`,
+        );
+      }
+    }, 0);
+  }
+
   function selectElement(element: Element): void {
     previousFocus =
       browser.document.activeElement instanceof HTMLElement
         ? browser.document.activeElement
         : undefined;
     selectedElement = element;
+    selectedElementContext = undefined;
     selectedResolution = sourceResolver.resolve(element);
     selectedMarker = sourceRefToMarker(selectedResolution.source);
+    selectedStyleContext = undefined;
+    selectedCodeContext = undefined;
+    apiConnectionStatus = selectedMarker === undefined ? "not-required" : "loading";
+    collectionStatus = "loading";
+    annotationNote = "";
+    previewPrompt = "";
     selectionRevision += 1;
     const revision = selectionRevision;
     transition({ type: "SELECT" });
     showElementHighlight(element);
     view.showSelection(
-      selectionSummary(
-        selectedResolution,
-        undefined,
-        selectedMarker === undefined ? undefined : "loading",
-      ),
+      createSelectionSummary({
+        resolution: selectedResolution,
+        apiStatus: apiConnectionStatus,
+        collectionStatus,
+        spotPatchVersion: config.spotPatchVersion,
+        viteVersion: config.viteVersion,
+      }),
       selectedMarker !== undefined,
+      false,
     );
     view.focusDialog();
     resizeObserver?.disconnect();
     resizeObserver?.observe(element);
+    scheduleBrowserContextCollection(element, revision);
 
     if (selectedMarker !== undefined) {
       void loadSourceContext(selectedMarker, revision);
@@ -378,8 +501,10 @@ export function createController(
         close();
       } else if (state.status === "annotating") {
         transition({ type: "CANCEL_NOTE" });
+        view.focusDialog();
       } else {
         transition({ type: "BACK" });
+        view.focusDialog();
       }
 
       return;
@@ -397,11 +522,17 @@ export function createController(
   }
 
   function refreshSelectedGeometry(): void {
-    if (selectedElement === undefined || state.status !== "selected") {
+    if (selectedElement === undefined || !hasActiveSelection()) {
       return;
     }
 
     if (!selectedElement.isConnected) {
+      if (state.status === "annotating") {
+        transition({ type: "CANCEL_NOTE" });
+      } else if (state.status === "previewing") {
+        transition({ type: "BACK" });
+      }
+
       beginReselect("The selected element was removed. Choose another element.");
       return;
     }
@@ -435,6 +566,108 @@ export function createController(
       });
   }
 
+  function handleAddNote(): void {
+    if (state.status !== "selected") {
+      return;
+    }
+
+    transition({ type: "ADD_NOTE" });
+    view.showAnnotation(annotationNote);
+    view.focusNote();
+  }
+
+  function handleSaveNote(): void {
+    if (state.status !== "annotating") {
+      return;
+    }
+
+    annotationNote = view.readNote().trim();
+    transition({ type: "SAVE" });
+    refreshSelectionView();
+    view.focusDialog();
+    view.announce(
+      annotationNote.length === 0
+        ? "A problem description is required before previewing."
+        : "Problem description saved.",
+    );
+  }
+
+  function handleCancelNote(): void {
+    if (state.status !== "annotating") {
+      return;
+    }
+
+    transition({ type: "CANCEL_NOTE" });
+    view.focusDialog();
+    view.announce("Problem description was not changed.");
+  }
+
+  function handlePreview(): void {
+    if (state.status !== "selected") {
+      return;
+    }
+
+    const annotation = selectedAnnotation();
+
+    if (annotation === undefined) {
+      view.announce("Complete the problem description and context collection first.");
+      return;
+    }
+
+    previewPrompt = promptComposer.compose(annotation);
+    transition({ type: "PREVIEW" });
+    view.showPreview(previewPrompt);
+    view.focusPrompt();
+  }
+
+  function handleCopy(): void {
+    if (state.status !== "previewing" || previewPrompt.length === 0) {
+      return;
+    }
+
+    if (clipboard === undefined) {
+      transition({ type: "COPY_FAILURE" });
+      view.focusPrompt();
+      view.announce("Clipboard access is unavailable. Select the prompt manually.");
+      return;
+    }
+
+    const revision = selectionRevision;
+    void clipboard
+      .writeText(previewPrompt)
+      .then(() => {
+        if (
+          mounted &&
+          revision === selectionRevision &&
+          state.status === "previewing"
+        ) {
+          transition({ type: "COPY_SUCCESS" });
+          view.focusDialog();
+          view.announce("Prompt copied to the clipboard.");
+        }
+      })
+      .catch(() => {
+        if (
+          mounted &&
+          revision === selectionRevision &&
+          state.status === "previewing"
+        ) {
+          transition({ type: "COPY_FAILURE" });
+          view.focusPrompt();
+          view.announce("Copy failed. Select the prompt manually.");
+        }
+      });
+  }
+
+  function handleBack(): void {
+    if (state.status !== "previewing") {
+      return;
+    }
+
+    transition({ type: "BACK" });
+    view.focusDialog();
+  }
+
   function handleTrigger(): void {
     activate();
   }
@@ -462,6 +695,12 @@ export function createController(
     view.triggerButton.addEventListener("click", handleTrigger);
     view.reselectButton.addEventListener("click", handleReselect);
     view.openEditorButton.addEventListener("click", handleOpenEditor);
+    view.addNoteButton.addEventListener("click", handleAddNote);
+    view.saveNoteButton.addEventListener("click", handleSaveNote);
+    view.cancelNoteButton.addEventListener("click", handleCancelNote);
+    view.previewButton.addEventListener("click", handlePreview);
+    view.copyButton.addEventListener("click", handleCopy);
+    view.backButton.addEventListener("click", handleBack);
     view.closeButton.addEventListener("click", handleClose);
 
     if (browser.resizeObserver !== undefined) {
@@ -498,6 +737,12 @@ export function createController(
     view.triggerButton.removeEventListener("click", handleTrigger);
     view.reselectButton.removeEventListener("click", handleReselect);
     view.openEditorButton.removeEventListener("click", handleOpenEditor);
+    view.addNoteButton.removeEventListener("click", handleAddNote);
+    view.saveNoteButton.removeEventListener("click", handleSaveNote);
+    view.cancelNoteButton.removeEventListener("click", handleCancelNote);
+    view.previewButton.removeEventListener("click", handlePreview);
+    view.copyButton.removeEventListener("click", handleCopy);
+    view.backButton.removeEventListener("click", handleBack);
     view.closeButton.removeEventListener("click", handleClose);
 
     if (animationFrame !== undefined) {
@@ -505,13 +750,23 @@ export function createController(
       animationFrame = undefined;
     }
 
+    if (collectionTimer !== undefined) {
+      browser.window.clearTimeout(collectionTimer);
+      collectionTimer = undefined;
+    }
+
     resizeObserver?.disconnect();
     mutationObserver?.disconnect();
     resizeObserver = undefined;
     mutationObserver = undefined;
     selectedElement = undefined;
+    selectedElementContext = undefined;
     selectedMarker = undefined;
     selectedResolution = undefined;
+    selectedStyleContext = undefined;
+    selectedCodeContext = undefined;
+    annotationNote = "";
+    previewPrompt = "";
     lastPointer = undefined;
     previousFocus = undefined;
     api.dispose();

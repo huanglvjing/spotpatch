@@ -7,4 +7,6 @@ export interface RuntimeConfig {
   readonly redact: boolean;
   readonly sessionToken: string;
   readonly shortcut: string;
+  readonly spotPatchVersion: string;
+  readonly viteVersion: string;
 }

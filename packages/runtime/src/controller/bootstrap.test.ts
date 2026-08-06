@@ -23,6 +23,8 @@ const config = Object.freeze({
   redact: true,
   sessionToken: "session-token",
   shortcut: "Mod+Shift+S",
+  spotPatchVersion: "0.0.0",
+  viteVersion: "7.3.6",
 }) satisfies RuntimeConfig;
 
 type RuntimeGlobal = typeof globalThis & {

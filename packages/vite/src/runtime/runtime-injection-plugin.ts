@@ -2,7 +2,8 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import type { Plugin } from "vite";
+import packageMetadata from "../../package.json" with { type: "json" };
+import { version as VITE_VERSION, type Plugin } from "vite";
 
 import type { ResolvedSpotPatchOptions } from "../options.js";
 import type { SpotPatchSession } from "../session/session.js";
@@ -33,6 +34,8 @@ function createClientModule(
     redact: input.options.redact,
     sessionToken: input.session.token,
     shortcut: input.options.shortcut,
+    spotPatchVersion: packageMetadata.version,
+    viteVersion: VITE_VERSION,
   };
 
   return [

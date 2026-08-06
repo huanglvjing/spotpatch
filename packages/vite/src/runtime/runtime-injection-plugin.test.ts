@@ -62,6 +62,8 @@ describe("runtime injection plugin", () => {
 
     expect(code).toContain("browser-session-token");
     expect(code).toContain("Alt+S");
+    expect(code).toContain('"spotPatchVersion":"0.0.0"');
+    expect(code).toContain('"viteVersion"');
     expect(code).toContain("SPOTPATCH_API_BASE");
     expect(code).not.toContain(SPOTPATCH_API_BASE);
     expect(code).not.toContain(process.cwd());

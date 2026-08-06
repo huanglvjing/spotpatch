@@ -6,6 +6,7 @@ version: "1.0.0"
 last-updated: "2026-08-06"
 source-range: "运行验收证据；非规格拆分"
 参考文献/依赖:
+  - "06-source-resolution"
   - "09-local-protocol-security"
   - "12-testing-acceptance"
   - "13-project-integration"
@@ -14,7 +15,7 @@ source-range: "运行验收证据；非规格拆分"
 
 # shengsuanyun-web v1 验收报告
 
-本文记录 Milestone 5 的可复现运行证据，不新增或改写规范事实。完成标准以测试与验收
+本文记录实施计划 Milestone 5 (见 doc-id:14-implementation-plan) 的可复现运行证据，不新增或改写规范事实。完成标准以测试与验收
 规范为准 (见 doc-id:12-testing-acceptance)，目标项目约束以接入规范为准
 (见 doc-id:13-project-integration)。
 

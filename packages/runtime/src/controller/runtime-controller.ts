@@ -1,4 +1,5 @@
-import type { CodeContext, SourceMarker } from "@spotpatch/shared";
+import { createReact18Adapter, type ReactAdapter } from "@spotpatch/react-adapter";
+import type { CodeContext, SourceConfidence, SourceMarker } from "@spotpatch/shared";
 
 import { createRuntimeApi, type RuntimeApi } from "../api/runtime-api.js";
 import { isTextEntryTarget, matchesShortcut } from "../keyboard/shortcut.js";
@@ -10,9 +11,13 @@ import {
   type RuntimeEvent,
   type RuntimeState,
 } from "../state/runtime-state.js";
+import {
+  createSourceResolver,
+  sourceRefToMarker,
+  type ElementSourceResolution,
+} from "../source/source-resolver.js";
 import { createRuntimeView, type RuntimeView } from "../ui/runtime-view.js";
 import type { RuntimeConfig } from "./runtime-config.js";
-import { findSourceMarker } from "./source-marker.js";
 
 export interface SpotPatchController {
   readonly dispose: () => void;
@@ -24,6 +29,7 @@ export interface RuntimeControllerDependencies {
   readonly api?: RuntimeApi;
   readonly document?: Document;
   readonly mutationObserver?: typeof MutationObserver;
+  readonly reactAdapter?: ReactAdapter;
   readonly resizeObserver?: typeof ResizeObserver;
   readonly view?: RuntimeView;
   readonly window?: Window;
@@ -43,14 +49,68 @@ function elementLabel(element: Element): string {
   return `<${element.tagName.toLowerCase()}${id}${className}>`;
 }
 
-function selectedSummary(marker: SourceMarker | undefined): string {
-  return marker === undefined
-    ? "Source unavailable: no injected source marker was found."
-    : `Source location: line ${String(marker.line)}, column ${String(marker.column)}\nLoading source context…`;
+const CONFIDENCE_LABELS = Object.freeze({
+  exact: "精确元素源码",
+  probable: "可能的所属组件",
+  approximate: "最近业务容器",
+  unknown: "未找到源码",
+} satisfies Record<SourceConfidence, string>);
+
+function sourceLocation(
+  resolution: ElementSourceResolution,
+  context: CodeContext | undefined,
+): string {
+  const path = context?.relativePath ?? resolution.source.relativePath;
+  const line = resolution.source.line;
+  const column = resolution.source.column;
+
+  if (path !== undefined && line !== undefined) {
+    return `${path}:${String(line)}${column === undefined ? "" : `:${String(column)}`}`;
+  }
+
+  if (path !== undefined) {
+    return path;
+  }
+
+  if (line !== undefined) {
+    return `line ${String(line)}${column === undefined ? "" : `, column ${String(column)}`}`;
+  }
+
+  return "Unavailable";
 }
 
-function sourceSummary(context: CodeContext, marker: SourceMarker): string {
-  return `${context.relativePath}:${String(marker.line)}:${String(marker.column)}\nBoundary: ${context.boundary}`;
+function selectionSummary(
+  resolution: ElementSourceResolution,
+  context?: CodeContext,
+  requestStatus?: "loading" | "failed",
+): string {
+  const lines = [
+    `Source: ${sourceLocation(resolution, context)}`,
+    `Confidence: ${resolution.source.confidence} (${CONFIDENCE_LABELS[resolution.source.confidence]})`,
+    `Origin: ${resolution.source.origin}`,
+  ];
+
+  if (resolution.react.componentName !== undefined) {
+    lines.push(`Component: ${resolution.react.componentName}`);
+  }
+
+  if (resolution.react.componentStack.length > 0) {
+    lines.push(`Stack: ${resolution.react.componentStack.join(" > ")}`);
+  }
+
+  if (!resolution.react.supported && resolution.react.version !== undefined) {
+    lines.push(`React ${resolution.react.version}: unsupported`);
+  }
+
+  if (context !== undefined) {
+    lines.push(`Boundary: ${context.boundary}`);
+  } else if (requestStatus === "loading") {
+    lines.push("Source context: loading…");
+  } else if (requestStatus === "failed") {
+    lines.push("Source context: unavailable");
+  }
+
+  return lines.join("\n");
 }
 
 function resolveBrowserDependencies(
@@ -86,12 +146,29 @@ export function createController(
       fetch: browser.window.fetch.bind(browser.window),
       sessionToken: config.sessionToken,
     });
+  const sourceResolver = createSourceResolver({
+    adapter:
+      dependencies.reactAdapter ??
+      createReact18Adapter({
+        maxComponentDepth: config.budget.maxComponentDepth,
+      }),
+    onAdapterError() {
+      view.announce("React inspection was disabled after an adapter failure.");
+
+      if (config.debug) {
+        console.warn(
+          "[spotpatch:react] Adapter failed and was disabled for this session.",
+        );
+      }
+    },
+  });
   let state: RuntimeState = INITIAL_RUNTIME_STATE;
   let mounted = false;
   let animationFrame: number | undefined;
   let lastPointer: PointerPosition | undefined;
   let selectedElement: Element | undefined;
   let selectedMarker: SourceMarker | undefined;
+  let selectedResolution: ElementSourceResolution | undefined;
   let selectionRevision = 0;
   let previousFocus: HTMLElement | undefined;
   let resizeObserver: ResizeObserver | undefined;
@@ -120,6 +197,7 @@ export function createController(
     resizeObserver?.disconnect();
     selectedElement = undefined;
     selectedMarker = undefined;
+    selectedResolution = undefined;
     view.hideSelection();
     restoreFocus();
   }
@@ -176,15 +254,19 @@ export function createController(
       });
 
       if (mounted && revision === selectionRevision && state.status === "selected") {
-        view.updateSelection(sourceSummary(context, marker), true);
+        if (selectedResolution !== undefined) {
+          view.updateSelection(selectionSummary(selectedResolution, context), true);
+        }
         view.announce("Source context loaded.");
       }
     } catch (error: unknown) {
       if (mounted && revision === selectionRevision && state.status === "selected") {
-        view.updateSelection(
-          `Source location: line ${String(marker.line)}, column ${String(marker.column)}\nSource context could not be loaded.`,
-          true,
-        );
+        if (selectedResolution !== undefined) {
+          view.updateSelection(
+            selectionSummary(selectedResolution, undefined, "failed"),
+            true,
+          );
+        }
         view.announce("Source context could not be loaded.");
 
         if (
@@ -203,12 +285,20 @@ export function createController(
         ? browser.document.activeElement
         : undefined;
     selectedElement = element;
-    selectedMarker = findSourceMarker(element);
+    selectedResolution = sourceResolver.resolve(element);
+    selectedMarker = sourceRefToMarker(selectedResolution.source);
     selectionRevision += 1;
     const revision = selectionRevision;
     transition({ type: "SELECT" });
     showElementHighlight(element);
-    view.showSelection(selectedSummary(selectedMarker), selectedMarker !== undefined);
+    view.showSelection(
+      selectionSummary(
+        selectedResolution,
+        undefined,
+        selectedMarker === undefined ? undefined : "loading",
+      ),
+      selectedMarker !== undefined,
+    );
     view.focusDialog();
     resizeObserver?.disconnect();
     resizeObserver?.observe(element);
@@ -216,7 +306,11 @@ export function createController(
     if (selectedMarker !== undefined) {
       void loadSourceContext(selectedMarker, revision);
     } else {
-      view.announce("No source marker was found for the selected element.");
+      view.announce(
+        selectedResolution.source.confidence === "probable"
+          ? "A probable React component was found without an authorized file token."
+          : "No authorized source marker was found for the selected element.",
+      );
     }
   }
 
@@ -391,6 +485,7 @@ export function createController(
     if (!mounted) {
       view.dispose();
       api.dispose();
+      sourceResolver.dispose();
       return;
     }
 
@@ -416,9 +511,11 @@ export function createController(
     mutationObserver = undefined;
     selectedElement = undefined;
     selectedMarker = undefined;
+    selectedResolution = undefined;
     lastPointer = undefined;
     previousFocus = undefined;
     api.dispose();
+    sourceResolver.dispose();
     view.dispose();
     state = INITIAL_RUNTIME_STATE;
   }

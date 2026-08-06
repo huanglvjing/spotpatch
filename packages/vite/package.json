@@ -27,7 +27,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean",
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean && tsup --config tsup.runtime-client.config.ts",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

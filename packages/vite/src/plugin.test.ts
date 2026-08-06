@@ -12,6 +12,7 @@ describe("spotPatch", () => {
 
     expect(plugins.map(({ name }) => name)).toEqual([
       "spotpatch:transform",
+      "spotpatch:runtime-injection",
       "spotpatch:server",
     ]);
     expect(plugins.every(({ apply }) => apply === "serve")).toBe(true);

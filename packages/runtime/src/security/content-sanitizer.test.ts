@@ -41,6 +41,22 @@ describe("content sanitizer", () => {
     );
   });
 
+  it("redacts quoted form values and URL credentials in source text", () => {
+    const source = `
+      <input defaultValue="never-leak-password" name="password" />
+      <a href="https://demo:credential@example.test/callback?token=never-leak-token">
+        Continue
+      </a>
+    `;
+    const sanitized = redactSensitiveText(source);
+
+    expect(sanitized).not.toContain("never-leak-password");
+    expect(sanitized).not.toContain("never-leak-token");
+    expect(sanitized).not.toContain("credential");
+    expect(sanitized).toContain('defaultValue="[redacted]"');
+    expect(sanitized).toContain("https://[redacted]@example.test");
+  });
+
   it("cleans URL credentials, secret query parameters, blob URLs, and fragments", () => {
     const sanitized = sanitizeUrl(
       "https://person:password@example.com/callback?token=abc&view=wide#api-key=def",

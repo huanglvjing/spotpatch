@@ -9,9 +9,11 @@ import {
 } from "@spotpatch/shared";
 
 import type { SourceRegistry } from "../registry/source-registry.js";
+import { extractCodeContext } from "./extract-code-context.js";
 import { resolveSourceFile } from "./source-file.js";
 
 export interface ReadSourceContextOptions {
+  readonly maxCharacters: number;
   readonly maxLines: number;
   readonly registry: SourceRegistry;
   readonly request: SourceContextRequest;
@@ -53,19 +55,16 @@ export async function readSourceContext(
     throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
   }
 
-  const lineLimit = Math.min(options.request.maxLines, options.maxLines);
-  const initialStart = Math.max(1, options.request.line - Math.floor(lineLimit / 2));
-  const endLine = Math.min(lines.length, initialStart + lineLimit - 1);
-  const startLine = Math.max(1, endLine - lineLimit + 1);
-  const excerpt = lines.slice(startLine - 1, endLine).join("\n");
   const extension = path.extname(sourcePath).toLowerCase();
 
-  return Object.freeze({
+  return extractCodeContext({
+    source,
+    sourcePath,
     relativePath: toDisplayPath(await realpath(options.root), sourcePath),
     language: extension === ".tsx" ? "tsx" : "jsx",
-    startLine,
-    endLine,
-    excerpt,
-    boundary: "nearby-lines",
+    line: options.request.line,
+    column: options.request.column,
+    maxLines: Math.min(options.request.maxLines, options.maxLines),
+    maxCharacters: options.maxCharacters,
   });
 }

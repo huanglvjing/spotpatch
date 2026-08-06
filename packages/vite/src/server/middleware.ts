@@ -124,6 +124,7 @@ async function handleSourceContext(
     request: parsed.data,
     registry: options.registry,
     root: options.root,
+    maxCharacters: options.options.budget.codeCharacters,
     maxLines: options.options.budget.maxCodeLines,
   });
 }

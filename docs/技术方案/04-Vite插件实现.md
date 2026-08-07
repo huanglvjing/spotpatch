@@ -2,15 +2,17 @@
 doc-id: "04-vite-plugin"
 title: "Vite 插件实现"
 status: "active"
-version: "1.0.0"
-last-updated: "2026-08-06"
-source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6"
+version: "1.1.0"
+last-updated: "2026-08-07"
+source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界"
 参考文献/依赖:
   - "02-architecture-stack"
   - "03-public-api-models"
   - "09-local-protocol-security"
   - "11-coding-standards"
   - "15-risks-adr"
+  - "16-ai-agent-execution"
+  - "17-model-provider-credentials"
 ---
 
 # Vite 插件实现
@@ -44,6 +46,8 @@ export function spotPatch(
 ```
 
 每个插件都设置 `apply: "serve"`。不能只依赖 `import.meta.env.DEV`，因为生产零残留必须在构建层就阻断。
+
+`createServerPlugin` 只负责把经过解析的配置、registry、会话与项目 root 交给窄接口 handler。`options.ai === false` 时不得加载 provider adapter、创建 Agent Engine、注册 Agent endpoint、解析 Key 或调用 Git；启用后的本地执行职责仍属于 Agent 模块 (见 doc-id:16-ai-agent-execution)，provider 连接职责属于模型提供商模块 (见 doc-id:17-model-provider-credentials)。AST transform、source marker 和 source map 链路不得因为 AI 开关产生行为差异。
 
 ## Transform 过滤
 

@@ -2,9 +2,9 @@
 doc-id: "05-runtime-lifecycle"
 title: "Runtime 与生命周期"
 status: "active"
-version: "1.0.0"
+version: "1.1.0"
 last-updated: "2026-08-07"
-source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘元素选择器’、§10.1–§10.3"
+source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘元素选择器’、§10.1–§10.3；v1.1 Agent Runtime 生命周期"
 参考文献/依赖:
   - "03-public-api-models"
   - "04-vite-plugin"
@@ -12,6 +12,8 @@ source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘�
   - "09-local-protocol-security"
   - "10-ui-diagnostics"
   - "12-testing-acceptance"
+  - "16-ai-agent-execution"
+  - "17-model-provider-credentials"
 ---
 
 # Runtime 与生命周期
@@ -83,6 +85,7 @@ inspecting
 selected
   ├─ RESELECT → inspecting
   ├─ PREVIEW → previewing
+  ├─ RUN_AGENT → selected + AgentJob
   ├─ OPEN_EDITOR → selected
   └─ CLOSE → idle
 previewing
@@ -94,6 +97,18 @@ previewing
 状态转换由纯 reducer 实现；DOM 副作用统一放在 controller 中。禁止让多个 UI 组件各自修改全局状态。
 
 问题描述输入框是 `selected` 状态的直接编辑面，不设独立 `annotating` 状态，也不要求用户执行“添加说明”或“保存说明”。每次输入只更新当前选择的内存数据和 Preview 可用性，不触发文件写入；选中完成后输入框必须立即获得焦点。进入 `previewing` 后返回，应恢复 `selected` 状态并重新聚焦该输入框。
+
+## Agent Job 生命周期
+
+AI Job 是与元素选择状态正交的服务端状态，不把 `running`、`validating` 等状态塞入上述选择 reducer；公共状态枚举只有一处定义 (见 doc-id:03-public-api-models)，完整转换和取消语义由 Agent 执行规范定义 (见 doc-id:16-ai-agent-execution)。
+
+- `RUN_AGENT` 必须冻结当前 `SpotAnnotation`、provider profile ID 和 model profile ID，再创建 Job；后续输入、选择或模型切换只影响新 Job。
+- 文本输入只更新本地草稿，不按键调用 provider；用户点击运行或按 `Mod+Enter` 才产生一次明确请求。
+- Runtime 通过带会话 token 的本地协议读取有序 Job 事件，并使用独立 `AbortController`；外部 provider URL 与 Key 永不进入 Runtime (见 doc-id:17-model-provider-credentials)。
+- 关闭面板不等于静默取消：运行中必须提供明确的“继续后台运行”或“取消任务”行为；v1.1 默认关闭面板时请求用户确认。
+- `dispose()`、Vite HMR 重载或页面卸载必须终止浏览器事件订阅并释放引用；服务端 Job 是否取消按本地协议的显式取消规则处理。
+- Apply 后业务 HMR 可能卸载当前目标元素。Runtime 必须清除陈旧 Element，并提示用户重新选择，不能继续用旧 rect 或 DOM 引用定位新页面。
+- Runtime 只展示脱敏 Job 快照、Diff 和检查结果；不能依据模型自然语言自行判定“已修改”或“检查通过”。
 
 ## 元素选择器
 

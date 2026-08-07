@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@rollup/pluginutils": "5.4.0",
+    "@spotpatch/agent": "workspace:^",
     "@spotpatch/react-adapter": "workspace:^",
     "@spotpatch/runtime": "workspace:^",
     "@spotpatch/shared": "workspace:^",

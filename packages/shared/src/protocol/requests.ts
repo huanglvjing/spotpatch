@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import type { SpotAnnotation } from "../model/annotation.js";
+
 const sourceCoordinatesSchema = z.strictObject({
   fileId: z.string().min(1).max(128),
   line: z.number().int().positive(),
@@ -98,6 +100,7 @@ export const agentJobCreateRequestSchema = z.strictObject({
   annotation: spotAnnotationRequestSchema,
   providerProfileId: profileIdSchema,
   modelProfileId: profileIdSchema,
+  providerDataConsent: z.literal(true),
 });
 
 export const agentJobActionRequestSchema = z.strictObject({});
@@ -105,4 +108,9 @@ export const agentJobActionRequestSchema = z.strictObject({});
 export type SourceContextRequest = z.infer<typeof sourceContextRequestSchema>;
 export type OpenEditorRequest = z.infer<typeof openEditorRequestSchema>;
 export type AgentCapabilityRequest = z.infer<typeof agentCapabilityRequestSchema>;
-export type AgentJobCreateRequest = z.infer<typeof agentJobCreateRequestSchema>;
+export interface AgentJobCreateRequest {
+  readonly annotation: SpotAnnotation;
+  readonly providerProfileId: string;
+  readonly modelProfileId: string;
+  readonly providerDataConsent: true;
+}

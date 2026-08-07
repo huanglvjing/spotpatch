@@ -27,7 +27,12 @@ import { AGENT_SYSTEM_INSTRUCTIONS, composeAgentUserPrompt } from "./agent-promp
 
 export interface AgentExecutionCallbacks {
   readonly onCheck?: (result: AgentCheckResult) => void;
-  readonly onPhase?: (message: string) => void;
+  readonly onPhase?: (
+    event: Readonly<{
+      phase: "preparing" | "running" | "validating";
+      message: string;
+    }>,
+  ) => void;
   readonly onTool?: (
     event: Readonly<{
       toolCallId: string;
@@ -90,7 +95,12 @@ export async function executeAgentChange(
 
   try {
     throwIfCancelled(controller.signal);
-    options.callbacks?.onPhase?.("Preparing isolated Git worktree.");
+    options.callbacks?.onPhase?.(
+      Object.freeze({
+        phase: "preparing",
+        message: "Preparing isolated Git worktree.",
+      }),
+    );
     worktree = await createIsolatedGitWorktree({
       root: options.root,
       signal: controller.signal,
@@ -98,7 +108,12 @@ export async function executeAgentChange(
         ? {}
         : { temporaryBase: options.temporaryBase }),
     });
-    options.callbacks?.onPhase?.("Running AI agent in isolated worktree.");
+    options.callbacks?.onPhase?.(
+      Object.freeze({
+        phase: "running",
+        message: "Running AI agent in isolated worktree.",
+      }),
+    );
     const executor = createAgentToolExecutor({
       checks: options.execution.checks,
       limits: options.execution.limits,
@@ -180,7 +195,12 @@ export async function executeAgentChange(
       throw new SpotPatchError(ERROR_CODES.AGENT_LIMIT_EXCEEDED);
     }
 
-    options.callbacks?.onPhase?.("Validating proposed changes.");
+    options.callbacks?.onPhase?.(
+      Object.freeze({
+        phase: "validating",
+        message: "Validating proposed changes.",
+      }),
+    );
     const initialChangeSet = await collectAgentChangeSet(
       worktree.root,
       executor.touchedPaths(),

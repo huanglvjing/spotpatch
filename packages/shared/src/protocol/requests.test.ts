@@ -80,6 +80,7 @@ describe("protocol request schemas", () => {
         annotation,
         providerProfileId: "relay",
         modelProfileId: "coding-model",
+        providerDataConsent: true,
       }).success,
     ).toBe(true);
     expect(
@@ -96,6 +97,7 @@ describe("protocol request schemas", () => {
         annotation,
         providerProfileId: "relay",
         modelProfileId: "coding-model",
+        providerDataConsent: true,
         baseURL: "https://attacker.example/v1",
         command: "rm",
         applyMode: "auto",
@@ -104,6 +106,17 @@ describe("protocol request schemas", () => {
     expect(
       agentJobCreateRequestSchema.safeParse({
         annotation: { ...annotation, note: "x".repeat(4_001) },
+        providerProfileId: "relay",
+        modelProfileId: "coding-model",
+        providerDataConsent: true,
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires explicit provider data consent for every job request", () => {
+    expect(
+      agentJobCreateRequestSchema.safeParse({
+        annotation,
         providerProfileId: "relay",
         modelProfileId: "coding-model",
       }).success,

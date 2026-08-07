@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import {
   ERROR_CODES,
+  SPOTPATCH_API_BASE,
   SPOTPATCH_ENDPOINTS,
   SpotPatchError,
   openEditorRequestSchema,
@@ -15,6 +16,8 @@ import {
 import type { ResolvedSpotPatchOptions } from "../options.js";
 import type { SourceRegistry } from "../registry/source-registry.js";
 import type { SpotPatchSession } from "../session/session.js";
+import type { AgentJobManager } from "../agent/job-manager.js";
+import { handleAgentRequest, matchAgentRequestPath } from "./agent-http.js";
 import { type EditorLauncher, launchVSCode } from "./editor.js";
 import { readJsonRequestBody } from "./request-body.js";
 import { assertRequestAuthorized } from "./request-security.js";
@@ -33,6 +36,7 @@ export interface SpotPatchServerLogger {
 }
 
 export interface CreateMiddlewareOptions {
+  readonly agentManager?: AgentJobManager;
   readonly editorLauncher?: EditorLauncher;
   readonly logger?: SpotPatchServerLogger;
   readonly options: ResolvedSpotPatchOptions;
@@ -198,33 +202,57 @@ export function createSpotPatchMiddleware(
 ): SpotPatchMiddleware {
   return (request, response, next) => {
     const path = requestPath(request);
+    const agentRoute = matchAgentRequestPath(path);
 
     if (
       path !== SPOTPATCH_ENDPOINTS.sourceContext &&
-      path !== SPOTPATCH_ENDPOINTS.openEditor
+      path !== SPOTPATCH_ENDPOINTS.openEditor &&
+      agentRoute === undefined &&
+      !path.startsWith(`${SPOTPATCH_API_BASE}/`)
     ) {
       next();
       return;
     }
 
     const handle = async (): Promise<void> => {
-      if (request.method !== "POST") {
-        throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
-      }
-
       assertRequestAuthorized(request, {
         allowLan: options.options.allowLan,
         sessionToken: options.session.token,
       });
 
       if (path === SPOTPATCH_ENDPOINTS.sourceContext) {
+        if (request.method !== "POST") {
+          throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+        }
+
         const data = await handleSourceContext(request, options);
         writeJson(response, 200, { ok: true, data });
         return;
       }
 
-      const data = await handleOpenEditor(request, options);
-      writeJson(response, 200, { ok: true, data });
+      if (path === SPOTPATCH_ENDPOINTS.openEditor) {
+        if (request.method !== "POST") {
+          throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+        }
+
+        const data = await handleOpenEditor(request, options);
+        writeJson(response, 200, { ok: true, data });
+        return;
+      }
+
+      if (agentRoute === undefined) {
+        throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+      }
+
+      await handleAgentRequest(
+        request,
+        response,
+        options,
+        agentRoute,
+        (target, status, data) => {
+          writeJson(target, status, { ok: true, data });
+        },
+      );
     };
 
     void handle().catch((error: unknown) => {

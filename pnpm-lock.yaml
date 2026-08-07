@@ -95,6 +95,9 @@ importers:
       '@rollup/pluginutils':
         specifier: 5.4.0
         version: 5.4.0(rollup@4.62.4)
+      '@spotpatch/agent':
+        specifier: workspace:^
+        version: link:../agent
       '@spotpatch/react-adapter':
         specifier: workspace:^
         version: link:../react-adapter

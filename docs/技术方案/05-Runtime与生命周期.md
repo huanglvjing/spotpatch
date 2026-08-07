@@ -3,7 +3,7 @@ doc-id: "05-runtime-lifecycle"
 title: "Runtime 与生命周期"
 status: "active"
 version: "1.0.0"
-last-updated: "2026-08-06"
+last-updated: "2026-08-07"
 source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘元素选择器’、§10.1–§10.3"
 参考文献/依赖:
   - "03-public-api-models"
@@ -81,13 +81,7 @@ inspecting
   ├─ SELECT → selected
   └─ CANCEL → idle
 selected
-  ├─ ADD_NOTE → annotating
   ├─ RESELECT → inspecting
-  └─ CLOSE → idle
-annotating
-  ├─ SAVE → selected
-  └─ CANCEL_NOTE → selected
-selected
   ├─ PREVIEW → previewing
   ├─ OPEN_EDITOR → selected
   └─ CLOSE → idle
@@ -98,6 +92,8 @@ previewing
 ```
 
 状态转换由纯 reducer 实现；DOM 副作用统一放在 controller 中。禁止让多个 UI 组件各自修改全局状态。
+
+问题描述输入框是 `selected` 状态的直接编辑面，不设独立 `annotating` 状态，也不要求用户执行“添加说明”或“保存说明”。每次输入只更新当前选择的内存数据和 Preview 可用性，不触发文件写入；选中完成后输入框必须立即获得焦点。进入 `previewing` 后返回，应恢复 `selected` 状态并重新聚焦该输入框。
 
 ## 元素选择器
 

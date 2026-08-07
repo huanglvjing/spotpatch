@@ -39,8 +39,67 @@ test("keeps the highlight aligned with the hovered and selected element", async 
   await expectHighlightToMatch(page, target);
 
   await target.click();
-  await expect(page.getByRole("dialog", { name: "Selected element" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Describe the change" })).toBeVisible();
   await expectHighlightToMatch(page, target);
+});
+
+test("places the contextual workbench with the selected element", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  const largeTarget = page.locator("main.page-shell");
+  await activatePicker(page);
+  await largeTarget.click({ position: { x: 4, y: 4 } });
+
+  const dialog = page.getByRole("dialog", { name: "Describe the change" });
+  await expect(dialog).toHaveAttribute("data-placement", "center");
+  await expect(
+    dialog.getByRole("textbox", { name: "What should change?" }),
+  ).toBeFocused();
+  const largeTargetBox = await largeTarget.boundingBox();
+  const centeredDialogBox = await dialog.boundingBox();
+
+  expect(largeTargetBox).not.toBeNull();
+  expect(centeredDialogBox).not.toBeNull();
+  if (largeTargetBox !== null && centeredDialogBox !== null) {
+    expect(centeredDialogBox.x).toBeGreaterThanOrEqual(largeTargetBox.x);
+    expect(centeredDialogBox.x + centeredDialogBox.width).toBeLessThanOrEqual(
+      largeTargetBox.x + largeTargetBox.width,
+    );
+  }
+
+  await dialog.getByRole("button", { name: "Reselect" }).click();
+  const compactTarget = page.getByRole("heading", {
+    name: "SpotPatch Playground",
+  });
+  await compactTarget.click();
+  await expect(dialog).not.toHaveAttribute("data-placement", "center");
+  const adjacentDialogBox = await dialog.boundingBox();
+
+  expect(adjacentDialogBox).not.toBeNull();
+  if (adjacentDialogBox !== null) {
+    expect(adjacentDialogBox.x).toBeGreaterThanOrEqual(16);
+    expect(adjacentDialogBox.y).toBeGreaterThanOrEqual(16);
+    expect(adjacentDialogBox.x + adjacentDialogBox.width).toBeLessThanOrEqual(
+      1280 - 16,
+    );
+    expect(adjacentDialogBox.y + adjacentDialogBox.height).toBeLessThanOrEqual(
+      800 - 16,
+    );
+  }
+
+  await dialog.locator(".spotpatch-diagnostics > summary").click();
+  const expandedDialogBox = await dialog.boundingBox();
+  expect(expandedDialogBox).not.toBeNull();
+  if (expandedDialogBox !== null) {
+    expect(expandedDialogBox.x).toBeGreaterThanOrEqual(16);
+    expect(expandedDialogBox.y).toBeGreaterThanOrEqual(16);
+    expect(expandedDialogBox.x + expandedDialogBox.width).toBeLessThanOrEqual(
+      1280 - 16,
+    );
+    expect(expandedDialogBox.y + expandedDialogBox.height).toBeLessThanOrEqual(
+      800 - 16,
+    );
+  }
 });
 
 test("selects a native element and sends an authorized editor request", async ({
@@ -68,7 +127,7 @@ test("selects a native element and sends an authorized editor request", async ({
 
   await page.getByRole("heading", { name: "SpotPatch Playground" }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Selected element" });
+  const dialog = page.getByRole("dialog", { name: "Describe the change" });
   await expect(dialog).toBeVisible();
   const summary = dialog.locator(".spotpatch-summary");
   await expect(summary).toContainText(/src\/main\.tsx:\d+:\d+/);
@@ -99,29 +158,21 @@ test("collects context and copies a bounded prompt", async ({ context, page }) =
   await activatePicker(page);
   await page.getByTestId("business-card-content").click();
 
-  const selectedDialog = page.getByRole("dialog", { name: "Selected element" });
+  const selectedDialog = page.getByRole("dialog", { name: "Describe the change" });
   await expect(selectedDialog).toBeVisible();
   await expect(selectedDialog.locator(".spotpatch-summary")).toContainText(
     "Boundary: component",
   );
-  await selectedDialog.getByRole("button", { name: "Add note" }).click();
-
-  const annotationDialog = page.getByRole("dialog", {
-    name: "Describe the issue",
-  });
-  await annotationDialog
+  await selectedDialog
     .getByRole("textbox", { name: "What should change?" })
     .fill("Align the business fixture content with its heading.");
-  await annotationDialog.getByRole("button", { name: "Save note" }).click();
-
-  await expect(selectedDialog).toBeVisible();
   const previewButton = selectedDialog.getByRole("button", {
     name: "Preview prompt",
   });
   await expect(previewButton).toBeEnabled();
   await previewButton.click();
 
-  const previewDialog = page.getByRole("dialog", { name: "Prompt preview" });
+  const previewDialog = page.getByRole("dialog", { name: "Prompt ready" });
   const promptOutput = previewDialog.getByLabel("Generated prompt");
   await expect(promptOutput).toContainText("## 问题");
   await expect(promptOutput).toContainText(
@@ -153,7 +204,7 @@ test("resolves an Ant Design Button to its probable business call site", async (
   await activatePicker(page);
   await page.getByRole("button", { name: "Open AntD modal" }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Selected element" });
+  const dialog = page.getByRole("dialog", { name: "Describe the change" });
   await expect(dialog).toBeVisible();
   const summary = dialog.locator(".spotpatch-summary");
   await expect(summary).toContainText("Source: src/main.tsx:");
@@ -181,7 +232,7 @@ test("selects Ant Design portal content and traces it to the business component"
   await activatePicker(page);
   await page.getByText("AntD portal fixture").click();
 
-  const dialog = page.getByRole("dialog", { name: "Selected element" });
+  const dialog = page.getByRole("dialog", { name: "Describe the change" });
   await expect(dialog).toBeVisible();
   const summary = dialog.locator(".spotpatch-summary");
   await expect(summary).toContainText("Source: src/main.tsx:");

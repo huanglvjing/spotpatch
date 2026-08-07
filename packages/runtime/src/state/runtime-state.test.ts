@@ -17,13 +17,10 @@ describe("runtime state reducer", () => {
     ["inspecting", "HOVER", "inspecting"],
     ["inspecting", "SELECT", "selected"],
     ["inspecting", "CANCEL", "idle"],
-    ["selected", "ADD_NOTE", "annotating"],
     ["selected", "RESELECT", "inspecting"],
     ["selected", "CLOSE", "idle"],
     ["selected", "PREVIEW", "previewing"],
     ["selected", "OPEN_EDITOR", "selected"],
-    ["annotating", "SAVE", "selected"],
-    ["annotating", "CANCEL_NOTE", "selected"],
     ["previewing", "COPY_SUCCESS", "selected"],
     ["previewing", "COPY_FAILURE", "previewing"],
     ["previewing", "BACK", "selected"],
@@ -34,8 +31,7 @@ describe("runtime state reducer", () => {
   it("ignores events that are invalid for the current state", () => {
     expect(transition("idle", "SELECT")).toBe("idle");
     expect(transition("inspecting", "PREVIEW")).toBe("inspecting");
-    expect(transition("selected", "SAVE")).toBe("selected");
-    expect(transition("annotating", "ACTIVATE")).toBe("annotating");
+    expect(transition("selected", "COPY_SUCCESS")).toBe("selected");
     expect(transition("previewing", "OPEN_EDITOR")).toBe("previewing");
   });
 

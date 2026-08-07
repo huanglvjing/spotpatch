@@ -1,5 +1,4 @@
-export type RuntimeStatus =
-  "idle" | "inspecting" | "selected" | "annotating" | "previewing";
+export type RuntimeStatus = "idle" | "inspecting" | "selected" | "previewing";
 
 export interface RuntimeState {
   readonly status: RuntimeStatus;
@@ -10,13 +9,10 @@ export type RuntimeEvent =
   | Readonly<{ type: "HOVER" }>
   | Readonly<{ type: "SELECT" }>
   | Readonly<{ type: "CANCEL" }>
-  | Readonly<{ type: "ADD_NOTE" }>
   | Readonly<{ type: "RESELECT" }>
   | Readonly<{ type: "CLOSE" }>
   | Readonly<{ type: "PREVIEW" }>
   | Readonly<{ type: "OPEN_EDITOR" }>
-  | Readonly<{ type: "SAVE" }>
-  | Readonly<{ type: "CANCEL_NOTE" }>
   | Readonly<{ type: "COPY_SUCCESS" }>
   | Readonly<{ type: "COPY_FAILURE" }>
   | Readonly<{ type: "BACK" }>;
@@ -25,7 +21,6 @@ const STATES = Object.freeze({
   idle: Object.freeze({ status: "idle" }),
   inspecting: Object.freeze({ status: "inspecting" }),
   selected: Object.freeze({ status: "selected" }),
-  annotating: Object.freeze({ status: "annotating" }),
   previewing: Object.freeze({ status: "previewing" }),
 } satisfies Record<RuntimeStatus, RuntimeState>);
 
@@ -50,8 +45,6 @@ function reduceInspecting(event: RuntimeEvent): RuntimeState {
 
 function reduceSelected(event: RuntimeEvent): RuntimeState {
   switch (event.type) {
-    case "ADD_NOTE":
-      return STATES.annotating;
     case "RESELECT":
       return STATES.inspecting;
     case "CLOSE":
@@ -63,12 +56,6 @@ function reduceSelected(event: RuntimeEvent): RuntimeState {
     default:
       return STATES.selected;
   }
-}
-
-function reduceAnnotating(event: RuntimeEvent): RuntimeState {
-  return event.type === "SAVE" || event.type === "CANCEL_NOTE"
-    ? STATES.selected
-    : STATES.annotating;
 }
 
 function reducePreviewing(event: RuntimeEvent): RuntimeState {
@@ -94,8 +81,6 @@ export function reduceRuntimeState(
       return reduceInspecting(event);
     case "selected":
       return reduceSelected(event);
-    case "annotating":
-      return reduceAnnotating(event);
     case "previewing":
       return reducePreviewing(event);
   }

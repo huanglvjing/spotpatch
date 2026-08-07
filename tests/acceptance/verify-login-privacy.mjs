@@ -53,11 +53,13 @@ try {
   await page.getByRole("button", { name: "Select element" }).click();
   await page.mouse.click(formPoint?.x ?? 0, formPoint?.y ?? 0);
 
-  const selectedDialog = page.getByRole("dialog", { name: "Selected element" });
+  const selectedDialog = page.getByRole("dialog", {
+    name: "Describe the change",
+  });
   await selectedDialog.waitFor({ state: "visible" });
   const summary = selectedDialog.locator(".spotpatch-summary");
   await assert.doesNotReject(async () => {
-    await summary.waitFor({ state: "visible" });
+    await summary.waitFor({ state: "attached" });
   });
   await page.waitForFunction(() => {
     const root = document.querySelector("spotpatch-root")?.shadowRoot;
@@ -66,18 +68,10 @@ try {
       ?.textContent.includes("Browser context: ready");
   });
   const summaryText = (await summary.textContent()) ?? "";
-  await selectedDialog.getByRole("button", { name: "Add note" }).click();
-
-  const annotationDialog = page.getByRole("dialog", {
-    name: "Describe the issue",
-  });
-  await annotationDialog
+  await selectedDialog
     .getByRole("textbox", { name: "What should change?" })
     .fill("Review the login layout without exposing credentials.");
-  await annotationDialog.getByRole("button", { name: "Save note" }).click();
-
-  const readyDialog = page.getByRole("dialog", { name: "Selected element" });
-  const previewButton = readyDialog.getByRole("button", {
+  const previewButton = selectedDialog.getByRole("button", {
     name: "Preview prompt",
   });
   await previewButton.waitFor({ state: "visible" });
@@ -86,7 +80,7 @@ try {
 
   const prompt =
     (await page
-      .getByRole("dialog", { name: "Prompt preview" })
+      .getByRole("dialog", { name: "Prompt ready" })
       .getByLabel("Generated prompt")
       .textContent()) ?? "";
   const leakedSecrets = Object.values(secrets).filter((secret) =>

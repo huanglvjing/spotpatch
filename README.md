@@ -45,7 +45,7 @@ export default defineConfig({
 ```
 
 启动 Vite 开发服务器后，点击右下角 `Select element`，或使用
-`Mod+Shift+S`，即可完成“选择元素 → 添加说明 → 预览 Prompt → 复制”。生产构建
+`Mod+Shift+S`，即可完成“选择元素 → 直接输入修改要求 → 预览 Prompt → 复制”。生产构建
 不会注入 runtime、source marker 或本地协议端点。
 
 接入选项、默认值和安全边界分别见公共 API 与安全规范

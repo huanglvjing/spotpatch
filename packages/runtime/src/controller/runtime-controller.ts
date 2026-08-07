@@ -176,11 +176,7 @@ export function createController(
   }
 
   function hasActiveSelection(): boolean {
-    return (
-      state.status === "selected" ||
-      state.status === "annotating" ||
-      state.status === "previewing"
-    );
+    return state.status === "selected" || state.status === "previewing";
   }
 
   function refreshSelectionView(): void {
@@ -224,7 +220,7 @@ export function createController(
 
     return createAnnotation({
       id: createId(),
-      note: annotationNote,
+      note: annotationNote.trim(),
       createdAt: now(),
       page: collectPageContext(browser.document, browser.window),
       source: selectedResolution.source,
@@ -274,9 +270,6 @@ export function createController(
     if (state.status === "inspecting") {
       transition({ type: "CANCEL" });
     } else if (state.status === "selected") {
-      transition({ type: "CLOSE" });
-    } else if (state.status === "annotating") {
-      transition({ type: "CANCEL_NOTE" });
       transition({ type: "CLOSE" });
     } else if (state.status === "previewing") {
       transition({ type: "BACK" });
@@ -421,7 +414,7 @@ export function createController(
       selectedMarker !== undefined,
       false,
     );
-    view.focusDialog();
+    view.focusNote();
     resizeObserver?.disconnect();
     resizeObserver?.observe(element);
     scheduleBrowserContextCollection(element, revision);
@@ -499,12 +492,9 @@ export function createController(
 
       if (state.status === "inspecting" || state.status === "selected") {
         close();
-      } else if (state.status === "annotating") {
-        transition({ type: "CANCEL_NOTE" });
-        view.focusDialog();
       } else {
         transition({ type: "BACK" });
-        view.focusDialog();
+        view.focusNote();
       }
 
       return;
@@ -527,9 +517,7 @@ export function createController(
     }
 
     if (!selectedElement.isConnected) {
-      if (state.status === "annotating") {
-        transition({ type: "CANCEL_NOTE" });
-      } else if (state.status === "previewing") {
+      if (state.status === "previewing") {
         transition({ type: "BACK" });
       }
 
@@ -566,40 +554,13 @@ export function createController(
       });
   }
 
-  function handleAddNote(): void {
+  function handleNoteInput(): void {
     if (state.status !== "selected") {
       return;
     }
 
-    transition({ type: "ADD_NOTE" });
-    view.showAnnotation(annotationNote);
-    view.focusNote();
-  }
-
-  function handleSaveNote(): void {
-    if (state.status !== "annotating") {
-      return;
-    }
-
-    annotationNote = view.readNote().trim();
-    transition({ type: "SAVE" });
-    refreshSelectionView();
-    view.focusDialog();
-    view.announce(
-      annotationNote.length === 0
-        ? "A problem description is required before previewing."
-        : "Problem description saved.",
-    );
-  }
-
-  function handleCancelNote(): void {
-    if (state.status !== "annotating") {
-      return;
-    }
-
-    transition({ type: "CANCEL_NOTE" });
-    view.focusDialog();
-    view.announce("Problem description was not changed.");
+    annotationNote = view.readNote();
+    view.setPreviewEnabled(canPreview());
   }
 
   function handlePreview(): void {
@@ -642,7 +603,7 @@ export function createController(
           state.status === "previewing"
         ) {
           transition({ type: "COPY_SUCCESS" });
-          view.focusDialog();
+          view.focusNote();
           view.announce("Prompt copied to the clipboard.");
         }
       })
@@ -665,7 +626,7 @@ export function createController(
     }
 
     transition({ type: "BACK" });
-    view.focusDialog();
+    view.focusNote();
   }
 
   function handleTrigger(): void {
@@ -695,9 +656,7 @@ export function createController(
     view.triggerButton.addEventListener("click", handleTrigger);
     view.reselectButton.addEventListener("click", handleReselect);
     view.openEditorButton.addEventListener("click", handleOpenEditor);
-    view.addNoteButton.addEventListener("click", handleAddNote);
-    view.saveNoteButton.addEventListener("click", handleSaveNote);
-    view.cancelNoteButton.addEventListener("click", handleCancelNote);
+    view.noteInput.addEventListener("input", handleNoteInput);
     view.previewButton.addEventListener("click", handlePreview);
     view.copyButton.addEventListener("click", handleCopy);
     view.backButton.addEventListener("click", handleBack);
@@ -737,9 +696,7 @@ export function createController(
     view.triggerButton.removeEventListener("click", handleTrigger);
     view.reselectButton.removeEventListener("click", handleReselect);
     view.openEditorButton.removeEventListener("click", handleOpenEditor);
-    view.addNoteButton.removeEventListener("click", handleAddNote);
-    view.saveNoteButton.removeEventListener("click", handleSaveNote);
-    view.cancelNoteButton.removeEventListener("click", handleCancelNote);
+    view.noteInput.removeEventListener("input", handleNoteInput);
     view.previewButton.removeEventListener("click", handlePreview);
     view.copyButton.removeEventListener("click", handleCopy);
     view.backButton.removeEventListener("click", handleBack);

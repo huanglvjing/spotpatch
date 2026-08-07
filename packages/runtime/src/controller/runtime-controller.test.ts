@@ -198,7 +198,7 @@ describe("runtime controller", () => {
     controller.dispose();
   });
 
-  it("collects context and completes the annotation, preview, and copy flow", async () => {
+  it("collects context and completes the direct-input, preview, and copy flow", async () => {
     document.title = "Runtime workflow";
     const target = document.createElement("button");
     target.className = "primary-action";
@@ -240,8 +240,6 @@ describe("runtime controller", () => {
       }),
     );
 
-    findShadowButton(shadowRoot, "Add note").click();
-    expect(controller.getState().status).toBe("annotating");
     const noteInput = shadowRoot?.querySelector<HTMLTextAreaElement>("textarea");
 
     if (noteInput === null || noteInput === undefined) {
@@ -249,8 +247,9 @@ describe("runtime controller", () => {
     }
 
     noteInput.value = "Align the profile action.";
-    findShadowButton(shadowRoot, "Save note").click();
+    noteInput.dispatchEvent(new Event("input", { bubbles: true }));
     expect(controller.getState().status).toBe("selected");
+    expect(shadowRoot?.activeElement).toBe(noteInput);
 
     const previewButton = findShadowButton(shadowRoot, "Preview prompt");
     await vi.waitFor(() => {
@@ -288,9 +287,7 @@ describe("runtime controller", () => {
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
     expect(controller.getState().status).toBe("selected");
-    expect(shadowRoot?.activeElement?.classList.contains("spotpatch-dialog")).toBe(
-      true,
-    );
+    expect(shadowRoot?.activeElement).toBe(noteInput);
 
     controller.dispose();
   });

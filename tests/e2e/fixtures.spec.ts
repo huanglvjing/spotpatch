@@ -13,7 +13,7 @@ const selectFixture = async (
   await activatePicker(page);
   await target.click(position === undefined ? undefined : { position });
 
-  const dialog = page.getByRole("dialog", { name: "Selected element" });
+  const dialog = page.getByRole("dialog", { name: "Describe the change" });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator(".spotpatch-summary")).toContainText(
     "Browser context: ready",
@@ -40,21 +40,15 @@ const previewPrompt = async (
   dialog: Locator,
   note: string,
 ): Promise<string> => {
-  await dialog.getByRole("button", { name: "Add note" }).click();
-  const annotationDialog = page.getByRole("dialog", { name: "Describe the issue" });
-  await annotationDialog
-    .getByRole("textbox", { name: "What should change?" })
-    .fill(note);
-  await annotationDialog.getByRole("button", { name: "Save note" }).click();
-  const selectedDialog = page.getByRole("dialog", { name: "Selected element" });
-  const previewButton = selectedDialog.getByRole("button", {
+  await dialog.getByRole("textbox", { name: "What should change?" }).fill(note);
+  const previewButton = dialog.getByRole("button", {
     name: "Preview prompt",
   });
   await expect(previewButton).toBeEnabled();
   await previewButton.click();
 
   const prompt = page
-    .getByRole("dialog", { name: "Prompt preview" })
+    .getByRole("dialog", { name: "Prompt ready" })
     .getByLabel("Generated prompt");
   await expect(prompt).toContainText(note);
   return (await prompt.textContent()) ?? "";
@@ -138,8 +132,8 @@ test("collects Tailwind and CSS Module runtime styles", async ({ page }) => {
   expect(prompt).toContain("background-color:");
 
   await page
-    .getByRole("dialog", { name: "Prompt preview" })
-    .getByRole("button", { name: "Close" })
+    .getByRole("dialog", { name: "Prompt ready" })
+    .getByRole("button", { name: "Close SpotPatch" })
     .click();
   dialog = await selectFixture(page, page.getByTestId("css-module-card"), {
     x: 6,

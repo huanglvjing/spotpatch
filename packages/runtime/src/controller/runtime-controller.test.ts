@@ -44,9 +44,16 @@ const context = Object.freeze({
 
 function createApi(): RuntimeApi {
   return {
+    agentCapability: vi.fn<RuntimeApi["agentCapability"]>(),
+    agentEvents: vi.fn<RuntimeApi["agentEvents"]>(),
+    agentResult: vi.fn<RuntimeApi["agentResult"]>(),
+    applyAgentJob: vi.fn<RuntimeApi["applyAgentJob"]>(),
+    cancelAgentJob: vi.fn<RuntimeApi["cancelAgentJob"]>(),
     cancelPending: vi.fn(),
+    createAgentJob: vi.fn<RuntimeApi["createAgentJob"]>(),
     dispose: vi.fn(),
     openEditor: vi.fn<RuntimeApi["openEditor"]>().mockResolvedValue(undefined),
+    revertAgentJob: vi.fn<RuntimeApi["revertAgentJob"]>(),
     sourceContext: vi.fn<RuntimeApi["sourceContext"]>().mockResolvedValue(context),
   };
 }
@@ -290,6 +297,232 @@ describe("runtime controller", () => {
     expect(controller.getState().status).toBe("selected");
     expect(shadowRoot?.activeElement).toBe(noteInput);
 
+    controller.dispose();
+  });
+
+  it("runs the consented Agent review, Apply, and Revert flow through public profile IDs", async () => {
+    const target = document.createElement("button");
+    target.textContent = "Save profile";
+    target.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-id:36:5");
+    document.body.append(target);
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue(visibleRect());
+    setHitTarget(target);
+    const jobId = "0123456789abcdefghijklmn";
+    const queued = Object.freeze({
+      jobId,
+      status: "queued" as const,
+      providerProfileId: "relay",
+      providerLabel: "Trusted Relay",
+      modelProfileId: "coder",
+      modelLabel: "Coding Model",
+      phaseMessage: "Agent job queued.",
+      createdAt: "2026-08-07T00:00:00.000Z",
+      updatedAt: "2026-08-07T00:00:00.000Z",
+      canCancel: true,
+      canApply: false,
+      canRevert: false,
+    });
+    const review = Object.freeze({
+      ...queued,
+      status: "awaiting-review" as const,
+      phaseMessage: "Validated changes are ready for review.",
+      updatedAt: "2026-08-07T00:00:02.000Z",
+      canApply: true,
+    });
+    const applied = Object.freeze({
+      ...review,
+      status: "applied" as const,
+      phaseMessage: "Changes were applied to local project files.",
+      updatedAt: "2026-08-07T00:00:03.000Z",
+      canCancel: false,
+      canApply: false,
+      canRevert: true,
+    });
+    const reverted = Object.freeze({
+      ...applied,
+      status: "reverted" as const,
+      phaseMessage: "The Agent change was safely reverted.",
+      updatedAt: "2026-08-07T00:00:04.000Z",
+      canRevert: false,
+    });
+    const result = Object.freeze({
+      jobId,
+      summary: "Clarified the profile action.",
+      diff: "diff --git a/src/App.tsx b/src/App.tsx\n-Save profile\n+Save changes\n",
+      files: Object.freeze([
+        Object.freeze({
+          relativePath: "src/App.tsx",
+          kind: "modified" as const,
+          additions: 1,
+          deletions: 1,
+        }),
+      ]),
+      checks: Object.freeze([
+        Object.freeze({
+          checkId: "typecheck",
+          label: "Typecheck",
+          status: "passed" as const,
+          durationMs: 42,
+          output: "No errors.",
+        }),
+      ]),
+    });
+    const api = createApi();
+    vi.mocked(api.agentCapability).mockResolvedValue({
+      providerProfileId: "relay",
+      providerLabel: "Trusted Relay",
+      modelProfileId: "coder",
+      modelLabel: "Coding Model",
+      protocol: "responses",
+      state: "agent-ready",
+      authenticated: true,
+      modelAvailable: true,
+      toolCalling: true,
+      toolResultContinuation: true,
+      streaming: true,
+      checkedAt: "2026-08-07T00:00:01.000Z",
+    });
+    vi.mocked(api.createAgentJob).mockResolvedValue(queued);
+    vi.mocked(api.agentEvents).mockImplementation((_id, onEvent) => {
+      onEvent({
+        schemaVersion: 1,
+        sequence: 1,
+        jobId,
+        status: "running",
+        timestamp: "2026-08-07T00:00:01.000Z",
+        type: "tool",
+        data: {
+          toolCallId: "call-1",
+          toolName: "read_file",
+          state: "succeeded",
+          relativePath: "src/App.tsx",
+        },
+      });
+      onEvent({
+        schemaVersion: 1,
+        sequence: 2,
+        jobId,
+        status: "awaiting-review",
+        timestamp: "2026-08-07T00:00:02.000Z",
+        type: "snapshot",
+        data: { snapshot: review },
+      });
+      return Promise.resolve();
+    });
+    vi.mocked(api.agentResult)
+      .mockResolvedValueOnce({ snapshot: review, result })
+      .mockResolvedValueOnce({ snapshot: applied, result })
+      .mockResolvedValueOnce({ snapshot: reverted, result });
+    vi.mocked(api.applyAgentJob).mockResolvedValue(applied);
+    vi.mocked(api.revertAgentJob).mockResolvedValue(reverted);
+    const agentConfig = Object.freeze({
+      ...config,
+      ai: Object.freeze({
+        enabled: true as const,
+        providers: Object.freeze([
+          Object.freeze({
+            id: "relay",
+            label: "Trusted Relay",
+            protocol: "responses" as const,
+            models: Object.freeze([
+              Object.freeze({ id: "coder", label: "Coding Model" }),
+            ]),
+            defaultModel: "coder",
+          }),
+        ]),
+        defaultProvider: "relay",
+        applyMode: "review" as const,
+      }),
+    }) satisfies RuntimeConfig;
+    const controller = createController(agentConfig, {
+      api,
+      createId: () => "annotation-id",
+      now: () => "2026-08-07T00:00:00.000Z",
+    });
+    controller.mount();
+    const shadowRoot = document.querySelector("spotpatch-root")?.shadowRoot;
+
+    shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+    target.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 30,
+      }),
+    );
+    const note = shadowRoot?.querySelector<HTMLTextAreaElement>("textarea");
+    const consent = shadowRoot?.querySelector<HTMLInputElement>(
+      ".spotpatch-consent input",
+    );
+    let runButton = findShadowButton(shadowRoot, "Verify & run");
+
+    if (
+      note === null ||
+      note === undefined ||
+      consent === null ||
+      consent === undefined
+    ) {
+      throw new Error("Expected Agent inputs.");
+    }
+
+    note.value = "Clarify the selected profile action.";
+    note.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(runButton.disabled).toBe(true);
+    });
+    findShadowButton(shadowRoot, "Test connection").click();
+    await vi.waitFor(() => {
+      expect(api.agentCapability).toHaveBeenCalledWith({
+        providerProfileId: "relay",
+        modelProfileId: "coder",
+      });
+      expect(findShadowButton(shadowRoot, "Run AI")).toBeDefined();
+    });
+    runButton = findShadowButton(shadowRoot, "Run AI");
+    consent.checked = true;
+    consent.dispatchEvent(new Event("change", { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(runButton.disabled).toBe(false);
+    });
+    runButton.click();
+
+    await vi.waitFor(() => {
+      expect(api.createAgentJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerProfileId: "relay",
+          modelProfileId: "coder",
+          providerDataConsent: true,
+        }),
+      );
+      expect(shadowRoot?.querySelector(".spotpatch-agent-diff")?.textContent).toContain(
+        "Save changes",
+      );
+    });
+    expect(api.agentCapability).toHaveBeenCalledOnce();
+    expect(shadowRoot?.textContent).toContain("Typecheck: passed");
+    expect(shadowRoot?.textContent).not.toContain("provider-model-v1");
+
+    const applyButton = findShadowButton(shadowRoot, "Apply changes");
+    applyButton.click();
+    applyButton.click();
+    await vi.waitFor(() => {
+      expect(api.applyAgentJob).toHaveBeenCalledWith(jobId);
+      expect(api.applyAgentJob).toHaveBeenCalledOnce();
+      expect(
+        shadowRoot?.querySelector<HTMLElement>(".spotpatch-highlight")?.hidden,
+      ).toBe(true);
+      expect(findShadowButton(shadowRoot, "Revert changes").hidden).toBe(false);
+    });
+
+    const revertButton = findShadowButton(shadowRoot, "Revert changes");
+    revertButton.click();
+    revertButton.click();
+    await vi.waitFor(() => {
+      expect(api.revertAgentJob).toHaveBeenCalledWith(jobId);
+      expect(api.revertAgentJob).toHaveBeenCalledOnce();
+      expect(shadowRoot?.textContent).toContain("safely reverted");
+    });
     controller.dispose();
   });
 

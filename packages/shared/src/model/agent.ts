@@ -128,23 +128,33 @@ export type RuntimeAiConfig =
       applyMode: AgentApplyMode;
     }>;
 
-export type AgentJobStatus =
-  | "queued"
-  | "preparing"
-  | "running"
-  | "validating"
-  | "awaiting-review"
-  | "applying"
-  | "applied"
-  | "completed"
-  | "cancelling"
-  | "cancelled"
-  | "reverting"
-  | "reverted"
-  | "failed";
+export const AGENT_JOB_STATUSES = Object.freeze([
+  "queued",
+  "preparing",
+  "running",
+  "validating",
+  "awaiting-review",
+  "applying",
+  "applied",
+  "completed",
+  "cancelling",
+  "cancelled",
+  "reverting",
+  "reverted",
+  "failed",
+] as const);
 
-export type AgentCapabilityState =
-  "unknown" | "probing" | "agent-ready" | "prompt-only" | "unavailable";
+export type AgentJobStatus = (typeof AGENT_JOB_STATUSES)[number];
+
+export const AGENT_CAPABILITY_STATES = Object.freeze([
+  "unknown",
+  "probing",
+  "agent-ready",
+  "prompt-only",
+  "unavailable",
+] as const);
+
+export type AgentCapabilityState = (typeof AGENT_CAPABILITY_STATES)[number];
 
 export interface AgentCapabilitySnapshot {
   readonly providerProfileId: string;
@@ -162,7 +172,22 @@ export interface AgentCapabilitySnapshot {
   readonly errorCode?: ErrorCode;
 }
 
-export type AgentFileChangeKind = "added" | "modified" | "deleted";
+export const AGENT_FILE_CHANGE_KINDS = Object.freeze([
+  "added",
+  "modified",
+  "deleted",
+] as const);
+
+export type AgentFileChangeKind = (typeof AGENT_FILE_CHANGE_KINDS)[number];
+
+export const AGENT_CHECK_STATUSES = Object.freeze([
+  "passed",
+  "failed",
+  "cancelled",
+  "timed-out",
+] as const);
+
+export type AgentCheckStatus = (typeof AGENT_CHECK_STATUSES)[number];
 
 export interface AgentChangedFile {
   readonly relativePath: string;
@@ -174,7 +199,7 @@ export interface AgentChangedFile {
 export interface AgentCheckResult {
   readonly checkId: string;
   readonly label: string;
-  readonly status: "passed" | "failed" | "cancelled" | "timed-out";
+  readonly status: AgentCheckStatus;
   readonly durationMs: number;
   readonly output: string;
 }

@@ -42,6 +42,7 @@ import {
   type ClipboardWriter,
 } from "./runtime-environment.js";
 import type { RuntimeConfig } from "./runtime-config.js";
+import { createAgentWorkflow } from "./agent-workflow.js";
 
 export interface SpotPatchController {
   readonly dispose: () => void;
@@ -109,7 +110,8 @@ export function createController(
 ): SpotPatchController {
   const browser = resolveBrowserDependencies(dependencies);
   const view =
-    dependencies.view ?? createRuntimeView(browser.document, config.shortcut);
+    dependencies.view ??
+    createRuntimeView(browser.document, config.shortcut, config.ai);
   const api =
     dependencies.api ??
     createRuntimeApi({
@@ -247,6 +249,7 @@ export function createController(
   function releaseSelection(): void {
     selectionRevision += 1;
     api.cancelPending();
+    agentWorkflow.disposeSelection();
     if (collectionTimer !== undefined) {
       browser.window.clearTimeout(collectionTimer);
       collectionTimer = undefined;
@@ -301,6 +304,28 @@ export function createController(
     view.hideHighlight();
     view.announce(message);
   }
+
+  function detachAppliedTarget(): void {
+    selectionRevision += 1;
+    resizeObserver?.disconnect();
+    selectedElement = undefined;
+    selectedMarker = undefined;
+    view.hideHighlight();
+    view.announce(
+      "Changes were applied. Revert is available; reselect before another request.",
+    );
+  }
+
+  const agentWorkflow = createAgentWorkflow({
+    ai: config.ai,
+    api,
+    getAnnotation: selectedAnnotation,
+    onApplied: detachAppliedTarget,
+    onReselectRequired() {
+      beginReselect("Choose the current element again after the file change.");
+    },
+    view,
+  });
 
   async function loadSourceContext(
     marker: SourceMarker,
@@ -401,6 +426,7 @@ export function createController(
     previewPrompt = "";
     selectionRevision += 1;
     const revision = selectionRevision;
+    agentWorkflow.beginSelection();
     transition({ type: "SELECT" });
     showElementHighlight(element);
     view.showSelection(
@@ -563,6 +589,18 @@ export function createController(
     view.setPreviewEnabled(canPreview());
   }
 
+  function handleNoteKeydown(event: KeyboardEvent): void {
+    if (
+      config.ai.enabled &&
+      state.status === "selected" &&
+      event.key === "Enter" &&
+      (event.metaKey || event.ctrlKey)
+    ) {
+      event.preventDefault();
+      agentWorkflow.run();
+    }
+  }
+
   function handlePreview(): void {
     if (state.status !== "selected") {
       return;
@@ -657,10 +695,26 @@ export function createController(
     view.reselectButton.addEventListener("click", handleReselect);
     view.openEditorButton.addEventListener("click", handleOpenEditor);
     view.noteInput.addEventListener("input", handleNoteInput);
+    view.noteInput.addEventListener("keydown", handleNoteKeydown);
     view.previewButton.addEventListener("click", handlePreview);
     view.copyButton.addEventListener("click", handleCopy);
     view.backButton.addEventListener("click", handleBack);
     view.closeButton.addEventListener("click", handleClose);
+    view.agentProviderSelect.addEventListener(
+      "change",
+      agentWorkflow.providerOrModelChanged,
+    );
+    view.agentModelSelect.addEventListener(
+      "change",
+      agentWorkflow.providerOrModelChanged,
+    );
+    view.agentConsentCheckbox.addEventListener("change", agentWorkflow.consentChanged);
+    view.agentTestButton.addEventListener("click", agentWorkflow.testCapability);
+    view.agentRunButton.addEventListener("click", agentWorkflow.run);
+    view.agentCancelButton.addEventListener("click", agentWorkflow.cancel);
+    view.agentApplyButton.addEventListener("click", agentWorkflow.apply);
+    view.agentRevertButton.addEventListener("click", agentWorkflow.revert);
+    view.agentResetButton.addEventListener("click", agentWorkflow.reset);
 
     if (browser.resizeObserver !== undefined) {
       resizeObserver = new browser.resizeObserver(refreshSelectedGeometry);
@@ -682,7 +736,9 @@ export function createController(
   function dispose(): void {
     if (!mounted) {
       view.dispose();
+      api.cancelPending();
       api.dispose();
+      agentWorkflow.disposeSelection();
       sourceResolver.dispose();
       return;
     }
@@ -697,10 +753,29 @@ export function createController(
     view.reselectButton.removeEventListener("click", handleReselect);
     view.openEditorButton.removeEventListener("click", handleOpenEditor);
     view.noteInput.removeEventListener("input", handleNoteInput);
+    view.noteInput.removeEventListener("keydown", handleNoteKeydown);
     view.previewButton.removeEventListener("click", handlePreview);
     view.copyButton.removeEventListener("click", handleCopy);
     view.backButton.removeEventListener("click", handleBack);
     view.closeButton.removeEventListener("click", handleClose);
+    view.agentProviderSelect.removeEventListener(
+      "change",
+      agentWorkflow.providerOrModelChanged,
+    );
+    view.agentModelSelect.removeEventListener(
+      "change",
+      agentWorkflow.providerOrModelChanged,
+    );
+    view.agentConsentCheckbox.removeEventListener(
+      "change",
+      agentWorkflow.consentChanged,
+    );
+    view.agentTestButton.removeEventListener("click", agentWorkflow.testCapability);
+    view.agentRunButton.removeEventListener("click", agentWorkflow.run);
+    view.agentCancelButton.removeEventListener("click", agentWorkflow.cancel);
+    view.agentApplyButton.removeEventListener("click", agentWorkflow.apply);
+    view.agentRevertButton.removeEventListener("click", agentWorkflow.revert);
+    view.agentResetButton.removeEventListener("click", agentWorkflow.reset);
 
     if (animationFrame !== undefined) {
       browser.window.cancelAnimationFrame(animationFrame);
@@ -726,7 +801,9 @@ export function createController(
     previewPrompt = "";
     lastPointer = undefined;
     previousFocus = undefined;
+    api.cancelPending();
     api.dispose();
+    agentWorkflow.disposeSelection();
     sourceResolver.dispose();
     view.dispose();
     state = INITIAL_RUNTIME_STATE;

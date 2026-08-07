@@ -1,9 +1,32 @@
+import type {
+  AgentCapabilitySnapshot,
+  AgentJobResult,
+  AgentJobSnapshot,
+  RuntimeAiConfig,
+} from "@spotpatch/shared";
+
 import type { ElementRect } from "../picker/geometry.js";
 import type { RuntimeStatus } from "../state/runtime-state.js";
+import {
+  AGENT_PANEL_STYLES,
+  createAgentPanel,
+  type AgentActivityItem,
+  type AgentSelectionValue,
+} from "./agent-panel.js";
 import { calculateDialogPlacement } from "./dialog-placement.js";
+import { createButton, createMarkedElement } from "./dom.js";
 import { UI_MARKER_ATTRIBUTE, UI_Z_INDEX } from "./ui-constants.js";
 
 export interface RuntimeView {
+  readonly agentApplyButton: HTMLButtonElement;
+  readonly agentCancelButton: HTMLButtonElement;
+  readonly agentConsentCheckbox: HTMLInputElement;
+  readonly agentModelSelect: HTMLSelectElement;
+  readonly agentProviderSelect: HTMLSelectElement;
+  readonly agentResetButton: HTMLButtonElement;
+  readonly agentRevertButton: HTMLButtonElement;
+  readonly agentRunButton: HTMLButtonElement;
+  readonly agentTestButton: HTMLButtonElement;
   readonly backButton: HTMLButtonElement;
   readonly closeButton: HTMLButtonElement;
   readonly copyButton: HTMLButtonElement;
@@ -19,8 +42,24 @@ export interface RuntimeView {
   readonly focusPrompt: () => void;
   readonly hideHighlight: () => void;
   readonly hideSelection: () => void;
+  readonly agentConsentGranted: () => boolean;
+  readonly readAgentSelection: () => AgentSelectionValue | undefined;
   readonly readNote: () => string;
+  readonly renderAgentCapability: (
+    state: "idle" | "probing" | "ready" | "error",
+    message: string,
+    capability?: AgentCapabilitySnapshot,
+  ) => void;
+  readonly renderAgentJob: (
+    snapshot: AgentJobSnapshot,
+    result: AgentJobResult | undefined,
+    activities: readonly AgentActivityItem[],
+    errorMessage?: string,
+  ) => void;
   readonly renderStatus: (status: RuntimeStatus) => void;
+  readonly resetAgentJob: () => void;
+  readonly setAgentEditingEnabled: (enabled: boolean) => void;
+  readonly setAgentProviderConsent: (granted: boolean) => void;
   readonly setPreviewEnabled: (enabled: boolean) => void;
   readonly showHighlight: (rect: ElementRect, label: string) => void;
   readonly showPreview: (prompt: string) => void;
@@ -39,29 +78,8 @@ export interface RuntimeView {
 const DIALOG_FALLBACK_WIDTH = 460;
 const DIALOG_FALLBACK_HEIGHT = Object.freeze({
   previewing: 560,
-  selected: 500,
+  selected: 620,
 }) satisfies Readonly<Record<"previewing" | "selected", number>>;
-
-function createMarkedElement<K extends keyof HTMLElementTagNameMap>(
-  document: Document,
-  tagName: K,
-): HTMLElementTagNameMap[K] {
-  const element = document.createElement(tagName);
-  element.setAttribute(UI_MARKER_ATTRIBUTE, "");
-  return element;
-}
-
-function createButton(
-  document: Document,
-  label: string,
-  className = "",
-): HTMLButtonElement {
-  const button = createMarkedElement(document, "button");
-  button.type = "button";
-  button.className = className;
-  button.textContent = label;
-  return button;
-}
 
 function createStyles(document: Document): HTMLStyleElement {
   const style = document.createElement("style");
@@ -483,6 +501,7 @@ function createStyles(document: Document): HTMLStyleElement {
       .spotpatch-actions button,
       .spotpatch-diagnostics > summary::before { transition: none; }
     }
+    ${AGENT_PANEL_STYLES}
   `;
   return style;
 }
@@ -494,7 +513,11 @@ function summaryLine(summary: string, prefix: string): string | undefined {
   return line?.slice(prefix.length + 2).trim();
 }
 
-export function createRuntimeView(document: Document, shortcut: string): RuntimeView {
+export function createRuntimeView(
+  document: Document,
+  shortcut: string,
+  ai: RuntimeAiConfig = Object.freeze({ enabled: false }),
+): RuntimeView {
   const host = document.createElement("spotpatch-root");
   host.setAttribute(UI_MARKER_ATTRIBUTE, "");
   const shadowRoot = host.attachShadow({ mode: "open" });
@@ -589,7 +612,8 @@ export function createRuntimeView(document: Document, shortcut: string): Runtime
   const summary = createMarkedElement(document, "pre");
   summary.className = "spotpatch-summary";
   diagnostics.append(diagnosticsLabel, summary);
-  selectionPanel.append(noteLabel, diagnostics);
+  const agentPanel = createAgentPanel(document, ai);
+  selectionPanel.append(noteLabel, diagnostics, agentPanel.root);
 
   const previewPanel = createMarkedElement(document, "div");
   previewPanel.className = "spotpatch-preview-panel";
@@ -609,7 +633,13 @@ export function createRuntimeView(document: Document, shortcut: string): Runtime
   const copyButton = createButton(document, "Copy prompt", "spotpatch-primary");
   const backButton = createButton(document, "Back to edit");
   actions.append(
+    agentPanel.runButton,
     previewButton,
+    agentPanel.testButton,
+    agentPanel.cancelButton,
+    agentPanel.applyButton,
+    agentPanel.revertButton,
+    agentPanel.resetButton,
     openEditorButton,
     reselectButton,
     copyButton,
@@ -634,6 +664,8 @@ export function createRuntimeView(document: Document, shortcut: string): Runtime
 
   let currentRect: ElementRect | undefined;
   let currentStatus: RuntimeStatus = "idle";
+  let currentCanOpenEditor = false;
+  let currentCanPreview = false;
 
   function placeDialog(): void {
     if (dialog.hidden || currentRect === undefined) {
@@ -695,9 +727,12 @@ export function createRuntimeView(document: Document, shortcut: string): Runtime
     canOpenEditor: boolean,
     canPreview: boolean,
   ): void {
+    currentCanOpenEditor = canOpenEditor;
+    currentCanPreview = canPreview;
     summary.textContent = summaryText;
     openEditorButton.disabled = !canOpenEditor;
     previewButton.disabled = !canPreview;
+    agentPanel.setContextReady(canPreview);
     updateContextOverview(summaryText);
     placeDialog();
   }
@@ -711,6 +746,7 @@ export function createRuntimeView(document: Document, shortcut: string): Runtime
     reselectButton.hidden = !selected;
     openEditorButton.hidden = !selected;
     previewButton.hidden = !selected;
+    agentPanel.setSelectionVisible(selected);
     copyButton.hidden = !previewing;
     backButton.hidden = !previewing;
     title.textContent = previewing ? "Prompt ready" : "Describe the change";
@@ -732,6 +768,15 @@ export function createRuntimeView(document: Document, shortcut: string): Runtime
     copyButton,
     backButton,
     closeButton,
+    agentProviderSelect: agentPanel.providerSelect,
+    agentModelSelect: agentPanel.modelSelect,
+    agentConsentCheckbox: agentPanel.consentCheckbox,
+    agentTestButton: agentPanel.testButton,
+    agentRunButton: agentPanel.runButton,
+    agentCancelButton: agentPanel.cancelButton,
+    agentApplyButton: agentPanel.applyButton,
+    agentRevertButton: agentPanel.revertButton,
+    agentResetButton: agentPanel.resetButton,
 
     renderStatus(status: RuntimeStatus): void {
       const inspecting = status === "inspecting";
@@ -771,7 +816,9 @@ export function createRuntimeView(document: Document, shortcut: string): Runtime
     updateSelection,
 
     setPreviewEnabled(enabled: boolean): void {
+      currentCanPreview = enabled;
       previewButton.disabled = !enabled;
+      agentPanel.setContextReady(enabled);
     },
 
     hideSelection(): void {
@@ -784,6 +831,12 @@ export function createRuntimeView(document: Document, shortcut: string): Runtime
       contextState.textContent = "Collecting context";
       openEditorButton.disabled = true;
       previewButton.disabled = true;
+      currentCanOpenEditor = false;
+      currentCanPreview = false;
+      agentPanel.setContextReady(false);
+      agentPanel.setSelectionVisible(false);
+      agentPanel.setEditingEnabled(true);
+      agentPanel.resetJob();
     },
 
     showPreview(prompt: string): void {
@@ -793,6 +846,55 @@ export function createRuntimeView(document: Document, shortcut: string): Runtime
 
     readNote(): string {
       return noteInput.value;
+    },
+
+    readAgentSelection(): AgentSelectionValue | undefined {
+      return agentPanel.readSelection();
+    },
+
+    agentConsentGranted(): boolean {
+      return agentPanel.consentGranted();
+    },
+
+    setAgentProviderConsent(granted: boolean): void {
+      agentPanel.setProviderConsent(granted);
+    },
+
+    setAgentEditingEnabled(enabled: boolean): void {
+      noteInput.disabled = !enabled;
+      reselectButton.disabled = !enabled;
+      openEditorButton.disabled = !enabled || !currentCanOpenEditor;
+      previewButton.disabled = !enabled || !currentCanPreview;
+      agentPanel.setEditingEnabled(enabled);
+      placeDialog();
+    },
+
+    renderAgentCapability(
+      state: "idle" | "probing" | "ready" | "error",
+      message: string,
+      capabilitySnapshot?: AgentCapabilitySnapshot,
+    ): void {
+      agentPanel.renderCapability(state, message, capabilitySnapshot);
+      const agentReady =
+        state === "ready" && capabilitySnapshot?.state === "agent-ready";
+      previewButton.classList.toggle("spotpatch-primary", !agentReady);
+      placeDialog();
+    },
+
+    renderAgentJob(
+      snapshot: AgentJobSnapshot,
+      result: AgentJobResult | undefined,
+      activities: readonly AgentActivityItem[],
+      errorMessage?: string,
+    ): void {
+      agentPanel.renderJob(snapshot, result, activities, errorMessage);
+      placeDialog();
+    },
+
+    resetAgentJob(): void {
+      agentPanel.resetJob();
+      noteInput.disabled = false;
+      placeDialog();
     },
 
     focusNote(): void {

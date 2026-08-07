@@ -12,6 +12,10 @@ export type {
 } from "./model/annotation.js";
 export type { CodeContext, ContextBudget } from "./model/code-context.js";
 export {
+  AGENT_CAPABILITY_STATES,
+  AGENT_CHECK_STATUSES,
+  AGENT_FILE_CHANGE_KINDS,
+  AGENT_JOB_STATUSES,
   DEFAULT_AGENT_LIMITS,
   type AgentApplyMode,
   type AgentCapabilitySnapshot,
@@ -19,6 +23,7 @@ export {
   type AgentChangedFile,
   type AgentCheckDefinition,
   type AgentCheckResult,
+  type AgentCheckStatus,
   type AgentFileChangeKind,
   type AgentJobResult,
   type AgentJobResultResponse,
@@ -72,4 +77,13 @@ export {
   type SourceContextRequest,
 } from "./protocol/requests.js";
 export type { AgentJobEvent } from "./protocol/agent-events.js";
+export {
+  agentCapabilitySnapshotSchema,
+  agentChangedFileSchema,
+  agentCheckResultSchema,
+  agentJobEventSchema,
+  agentJobResultResponseSchema,
+  agentJobResultSchema,
+  agentJobSnapshotSchema,
+} from "./protocol/agent-schemas.js";
 export type { ApiFailure, ApiResponse, ApiSuccess } from "./protocol/responses.js";

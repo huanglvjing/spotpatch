@@ -1,5 +1,10 @@
 // @vitest-environment jsdom
 
+import type {
+  AgentJobResult,
+  AgentJobSnapshot,
+  RuntimeAiConfig,
+} from "@spotpatch/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createRuntimeView } from "./runtime-view.js";
@@ -18,6 +23,21 @@ function measuredRect(width: number, height: number): DOMRect {
     toJSON: () => ({}),
   };
 }
+
+const aiConfig = Object.freeze({
+  enabled: true as const,
+  providers: Object.freeze([
+    Object.freeze({
+      id: "relay",
+      label: "Trusted Relay",
+      protocol: "responses" as const,
+      models: Object.freeze([Object.freeze({ id: "coder", label: "Coding Model" })]),
+      defaultModel: "coder",
+    }),
+  ]),
+  defaultProvider: "relay",
+  applyMode: "review" as const,
+}) satisfies RuntimeAiConfig;
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -129,5 +149,108 @@ describe("runtime view", () => {
 
     expect(dialog.dataset.placement).toBe("viewport");
     expect(dialog.style.top).toBe("85px");
+  });
+
+  it("gates Agent execution on context, capability, and explicit provider consent", () => {
+    const view = createRuntimeView(document, "Mod+Shift+S", aiConfig);
+
+    view.renderStatus("selected");
+    view.showSelection("Browser context: ready", true, true);
+
+    expect(view.readAgentSelection()).toEqual({
+      providerProfileId: "relay",
+      modelProfileId: "coder",
+    });
+    expect(view.agentProviderSelect.textContent).toBe("Trusted Relay");
+    expect(view.agentModelSelect.textContent).toBe("Coding Model");
+    expect(view.agentRunButton.disabled).toBe(true);
+    expect(view.agentRunButton.textContent).toBe("Verify & run");
+    expect(view.previewButton.classList.contains("spotpatch-primary")).toBe(true);
+    expect(view.host.shadowRoot?.textContent).toContain(
+      "selected context and allowed source may be sent to Trusted Relay",
+    );
+
+    view.setAgentProviderConsent(true);
+    view.renderAgentCapability(
+      "probing",
+      "Testing authentication, tools, continuation, and streaming…",
+    );
+    expect(view.agentTestButton.disabled).toBe(true);
+    expect(view.agentRunButton.disabled).toBe(true);
+    expect(view.agentRunButton.textContent).toBe("Verifying…");
+
+    view.renderAgentCapability("ready", "Agent capability verified", {
+      providerProfileId: "relay",
+      providerLabel: "Trusted Relay",
+      modelProfileId: "coder",
+      modelLabel: "Coding Model",
+      protocol: "responses",
+      state: "agent-ready",
+      authenticated: true,
+      modelAvailable: true,
+      toolCalling: true,
+      toolResultContinuation: true,
+      streaming: true,
+      checkedAt: "2026-08-07T00:00:00.000Z",
+    });
+    expect(view.agentRunButton.disabled).toBe(false);
+    expect(view.agentRunButton.textContent).toBe("Run AI");
+    expect(view.agentRunButton.classList.contains("spotpatch-primary")).toBe(true);
+    expect(view.previewButton.classList.contains("spotpatch-primary")).toBe(false);
+  });
+
+  it("renders provider-controlled Agent output only as inert text", () => {
+    const view = createRuntimeView(document, "Mod+Shift+S", aiConfig);
+    const jobId = "0123456789abcdefghijklmn";
+    const snapshot = Object.freeze({
+      jobId,
+      status: "awaiting-review",
+      providerProfileId: "relay",
+      providerLabel: "Trusted Relay",
+      modelProfileId: "coder",
+      modelLabel: "Coding Model",
+      phaseMessage: "Review the validated patch.",
+      createdAt: "2026-08-07T00:00:00.000Z",
+      updatedAt: "2026-08-07T00:00:01.000Z",
+      canCancel: true,
+      canApply: true,
+      canRevert: false,
+    }) satisfies AgentJobSnapshot;
+    const hostile = '<img src=x onerror="globalThis.compromised=true">';
+    const result = Object.freeze({
+      jobId,
+      summary: hostile,
+      diff: `+${hostile}`,
+      files: Object.freeze([
+        Object.freeze({
+          relativePath: `src/${hostile}.tsx`,
+          kind: "modified",
+          additions: 1,
+          deletions: 0,
+        }),
+      ]),
+      checks: Object.freeze([
+        Object.freeze({
+          checkId: "typecheck",
+          label: "Typecheck",
+          status: "failed",
+          durationMs: 8,
+          output: hostile,
+        }),
+      ]),
+    }) satisfies AgentJobResult;
+
+    view.renderStatus("selected");
+    view.showSelection("Browser context: ready", true, true);
+    view.renderAgentJob(snapshot, result, [], undefined);
+
+    const agent = view.host.shadowRoot?.querySelector(".spotpatch-agent");
+    expect(agent?.textContent).toContain(hostile);
+    expect(agent?.querySelector("img")).toBeNull();
+    expect(
+      view.host.shadowRoot?.querySelector(".spotpatch-agent-diff")?.textContent,
+    ).toBe(`+${hostile}`);
+    expect(view.agentApplyButton.hidden).toBe(false);
+    expect(view.agentRevertButton.hidden).toBe(true);
   });
 });

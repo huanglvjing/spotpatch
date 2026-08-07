@@ -21,6 +21,7 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
+      "@spotpatch/agent": ["packages/agent/src/index.ts"],
       "@spotpatch/shared": ["packages/shared/src/index.ts"],
       "@spotpatch/react-adapter": ["packages/react-adapter/src/index.ts"],
       "@spotpatch/runtime": ["packages/runtime/src/index.ts"],

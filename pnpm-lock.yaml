@@ -57,6 +57,12 @@ importers:
         specifier: 3.2.7
         version: 3.2.7(@types/node@20.19.33)(jiti@1.21.7)(jsdom@27.4.0)
 
+  packages/agent:
+    dependencies:
+      '@spotpatch/shared':
+        specifier: workspace:^
+        version: link:../shared
+
   packages/react-adapter:
     dependencies:
       '@spotpatch/shared':

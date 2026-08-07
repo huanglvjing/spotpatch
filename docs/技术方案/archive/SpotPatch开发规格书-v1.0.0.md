@@ -303,7 +303,7 @@ spotpatch/
 │     └─ tsconfig.json
 ├─ playgrounds/
 │  ├─ minimal-react-18/
-│  └─ shengsuanyun-fixtures/
+│  └─ spotpatch-fixtures/
 ├─ tests/
 │  ├─ e2e/
 │  │  ├─ selection.spec.ts
@@ -1587,7 +1587,7 @@ plugins: [
 
 ### Milestone 5：真实项目验收（1–2 天）
 
-- 接入 shengsuanyun-web。
+- 接入 spotpatch-web。
 - 分层抽样 50–100 个元素。
 - 记录 exact/probable/approximate/unknown。
 - 修复高频失败类别。
@@ -1636,7 +1636,7 @@ plugins: [
 - 是否释放新增监听器、Observer、timer、AbortController？
 - 是否增加对应单元测试/E2E？
 - 是否更新兼容矩阵或已知限制？
-- 是否验证 shengsuanyun-web 中至少一个真实场景？
+- 是否验证 spotpatch-web 中至少一个真实场景？
 
 合并前 required checks：
 

@@ -1,6 +1,6 @@
 ---
-doc-id: "acceptance-shengsuanyun-web-2026-08-06"
-title: "shengsuanyun-web v1 验收报告"
+doc-id: "acceptance-spotpatch-web-2026-08-06"
+title: "SpotPatch Web v1 验收报告"
 status: "active"
 version: "1.0.0"
 last-updated: "2026-08-06"
@@ -13,7 +13,7 @@ source-range: "运行验收证据；非规格拆分"
   - "14-implementation-plan"
 ---
 
-# shengsuanyun-web v1 验收报告
+# SpotPatch Web v1 验收报告
 
 本文记录实施计划 Milestone 5 (见 doc-id:14-implementation-plan) 的可复现运行证据，不新增或改写规范事实。完成标准以测试与验收
 规范为准 (见 doc-id:12-testing-acceptance)，目标项目约束以接入规范为准
@@ -40,7 +40,7 @@ Node 20.19/22 与 macOS/Ubuntu/Windows 的任务已进入 CI 矩阵；本报告�
 
 最终检查结果：
 
-- `shengsuanyun-web` 的 `git diff --exit-code` 为 0。
+- `spotpatch-web` 的 `git diff --exit-code` 为 0。
 - `git status --short` 无输出。
 - `node_modules/@spotpatch/vite` 不存在。
 - 未改动目标项目 198 个 TSX/JSX 文件，也未改动 lockfile。

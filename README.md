@@ -7,7 +7,7 @@ worktree 中执行受控 Agent 工具，并经 Diff 与检查审阅后修改本�
 
 规范入口：[docs/技术方案/00-索引与导航.md](./docs/技术方案/00-索引与导航.md)。
 真实项目验收证据：
-[docs/验收/2026-08-06-shengsuanyun-web-v1验收报告.md](./docs/验收/2026-08-06-shengsuanyun-web-v1验收报告.md)。
+[docs/验收/2026-08-06-spotpatch-web-v1验收报告.md](./docs/验收/2026-08-06-spotpatch-web-v1验收报告.md)。
 
 ## 支持范围
 

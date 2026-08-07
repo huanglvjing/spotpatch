@@ -1,5 +1,10 @@
 export { SpotPatchError } from "./errors/spotpatch-error.js";
 export { ERROR_CODES, type ErrorCode } from "./errors/error-code.js";
+export {
+  isSensitiveName,
+  redactSensitiveText,
+  sanitizeUrl,
+} from "./security/redaction.js";
 export type {
   ElementContext,
   PageContext,

@@ -32,7 +32,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@spotpatch/shared": "workspace:^"
+    "@spotpatch/shared": "workspace:^",
+    "zod": "4.4.3"
   },
   "publishConfig": {
     "access": "public"

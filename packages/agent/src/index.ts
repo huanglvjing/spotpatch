@@ -1,3 +1,8 @@
+export {
+  executeAgentChange,
+  type AgentExecutionCallbacks,
+  type ExecuteAgentChangeOptions,
+} from "./engine/execute-agent-change.js";
 export { probeProviderCapability } from "./provider/capability-probe.js";
 export { createOpenAICompatibleProviderSession } from "./provider/openai-compatible-provider.js";
 export {
@@ -13,3 +18,8 @@ export type {
   ProviderToolResult,
   ProviderTurn,
 } from "./provider/provider-types.js";
+export {
+  applyPreparedAgentChange,
+  revertPreparedAgentChange,
+  type PreparedAgentChange,
+} from "./worktree/prepared-change.js";

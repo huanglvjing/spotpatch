@@ -18,9 +18,9 @@ const TEST_ENVIRONMENT = Object.freeze({
 });
 
 const annotation = Object.freeze({
-  schemaVersion: 1,
+  schemaVersion: 3,
   id: "annotation-id",
-  note: "Make the selected button clearer.",
+  locale: "en-US",
   page: Object.freeze({
     url: "http://localhost:5173/",
     pathname: "/",
@@ -29,33 +29,38 @@ const annotation = Object.freeze({
     viewportHeight: 900,
     devicePixelRatio: 2,
   }),
-  source: Object.freeze({
-    fileId: "source-id",
-    relativePath: "src/App.tsx",
-    line: 12,
-    column: 5,
-    origin: "jsx-host",
-    confidence: "exact",
-  }),
-  react: Object.freeze({
-    supported: true,
-    componentName: "App",
-    componentStack: Object.freeze(["App"]),
-  }),
-  element: Object.freeze({
-    tagName: "button",
-    selector: "button.primary",
-    sanitizedHtml: '<button class="primary">Save</button>',
-    textPreview: "Save",
-    rect: Object.freeze({ x: 10, y: 20, width: 100, height: 40 }),
-  }),
-  styles: Object.freeze({
-    classNames: Object.freeze(["primary"]),
-    matchedRules: Object.freeze([]),
-    computed: Object.freeze({ display: "block" }),
-    warnings: Object.freeze([]),
-  }),
-  warnings: Object.freeze([]),
+  targets: Object.freeze([
+    Object.freeze({
+      instruction: "Make the selected button clearer.",
+      source: Object.freeze({
+        fileId: "source-id",
+        relativePath: "src/App.tsx",
+        line: 12,
+        column: 5,
+        origin: "jsx-host",
+        confidence: "exact",
+      }),
+      react: Object.freeze({
+        supported: true,
+        componentName: "App",
+        componentStack: Object.freeze(["App"]),
+      }),
+      element: Object.freeze({
+        tagName: "button",
+        selector: "button.primary",
+        sanitizedHtml: '<button class="primary">Save</button>',
+        textPreview: "Save",
+        rect: Object.freeze({ x: 10, y: 20, width: 100, height: 40 }),
+      }),
+      styles: Object.freeze({
+        classNames: Object.freeze(["primary"]),
+        matchedRules: Object.freeze([]),
+        computed: Object.freeze({ display: "block" }),
+        warnings: Object.freeze([]),
+      }),
+      warnings: Object.freeze([]),
+    }),
+  ]),
   createdAt: "2026-08-07T00:00:00.000Z",
 }) satisfies SpotAnnotation;
 

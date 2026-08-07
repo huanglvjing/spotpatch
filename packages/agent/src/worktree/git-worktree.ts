@@ -1,4 +1,4 @@
-import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { lstat, mkdtemp, realpath, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -79,6 +79,22 @@ interface CreateIsolatedWorktreeOptions {
   readonly temporaryBase?: string;
 }
 
+async function defaultTemporaryBase(root: string): Promise<string> {
+  const dependencyDirectory = path.join(root, "node_modules");
+
+  try {
+    const stats = await lstat(dependencyDirectory);
+
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      return os.tmpdir();
+    }
+
+    return await realpath(dependencyDirectory);
+  } catch {
+    return os.tmpdir();
+  }
+}
+
 export async function createIsolatedGitWorktree(
   options: CreateIsolatedWorktreeOptions,
 ): Promise<IsolatedGitWorktree> {
@@ -86,7 +102,8 @@ export async function createIsolatedGitWorktree(
     root: options.root,
     signal: options.signal,
   });
-  const temporaryBase = options.temporaryBase ?? os.tmpdir();
+  const temporaryBase =
+    options.temporaryBase ?? (await defaultTemporaryBase(baseline.root));
   const temporaryDirectory = await mkdtemp(
     path.join(temporaryBase, "spotpatch-agent-"),
   );

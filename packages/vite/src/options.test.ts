@@ -64,6 +64,22 @@ describe("resolveOptions", () => {
     expect(() => resolveOptions({ shortcut: "   " })).toThrow(RangeError);
   });
 
+  it("resolves only the supported UI locale preferences", () => {
+    expect(resolveOptions().locale).toBe("auto");
+    expect(resolveOptions({ locale: "en-US" }).locale).toBe("en-US");
+    expect(resolveOptions({ locale: "zh-CN" }).locale).toBe("zh-CN");
+    expect(() => resolveOptions({ locale: "fr-FR" as "en-US" })).toThrow(RangeError);
+  });
+
+  it("resolves a bounded multi-target limit", () => {
+    expect(resolveOptions().maxTargets).toBe(8);
+    expect(resolveOptions({ maxTargets: 12 }).maxTargets).toBe(12);
+
+    for (const maxTargets of [0, 21, 1.5, Number.NaN]) {
+      expect(() => resolveOptions({ maxTargets })).toThrow(RangeError);
+    }
+  });
+
   it("resolves and deeply freezes provider, model, check, and limit data", () => {
     const resolved = resolveOptions({ ai: aiOptions });
 

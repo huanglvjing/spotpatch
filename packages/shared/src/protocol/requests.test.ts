@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MAX_ANNOTATION_INSTRUCTION_CHARACTERS,
+  MAX_ANNOTATION_TARGETS,
+  MAX_TARGET_INSTRUCTION_CHARACTERS,
+} from "../model/annotation.js";
+import {
   agentCapabilityRequestSchema,
   agentJobCreateRequestSchema,
   openEditorRequestSchema,
@@ -8,9 +13,9 @@ import {
 } from "./requests.js";
 
 const annotation = Object.freeze({
-  schemaVersion: 1,
+  schemaVersion: 3,
   id: "annotation-id",
-  note: "Align the selected action.",
+  locale: "en-US",
   page: Object.freeze({
     url: "http://localhost:5173/",
     pathname: "/",
@@ -19,34 +24,39 @@ const annotation = Object.freeze({
     viewportHeight: 900,
     devicePixelRatio: 2,
   }),
-  source: Object.freeze({
-    fileId: "file-id",
-    relativePath: "src/App.tsx",
-    line: 12,
-    column: 5,
-    origin: "jsx-host",
-    confidence: "exact",
-  }),
-  react: Object.freeze({
-    supported: true,
-    version: "18.3.1",
-    componentName: "App",
-    componentStack: Object.freeze(["App"]),
-  }),
-  element: Object.freeze({
-    tagName: "button",
-    selector: "button.primary",
-    sanitizedHtml: '<button class="primary">Save</button>',
-    textPreview: "Save",
-    rect: Object.freeze({ x: 10, y: 20, width: 100, height: 40 }),
-  }),
-  styles: Object.freeze({
-    classNames: Object.freeze(["primary"]),
-    matchedRules: Object.freeze([]),
-    computed: Object.freeze({ display: "block" }),
-    warnings: Object.freeze([]),
-  }),
-  warnings: Object.freeze([]),
+  targets: Object.freeze([
+    Object.freeze({
+      instruction: "Align the selected action.",
+      source: Object.freeze({
+        fileId: "file-id",
+        relativePath: "src/App.tsx",
+        line: 12,
+        column: 5,
+        origin: "jsx-host",
+        confidence: "exact",
+      }),
+      react: Object.freeze({
+        supported: true,
+        version: "18.3.1",
+        componentName: "App",
+        componentStack: Object.freeze(["App"]),
+      }),
+      element: Object.freeze({
+        tagName: "button",
+        selector: "button.primary",
+        sanitizedHtml: '<button class="primary">Save</button>',
+        textPreview: "Save",
+        rect: Object.freeze({ x: 10, y: 20, width: 100, height: 40 }),
+      }),
+      styles: Object.freeze({
+        classNames: Object.freeze(["primary"]),
+        matchedRules: Object.freeze([]),
+        computed: Object.freeze({ display: "block" }),
+        warnings: Object.freeze([]),
+      }),
+      warnings: Object.freeze([]),
+    }),
+  ]),
   createdAt: "2026-08-07T00:00:00.000Z",
 });
 
@@ -105,7 +115,40 @@ describe("protocol request schemas", () => {
     ).toBe(false);
     expect(
       agentJobCreateRequestSchema.safeParse({
-        annotation: { ...annotation, note: "x".repeat(4_001) },
+        annotation: {
+          ...annotation,
+          targets: [
+            {
+              ...annotation.targets[0],
+              instruction: "x".repeat(MAX_TARGET_INSTRUCTION_CHARACTERS + 1),
+            },
+          ],
+        },
+        providerProfileId: "relay",
+        modelProfileId: "coding-model",
+        providerDataConsent: true,
+      }).success,
+    ).toBe(false);
+
+    const target = annotation.targets[0];
+
+    if (target === undefined) {
+      throw new Error("Expected an annotation target fixture.");
+    }
+
+    expect(
+      agentJobCreateRequestSchema.safeParse({
+        annotation: {
+          ...annotation,
+          targets: [
+            { ...target, instruction: "a".repeat(2_000) },
+            { ...target, instruction: "b".repeat(2_000) },
+            {
+              ...target,
+              instruction: "c".repeat(MAX_ANNOTATION_INSTRUCTION_CHARACTERS - 3_999),
+            },
+          ],
+        },
         providerProfileId: "relay",
         modelProfileId: "coding-model",
         providerDataConsent: true,
@@ -119,6 +162,34 @@ describe("protocol request schemas", () => {
         annotation,
         providerProfileId: "relay",
         modelProfileId: "coding-model",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("requires one target and enforces the protocol hard limit", () => {
+    const target = annotation.targets[0];
+
+    if (target === undefined) {
+      throw new Error("Expected an annotation target fixture.");
+    }
+
+    expect(
+      agentJobCreateRequestSchema.safeParse({
+        annotation: { ...annotation, targets: [] },
+        providerProfileId: "relay",
+        modelProfileId: "coding-model",
+        providerDataConsent: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      agentJobCreateRequestSchema.safeParse({
+        annotation: {
+          ...annotation,
+          targets: Array.from({ length: MAX_ANNOTATION_TARGETS + 1 }, () => target),
+        },
+        providerProfileId: "relay",
+        modelProfileId: "coding-model",
+        providerDataConsent: true,
       }).success,
     ).toBe(false);
   });

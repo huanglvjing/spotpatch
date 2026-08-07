@@ -13,7 +13,10 @@ import type {
   ProviderToolCall,
   ProviderToolResult,
 } from "../provider/provider-types.js";
-import { readAgentTextFile } from "../security/text-file.js";
+import {
+  readAgentTextFile,
+  writeAgentTextFileIfContentMatches,
+} from "../security/text-file.js";
 import {
   requireConfiguredCheck,
   runConfiguredCheck,
@@ -36,6 +39,11 @@ const readFileSchema = z.strictObject({
   path: z.string().min(1).max(1_024),
   startLine: z.number().int().positive().optional(),
   endLine: z.number().int().positive().optional(),
+});
+const replaceTextSchema = z.strictObject({
+  path: z.string().min(1).max(1_024),
+  oldText: z.string().min(1),
+  newText: z.string(),
 });
 const applyPatchSchema = z.strictObject({ patch: z.string().min(1) });
 const runCheckSchema = z.strictObject({
@@ -115,6 +123,41 @@ async function worktreeFingerprint(root: string, signal: AbortSignal): Promise<s
   ]);
 
   return createHash("sha256").update(status).update("\0").update(diff).digest("hex");
+}
+
+function countOccurrences(content: string, search: string): number {
+  let count = 0;
+  let offset = 0;
+
+  while (offset <= content.length - search.length) {
+    const index = content.indexOf(search, offset);
+
+    if (index === -1) {
+      break;
+    }
+
+    count += 1;
+
+    if (count > 1) {
+      break;
+    }
+
+    offset = index + search.length;
+  }
+
+  return count;
+}
+
+function retryableWriteRejection(
+  reason: string,
+  guidance: string,
+): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    errorCode: ERROR_CODES.PATCH_REJECTED,
+    retryable: true,
+    reason,
+    guidance,
+  });
 }
 
 export function createAgentToolExecutor(
@@ -247,14 +290,142 @@ export function createAgentToolExecutor(
           truncated: bounded.truncated || endLine < lines.length,
         });
       }
+      case AGENT_TOOL_NAMES.replaceText: {
+        const input = parseArguments(replaceTextSchema, call.arguments);
+
+        if (
+          Buffer.byteLength(input.oldText, "utf8") +
+            Buffer.byteLength(input.newText, "utf8") >
+          options.limits.maxDiffBytes
+        ) {
+          throw new SpotPatchError(ERROR_CODES.AGENT_LIMIT_EXCEEDED);
+        }
+
+        const before = await worktreeFingerprint(options.worktreeRoot, signal);
+        const file = await readAgentTextFile(
+          options.worktreeRoot,
+          input.path,
+          options.limits.maxReadBytesPerFile,
+        );
+        const occurrences = countOccurrences(file.content, input.oldText);
+
+        if (
+          occurrences !== 1 ||
+          input.oldText === input.newText ||
+          input.oldText === file.content
+        ) {
+          const after = await worktreeFingerprint(options.worktreeRoot, signal);
+
+          if (before !== after) {
+            throw new SpotPatchError(ERROR_CODES.PATCH_REJECTED);
+          }
+
+          return retryableWriteRejection(
+            occurrences === 0
+              ? "EXACT_TEXT_NOT_FOUND"
+              : occurrences > 1
+                ? "EXACT_TEXT_NOT_UNIQUE"
+                : input.oldText === file.content
+                  ? "WHOLE_FILE_REPLACEMENT_DENIED"
+                  : "REPLACEMENT_UNCHANGED",
+            occurrences === 0
+              ? "No files changed. Re-read the current file and copy oldText exactly without line-number prefixes."
+              : occurrences > 1
+                ? "No files changed. Re-read the current file and include more surrounding text so oldText occurs exactly once."
+                : input.oldText === file.content
+                  ? "No files changed. replace_text only accepts a localized fragment; use apply_patch for a whole-file change."
+                  : "No files changed. newText must differ from oldText.",
+          );
+        }
+
+        const index = file.content.indexOf(input.oldText);
+        const nextContent = `${file.content.slice(0, index)}${input.newText}${file.content.slice(index + input.oldText.length)}`;
+        let mutated = false;
+
+        try {
+          await writeAgentTextFileIfContentMatches(
+            options.worktreeRoot,
+            file.relativePath,
+            file.content,
+            nextContent,
+            options.limits.maxReadBytesPerFile,
+          );
+          mutated = true;
+          await runGitCommand({
+            cwd: options.worktreeRoot,
+            args: ["diff", "--check", "--", file.relativePath],
+            signal,
+            errorCode: ERROR_CODES.PATCH_REJECTED,
+          });
+        } catch (error: unknown) {
+          if (mutated) {
+            await writeAgentTextFileIfContentMatches(
+              options.worktreeRoot,
+              file.relativePath,
+              nextContent,
+              file.content,
+              options.limits.maxReadBytesPerFile,
+            );
+          }
+
+          if (
+            !(error instanceof SpotPatchError) ||
+            error.code !== ERROR_CODES.PATCH_REJECTED
+          ) {
+            throw error;
+          }
+
+          const after = await worktreeFingerprint(options.worktreeRoot, signal);
+
+          if (before !== after) {
+            throw error;
+          }
+
+          return retryableWriteRejection(
+            mutated ? "INVALID_RESULTING_DIFF" : "FILE_CHANGED_DURING_EDIT",
+            mutated
+              ? "No files changed. Re-read the file and retry without introducing Git whitespace errors."
+              : "No files changed. Re-read the current file and retry with fresh exact text.",
+          );
+        }
+
+        touchedPaths.add(file.relativePath);
+        return Object.freeze({
+          paths: Object.freeze([file.relativePath]),
+          replacements: 1,
+        });
+      }
       case AGENT_TOOL_NAMES.applyPatch: {
         const input = parseArguments(applyPatchSchema, call.arguments);
-        const paths = await applyAgentPatch(
-          options.worktreeRoot,
-          input.patch,
-          options.limits,
-          signal,
-        );
+        const before = await worktreeFingerprint(options.worktreeRoot, signal);
+        let paths: readonly string[];
+
+        try {
+          paths = await applyAgentPatch(
+            options.worktreeRoot,
+            input.patch,
+            options.limits,
+            signal,
+          );
+        } catch (error: unknown) {
+          if (
+            !(error instanceof SpotPatchError) ||
+            error.code !== ERROR_CODES.PATCH_REJECTED
+          ) {
+            throw error;
+          }
+
+          const after = await worktreeFingerprint(options.worktreeRoot, signal);
+
+          if (before !== after) {
+            throw error;
+          }
+
+          return retryableWriteRejection(
+            "INVALID_OR_STALE_DIFF",
+            "No files changed. Re-read the current file. For a localized existing-file edit, use replace_text with exact unique oldText and a new tool call ID. Otherwise retry a raw canonical unified Git diff beginning with 'diff --git a/<path> b/<path>'; do not include Markdown fences, prose, shell commands, or '*** Begin Patch' markers.",
+          );
+        }
 
         for (const relativePath of paths) {
           touchedPaths.add(relativePath);

@@ -3,5 +3,9 @@
   "compilerOptions": {
     "types": ["node"]
   },
-  "include": ["src", "tsup.runtime-client.config.ts"]
+  "include": [
+    "src",
+    "tsup.runtime-client.config.ts",
+    "tsup.runtime-react-adapter.config.ts"
+  ]
 }

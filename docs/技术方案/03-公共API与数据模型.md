@@ -2,13 +2,14 @@
 doc-id: "03-public-api-models"
 title: "公共 API 与数据模型"
 status: "active"
-version: "1.1.0"
+version: "1.3.0"
 last-updated: "2026-08-07"
-source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型"
+source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言"
 参考文献/依赖:
   - "04-vite-plugin"
   - "08-code-prompt"
   - "09-local-protocol-security"
+  - "10-ui-diagnostics"
   - "16-ai-agent-execution"
   - "17-model-provider-credentials"
 ---
@@ -48,6 +49,12 @@ export interface SpotPatchOptions {
   /** 开发期诊断日志。 */
   debug?: boolean;
 
+  /** 默认 auto；可显式固定为 en-US 或 zh-CN。 */
+  locale?: SpotPatchLocalePreference;
+
+  /** 同一次修改任务可选择的元素数；默认 8，最大值见 MAX_ANNOTATION_TARGETS。 */
+  maxTargets?: number;
+
   /** 默认 false；显式配置后才注册 AI Agent 能力。 */
   ai?: false | AiOptions;
 }
@@ -63,6 +70,8 @@ export interface ContextBudget {
 
 export type AiProviderProtocol = "responses" | "chat-completions";
 export type AgentApplyMode = "review" | "auto";
+export type SpotPatchLocale = "en-US" | "zh-CN";
+export type SpotPatchLocalePreference = "auto" | SpotPatchLocale;
 
 export interface AiModelProfile {
   /** UI 中展示的非敏感名称。 */
@@ -144,6 +153,15 @@ export const DEFAULT_AGENT_LIMITS = Object.freeze({
   jobTimeoutMs: 600_000,
 } satisfies AgentLimits);
 
+export const MAX_ANNOTATION_TARGETS = 20;
+export const MAX_TARGET_INSTRUCTION_CHARACTERS = 2_000;
+export const MAX_ANNOTATION_INSTRUCTION_CHARACTERS = 4_000;
+export const SPOTPATCH_LOCALES = Object.freeze(["en-US", "zh-CN"] as const);
+export const SPOTPATCH_LOCALE_PREFERENCES = Object.freeze([
+  "auto",
+  ...SPOTPATCH_LOCALES,
+] as const);
+
 export const DEFAULT_OPTIONS = Object.freeze({
   enabled: true,
   editor: "vscode",
@@ -151,6 +169,8 @@ export const DEFAULT_OPTIONS = Object.freeze({
   shortcut: "Mod+Shift+S",
   allowLan: false,
   debug: false,
+  locale: "auto",
+  maxTargets: 8,
   ai: false,
   budget: {
     totalCharacters: 16_000,
@@ -163,7 +183,9 @@ export const DEFAULT_OPTIONS = Object.freeze({
 } satisfies Required<SpotPatchOptions>);
 ```
 
-配置解析只执行一次，之后向内部模块传递 `Readonly<ResolvedSpotPatchOptions>`，不得让各模块重复处理默认值。
+配置解析只执行一次，之后向内部模块传递 `Readonly<ResolvedSpotPatchOptions>`，不得让各模块重复处理默认值。`maxTargets` 必须是从 1 到 `MAX_ANNOTATION_TARGETS` 的安全整数；Runtime 使用已解析值限制交互，协议使用硬上限限制不可信请求，服务端再次使用已解析值授权，三层都不得只依赖 UI。
+
+`locale` 只接受 `auto | en-US | zh-CN`。`auto` 先读取宿主 `<html lang>`，没有可用值时读取 `navigator.languages`，最后回退 `en-US`；该设置只决定初始界面和 Prompt 语言，用户仍可在工作台内显式切换。Runtime 不依赖宿主项目的 i18n 库，也不读取宿主业务语言状态；显示和交互规则见 UI 规范 (见 doc-id:10-ui-diagnostics)。
 
 预算的裁剪行为由源码与 Prompt 规范定义 (见 doc-id:08-code-prompt)；`redact` 和 `allowLan` 的强制安全边界由本地协议与安全规范定义 (见 doc-id:09-local-protocol-security)。
 
@@ -301,10 +323,21 @@ export interface CodeContext {
   readonly boundary: "component" | "nearby-lines";
 }
 
+export interface SpotTargetContext {
+  /** 只属于当前目标的修改要求；trim 后非空。 */
+  readonly instruction: string;
+  readonly source: SourceRef;
+  readonly react: ReactContext;
+  readonly element: ElementContext;
+  readonly styles: StyleContext;
+  readonly code?: CodeContext;
+  readonly warnings: readonly string[];
+}
+
 export interface SpotAnnotation {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 3;
   readonly id: string;
-  readonly note: string;
+  readonly locale: SpotPatchLocale;
   readonly page: Readonly<{
     url: string;
     pathname: string;
@@ -313,17 +346,12 @@ export interface SpotAnnotation {
     viewportHeight: number;
     devicePixelRatio: number;
   }>;
-  readonly source: SourceRef;
-  readonly react: ReactContext;
-  readonly element: ElementContext;
-  readonly styles: StyleContext;
-  readonly code?: CodeContext;
-  readonly warnings: readonly string[];
+  readonly targets: readonly SpotTargetContext[];
   readonly createdAt: string;
 }
 ```
 
-原则：数据对象创建后不可变；采集阶段返回新对象，不共享可变 DOM 引用，不把 Fiber、Element、CSSStyleDeclaration 放入最终模型。
+原则：数据对象创建后不可变；`targets` 至少一个、保持用户选择顺序且不超过已解析限制；页面环境和最终界面语言只在 `SpotAnnotation` 顶层保存一次，每个目标独占自己的 `instruction`、来源、React、DOM、CSS、源码和警告。不存在全局 `note` 或共享修改要求，避免多个组件的不同要求在传输或 Agent 执行时被合并。单个 `instruction` trim 后必须为 1–`MAX_TARGET_INSTRUCTION_CHARACTERS` 字符，整组 trim 后字符总数不得超过 `MAX_ANNOTATION_INSTRUCTION_CHARACTERS`；Runtime、工厂和协议 Schema 使用同一组公共常量且均不得静默截断。采集阶段返回新对象，不共享可变 DOM 引用，不把 Fiber、Element、CSSStyleDeclaration 放入最终模型。
 
 ## Agent Job 公共模型
 

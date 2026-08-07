@@ -10,17 +10,20 @@ import type { SpotPatchSession } from "../session/session.js";
 
 export const SPOTPATCH_CLIENT_MODULE_ID = "virtual:spotpatch/client";
 export const RESOLVED_SPOTPATCH_CLIENT_MODULE_ID = `\0${SPOTPATCH_CLIENT_MODULE_ID}`;
+export const SPOTPATCH_REACT_ADAPTER_MODULE_ID = "virtual:spotpatch/react-adapter";
+export const RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID = `\0${SPOTPATCH_REACT_ADAPTER_MODULE_ID}`;
 
 interface RuntimeInjectionPluginInput {
   readonly clientBundle?: string;
   readonly options: ResolvedSpotPatchOptions;
+  readonly reactAdapterBundle?: string;
   readonly session: SpotPatchSession;
 }
 
-function readClientBundle(root: string): string {
+function readRuntimeBundle(root: string, fileName: string): string {
   const resolveFromProject = createRequire(path.join(root, "package.json"));
   const packageEntry = resolveFromProject.resolve("@spotpatch/vite");
-  const bundlePath = path.join(path.dirname(packageEntry), "runtime-client.js");
+  const bundlePath = path.join(path.dirname(packageEntry), fileName);
   return readFileSync(bundlePath, "utf8");
 }
 
@@ -54,6 +57,8 @@ function createClientModule(
     ai: createRuntimeAiConfig(input.options.ai),
     budget: input.options.budget,
     debug: input.options.debug,
+    locale: input.options.locale,
+    maxTargets: input.options.maxTargets,
     redact: input.options.redact,
     sessionToken: input.session.token,
     shortcut: input.options.shortcut,
@@ -62,9 +67,8 @@ function createClientModule(
   };
 
   return [
+    `const __SPOTPATCH_RUNTIME_CONFIG__ = ${JSON.stringify(runtimeConfig)};`,
     clientBundle,
-    `const config = ${JSON.stringify(runtimeConfig)};`,
-    "bootstrapSpotPatch({ ...config, apiBase: SPOTPATCH_API_BASE });",
   ].join("\n");
 }
 
@@ -85,19 +89,35 @@ export function createRuntimeInjectionPlugin(
       viteVersion = readConsumerViteVersion(root);
     },
 
-    resolveId(id) {
-      return id === SPOTPATCH_CLIENT_MODULE_ID
-        ? RESOLVED_SPOTPATCH_CLIENT_MODULE_ID
-        : null;
+    resolveId(id, importer) {
+      if (id === SPOTPATCH_CLIENT_MODULE_ID) {
+        return RESOLVED_SPOTPATCH_CLIENT_MODULE_ID;
+      }
+
+      if (
+        id === "@spotpatch/react-adapter" &&
+        importer === RESOLVED_SPOTPATCH_CLIENT_MODULE_ID
+      ) {
+        return RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID;
+      }
+
+      return null;
     },
 
     load(id) {
-      if (id !== RESOLVED_SPOTPATCH_CLIENT_MODULE_ID) {
-        return null;
+      if (id === RESOLVED_SPOTPATCH_CLIENT_MODULE_ID) {
+        clientBundle ??= readRuntimeBundle(root, "runtime-client.js");
+        return createClientModule(input, clientBundle, viteVersion);
       }
 
-      clientBundle ??= readClientBundle(root);
-      return createClientModule(input, clientBundle, viteVersion);
+      if (id === RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID) {
+        return (
+          input.reactAdapterBundle ??
+          readRuntimeBundle(root, "runtime-react-adapter.js")
+        );
+      }
+
+      return null;
     },
 
     transformIndexHtml() {

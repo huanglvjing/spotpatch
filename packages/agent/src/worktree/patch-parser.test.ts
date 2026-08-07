@@ -31,12 +31,17 @@ describe("unified patch parser", () => {
   it.each([
     validPatch.replaceAll("src/App.tsx", "../outside.ts"),
     validPatch.replaceAll("src/App.tsx", ".env.local"),
+  ])("denies unsafe paths", (patch) => {
+    expect(() => parseUnifiedPatch(patch)).toThrowError(ERROR_CODES.TOOL_DENIED);
+  });
+
+  it.each([
     validPatch.replace("new file mode 100644", "new file mode 100755"),
     `${validPatch}GIT binary patch\n`,
     validPatch.replace("+++ b/src/App.tsx", "+++ b/src/Other.tsx"),
     `${validPatch}${validPatch}`,
     "not a patch",
-  ])("rejects unsafe or malformed patches", (patch) => {
+  ])("rejects malformed patches", (patch) => {
     expect(() => parseUnifiedPatch(patch)).toThrowError(ERROR_CODES.PATCH_REJECTED);
   });
 });

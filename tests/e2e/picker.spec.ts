@@ -5,11 +5,15 @@ const activatePicker = async (page: Page): Promise<void> => {
   await expect(page.getByRole("button", { name: "Stop selecting" })).toBeVisible();
 };
 
-const expectHighlightToMatch = async (page: Page, target: Locator): Promise<void> => {
+const expectHighlightToMatch = async (
+  page: Page,
+  target: Locator,
+  selector = ".spotpatch-highlight",
+): Promise<void> => {
   const targetBox = await target.boundingBox();
   const highlightBox = await page
     .locator("spotpatch-root")
-    .locator(".spotpatch-highlight")
+    .locator(selector)
     .boundingBox();
 
   expect(targetBox).not.toBeNull();
@@ -39,8 +43,12 @@ test("keeps the highlight aligned with the hovered and selected element", async 
   await expectHighlightToMatch(page, target);
 
   await target.click();
-  await expect(page.getByRole("dialog", { name: "Describe the change" })).toBeVisible();
-  await expectHighlightToMatch(page, target);
+  await expect(page.getByRole("dialog", { name: "Plan the change" })).toBeVisible();
+  await expectHighlightToMatch(
+    page,
+    target,
+    '.spotpatch-selection-highlight[data-active="true"]',
+  );
 });
 
 test("places the contextual workbench with the selected element", async ({ page }) => {
@@ -50,11 +58,9 @@ test("places the contextual workbench with the selected element", async ({ page 
   await activatePicker(page);
   await largeTarget.click({ position: { x: 4, y: 4 } });
 
-  const dialog = page.getByRole("dialog", { name: "Describe the change" });
+  const dialog = page.getByRole("dialog", { name: "Plan the change" });
   await expect(dialog).toHaveAttribute("data-placement", "center");
-  await expect(
-    dialog.getByRole("textbox", { name: "What should change?" }),
-  ).toBeFocused();
+  await expect(dialog.locator("textarea[data-target-instruction-id]")).toBeFocused();
   const largeTargetBox = await largeTarget.boundingBox();
   const centeredDialogBox = await dialog.boundingBox();
 
@@ -67,7 +73,7 @@ test("places the contextual workbench with the selected element", async ({ page 
     );
   }
 
-  await dialog.getByRole("button", { name: "Reselect" }).click();
+  await dialog.getByRole("button", { name: "Start over" }).click();
   const compactTarget = page.getByRole("heading", {
     name: "SpotPatch Playground",
   });
@@ -127,11 +133,11 @@ test("selects a native element and sends an authorized editor request", async ({
 
   await page.getByRole("heading", { name: "SpotPatch Playground" }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Describe the change" });
+  const dialog = page.getByRole("dialog", { name: "Plan the change" });
   await expect(dialog).toBeVisible();
   const summary = dialog.locator(".spotpatch-summary");
   await expect(summary).toContainText(/src\/main\.tsx:\d+:\d+/);
-  await expect(summary).toContainText("Confidence: exact (精确元素源码)");
+  await expect(summary).toContainText("Confidence: exact (exact element source)");
   await expect(summary).toContainText("Component: App");
 
   await dialog.getByRole("button", { name: "Open in VS Code" }).click();
@@ -158,13 +164,13 @@ test("collects context and copies a bounded prompt", async ({ context, page }) =
   await activatePicker(page);
   await page.getByTestId("business-card-content").click();
 
-  const selectedDialog = page.getByRole("dialog", { name: "Describe the change" });
+  const selectedDialog = page.getByRole("dialog", { name: "Plan the change" });
   await expect(selectedDialog).toBeVisible();
   await expect(selectedDialog.locator(".spotpatch-summary")).toContainText(
     "Boundary: component",
   );
   await selectedDialog
-    .getByRole("textbox", { name: "What should change?" })
+    .locator("textarea[data-target-instruction-id]")
     .fill("Align the business fixture content with its heading.");
   const previewButton = selectedDialog.getByRole("button", {
     name: "Preview prompt",
@@ -172,15 +178,15 @@ test("collects context and copies a bounded prompt", async ({ context, page }) =
   await expect(previewButton).toBeEnabled();
   await previewButton.click();
 
-  const previewDialog = page.getByRole("dialog", { name: "Prompt ready" });
+  const previewDialog = page.getByRole("dialog", { name: "Review the request" });
   const promptOutput = previewDialog.getByLabel("Generated prompt");
-  await expect(promptOutput).toContainText("## 问题");
+  await expect(promptOutput).toContainText("## Change requirements");
   await expect(promptOutput).toContainText(
     "Align the business fixture content with its heading.",
   );
-  await expect(promptOutput).toContainText("## 相关样式");
+  await expect(promptOutput).toContainText("#### Relevant styles");
   await expect(promptOutput).toContainText(".fixture-card p");
-  await expect(promptOutput).toContainText("## 附近代码");
+  await expect(promptOutput).toContainText("#### Nearby code");
   await expect(promptOutput).toContainText("- Boundary: component");
 
   const expectedPrompt = await promptOutput.textContent();
@@ -189,6 +195,59 @@ test("collects context and copies a bounded prompt", async ({ context, page }) =
   await expect
     .poll(async () => page.evaluate(() => navigator.clipboard.readText()))
     .toBe(expectedPrompt);
+});
+
+test("preserves distinct instructions while collecting and removing multiple components", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await activatePicker(page);
+  const first = page.getByTestId("business-card-content");
+  const second = page.getByTestId("tailwind-button");
+  await first.click();
+
+  const dialog = page.getByRole("dialog", { name: "Plan the change" });
+  await dialog
+    .locator("textarea[data-target-instruction-id]")
+    .fill("Make the business card heading more prominent.");
+  await dialog.getByRole("button", { name: "Add element" }).click();
+  await expect(dialog).toBeHidden();
+  await second.click();
+
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator(".spotpatch-target-item")).toHaveCount(2);
+  await expect(dialog.getByRole("button", { name: "Preview prompt" })).toBeDisabled();
+  await dialog
+    .locator("textarea[data-target-instruction-id]")
+    .fill("Increase the Tailwind button horizontal padding.");
+  await expect(
+    page.locator("spotpatch-root").locator(".spotpatch-selection-highlight"),
+  ).toHaveCount(2);
+  await expect(dialog.getByRole("button", { name: "Preview prompt" })).toBeEnabled();
+  await dialog.getByRole("button", { name: "Preview prompt" }).click();
+
+  const preview = page.getByRole("dialog", { name: "Review the request" });
+  const output = preview.getByLabel("Generated prompt");
+  await expect(output).toContainText("## Selected targets (2)");
+  await expect(output).toContainText("src/business-card.tsx");
+  await expect(output).toContainText("src/main.tsx");
+  await expect(output).toContainText("### Target 1");
+  await expect(output).toContainText("### Target 2");
+  await expect(output).toContainText("Make the business card heading more prominent.");
+  await expect(output).toContainText(
+    "Increase the Tailwind button horizontal padding.",
+  );
+
+  await preview.getByRole("button", { name: "Back to edit" }).click();
+  await dialog.getByRole("button", { name: "Add element" }).click();
+  await first.click();
+  await expect(dialog.locator(".spotpatch-target-item")).toHaveCount(2);
+
+  await dialog.getByRole("button", { name: "Remove target 1" }).click();
+  await expect(dialog.locator(".spotpatch-target-item")).toHaveCount(1);
+  await expect(dialog.locator("textarea[data-target-instruction-id]")).toHaveValue(
+    "Increase the Tailwind button horizontal padding.",
+  );
 });
 
 test("resolves an Ant Design Button to its probable business call site", async ({
@@ -204,11 +263,13 @@ test("resolves an Ant Design Button to its probable business call site", async (
   await activatePicker(page);
   await page.getByRole("button", { name: "Open AntD modal" }).click();
 
-  const dialog = page.getByRole("dialog", { name: "Describe the change" });
+  const dialog = page.getByRole("dialog", { name: "Plan the change" });
   await expect(dialog).toBeVisible();
   const summary = dialog.locator(".spotpatch-summary");
   await expect(summary).toContainText("Source: src/main.tsx:");
-  await expect(summary).toContainText("Confidence: probable (可能的所属组件)");
+  await expect(summary).toContainText(
+    "Confidence: probable (probable owning component)",
+  );
   await expect(summary).toContainText("Origin: react-fiber");
   await expect(summary).toContainText("Component: Button");
   await expect(summary).toContainText(/Stack: .*App/);
@@ -232,11 +293,13 @@ test("selects Ant Design portal content and traces it to the business component"
   await activatePicker(page);
   await page.getByText("AntD portal fixture").click();
 
-  const dialog = page.getByRole("dialog", { name: "Describe the change" });
+  const dialog = page.getByRole("dialog", { name: "Plan the change" });
   await expect(dialog).toBeVisible();
   const summary = dialog.locator(".spotpatch-summary");
   await expect(summary).toContainText("Source: src/main.tsx:");
-  await expect(summary).toContainText("Confidence: probable (可能的所属组件)");
+  await expect(summary).toContainText(
+    "Confidence: probable (probable owning component)",
+  );
   await expect(summary).toContainText("Origin: react-fiber");
   expect(browserErrors).toEqual([]);
 });

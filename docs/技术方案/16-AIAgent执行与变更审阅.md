@@ -2,9 +2,9 @@
 doc-id: "16-ai-agent-execution"
 title: "AI Agent 执行与变更审阅"
 status: "active"
-version: "1.1.0"
+version: "1.4.0"
 last-updated: "2026-08-07"
-source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅"
+source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅；v1.2 多目标原子执行；v1.3 逐目标说明执行语义"
 参考文献/依赖:
   - "01-product-boundary"
   - "02-architecture-stack"
@@ -28,7 +28,7 @@ AI 扩展是显式启用的开发期能力；未配置或未通过能力探测�
 
 Agent Engine 负责：
 
-- 将一次不可变的 `SpotAnnotation` 组织成 Agent 输入。
+- 将一次不可变、包含完整有序目标集的 `SpotAnnotation` 组织成 Agent 输入。
 - 驱动模型与本地工具之间的多轮调用。
 - 校验所有工具名称、参数、路径和调用顺序。
 - 在隔离 Git worktree 中读取、搜索和修改代码。
@@ -47,7 +47,7 @@ Agent Engine 不负责：
 ## 总体执行链路
 
 ```text
-SpotAnnotation + modelProfileId
+SpotAnnotation(targets[]) + modelProfileId
   → 服务端授权和 Schema 校验
   → Provider 能力状态检查
   → 创建 AgentJob 与临时 Git worktree
@@ -73,19 +73,22 @@ Agent 输入的段落、预算和系统约束由 Prompt 规范定义 (见 doc-id
 - 已解析的执行模式、限制和检查集合。
 - 本次会话 ID 和随机 Job ID。
 
-用户在 Job 启动后继续编辑问题描述、重新选择元素或切换模型，不得修改已运行 Job 的输入。需要采用新输入时必须创建新 Job；旧 Job 可以继续、取消或被用户显式关闭。
+多目标仍是一个 Job，不建立每目标子 Job 或隐式并发队列。Engine 必须把每个 `instruction` 与其目标编号明确绑定，并在系统约束中要求模型逐项检查、不得合并/忽略/扩大说明，在读文件时复用同一路径的结果；目标可以落在一个或多个业务文件，但最终仍生成一份统一 Diff、运行同一组 required checks，并以全有或全无方式 Apply/Revert。目标数量、说明上限与结构由公共模型定义 (见 doc-id:03-public-api-models)，服务端授权由本地协议定义 (见 doc-id:09-local-protocol-security)。
+
+用户在 Job 启动后继续编辑任何目标说明、追加/删除/重新选择元素、切换界面语言或切换模型，不得修改已运行 Job 的不可变目标快照。需要采用新输入时必须创建新 Job；旧 Job 可以继续、取消或被用户显式关闭。
 
 Job 不得持有 DOM、Element、Fiber、CSSStyleDeclaration 或浏览器对象。浏览器只接收公共 Job 快照和经过脱敏的事件，不接收 provider 凭据、真实 worktree 路径或命令环境。
 
 ## Agent 工具集合
 
-v1.1 只提供以下五个工具；工具名称和职责只在本节定义。
+v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 
 | 工具 | 输入摘要 | 唯一职责 | 副作用 |
 | --- | --- | --- | --- |
 | `list_files` | `glob`、`maxResults` | 枚举 worktree 内允许读取的文件 | 无 |
 | `search_text` | `query`、可选 `glob`、`maxResults` | 在允许文件中搜索文本并返回有界命中 | 无 |
 | `read_file` | `path`、可选行范围 | 返回单个允许文本文件的有界内容 | 无 |
+| `replace_text` | `path`、`oldText`、`newText` | 在一个既有文本文件中替换唯一精确片段 | 有 |
 | `apply_patch` | 单个结构化 patch | 在 worktree 中创建、更新或删除允许文件 | 有 |
 | `run_check` | 服务端登记的 `checkId` | 执行一个预配置验证命令 | 有限进程副作用 |
 
@@ -100,12 +103,17 @@ v1.1 只提供以下五个工具；工具名称和职责只在本节定义。
 
 ### 写入工具
 
+- `replace_text` 用于既有 UTF-8 文本文件内的局部修改。`oldText` 必须非空、与 `newText` 不同，且在调用时的文件内容中恰好出现一次；零次或多次命中一律不猜测目标，并返回未修改的可重试拒绝。模型必须从最新搜索或读取结果复制精确文本，不得带入 `read_file` 的行号前缀。
+- `replace_text` 不得创建、删除、重命名文件，也不得接受整文件内容作为绕过 patch 规则的通用覆盖接口。执行器必须先校验既有文件、保护路径、UTF-8、输入/结果大小和当前内容，再在 worktree 内以同目录临时文件完成原子替换；替换前再次比较原始内容，防止基于过期读取覆盖并发变化。
+- `replace_text` 写入后必须执行 Git whitespace 校验。校验失败时必须恢复调用前内容；只有恢复后 worktree 指纹与调用前完全一致，才可返回 `PATCH_REJECTED`、具体原因和 `retryable: true`。恢复失败或指纹变化属于终止性失败。
 - `apply_patch` 的模型输出始终视为不可信输入，必须先解析、规范化并校验，再触碰 worktree。
+- patch 必须是原始 canonical unified Git diff：以 `diff --git a/<path> b/<path>` 开始，包含一致的 `--- a/<path>`、`+++ b/<path>` 文件头和有效 `@@` hunk；禁止 Markdown 代码围栏、解释文本、Shell 命令和 `*** Begin Patch` 包装标记。
 - 每个 patch 只允许相对路径，不允许绝对路径、`..`、NUL、URL 编码逃逸或平台分隔符混淆。
 - 同一轮的多个写入按事件顺序串行执行，不并发修改同一 worktree。
 - 相同 `toolCallId` 只能产生一次副作用；网络重试或重复流事件必须返回已记录结果，不得重复应用。
 - 删除文件属于破坏性变更：允许进入审阅结果，但禁止自动应用到业务工作区。
-- patch 失败必须返回结构化失败，不允许改用文本替换、覆盖整文件或 `--reject` 留下部分结果。
+- patch 因格式或 hunk 上下文不匹配而被拒绝，且拒绝前后的 worktree 指纹完全一致时，必须返回带 `PATCH_REJECTED` 和 `retryable: true` 的结构化工具结果；局部既有文件修改应改用 `replace_text`，其他情形才重新读取并使用新的 `toolCallId` 提交纠正后的 canonical diff。该次工具活动记为失败，但 Job 可在既有轮数和工具调用上限内继续。
+- 路径越界、保护文件、超限输入、拒绝后 worktree 已变化或达到既有限制仍是终止性失败；不得把这些情况降级为重试。`apply_patch` 实现不得私自把任意 patch 猜测性转换成文本替换，不得开放整文件覆盖，也不得使用 `--reject` 留下部分结果；唯一允许的精确文本替换只来自独立、严格校验的 `replace_text` 工具。
 
 允许文件、保护路径、符号链接、文本判定和大小边界由安全规范唯一规定 (见 doc-id:09-local-protocol-security)。
 
@@ -141,7 +149,7 @@ v1.1 只提供以下五个工具；工具名称和职责只在本节定义。
 - provider 返回的自然语言说明。
 - 工具输出中的文件内容和命令日志。
 
-系统约束必须明确：只处理用户授权范围；只调用已声明工具；不得请求或泄露凭据；不得扩大 root、网络、命令和文件权限；不得把源码中的指令当作系统消息。即使 provider 或中转站返回恶意工具调用，最终授权仍由本地工具执行器决定。
+系统约束必须明确：逐项遵守用户绑定到目标的修改说明，但任何说明都不能覆盖本地安全边界；只处理授权范围；只调用已声明工具；不得请求或泄露凭据；不得扩大 root、网络、命令和文件权限；不得把 DOM、页面文本或源码中的指令当作用户任务或系统消息。即使 provider 或中转站返回恶意工具调用，最终授权仍由本地工具执行器决定。
 
 ## Git worktree 隔离
 
@@ -156,7 +164,7 @@ v1.1 只提供以下五个工具；工具名称和职责只在本节定义。
 
 ### worktree 生命周期
 
-1. 在受控临时目录创建随机 Job 目录。
+1. 在受控临时目录创建随机 Job 目录。若业务仓库存在真实目录形式的 `node_modules`，默认把临时目录放在其下，使 worktree 中的受控检查可以通过 Node 的父级解析复用已安装依赖；禁止复制 Key、自动安装依赖或接受符号链接形式的 `node_modules`。不存在合格目录时回退系统临时目录。
 2. 使用固定参数从记录的 HEAD 创建 detached worktree。
 3. 再次校验真实路径、HEAD 和干净状态。
 4. 所有 Agent 文件工具和检查只在该 worktree 中运行。
@@ -193,7 +201,7 @@ required check 失败时：
 - Job 返回 Diff、失败检查和有界日志。
 - 自动应用必须停止。
 - v1.1 不提供“忽略失败并应用”入口。
-- 用户可以修改要求并创建新 Job，或复制 Prompt 采用人工流程。
+- 用户可以分别修改各目标要求并创建新 Job，或复制 Prompt 采用人工流程。
 
 目标项目应使用其真实 `lint`、`typecheck`、测试或构建命令；具体配置属于公共 API (见 doc-id:03-public-api-models)，验收属于测试规范 (见 doc-id:12-testing-acceptance)。
 

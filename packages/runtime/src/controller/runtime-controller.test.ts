@@ -26,6 +26,8 @@ const config = Object.freeze({
   ai: Object.freeze({ enabled: false }),
   budget,
   debug: false,
+  locale: "en-US",
+  maxTargets: 8,
   redact: true,
   sessionToken: "runtime-session-token",
   shortcut: "Mod+Shift+S",
@@ -248,16 +250,18 @@ describe("runtime controller", () => {
       }),
     );
 
-    const noteInput = shadowRoot?.querySelector<HTMLTextAreaElement>("textarea");
+    const instructionInput = shadowRoot?.querySelector<HTMLTextAreaElement>(
+      "textarea[data-target-instruction-id]",
+    );
 
-    if (noteInput === null || noteInput === undefined) {
-      throw new Error("Expected the annotation input.");
+    if (instructionInput === null || instructionInput === undefined) {
+      throw new Error("Expected the target instruction input.");
     }
 
-    noteInput.value = "Align the profile action.";
-    noteInput.dispatchEvent(new Event("input", { bubbles: true }));
+    instructionInput.value = "Align the profile action.";
+    instructionInput.dispatchEvent(new Event("input", { bubbles: true }));
     expect(controller.getState().status).toBe("selected");
-    expect(shadowRoot?.activeElement).toBe(noteInput);
+    expect(shadowRoot?.activeElement).toBe(instructionInput);
 
     const previewButton = findShadowButton(shadowRoot, "Preview prompt");
     await vi.waitFor(() => {
@@ -270,7 +274,7 @@ describe("runtime controller", () => {
     previewButton.click();
     expect(controller.getState().status).toBe("previewing");
     const prompt = shadowRoot?.querySelector(".spotpatch-prompt")?.textContent ?? "";
-    expect(prompt).toContain("## 问题");
+    expect(prompt).toContain("## Change requirements");
     expect(prompt).toContain("Align the profile action.");
     expect(prompt).toContain("src/App.tsx:36:5");
     expect(prompt).not.toContain("never-copy-this");
@@ -295,7 +299,241 @@ describe("runtime controller", () => {
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
     );
     expect(controller.getState().status).toBe("selected");
-    expect(shadowRoot?.activeElement).toBe(noteInput);
+    expect(shadowRoot?.activeElement).toBe(
+      shadowRoot?.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id]",
+      ),
+    );
+
+    controller.dispose();
+  });
+
+  it("preserves distinct instructions while adding, deduplicating, previewing, and removing targets", async () => {
+    const first = document.createElement("button");
+    first.textContent = "First action";
+    first.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-a:10:2");
+    const second = document.createElement("a");
+    second.textContent = "Second action";
+    second.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-b:20:3");
+    document.body.append(first, second);
+    vi.spyOn(first, "getBoundingClientRect").mockReturnValue(visibleRect());
+    vi.spyOn(second, "getBoundingClientRect").mockReturnValue({
+      x: 200,
+      y: 24,
+      top: 24,
+      left: 200,
+      right: 320,
+      bottom: 64,
+      width: 120,
+      height: 40,
+      toJSON: () => ({}),
+    });
+    const api = createApi();
+    vi.mocked(api.sourceContext).mockImplementation(({ fileId }) =>
+      Promise.resolve({
+        ...context,
+        relativePath: fileId === "file-a" ? "src/First.tsx" : "src/Second.tsx",
+      }),
+    );
+    const multiConfig = Object.freeze({
+      ...config,
+      maxTargets: 2,
+      budget: Object.freeze({
+        ...budget,
+        totalCharacters: 8_000,
+        domCharacters: 1_000,
+        cssCharacters: 1_000,
+        codeCharacters: 2_000,
+      }),
+    }) satisfies RuntimeConfig;
+    const controller = createController(multiConfig, { api });
+    controller.mount();
+    const shadowRoot = document.querySelector("spotpatch-root")?.shadowRoot;
+
+    setHitTarget(first);
+    shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+    first.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 30,
+      }),
+    );
+    await vi.waitFor(() => {
+      expect(
+        shadowRoot?.querySelector<HTMLTextAreaElement>(
+          "textarea[data-target-instruction-id]",
+        ),
+      ).toBeTruthy();
+    });
+    const firstInstruction = shadowRoot?.querySelector<HTMLTextAreaElement>(
+      "textarea[data-target-instruction-id]",
+    );
+
+    if (firstInstruction === null || firstInstruction === undefined) {
+      throw new Error("Expected the first target instruction input.");
+    }
+
+    firstInstruction.value = "Rename the first action to Save changes.";
+    firstInstruction.dispatchEvent(new Event("input", { bubbles: true }));
+    findShadowButton(shadowRoot, "Add element").click();
+    expect(controller.getState().status).toBe("inspecting");
+
+    setHitTarget(second);
+    second.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 220,
+        clientY: 30,
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(shadowRoot?.querySelectorAll(".spotpatch-target-item")).toHaveLength(2);
+    });
+    expect(findShadowButton(shadowRoot, "Preview prompt").disabled).toBe(true);
+
+    const secondInstruction = shadowRoot?.querySelector<HTMLTextAreaElement>(
+      "textarea[data-target-instruction-id]",
+    );
+
+    if (secondInstruction === null || secondInstruction === undefined) {
+      throw new Error("Expected the second target instruction input.");
+    }
+
+    secondInstruction.value = "Rename the second action to View details.";
+    secondInstruction.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(findShadowButton(shadowRoot, "Preview prompt").disabled).toBe(false);
+    });
+    expect(shadowRoot?.querySelectorAll(".spotpatch-selection-highlight")).toHaveLength(
+      2,
+    );
+
+    shadowRoot
+      ?.querySelector<HTMLButtonElement>('[aria-label="Edit target 1"]')
+      ?.click();
+    expect(
+      shadowRoot?.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id]",
+      )?.value,
+    ).toBe("Rename the first action to Save changes.");
+
+    shadowRoot
+      ?.querySelector<HTMLButtonElement>('[aria-label="Edit target 2"]')
+      ?.click();
+    expect(
+      shadowRoot?.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id]",
+      )?.value,
+    ).toBe("Rename the second action to View details.");
+
+    findShadowButton(shadowRoot, "Preview prompt").click();
+    const prompt = shadowRoot?.querySelector(".spotpatch-prompt")?.textContent ?? "";
+    expect(prompt).toContain("## Selected targets (2)");
+    expect(prompt).toContain("src/First.tsx:10:2");
+    expect(prompt).toContain("src/Second.tsx:20:3");
+    expect(prompt).toContain("Rename the first action to Save changes.");
+    expect(prompt).toContain("Rename the second action to View details.");
+
+    findShadowButton(shadowRoot, "Back to edit").click();
+    findShadowButton(shadowRoot, "Add element").click();
+    setHitTarget(first);
+    first.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 30,
+      }),
+    );
+    expect(shadowRoot?.querySelectorAll(".spotpatch-target-item")).toHaveLength(2);
+
+    shadowRoot
+      ?.querySelector<HTMLButtonElement>('[aria-label="Remove target 1"]')
+      ?.click();
+    expect(shadowRoot?.querySelectorAll(".spotpatch-target-item")).toHaveLength(1);
+    expect(
+      shadowRoot?.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id]",
+      )?.value,
+    ).toBe("Rename the second action to View details.");
+
+    controller.dispose();
+  });
+
+  it("rebuilds diagnostics and the prompt when language changes without losing instructions", async () => {
+    const target = document.createElement("button");
+    target.textContent = "Primary action";
+    target.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-id:36:5");
+    document.body.append(target);
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue(visibleRect());
+    setHitTarget(target);
+    const localizedConfig = Object.freeze({
+      ...config,
+      locale: "zh-CN",
+      budget: Object.freeze({
+        ...budget,
+        totalCharacters: 4_000,
+        domCharacters: 1_000,
+        cssCharacters: 1_000,
+        codeCharacters: 1_000,
+      }),
+    }) satisfies RuntimeConfig;
+    const controller = createController(localizedConfig, { api: createApi() });
+    controller.mount();
+    const shadowRoot = document.querySelector("spotpatch-root")?.shadowRoot;
+
+    shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+    target.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 30,
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(shadowRoot?.querySelector(".spotpatch-summary")?.textContent).toContain(
+        "浏览器上下文: 已就绪",
+      );
+    });
+    const instruction = shadowRoot?.querySelector<HTMLTextAreaElement>(
+      "textarea[data-target-instruction-id]",
+    );
+
+    if (instruction === null || instruction === undefined) {
+      throw new Error("Expected the localized target instruction input.");
+    }
+
+    instruction.value = "只调整这个按钮的文案。";
+    instruction.dispatchEvent(new Event("input", { bubbles: true }));
+    findShadowButton(shadowRoot, "预览 Prompt").click();
+    expect(shadowRoot?.querySelector(".spotpatch-prompt")?.textContent).toContain(
+      "## 页面环境",
+    );
+
+    shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-locale")?.click();
+
+    expect(shadowRoot?.querySelector(".spotpatch-prompt")?.textContent).toContain(
+      "## Page environment",
+    );
+    expect(shadowRoot?.querySelector(".spotpatch-prompt")?.textContent).toContain(
+      "只调整这个按钮的文案。",
+    );
+    expect(shadowRoot?.querySelector(".spotpatch-summary")?.textContent).toContain(
+      "Browser context: ready",
+    );
+
+    findShadowButton(shadowRoot, "Back to edit").click();
+    expect(
+      shadowRoot?.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id]",
+      )?.value,
+    ).toBe("只调整这个按钮的文案。");
 
     controller.dispose();
   });
@@ -451,23 +689,35 @@ describe("runtime controller", () => {
         clientY: 30,
       }),
     );
-    const note = shadowRoot?.querySelector<HTMLTextAreaElement>("textarea");
+    await vi.waitFor(() => {
+      expect(
+        shadowRoot?.querySelector<HTMLTextAreaElement>(
+          "textarea[data-target-instruction-id]",
+        ),
+      ).toBeTruthy();
+      expect(
+        shadowRoot?.querySelector<HTMLInputElement>(".spotpatch-consent input"),
+      ).toBeTruthy();
+    });
+    const instructionInput = shadowRoot?.querySelector<HTMLTextAreaElement>(
+      "textarea[data-target-instruction-id]",
+    );
     const consent = shadowRoot?.querySelector<HTMLInputElement>(
       ".spotpatch-consent input",
     );
     let runButton = findShadowButton(shadowRoot, "Verify & run");
 
     if (
-      note === null ||
-      note === undefined ||
+      instructionInput === null ||
+      instructionInput === undefined ||
       consent === null ||
       consent === undefined
     ) {
       throw new Error("Expected Agent inputs.");
     }
 
-    note.value = "Clarify the selected profile action.";
-    note.dispatchEvent(new Event("input", { bubbles: true }));
+    instructionInput.value = "Clarify the selected profile action.";
+    instructionInput.dispatchEvent(new Event("input", { bubbles: true }));
     await vi.waitFor(() => {
       expect(runButton.disabled).toBe(true);
     });

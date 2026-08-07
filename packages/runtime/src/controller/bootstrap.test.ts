@@ -21,6 +21,8 @@ const config = Object.freeze({
   ai: Object.freeze({ enabled: false }),
   budget,
   debug: false,
+  locale: "en-US",
+  maxTargets: 8,
   redact: true,
   sessionToken: "session-token",
   shortcut: "Mod+Shift+S",

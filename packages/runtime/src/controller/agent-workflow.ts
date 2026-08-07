@@ -4,7 +4,6 @@ import {
   type AgentJobEvent,
   type AgentJobResult,
   type AgentJobSnapshot,
-  type ErrorCode,
   type RuntimeAiConfig,
   type SpotAnnotation,
 } from "@spotpatch/shared";
@@ -37,52 +36,6 @@ export interface CreateAgentWorkflowOptions {
   readonly onApplied: () => void;
   readonly onReselectRequired: () => void;
   readonly view: RuntimeView;
-}
-
-const ERROR_MESSAGES = Object.freeze({
-  [ERROR_CODES.INVALID_REQUEST]: "The Agent request was rejected as invalid.",
-  [ERROR_CODES.INVALID_TOKEN]: "The local SpotPatch session expired.",
-  [ERROR_CODES.ORIGIN_NOT_ALLOWED]: "The current page origin is not authorized.",
-  [ERROR_CODES.SOURCE_NOT_FOUND]: "The selected source is no longer available.",
-  [ERROR_CODES.SOURCE_OUTSIDE_ROOT]: "The selected source is outside the project.",
-  [ERROR_CODES.SOURCE_TOO_LARGE]: "The selected source exceeds the safety limit.",
-  [ERROR_CODES.EDITOR_OPEN_FAILED]: "The editor request failed.",
-  [ERROR_CODES.AI_DISABLED]: "AI execution is disabled in Vite configuration.",
-  [ERROR_CODES.PROVIDER_NOT_CONFIGURED]:
-    "The provider Key environment variable is missing on the Vite process.",
-  [ERROR_CODES.PROVIDER_AUTH_FAILED]:
-    "The provider rejected authentication. Check the server-side Key.",
-  [ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED]:
-    "The relay does not match the configured OpenAI-compatible protocol.",
-  [ERROR_CODES.MODEL_NOT_ALLOWED]: "The selected model profile is not allowed.",
-  [ERROR_CODES.MODEL_TOOL_CALL_UNSUPPORTED]:
-    "The selected model did not complete the required tool-call probe.",
-  [ERROR_CODES.PROVIDER_RATE_LIMITED]:
-    "The provider is rate limited. Wait and try again.",
-  [ERROR_CODES.AGENT_BUSY]: "Another write Agent job is still active.",
-  [ERROR_CODES.AGENT_LIMIT_EXCEEDED]:
-    "The Agent stopped at a configured time, turn, output, or size limit.",
-  [ERROR_CODES.AGENT_CANCELLED]: "The Agent job was cancelled.",
-  [ERROR_CODES.WORKTREE_DIRTY]:
-    "Commit or otherwise clean staged, unstaged, and untracked files before running AI.",
-  [ERROR_CODES.TOOL_DENIED]: "A model tool request violated the local safety policy.",
-  [ERROR_CODES.PATCH_REJECTED]: "The proposed patch did not pass local policy.",
-  [ERROR_CODES.VALIDATION_FAILED]:
-    "Required project checks failed. The change cannot be applied.",
-  [ERROR_CODES.APPLY_CONFLICT]:
-    "Project files changed after the Agent baseline; no overwrite was performed.",
-  [ERROR_CODES.INTERNAL_ERROR]:
-    "The Agent job failed without exposing private details.",
-} satisfies Record<ErrorCode, string>);
-
-function errorMessage(error: unknown): string {
-  return ERROR_MESSAGES[runtimeApiErrorCode(error) ?? ERROR_CODES.INTERNAL_ERROR];
-}
-
-function snapshotErrorMessage(snapshot: AgentJobSnapshot): string | undefined {
-  return snapshot.errorCode === undefined
-    ? undefined
-    : ERROR_MESSAGES[snapshot.errorCode];
 }
 
 function capabilityKey(providerProfileId: string, modelProfileId: string): string {
@@ -123,6 +76,10 @@ function activityFromEvent(event: AgentJobEvent): AgentActivityItem | undefined 
 export function createAgentWorkflow(
   options: CreateAgentWorkflowOptions,
 ): AgentWorkflow {
+  const errorCode = (error: unknown) =>
+    runtimeApiErrorCode(error) ?? ERROR_CODES.INTERNAL_ERROR;
+  const errorMessage = (error: unknown): string =>
+    options.view.messages().errors[errorCode(error)];
   const capabilities = new Map<string, AgentCapabilitySnapshot>();
   const providerConsents = new Set<string>();
   const activities = new Map<string, AgentActivityItem>();
@@ -134,7 +91,7 @@ export function createAgentWorkflow(
 
   const selectedProfiles = () => options.view.readAgentSelection();
 
-  const renderJob = (explicitError?: string): void => {
+  const renderJob = (explicitErrorCode?: ReturnType<typeof errorCode>): void => {
     if (snapshot === undefined) {
       return;
     }
@@ -143,7 +100,7 @@ export function createAgentWorkflow(
       snapshot,
       result,
       Object.freeze([...activities.values()]),
-      explicitError ?? snapshotErrorMessage(snapshot),
+      explicitErrorCode ?? snapshot.errorCode,
     );
   };
 
@@ -154,7 +111,7 @@ export function createAgentWorkflow(
       options.view.setAgentProviderConsent(false);
       options.view.renderAgentCapability(
         "error",
-        "Provider configuration is unavailable.",
+        options.view.messages().agent.providerUnavailable,
       );
       return;
     }
@@ -167,9 +124,16 @@ export function createAgentWorkflow(
     );
 
     if (cached === undefined) {
-      options.view.renderAgentCapability("idle", "Connection not tested");
+      options.view.renderAgentCapability(
+        "idle",
+        options.view.messages().agent.connectionNotTested,
+      );
     } else {
-      options.view.renderAgentCapability("ready", "Agent capability verified", cached);
+      options.view.renderAgentCapability(
+        "ready",
+        options.view.messages().agent.capabilityVerified,
+        cached,
+      );
     }
   };
 
@@ -189,7 +153,7 @@ export function createAgentWorkflow(
 
     options.view.renderAgentCapability(
       "probing",
-      "Testing authentication, tools, continuation, and streaming…",
+      options.view.messages().agent.testingCapability,
     );
     const capability = await options.api.agentCapability(selection);
 
@@ -206,10 +170,10 @@ export function createAgentWorkflow(
     capabilities.set(key, capability);
     options.view.renderAgentCapability(
       "ready",
-      "Agent capability verified",
+      options.view.messages().agent.capabilityVerified,
       capability,
     );
-    options.view.announce("AI provider capability verified.");
+    options.view.announce(options.view.messages().agent.capabilityVerifiedAnnouncement);
     return capability;
   };
 
@@ -229,7 +193,7 @@ export function createAgentWorkflow(
       renderJob();
     } catch (error: unknown) {
       if (workflowRevision === revision) {
-        renderJob(errorMessage(error));
+        renderJob(errorCode(error));
       }
     }
   };
@@ -267,7 +231,7 @@ export function createAgentWorkflow(
         workflowRevision === revision &&
         !(error instanceof DOMException && error.name === "AbortError")
       ) {
-        renderJob(errorMessage(error));
+        renderJob(errorCode(error));
       }
     }
   };
@@ -291,10 +255,10 @@ export function createAgentWorkflow(
             : "reverting",
       phaseMessage:
         action === "apply"
-          ? "Applying validated changes to the project."
+          ? options.view.messages().agent.applying
           : action === "cancel"
-            ? "Cancelling Agent job."
-            : "Reverting the applied Agent change.",
+            ? options.view.messages().agent.cancelling
+            : options.view.messages().agent.reverting,
       canCancel: false,
       canApply: false,
       canRevert: false,
@@ -328,7 +292,7 @@ export function createAgentWorkflow(
 
       snapshot = current;
       await refreshResult(current.jobId, workflowRevision);
-      renderJob(errorMessage(error));
+      renderJob(errorCode(error));
       options.view.announce(errorMessage(error));
     } finally {
       if (workflowRevision === revision) {
@@ -427,15 +391,13 @@ export function createAgentWorkflow(
 
       if (selection === undefined || annotation === undefined) {
         options.view.announce(
-          "Complete the problem description and context collection first.",
+          options.view.messages().announcements.completeInstructions,
         );
         return;
       }
 
       if (!options.view.agentConsentGranted()) {
-        options.view.announce(
-          "Confirm remote provider data transmission before running AI.",
-        );
+        options.view.announce(options.view.messages().agent.consentRequired);
         return;
       }
 
@@ -472,7 +434,12 @@ export function createAgentWorkflow(
           }
 
           options.view.setAgentEditingEnabled(true);
-          options.view.renderAgentCapability("error", errorMessage(error));
+          options.view.renderAgentCapability(
+            "error",
+            errorMessage(error),
+            undefined,
+            errorCode(error),
+          );
           options.view.announce(errorMessage(error));
         });
     },
@@ -485,7 +452,12 @@ export function createAgentWorkflow(
       const workflowRevision = ++revision;
       void probe(workflowRevision).catch((error: unknown) => {
         if (workflowRevision === revision) {
-          options.view.renderAgentCapability("error", errorMessage(error));
+          options.view.renderAgentCapability(
+            "error",
+            errorMessage(error),
+            undefined,
+            errorCode(error),
+          );
           options.view.announce(errorMessage(error));
         }
       });

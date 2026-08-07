@@ -2,6 +2,7 @@ import type {
   ContextBudget,
   RuntimeAiConfig,
   SPOTPATCH_API_BASE,
+  SpotPatchLocalePreference,
 } from "@spotpatch/shared";
 
 export interface RuntimeConfig {
@@ -9,6 +10,8 @@ export interface RuntimeConfig {
   readonly ai: RuntimeAiConfig;
   readonly budget: Readonly<ContextBudget>;
   readonly debug: boolean;
+  readonly locale: SpotPatchLocalePreference;
+  readonly maxTargets: number;
   readonly redact: boolean;
   readonly sessionToken: string;
   readonly shortcut: string;

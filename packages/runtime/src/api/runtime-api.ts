@@ -239,6 +239,23 @@ function parseAgentEvent(value: unknown): AgentJobEvent {
   return deepFreeze(value);
 }
 
+function omitBrowserCodeContext(request: AgentJobCreateRequest): AgentJobCreateRequest {
+  return {
+    ...request,
+    annotation: {
+      ...request.annotation,
+      targets: request.annotation.targets.map((target) => ({
+        instruction: target.instruction,
+        source: target.source,
+        react: target.react,
+        element: target.element,
+        styles: target.styles,
+        warnings: target.warnings,
+      })),
+    },
+  };
+}
+
 export function runtimeApiErrorCode(error: unknown): ErrorCode | undefined {
   return error instanceof RuntimeApiError ? error.code : undefined;
 }
@@ -287,8 +304,12 @@ export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {
 
     try {
       const response = await options.fetch(getAgentJobEndpoint(jobId, "events"), {
-        method: "GET",
-        headers: { [SPOTPATCH_TOKEN_HEADER]: options.sessionToken },
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          [SPOTPATCH_TOKEN_HEADER]: options.sessionToken,
+        },
+        body: JSON.stringify({}),
         signal: abortController.signal,
       });
 
@@ -406,8 +427,9 @@ export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {
     },
 
     async createAgentJob(request: AgentJobCreateRequest): Promise<AgentJobSnapshot> {
+      const serverRequest = omitBrowserCodeContext(request);
       return parseJobSnapshot(
-        await requestJson(SPOTPATCH_ENDPOINTS.agentJobs, "POST", request),
+        await requestJson(SPOTPATCH_ENDPOINTS.agentJobs, "POST", serverRequest),
         request,
       );
     },
@@ -416,7 +438,7 @@ export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {
 
     async agentResult(jobId: string): Promise<AgentJobResultResponse> {
       return parseJobResult(
-        await requestJson(getAgentJobEndpoint(jobId, "result"), "GET"),
+        await requestJson(getAgentJobEndpoint(jobId, "result"), "POST", emptyAction),
         jobId,
       );
     },

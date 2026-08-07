@@ -2,11 +2,13 @@ import type {
   AgentCapabilitySnapshot,
   AgentJobResult,
   AgentJobSnapshot,
+  ErrorCode,
   RuntimeAiConfig,
   RuntimeAiProviderProfile,
 } from "@spotpatch/shared";
 
 import { createButton, createMarkedElement } from "./dom.js";
+import type { UiLocalizer, UiMessages } from "./localization.js";
 
 export interface AgentSelectionValue {
   readonly modelProfileId: string;
@@ -31,17 +33,19 @@ export interface AgentPanel {
   readonly runButton: HTMLButtonElement;
   readonly testButton: HTMLButtonElement;
   readonly consentGranted: () => boolean;
+  readonly dispose: () => void;
   readonly readSelection: () => AgentSelectionValue | undefined;
   readonly renderCapability: (
     state: "idle" | "probing" | "ready" | "error",
     message: string,
     capability?: AgentCapabilitySnapshot,
+    errorCode?: ErrorCode,
   ) => void;
   readonly renderJob: (
     snapshot: AgentJobSnapshot,
     result: AgentJobResult | undefined,
     activities: readonly AgentActivityItem[],
-    errorMessage?: string,
+    errorCode?: ErrorCode,
   ) => void;
   readonly resetJob: () => void;
   readonly setContextReady: (ready: boolean) => void;
@@ -52,72 +56,70 @@ export interface AgentPanel {
 
 export const AGENT_PANEL_STYLES = `
   .spotpatch-agent {
-    margin-top: 12px;
+    margin-top: 14px;
     overflow: hidden;
-    border: 1px solid rgb(103 232 249 / 16%);
-    border-radius: 14px;
-    background:
-      radial-gradient(circle at 100% 0%, rgb(34 211 238 / 8%), transparent 42%),
-      rgb(8 15 31 / 58%);
+    border: 1px solid var(--spotpatch-border-subtle);
+    border-radius: var(--spotpatch-radius-card);
+    background: rgb(255 255 255 / 2.5%);
   }
   .spotpatch-agent-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 10px 12px;
-    border-bottom: 1px solid rgb(148 163 184 / 10%);
+    padding: 14px 16px;
+    border-bottom: 1px solid rgb(255 255 255 / 7%);
   }
-  .spotpatch-agent-title { color: #e0f2fe; font-size: 11.5px; font-weight: 720; }
+  .spotpatch-agent-title { color: #eef0f5; font-size: 16px; font-weight: 680; }
   .spotpatch-agent-badge {
-    border: 1px solid rgb(34 211 238 / 24%);
+    border: 1px solid rgb(129 112 247 / 24%);
     border-radius: 999px;
     padding: 3px 7px;
-    color: #67e8f9;
-    background: rgb(8 145 178 / 10%);
-    font: 650 9px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
-    letter-spacing: .07em;
-    text-transform: uppercase;
+    color: #c5cafa;
+    background: rgb(109 93 246 / 9%);
+    font-size: 11px;
+    font-weight: 650;
   }
-  .spotpatch-agent-setup { padding: 11px 12px 12px; }
-  .spotpatch-agent-selectors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .spotpatch-agent-selectors label { min-width: 0; color: #94a3b8; font-size: 9.5px; }
+  .spotpatch-agent-setup { padding: 18px; }
+  .spotpatch-agent-selectors { display: grid; grid-template-columns: 1fr; gap: 15px; }
+  .spotpatch-agent-selectors label { min-width: 0; color: var(--spotpatch-text-secondary); font-size: 14px; font-weight: 580; }
   .spotpatch-agent select {
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
-    margin-top: 4px;
-    border: 1px solid rgb(129 140 248 / 22%);
-    border-radius: 9px;
-    padding: 7px 24px 7px 8px;
-    color: #e2e8f0;
-    background: #0f172a;
-    font-size: 10.5px;
+    min-height: 46px;
+    margin-top: 7px;
+    border: 1px solid var(--spotpatch-border);
+    border-radius: 10px;
+    padding: 8px 30px 8px 10px;
+    color: #e8ebf2;
+    background: var(--spotpatch-bg-raised);
+    font-size: 15px;
     outline: none;
   }
   .spotpatch-agent select:focus-visible,
   .spotpatch-consent input:focus-visible {
-    outline: 2px solid #67e8f9;
+    outline: 2px solid #8b7cf7;
     outline-offset: 2px;
   }
   .spotpatch-consent {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    margin-top: 10px;
-    color: #94a3b8;
+    gap: 10px;
+    margin-top: 16px;
+    color: var(--spotpatch-text-secondary);
     cursor: pointer;
-    font-size: 9.5px;
-    line-height: 1.45;
+    font-size: 14px;
+    line-height: 1.6;
   }
-  .spotpatch-consent input { flex: none; margin: 2px 0 0; accent-color: #6366f1; }
+  .spotpatch-consent input { width: 16px; height: 16px; flex: none; margin: 3px 0 0; accent-color: var(--spotpatch-accent); }
   .spotpatch-agent-capability {
     display: flex;
     align-items: center;
-    gap: 7px;
-    margin: 10px 0 0;
-    color: #94a3b8;
-    font-size: 9.5px;
+    gap: 8px;
+    margin: 14px 0 0;
+    color: #929bab;
+    font-size: 13px;
   }
   .spotpatch-agent-capability::before {
     width: 6px;
@@ -127,49 +129,49 @@ export const AGENT_PANEL_STYLES = `
     background: #64748b;
     content: "";
   }
-  .spotpatch-agent-capability[data-state="probing"]::before { background: #fbbf24; box-shadow: 0 0 9px rgb(251 191 36 / 55%); }
+  .spotpatch-agent-capability[data-state="probing"]::before { background: var(--spotpatch-warning); }
   .spotpatch-agent-capability[data-state="ready"] { color: #a7f3d0; }
-  .spotpatch-agent-capability[data-state="ready"]::before { background: #34d399; box-shadow: 0 0 9px rgb(52 211 153 / 62%); }
+  .spotpatch-agent-capability[data-state="ready"]::before { background: var(--spotpatch-success); }
   .spotpatch-agent-capability[data-state="error"] { color: #fecaca; }
-  .spotpatch-agent-capability[data-state="error"]::before { background: #fb7185; box-shadow: 0 0 9px rgb(251 113 133 / 55%); }
-  .spotpatch-agent-job { padding: 11px 12px 12px; }
+  .spotpatch-agent-capability[data-state="error"]::before { background: var(--spotpatch-danger); }
+  .spotpatch-agent-job { padding: 16px; }
   .spotpatch-agent-job-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .spotpatch-agent-model { min-width: 0; overflow: hidden; color: #c7d2fe; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+  .spotpatch-agent-model { min-width: 0; overflow: hidden; color: #d6dafe; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
   .spotpatch-agent-status {
     flex: none;
     border-radius: 999px;
     padding: 3px 7px;
     color: #bae6fd;
     background: rgb(14 116 144 / 20%);
-    font: 650 8.5px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
-    text-transform: uppercase;
+    font-size: 11px;
+    font-weight: 650;
   }
-  .spotpatch-agent-phase { margin: 8px 0 0; color: #e2e8f0; font-size: 10.5px; }
+  .spotpatch-agent-phase { margin: 12px 0 0; color: #e2e5ec; font-size: 13px; line-height: 1.55; }
   .spotpatch-agent-error {
     margin: 9px 0 0;
     border: 1px solid rgb(251 113 133 / 22%);
     border-radius: 9px;
-    padding: 7px 8px;
+    padding: 9px 10px;
     color: #fecaca;
     background: rgb(127 29 29 / 14%);
-    font-size: 9.5px;
+    font-size: 12px;
   }
   .spotpatch-agent-activity { display: grid; gap: 5px; margin: 9px 0 0; padding: 0; list-style: none; }
-  .spotpatch-agent-activity li { display: flex; gap: 7px; color: #94a3b8; font: 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .spotpatch-agent-activity li { display: flex; gap: 8px; color: #929bab; font: 11.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
   .spotpatch-agent-activity li::before { color: #64748b; content: "•"; }
   .spotpatch-agent-activity li[data-state="active"]::before { color: #fbbf24; }
   .spotpatch-agent-activity li[data-state="success"]::before { color: #34d399; }
   .spotpatch-agent-activity li[data-state="failure"]::before { color: #fb7185; }
   .spotpatch-agent-result { margin-top: 11px; border-top: 1px solid rgb(148 163 184 / 10%); padding-top: 10px; }
-  .spotpatch-agent-summary { margin: 0; color: #dbeafe; font-size: 10.5px; line-height: 1.5; white-space: pre-wrap; }
+  .spotpatch-agent-summary { margin: 0; color: #dce1eb; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
   .spotpatch-agent-files { display: grid; gap: 4px; margin: 9px 0 0; padding: 0; list-style: none; }
-  .spotpatch-agent-files li { color: #a5b4fc; font: 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+  .spotpatch-agent-files li { color: #bbc2f7; font: 11.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
   .spotpatch-agent-checks { display: grid; gap: 5px; margin-top: 9px; }
   .spotpatch-agent-checks details { border: 1px solid rgb(148 163 184 / 12%); border-radius: 8px; background: rgb(2 6 23 / 30%); }
-  .spotpatch-agent-checks summary { padding: 6px 8px; color: #cbd5e1; cursor: pointer; font-size: 9px; }
-  .spotpatch-agent-checks pre { max-height: 100px; margin: 0; overflow: auto; border-top: 1px solid rgb(148 163 184 / 10%); padding: 7px 8px; color: #94a3b8; font: 8.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+  .spotpatch-agent-checks summary { padding: 9px 10px; color: #cbd0db; cursor: pointer; font-size: 11.5px; }
+  .spotpatch-agent-checks pre { max-height: 140px; margin: 0; overflow: auto; border-top: 1px solid rgb(255 255 255 / 7%); padding: 10px; color: #929bab; font: 11px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
   .spotpatch-agent-diff {
-    max-height: 230px;
+    max-height: 300px;
     margin: 9px 0 0;
     overflow: auto;
     border: 1px solid rgb(129 140 248 / 18%);
@@ -177,7 +179,7 @@ export const AGENT_PANEL_STYLES = `
     padding: 8px;
     color: #cbd5e1;
     background: rgb(2 6 23 / 66%);
-    font: 8.5px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    font: 11.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
     overflow-wrap: normal;
     white-space: pre;
     user-select: text;
@@ -196,11 +198,12 @@ function addOption(
   select.append(option);
 }
 
-function statusLabel(status: AgentJobSnapshot["status"]): string {
-  return status.replaceAll("-", " ");
-}
-
-export function createAgentPanel(document: Document, ai: RuntimeAiConfig): AgentPanel {
+export function createAgentPanel(
+  document: Document,
+  ai: RuntimeAiConfig,
+  localizer: UiLocalizer,
+): AgentPanel {
+  let messages: UiMessages = localizer.messages();
   const root = createMarkedElement(document, "section");
   root.className = "spotpatch-agent";
   root.hidden = !ai.enabled;
@@ -208,10 +211,8 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
   header.className = "spotpatch-agent-head";
   const title = createMarkedElement(document, "span");
   title.className = "spotpatch-agent-title";
-  title.textContent = "AI code agent";
   const badge = createMarkedElement(document, "span");
   badge.className = "spotpatch-agent-badge";
-  badge.textContent = ai.enabled && ai.applyMode === "auto" ? "Auto gated" : "Review";
   header.append(title, badge);
 
   const setup = createMarkedElement(document, "div");
@@ -219,15 +220,13 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
   const selectors = createMarkedElement(document, "div");
   selectors.className = "spotpatch-agent-selectors";
   const providerLabel = createMarkedElement(document, "label");
-  providerLabel.textContent = "Provider";
+  const providerText = createMarkedElement(document, "span");
   const providerSelect = createMarkedElement(document, "select");
-  providerSelect.setAttribute("aria-label", "AI provider");
-  providerLabel.append(providerSelect);
+  providerLabel.append(providerText, providerSelect);
   const modelLabel = createMarkedElement(document, "label");
-  modelLabel.textContent = "Model";
+  const modelText = createMarkedElement(document, "span");
   const modelSelect = createMarkedElement(document, "select");
-  modelSelect.setAttribute("aria-label", "AI model");
-  modelLabel.append(modelSelect);
+  modelLabel.append(modelText, modelSelect);
   selectors.append(providerLabel, modelLabel);
   const consent = createMarkedElement(document, "label");
   consent.className = "spotpatch-consent";
@@ -238,7 +237,6 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
   const capability = createMarkedElement(document, "p");
   capability.className = "spotpatch-agent-capability";
   capability.dataset.state = "idle";
-  capability.textContent = "Connection not tested";
   setup.append(selectors, consent, capability);
 
   const job = createMarkedElement(document, "div");
@@ -270,17 +268,21 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
   const diff = createMarkedElement(document, "pre");
   diff.className = "spotpatch-agent-diff";
   diff.tabIndex = 0;
-  diff.setAttribute("aria-label", "Proposed source diff");
+  diff.setAttribute("aria-label", messages.agent.diffAriaLabel);
   resultPanel.append(resultSummary, files, checks, diff);
   job.append(jobMeta, phase, error, activity, resultPanel);
   root.append(header, setup, job);
 
-  const testButton = createButton(document, "Test connection");
-  const runButton = createButton(document, "Verify & run", "spotpatch-run");
-  const cancelButton = createButton(document, "Cancel agent");
-  const applyButton = createButton(document, "Apply changes", "spotpatch-primary");
-  const revertButton = createButton(document, "Revert changes");
-  const resetButton = createButton(document, "Revise request");
+  const testButton = createButton(document, messages.agent.testConnection);
+  const runButton = createButton(
+    document,
+    messages.agent.verifyAndRun,
+    "spotpatch-run",
+  );
+  const cancelButton = createButton(document, messages.agent.cancel);
+  const applyButton = createButton(document, messages.agent.apply, "spotpatch-primary");
+  const revertButton = createButton(document, messages.agent.revert);
+  const resetButton = createButton(document, messages.agent.revise);
 
   const providers = ai.enabled ? ai.providers : [];
   const providerById = new Map(providers.map((provider) => [provider.id, provider]));
@@ -290,6 +292,13 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
   let jobPresented = false;
   let capabilityProbing = false;
   let capabilityReady = false;
+  let latestSnapshot: AgentJobSnapshot | undefined;
+  let latestResult: AgentJobResult | undefined;
+  let latestActivities: readonly AgentActivityItem[] = [];
+  let latestErrorCode: ErrorCode | undefined;
+  let latestCapabilityState: "idle" | "probing" | "ready" | "error" = "idle";
+  let latestCapabilityMessage = messages.agent.connectionNotTested;
+  let latestCapabilityErrorCode: ErrorCode | undefined;
 
   for (const provider of providers) {
     addOption(document, providerSelect, provider.id, provider.label);
@@ -307,7 +316,7 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
     modelSelect.replaceChildren();
 
     if (provider === undefined) {
-      consentText.textContent = "Provider configuration is unavailable.";
+      consentText.textContent = messages.agent.providerUnavailable;
       return;
     }
 
@@ -316,16 +325,16 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
     }
 
     modelSelect.value = provider.defaultModel;
-    consentText.textContent = `I understand selected context and allowed source may be sent to ${provider.label}; its data policy is my responsibility.`;
+    consentText.textContent = messages.agent.consent(provider.label);
   };
 
   const refreshActions = (): void => {
     const setupVisible = ai.enabled && selectionVisible && !jobPresented;
     runButton.textContent = capabilityProbing
-      ? "Verifying…"
+      ? messages.agent.verifying
       : capabilityReady
-        ? "Run AI"
-        : "Verify & run";
+        ? messages.agent.run
+        : messages.agent.verifyAndRun;
     runButton.classList.toggle("spotpatch-primary", capabilityReady);
     testButton.hidden = !setupVisible;
     runButton.hidden = !setupVisible;
@@ -352,18 +361,124 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
     populateModels();
     consentCheckbox.checked = false;
     capability.dataset.state = "idle";
-    capability.textContent = "Connection not tested";
+    capability.textContent = messages.agent.connectionNotTested;
+    latestCapabilityState = "idle";
+    latestCapabilityMessage = messages.agent.connectionNotTested;
+    latestCapabilityErrorCode = undefined;
     capabilityReady = false;
     refreshActions();
   });
   modelSelect.addEventListener("change", () => {
     capability.dataset.state = "idle";
-    capability.textContent = "Connection not tested";
+    capability.textContent = messages.agent.connectionNotTested;
+    latestCapabilityState = "idle";
+    latestCapabilityMessage = messages.agent.connectionNotTested;
+    latestCapabilityErrorCode = undefined;
     capabilityReady = false;
     refreshActions();
   });
   consentCheckbox.addEventListener("change", refreshActions);
-  refreshActions();
+  function renderCurrentJob(): void {
+    if (latestSnapshot === undefined) {
+      return;
+    }
+
+    const snapshot = latestSnapshot;
+    const result = latestResult;
+    jobModel.textContent = `${snapshot.providerLabel} · ${snapshot.modelLabel}`;
+    jobStatus.textContent = messages.agent.status(snapshot.status);
+    phase.textContent = snapshot.phaseMessage;
+    const jobErrorCode = latestErrorCode ?? snapshot.errorCode;
+    error.hidden = jobErrorCode === undefined;
+    error.textContent = jobErrorCode === undefined ? "" : messages.errors[jobErrorCode];
+    activity.replaceChildren();
+
+    for (const item of latestActivities.slice(-8)) {
+      const row = createMarkedElement(document, "li");
+      row.dataset.state = item.state;
+      row.textContent = item.label;
+      activity.append(row);
+    }
+
+    resultPanel.hidden = result === undefined;
+    resultSummary.textContent = result?.summary ?? "";
+    files.replaceChildren();
+    checks.replaceChildren();
+    diff.textContent = result?.diff ?? "";
+
+    for (const file of result?.files ?? []) {
+      const row = createMarkedElement(document, "li");
+      row.textContent = `${file.kind} ${file.relativePath} (+${String(file.additions)} / -${String(file.deletions)})`;
+      files.append(row);
+    }
+
+    for (const check of result?.checks ?? []) {
+      const details = createMarkedElement(document, "details");
+      const checkTitle = createMarkedElement(document, "summary");
+      checkTitle.textContent = `${check.label}: ${check.status} · ${String(check.durationMs)} ms`;
+      const output = createMarkedElement(document, "pre");
+      output.textContent =
+        check.output.length === 0 ? messages.agent.noOutput : check.output;
+      details.append(checkTitle, output);
+      checks.append(details);
+    }
+
+    testButton.hidden = true;
+    runButton.hidden = true;
+    cancelButton.hidden = !selectionVisible || !snapshot.canCancel;
+    cancelButton.textContent =
+      snapshot.status === "awaiting-review"
+        ? messages.agent.discard
+        : messages.agent.cancel;
+    applyButton.hidden = !selectionVisible || !snapshot.canApply;
+    revertButton.hidden = !selectionVisible || !snapshot.canRevert;
+    resetButton.hidden =
+      !selectionVisible ||
+      !["completed", "cancelled", "reverted", "failed"].includes(snapshot.status);
+  }
+
+  function applyMessages(): void {
+    messages = localizer.messages();
+    title.textContent = messages.agent.title;
+    badge.textContent =
+      ai.enabled && ai.applyMode === "auto"
+        ? messages.agent.autoGated
+        : messages.agent.review;
+    providerText.textContent = messages.agent.provider;
+    modelText.textContent = messages.agent.model;
+    providerSelect.setAttribute("aria-label", messages.agent.providerAriaLabel);
+    modelSelect.setAttribute("aria-label", messages.agent.modelAriaLabel);
+    diff.setAttribute("aria-label", messages.agent.diffAriaLabel);
+    testButton.textContent = messages.agent.testConnection;
+    applyButton.textContent = messages.agent.apply;
+    revertButton.textContent = messages.agent.revert;
+    resetButton.textContent = messages.agent.revise;
+    const provider = selectedProvider();
+    consentText.textContent =
+      provider === undefined
+        ? messages.agent.providerUnavailable
+        : messages.agent.consent(provider.label);
+
+    if (latestCapabilityState === "idle") {
+      capability.textContent = messages.agent.connectionNotTested;
+    } else if (latestCapabilityState === "probing") {
+      capability.textContent = messages.agent.testingCapability;
+    } else if (latestCapabilityState === "ready") {
+      capability.textContent = `${messages.agent.capabilityVerified} · ${messages.agent.toolsReady}`;
+    } else if (latestCapabilityErrorCode !== undefined) {
+      capability.textContent = messages.errors[latestCapabilityErrorCode];
+    } else if (selectedProvider() === undefined) {
+      capability.textContent = messages.agent.providerUnavailable;
+    } else {
+      capability.textContent = latestCapabilityMessage;
+    }
+
+    refreshActions();
+    renderCurrentJob();
+  }
+
+  const unsubscribeLocale = localizer.subscribe(applyMessages);
+  applyMessages();
 
   return Object.freeze({
     root,
@@ -399,14 +514,18 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
       state: "idle" | "probing" | "ready" | "error",
       message: string,
       capabilitySnapshot?: AgentCapabilitySnapshot,
+      errorCode?: ErrorCode,
     ) {
+      latestCapabilityState = state;
+      latestCapabilityMessage = message;
+      latestCapabilityErrorCode = errorCode;
       capabilityProbing = state === "probing";
       capabilityReady =
         state === "ready" && capabilitySnapshot?.state === "agent-ready";
       capability.dataset.state = state;
       capability.textContent =
         capabilitySnapshot?.state === "agent-ready"
-          ? `${message} · tools + streaming ready`
+          ? `${message} · ${messages.agent.toolsReady}`
           : message;
       refreshActions();
     },
@@ -415,7 +534,7 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
       snapshot: AgentJobSnapshot,
       result: AgentJobResult | undefined,
       activities: readonly AgentActivityItem[],
-      errorMessage?: string,
+      errorCode?: ErrorCode,
     ) {
       jobPresented = true;
       setup.hidden = true;
@@ -423,56 +542,19 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
       providerSelect.disabled = true;
       modelSelect.disabled = true;
       consentCheckbox.disabled = true;
-      jobModel.textContent = `${snapshot.providerLabel} · ${snapshot.modelLabel}`;
-      jobStatus.textContent = statusLabel(snapshot.status);
-      phase.textContent = snapshot.phaseMessage;
-      error.hidden = errorMessage === undefined;
-      error.textContent = errorMessage ?? "";
-      activity.replaceChildren();
-
-      for (const item of activities.slice(-8)) {
-        const row = createMarkedElement(document, "li");
-        row.dataset.state = item.state;
-        row.textContent = item.label;
-        activity.append(row);
-      }
-
-      resultPanel.hidden = result === undefined;
-      resultSummary.textContent = result?.summary ?? "";
-      files.replaceChildren();
-      checks.replaceChildren();
-      diff.textContent = result?.diff ?? "";
-
-      for (const file of result?.files ?? []) {
-        const row = createMarkedElement(document, "li");
-        row.textContent = `${file.kind} ${file.relativePath} (+${String(file.additions)} / -${String(file.deletions)})`;
-        files.append(row);
-      }
-
-      for (const check of result?.checks ?? []) {
-        const details = createMarkedElement(document, "details");
-        const checkTitle = createMarkedElement(document, "summary");
-        checkTitle.textContent = `${check.label}: ${check.status} · ${String(check.durationMs)} ms`;
-        const output = createMarkedElement(document, "pre");
-        output.textContent = check.output.length === 0 ? "No output." : check.output;
-        details.append(checkTitle, output);
-        checks.append(details);
-      }
-
-      testButton.hidden = true;
-      runButton.hidden = true;
-      cancelButton.hidden = !selectionVisible || !snapshot.canCancel;
-      cancelButton.textContent =
-        snapshot.status === "awaiting-review" ? "Discard changes" : "Cancel agent";
-      applyButton.hidden = !selectionVisible || !snapshot.canApply;
-      revertButton.hidden = !selectionVisible || !snapshot.canRevert;
-      resetButton.hidden =
-        !selectionVisible ||
-        !["completed", "cancelled", "reverted", "failed"].includes(snapshot.status);
+      latestSnapshot = snapshot;
+      latestResult = result;
+      latestActivities = activities;
+      latestErrorCode = errorCode;
+      renderCurrentJob();
     },
 
     resetJob() {
       jobPresented = false;
+      latestSnapshot = undefined;
+      latestResult = undefined;
+      latestActivities = [];
+      latestErrorCode = undefined;
       setup.hidden = false;
       job.hidden = true;
       providerSelect.disabled = false;
@@ -515,6 +597,10 @@ export function createAgentPanel(document: Document, ai: RuntimeAiConfig): Agent
         revertButton.hidden = true;
         resetButton.hidden = true;
       }
+    },
+
+    dispose() {
+      unsubscribeLocale();
     },
   });
 }

@@ -1,8 +1,8 @@
 # SpotPatch
 
 SpotPatch 是一个仅在本地开发期运行的 React 页面反馈工具。它把选中的 DOM
-元素追溯到源码位置，采集经过脱敏和预算裁剪的上下文，并生成可复制给编程助手的
-结构化 Prompt。AI 默认关闭；v1.1 可选接入 OpenAI-compatible API，在隔离 Git
+元素追溯到源码位置，为多个目标分别保存修改要求，采集经过脱敏和预算裁剪的上下文，
+并生成可复制给编程助手的结构化 Prompt。工作台内置中英文并可即时切换。AI 默认关闭；v1.1 可选接入 OpenAI-compatible API，在隔离 Git
 worktree 中执行受控 Agent 工具，并经 Diff 与检查审阅后修改本地代码。
 
 规范入口：[docs/技术方案/00-索引与导航.md](./docs/技术方案/00-索引与导航.md)。
@@ -39,6 +39,8 @@ export default defineConfig({
       editor: "vscode",
       redact: true,
       allowLan: false,
+      locale: "auto",
+      maxTargets: 8,
     }),
     react(),
   ],
@@ -46,7 +48,7 @@ export default defineConfig({
 ```
 
 启动 Vite 开发服务器后，点击右下角 `Select element`，或使用
-`Mod+Shift+S`，即可完成“选择元素 → 直接输入修改要求 → 预览 Prompt → 复制”。生产构建
+`Mod+Shift+S`，即可完成“选择元素 → 为当前目标输入修改要求 → 按需追加并分别描述其他目标 → 预览 Prompt → 复制”。标题栏可在中文和英文之间切换，已有草稿不会丢失。生产构建
 不会注入 runtime、source marker 或本地协议端点。
 
 接入选项、默认值和安全边界分别见公共 API 与安全规范
@@ -100,7 +102,7 @@ export SPOTPATCH_AI_API_KEY='<your-key>'
 pnpm dev
 ```
 
-使用顺序是“选择元素 → 输入要求 → 确认远程传输 → Verify & run → 审阅完整
+使用顺序是“选择一个或多个元素 → 为每个目标分别输入要求 → 确认远程传输 → Verify & run → 审阅完整
 Diff/检查 → Apply changes”，应用后可在文件未继续变化时安全 Revert。真实 Job
 要求业务 Git 工作区干净；能力探测未确认结构化工具调用、工具结果续传和流式协议时，
 SpotPatch 只保留本地 Prompt，不会从自然语言代码块自动改文件。

@@ -18,7 +18,7 @@ page.on("pageerror", (error) => {
 const selectAndReadSummary = async (target) => {
   await page.getByRole("button", { name: "Select element" }).click();
   await target.click();
-  const dialog = page.getByRole("dialog", { name: "Describe the change" });
+  const dialog = page.getByRole("dialog", { name: "Plan the change" });
   await dialog.waitFor({ state: "visible" });
   const summary = dialog.locator(".spotpatch-summary");
   await page.waitForFunction(() => {

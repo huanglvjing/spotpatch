@@ -13,7 +13,7 @@ const selectFixture = async (
   await activatePicker(page);
   await target.click(position === undefined ? undefined : { position });
 
-  const dialog = page.getByRole("dialog", { name: "Describe the change" });
+  const dialog = page.getByRole("dialog", { name: "Plan the change" });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator(".spotpatch-summary")).toContainText(
     "Browser context: ready",
@@ -26,7 +26,7 @@ const reselectFixture = async (
   dialog: Locator,
   target: Locator,
 ): Promise<Locator> => {
-  await dialog.getByRole("button", { name: "Reselect" }).click();
+  await dialog.getByRole("button", { name: "Start over" }).click();
   await target.click();
   await expect(dialog).toBeVisible();
   await expect(dialog.locator(".spotpatch-summary")).toContainText(
@@ -38,9 +38,9 @@ const reselectFixture = async (
 const previewPrompt = async (
   page: Page,
   dialog: Locator,
-  note: string,
+  instruction: string,
 ): Promise<string> => {
-  await dialog.getByRole("textbox", { name: "What should change?" }).fill(note);
+  await dialog.locator("textarea[data-target-instruction-id]").fill(instruction);
   const previewButton = dialog.getByRole("button", {
     name: "Preview prompt",
   });
@@ -48,9 +48,9 @@ const previewPrompt = async (
   await previewButton.click();
 
   const prompt = page
-    .getByRole("dialog", { name: "Prompt ready" })
+    .getByRole("dialog", { name: "Review the request" })
     .getByLabel("Generated prompt");
-  await expect(prompt).toContainText(note);
+  await expect(prompt).toContainText(instruction);
   return (await prompt.textContent()) ?? "";
 };
 
@@ -67,7 +67,7 @@ test("resolves custom, memo, and forwardRef fixtures with stable component names
   let dialog = await selectFixture(page, page.getByTestId("business-card-content"));
   let summary = dialog.locator(".spotpatch-summary");
   await expect(summary).toContainText("Source: src/business-card.tsx:");
-  await expect(summary).toContainText("Confidence: exact (精确元素源码)");
+  await expect(summary).toContainText("Confidence: exact (exact element source)");
   await expect(summary).toContainText("Component: BusinessCard");
 
   dialog = await reselectFixture(page, dialog, page.getByTestId("memo-panel"));
@@ -106,7 +106,7 @@ test("selects both Fragment roots and keeps mapped instances traceable", async (
 
   dialog = await reselectFixture(page, dialog, listItems.nth(0));
   await expect(dialog.locator(".spotpatch-summary")).toContainText(
-    "Confidence: exact (精确元素源码)",
+    "Confidence: exact (exact element source)",
   );
 });
 
@@ -120,7 +120,7 @@ test("loads a lazy module and resolves its source on first render", async ({
   const dialog = await selectFixture(page, page.getByTestId("lazy-panel"));
   const summary = dialog.locator(".spotpatch-summary");
   await expect(summary).toContainText("Source: src/lazy-panel.tsx:");
-  await expect(summary).toContainText("Confidence: exact (精确元素源码)");
+  await expect(summary).toContainText("Confidence: exact (exact element source)");
   await expect(summary).toContainText("Component: LazyPanel");
 });
 
@@ -132,7 +132,7 @@ test("collects Tailwind and CSS Module runtime styles", async ({ page }) => {
   expect(prompt).toContain("background-color:");
 
   await page
-    .getByRole("dialog", { name: "Prompt ready" })
+    .getByRole("dialog", { name: "Review the request" })
     .getByRole("button", { name: "Close SpotPatch" })
     .click();
   dialog = await selectFixture(page, page.getByTestId("css-module-card"), {
@@ -156,7 +156,7 @@ test("selects Framer Motion and SVG with explicit confidence semantics", async (
 
   dialog = await reselectFixture(page, dialog, page.getByTestId("svg-fixture"));
   summary = dialog.locator(".spotpatch-summary");
-  await expect(summary).toContainText("Confidence: exact (精确元素源码)");
+  await expect(summary).toContainText("Confidence: exact (exact element source)");
   await expect(summary).toContainText("Source: src/main.tsx:");
 });
 

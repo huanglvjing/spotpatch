@@ -150,7 +150,7 @@ try {
     const dialog = root.querySelector(".spotpatch-dialog");
     const summary = root.querySelector(".spotpatch-summary");
     const reselect = Array.from(root.querySelectorAll("button")).find(
-      (button) => button.textContent === "Reselect",
+      (button) => button.textContent === "Start over",
     );
 
     if (

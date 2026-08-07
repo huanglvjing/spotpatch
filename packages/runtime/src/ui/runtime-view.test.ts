@@ -56,7 +56,7 @@ describe("runtime view", () => {
     expect(view.triggerButton.textContent).toBe("Select element");
     expect(view.triggerButton.title).toContain("Mod+Shift+S");
     expect(dialog?.getAttribute("aria-labelledby")).toBe("spotpatch-selection-title");
-    expect(view.noteInput.getAttribute("id")).toBe("spotpatch-change-note");
+    expect(view.host.shadowRoot?.querySelector(".spotpatch-brand-mark")).not.toBeNull();
     expect(view.openEditorButton.textContent).toBe("Open in VS Code");
     expect(view.previewButton.textContent).toBe("Preview prompt");
     expect(view.copyButton.textContent).toBe("Copy prompt");
@@ -78,26 +78,149 @@ describe("runtime view", () => {
     expect(view.openEditorButton.disabled).toBe(true);
   });
 
-  it("keeps the annotation input available and previews content as plain text", () => {
+  it("renders a bounded target tray and persistent numbered highlights as inert content", () => {
+    const view = createRuntimeView(document, "Mod+Shift+S");
+    const hostile = '<img src=x onerror="globalThis.compromised=true">';
+
+    view.renderTargets(
+      [
+        {
+          id: "target-1",
+          instruction: "Align the first target.",
+          label: hostile,
+          source: "src/First.tsx:10:2",
+          status: "ready",
+          active: false,
+        },
+        {
+          id: "target-2",
+          instruction: "",
+          label: "SecondAction",
+          source: "src/Second.tsx:20:3",
+          status: "loading",
+          active: true,
+        },
+      ],
+      8,
+    );
+    view.showSelectionHighlights([
+      {
+        id: "target-1",
+        label: hostile,
+        rect: { x: 10, y: 20, width: 100, height: 40 },
+        active: false,
+      },
+      {
+        id: "target-2",
+        label: "SecondAction",
+        rect: { x: 200, y: 20, width: 100, height: 40 },
+        active: true,
+      },
+    ]);
+
+    expect(view.targetList.querySelectorAll(".spotpatch-target-item")).toHaveLength(2);
+    expect(view.targetList.textContent).toContain(hostile);
+    expect(view.targetList.querySelector("img")).toBeNull();
+    expect(
+      view.host.shadowRoot?.querySelectorAll(".spotpatch-selection-highlight"),
+    ).toHaveLength(2);
+    expect(
+      view.host.shadowRoot?.querySelector(
+        '.spotpatch-selection-highlight[data-active="true"]',
+      )?.textContent,
+    ).toContain("2 · SecondAction");
+
+    view.setAgentEditingEnabled(false);
+    expect(
+      view.targetList.querySelector<HTMLButtonElement>("button[data-remove-target-id]")
+        ?.disabled,
+    ).toBe(true);
+    expect(view.addTargetButton.disabled).toBe(true);
+  });
+
+  it("keeps a distinct active-target instruction and previews content as plain text", () => {
     const view = createRuntimeView(document, "Mod+Shift+S");
     const hostile = "```html\n<img src=x onerror=attack()>";
 
     view.renderStatus("selected");
-    view.noteInput.value = "Existing instruction";
-    expect(view.readNote()).toBe("Existing instruction");
+    expect(view.triggerButton.hidden).toBe(true);
+    view.renderTargets(
+      [
+        {
+          id: "target-1",
+          instruction: "Existing instruction",
+          label: "PrimaryAction",
+          source: "src/App.tsx:1:1",
+          status: "ready",
+          active: true,
+        },
+      ],
+      8,
+    );
+    expect(
+      view.targetList.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id='target-1']",
+      )?.value,
+    ).toBe("Existing instruction");
+    view.focusTargetInstruction("target-1");
+    view.renderTargets(
+      [
+        {
+          id: "target-1",
+          instruction: "Existing instruction",
+          label: "PrimaryAction",
+          source: "src/App.tsx:1:1",
+          status: "ready",
+          active: true,
+        },
+      ],
+      8,
+    );
+    expect(view.host.shadowRoot?.activeElement).toBe(
+      view.targetList.querySelector("textarea[data-target-instruction-id='target-1']"),
+    );
     expect(view.host.shadowRoot?.querySelector(".spotpatch-title")?.textContent).toBe(
-      "Describe the change",
+      "Plan the change",
     );
 
     view.renderStatus("previewing");
+    expect(view.triggerButton.hidden).toBe(true);
     view.showPreview(hostile);
     const preview = view.host.shadowRoot?.querySelector(".spotpatch-prompt");
     expect(preview?.textContent).toBe(hostile);
     expect(preview?.querySelector("img")).toBeNull();
     expect(preview?.getAttribute("tabindex")).toBe("0");
     expect(view.host.shadowRoot?.querySelector(".spotpatch-title")?.textContent).toBe(
-      "Prompt ready",
+      "Review the request",
     );
+
+    view.renderStatus("inspecting");
+    expect(view.triggerButton.hidden).toBe(false);
+  });
+
+  it("shows the shared instruction budget and marks an over-limit multi-target request", () => {
+    const view = createRuntimeView(document, "Mod+Shift+S");
+    const targets = ["target-1", "target-2", "target-3"].map((id, index) => ({
+      id,
+      instruction: String(index).repeat(1_500),
+      label: `Target${String(index + 1)}`,
+      source: `src/Target${String(index + 1)}.tsx:1:1`,
+      status: "ready" as const,
+      active: index === 0,
+    }));
+
+    view.renderTargets(targets, 8);
+
+    const budget = view.host.shadowRoot?.querySelector<HTMLElement>(
+      ".spotpatch-target-budget",
+    );
+    expect(budget?.dataset.state).toBe("over");
+    expect(budget?.textContent).toContain("4500 / 4000");
+    expect(
+      view.targetList.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id='target-1']",
+      )?.maxLength,
+    ).toBe(2_000);
   });
 
   it("centers the workbench inside a large selected element", () => {
@@ -109,13 +232,13 @@ describe("runtime view", () => {
       throw new Error("Expected the contextual workbench.");
     }
 
-    vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(measuredRect(460, 500));
+    vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(measuredRect(560, 500));
     view.renderStatus("selected");
     view.showHighlight({ x: 40, y: 70, width: 900, height: 650 }, "<main.hero>");
     view.showSelection("Source: src/main.tsx:1:1", true, false);
 
     expect(dialog.dataset.placement).toBe("center");
-    expect(dialog.style.left).toBe("260px");
+    expect(dialog.style.left).toBe("210px");
     expect(dialog.style.top).toBe("145px");
   });
 
@@ -137,7 +260,7 @@ describe("runtime view", () => {
     }
 
     vi.spyOn(dialog, "getBoundingClientRect").mockImplementation(() =>
-      measuredRect(460, diagnostics.open ? 620 : 480),
+      measuredRect(560, diagnostics.open ? 620 : 480),
     );
     view.renderStatus("selected");
     view.showHighlight({ x: 40, y: 70, width: 900, height: 650 }, "<main.hero>");
@@ -197,6 +320,37 @@ describe("runtime view", () => {
     expect(view.agentRunButton.textContent).toBe("Run AI");
     expect(view.agentRunButton.classList.contains("spotpatch-primary")).toBe(true);
     expect(view.previewButton.classList.contains("spotpatch-primary")).toBe(false);
+  });
+
+  it("renders a complete Chinese interface and switches language without losing target drafts", () => {
+    const view = createRuntimeView(document, "Mod+Shift+S", aiConfig, "zh-CN");
+    view.renderStatus("selected");
+    view.renderTargets(
+      [
+        {
+          id: "target-1",
+          instruction: "保留已有内容",
+          label: "PrimaryAction",
+          source: "src/App.tsx:1:1",
+          status: "ready",
+          active: true,
+        },
+      ],
+      8,
+    );
+
+    expect(view.triggerButton.textContent).toBe("选择元素");
+    expect(view.host.shadowRoot?.textContent).toContain("规划本次修改");
+    expect(view.host.shadowRoot?.textContent).toContain("修改目标");
+    view.host.shadowRoot
+      ?.querySelector<HTMLButtonElement>(".spotpatch-locale")
+      ?.click();
+    expect(view.triggerButton.textContent).toBe("Select element");
+    expect(
+      view.targetList.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id='target-1']",
+      )?.value,
+    ).toBe("保留已有内容");
   });
 
   it("renders provider-controlled Agent output only as inert text", () => {

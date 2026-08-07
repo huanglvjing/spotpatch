@@ -1,4 +1,9 @@
-import type { MatchedStyleRule, SpotAnnotation } from "@spotpatch/shared";
+import type {
+  MatchedStyleRule,
+  SpotAnnotation,
+  SpotPatchLocale,
+  SpotTargetContext,
+} from "@spotpatch/shared";
 
 import {
   redactSensitiveText,
@@ -6,31 +11,121 @@ import {
   sanitizeUrl,
 } from "../security/content-sanitizer.js";
 
-const MODIFICATION_CONSTRAINT =
-  "请先判断根因，再给出最小范围修改。不要改动无关组件；如果上下文不足，请明确说明需要哪些信息。";
+interface PromptMessages {
+  readonly adapter: string;
+  readonly boundary: string;
+  readonly code: string;
+  readonly component: string;
+  readonly computedStyles: string;
+  readonly confidence: string;
+  readonly devicePixelRatio: string;
+  readonly element: string;
+  readonly file: string;
+  readonly modificationConstraint: string;
+  readonly modificationRequirements: string;
+  readonly origin: string;
+  readonly pageEnvironment: string;
+  readonly pathname: string;
+  readonly reactContext: string;
+  readonly reactVersion: string;
+  readonly requestedChange: string;
+  readonly selectedTargets: (count: number) => string;
+  readonly source: string;
+  readonly stack: string;
+  readonly styles: string;
+  readonly supported: string;
+  readonly target: (index: number) => string;
+  readonly title: string;
+  readonly unavailable: string;
+  readonly unsupported: string;
+  readonly url: string;
+  readonly viewport: string;
+  readonly warnings: string;
+  readonly none: string;
+}
 
-const SECTION_TITLES = Object.freeze([
-  "## 问题",
-  "## 页面环境",
-  "## React 上下文",
-  "## 源码定位",
-  "## 选中元素",
-  "## 相关样式",
-  "## 关键计算样式",
-  "## 附近代码",
-  "## 采集警告",
-  "## 修改要求",
-] as const);
+const PROMPT_MESSAGES = Object.freeze({
+  "en-US": Object.freeze({
+    adapter: "Adapter",
+    boundary: "Boundary",
+    code: "Nearby code",
+    component: "Component",
+    computedStyles: "Key computed styles",
+    confidence: "Confidence",
+    devicePixelRatio: "Device pixel ratio",
+    element: "Selected element",
+    file: "File",
+    modificationConstraint:
+      "Determine the root cause first, then implement every target instruction as one consistent, minimum-scope change. Do not modify unrelated components. If context is insufficient, state exactly what additional information is required.",
+    modificationRequirements: "Change requirements",
+    origin: "Origin",
+    pageEnvironment: "Page environment",
+    pathname: "Pathname",
+    reactContext: "React context",
+    reactVersion: "React",
+    requestedChange: "Requested change",
+    selectedTargets: (count: number) => `Selected targets (${String(count)})`,
+    source: "Source",
+    stack: "Stack",
+    styles: "Relevant styles",
+    supported: "supported",
+    target: (index: number) => `Target ${String(index)}`,
+    title: "Title",
+    unavailable: "Unavailable",
+    unsupported: "unsupported",
+    url: "URL",
+    viewport: "Viewport",
+    warnings: "Collection warnings",
+    none: "None",
+  }),
+  "zh-CN": Object.freeze({
+    adapter: "适配器",
+    boundary: "代码边界",
+    code: "附近代码",
+    component: "组件",
+    computedStyles: "关键计算样式",
+    confidence: "置信度",
+    devicePixelRatio: "设备像素比",
+    element: "选中元素",
+    file: "文件",
+    modificationConstraint:
+      "请先判断根因，再把每个目标各自的修改说明作为一个原子任务，完成一致且最小范围的修改。不要合并、忽略或扩大目标说明，不要改动无关组件；如果上下文不足，请明确说明需要哪些信息。",
+    modificationRequirements: "修改要求",
+    origin: "定位来源",
+    pageEnvironment: "页面环境",
+    pathname: "路径",
+    reactContext: "React 上下文",
+    reactVersion: "React",
+    requestedChange: "修改说明",
+    selectedTargets: (count: number) => `已选目标（${String(count)}）`,
+    source: "源码定位",
+    stack: "组件栈",
+    styles: "相关样式",
+    supported: "支持",
+    target: (index: number) => `目标 ${String(index)}`,
+    title: "标题",
+    unavailable: "不可用",
+    unsupported: "不支持",
+    url: "URL",
+    viewport: "视口",
+    warnings: "采集警告",
+    none: "无",
+  }),
+} satisfies Readonly<Record<SpotPatchLocale, PromptMessages>>);
 
-interface PromptDraft {
+interface TargetDraft {
   codeLines: string[];
   computedEntries: [string, string][];
   dom: string;
+  instruction: string;
   matchedRules: MatchedStyleRule[];
-  note: string;
-  pageTitle: string;
   reactStack: string[];
   warnings: string[];
+}
+
+interface PromptDraft {
+  pageTitle: string;
+  targets: TargetDraft[];
 }
 
 export interface PromptComposer {
@@ -50,24 +145,24 @@ function fenced(language: string, value: string): string {
   return `${fence}${language}\n${value}\n${fence}`;
 }
 
-function sourceLocation(annotation: SpotAnnotation): string {
-  const path = annotation.code?.relativePath ?? annotation.source.relativePath;
-  const line = annotation.source.line;
-  const column = annotation.source.column;
+function sourceLocation(target: SpotTargetContext, messages: PromptMessages): string {
+  const path = target.code?.relativePath ?? target.source.relativePath;
+  const line = target.source.line;
+  const column = target.source.column;
 
   if (path === undefined) {
-    return "Unavailable";
+    return messages.unavailable;
   }
 
   return `${redactSensitiveText(path)}${line === undefined ? "" : `:${String(line)}`}${column === undefined ? "" : `:${String(column)}`}`;
 }
 
-function openingTag(sanitizedHtml: string): string {
+function openingTag(sanitizedHtml: string, unavailable: string): string {
   return (
     sanitizedHtml
       .split("\n")
       .find((line) => /^\s*<[a-z][^>]*>/iu.test(line))
-      ?.trim() ?? "Unavailable"
+      ?.trim() ?? unavailable
   );
 }
 
@@ -85,24 +180,30 @@ function renderRule(rule: MatchedStyleRule): string {
 }
 
 function renderStyles(
-  annotation: SpotAnnotation,
+  target: SpotTargetContext,
   rules: readonly MatchedStyleRule[],
+  messages: PromptMessages,
 ): string {
   const metadata = [
-    annotation.styles.classNames.length === 0
+    target.styles.classNames.length === 0
       ? undefined
-      : `/* classes: ${annotation.styles.classNames.map(sanitizeCssText).join(" ")} */`,
-    annotation.styles.inlineStyle === undefined
+      : `/* classes: ${target.styles.classNames.map(sanitizeCssText).join(" ")} */`,
+    target.styles.inlineStyle === undefined
       ? undefined
-      : `/* inline: ${sanitizeCssText(annotation.styles.inlineStyle)} */`,
+      : `/* inline: ${sanitizeCssText(target.styles.inlineStyle)} */`,
   ].filter((line): line is string => line !== undefined);
   const blocks = [...metadata, ...rules.map(renderRule)];
-  return blocks.length === 0 ? "Unavailable" : fenced("css", blocks.join("\n\n"));
+  return blocks.length === 0
+    ? messages.unavailable
+    : fenced("css", blocks.join("\n\n"));
 }
 
-function renderComputed(entries: readonly [string, string][]): string {
+function renderComputed(
+  entries: readonly [string, string][],
+  messages: PromptMessages,
+): string {
   return entries.length === 0
-    ? "Unavailable"
+    ? messages.unavailable
     : fenced(
         "css",
         entries
@@ -113,57 +214,85 @@ function renderComputed(entries: readonly [string, string][]): string {
       );
 }
 
-function renderPrompt(annotation: SpotAnnotation, draft: PromptDraft): string {
-  const pageUrl = sanitizeUrl(annotation.page.url, annotation.page.url);
-  const component = annotation.react.componentName;
+function renderTarget(
+  target: SpotTargetContext,
+  draft: TargetDraft,
+  index: number,
+  messages: PromptMessages,
+): string {
   const reactLines = [
-    `- Adapter: ${annotation.react.supported ? "supported" : "unsupported"}`,
-    ...(annotation.react.version === undefined
+    `- ${messages.adapter}: ${target.react.supported ? messages.supported : messages.unsupported}`,
+    ...(target.react.version === undefined
       ? []
-      : [`- React: ${redactSensitiveText(annotation.react.version)}`]),
-    ...(component === undefined
+      : [`- ${messages.reactVersion}: ${redactSensitiveText(target.react.version)}`]),
+    ...(target.react.componentName === undefined
       ? []
-      : [`- Component: ${redactSensitiveText(component)}`]),
+      : [
+          `- ${messages.component}: ${redactSensitiveText(target.react.componentName)}`,
+        ]),
     ...(draft.reactStack.length === 0
       ? []
-      : [`- Stack: ${draft.reactStack.map(redactSensitiveText).join(" > ")}`]),
+      : [
+          `- ${messages.stack}: ${draft.reactStack.map(redactSensitiveText).join(" > ")}`,
+        ]),
   ];
   const code =
-    annotation.code === undefined || draft.codeLines.length === 0
-      ? "Unavailable"
-      : `- Boundary: ${annotation.code.boundary}\n\n${fenced(
-          annotation.code.language,
+    target.code === undefined || draft.codeLines.length === 0
+      ? messages.unavailable
+      : `- ${messages.boundary}: ${target.code.boundary}\n\n${fenced(
+          target.code.language,
           redactSensitiveText(draft.codeLines.join("\n")),
         )}`;
 
   return [
-    SECTION_TITLES[0],
-    draft.note,
-    SECTION_TITLES[1],
-    `- URL: <${pageUrl}>\n- Pathname: ${redactSensitiveText(annotation.page.pathname)}\n- Title: ${draft.pageTitle.length === 0 ? "Unavailable" : draft.pageTitle}\n- Viewport: ${String(annotation.page.viewportWidth)} × ${String(annotation.page.viewportHeight)}\n- Device pixel ratio: ${String(annotation.page.devicePixelRatio)}`,
-    SECTION_TITLES[2],
+    `### ${messages.target(index + 1)}`,
+    `#### ${messages.requestedChange}`,
+    draft.instruction,
+    `#### ${messages.reactContext}`,
     reactLines.join("\n"),
-    SECTION_TITLES[3],
-    `- File: ${sourceLocation(annotation)}\n- Origin: ${annotation.source.origin}\n- Confidence: ${annotation.source.confidence}`,
-    SECTION_TITLES[4],
+    `#### ${messages.source}`,
+    `- ${messages.file}: ${sourceLocation(target, messages)}\n- ${messages.origin}: ${target.source.origin}\n- ${messages.confidence}: ${target.source.confidence}`,
+    `#### ${messages.element}`,
     fenced("html", redactSensitiveText(draft.dom)),
-    SECTION_TITLES[5],
-    renderStyles(annotation, draft.matchedRules),
-    SECTION_TITLES[6],
-    renderComputed(draft.computedEntries),
-    SECTION_TITLES[7],
+    `#### ${messages.styles}`,
+    renderStyles(target, draft.matchedRules, messages),
+    `#### ${messages.computedStyles}`,
+    renderComputed(draft.computedEntries, messages),
+    `#### ${messages.code}`,
     code,
-    SECTION_TITLES[8],
+    `#### ${messages.warnings}`,
     draft.warnings.length === 0
-      ? "- None"
+      ? `- ${messages.none}`
       : draft.warnings.map((warning) => `- ${redactSensitiveText(warning)}`).join("\n"),
-    SECTION_TITLES[9],
-    MODIFICATION_CONSTRAINT,
   ].join("\n\n");
 }
 
-function shrinkCode(annotation: SpotAnnotation, draft: PromptDraft): boolean {
-  if (draft.codeLines.length === 0 || annotation.code === undefined) {
+function renderPrompt(annotation: SpotAnnotation, draft: PromptDraft): string {
+  const pageUrl = sanitizeUrl(annotation.page.url, annotation.page.url);
+  const messages = PROMPT_MESSAGES[annotation.locale];
+
+  return [
+    `## ${messages.pageEnvironment}`,
+    `- ${messages.url}: <${pageUrl}>\n- ${messages.pathname}: ${redactSensitiveText(annotation.page.pathname)}\n- ${messages.title}: ${draft.pageTitle.length === 0 ? messages.unavailable : draft.pageTitle}\n- ${messages.viewport}: ${String(annotation.page.viewportWidth)} × ${String(annotation.page.viewportHeight)}\n- ${messages.devicePixelRatio}: ${String(annotation.page.devicePixelRatio)}`,
+    `## ${messages.selectedTargets(annotation.targets.length)}`,
+    annotation.targets
+      .map((target, index) => {
+        const targetDraft = draft.targets[index];
+
+        if (targetDraft === undefined) {
+          throw new RangeError("Prompt target draft is missing.");
+        }
+
+        return renderTarget(target, targetDraft, index, messages);
+      })
+      .join("\n\n"),
+    `## ${messages.modificationRequirements}`,
+    messages.modificationConstraint,
+  ].join("\n\n");
+}
+
+function shrinkCode(target: SpotTargetContext, draft: TargetDraft): boolean {
+  if (draft.codeLines.length === 0 || target.code === undefined) {
     return false;
   }
 
@@ -179,9 +308,9 @@ function shrinkCode(annotation: SpotAnnotation, draft: PromptDraft): boolean {
     return true;
   }
 
-  const selectedLine = annotation.source.line ?? annotation.code.startLine;
-  const firstDistance = Math.abs(annotation.code.startLine - selectedLine);
-  const lastLine = annotation.code.startLine + draft.codeLines.length - 1;
+  const selectedLine = target.source.line ?? target.code.startLine;
+  const firstDistance = Math.abs(target.code.startLine - selectedLine);
+  const lastLine = target.code.startLine + draft.codeLines.length - 1;
   const lastDistance = Math.abs(lastLine - selectedLine);
 
   if (lastDistance >= firstDistance) {
@@ -193,52 +322,129 @@ function shrinkCode(annotation: SpotAnnotation, draft: PromptDraft): boolean {
   return true;
 }
 
+function createTargetDraft(target: SpotTargetContext): TargetDraft {
+  return {
+    instruction: redactSensitiveText(target.instruction.trim()),
+    reactStack: [...target.react.componentStack],
+    dom: target.element.sanitizedHtml,
+    matchedRules: [...target.styles.matchedRules],
+    computedEntries: Object.entries(target.styles.computed),
+    codeLines: target.code?.excerpt.split(/\r?\n/u) ?? [],
+    warnings: Array.from(new Set([...target.styles.warnings, ...target.warnings])),
+  };
+}
+
 function createDraft(annotation: SpotAnnotation): PromptDraft {
   return {
-    note: redactSensitiveText(annotation.note.trim()),
     pageTitle: redactSensitiveText(annotation.page.title),
-    reactStack: [...annotation.react.componentStack],
-    dom: annotation.element.sanitizedHtml,
-    matchedRules: [...annotation.styles.matchedRules],
-    computedEntries: Object.entries(annotation.styles.computed),
-    codeLines: annotation.code?.excerpt.split(/\r?\n/u) ?? [],
-    warnings: Array.from(
-      new Set([...annotation.styles.warnings, ...annotation.warnings]),
-    ),
+    targets: annotation.targets.map(createTargetDraft),
   };
+}
+
+function shrinkTargetsFairly(
+  annotation: SpotAnnotation,
+  draft: PromptDraft,
+  cursor: number,
+): number | undefined {
+  const messages = PROMPT_MESSAGES[annotation.locale];
+  const operations: readonly ((
+    target: SpotTargetContext,
+    value: TargetDraft,
+  ) => boolean)[] = [
+    (_target, value) => value.computedEntries.pop() !== undefined,
+    (_target, value) => value.reactStack.pop() !== undefined,
+    (_target, value) => {
+      const selectedOpeningTag = openingTag(value.dom, messages.unavailable);
+
+      if (value.dom === selectedOpeningTag) {
+        return false;
+      }
+
+      value.dom = selectedOpeningTag;
+      return true;
+    },
+    (_target, value) => value.matchedRules.shift() !== undefined,
+    shrinkCode,
+    (_target, value) => value.warnings.pop() !== undefined,
+  ];
+
+  for (const operation of operations) {
+    for (let offset = 0; offset < annotation.targets.length; offset += 1) {
+      const index = (cursor + offset) % annotation.targets.length;
+      const target = annotation.targets[index];
+      const targetDraft = draft.targets[index];
+
+      if (
+        target !== undefined &&
+        targetDraft !== undefined &&
+        operation(target, targetDraft)
+      ) {
+        return (index + 1) % annotation.targets.length;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function renderCompactPrompt(annotation: SpotAnnotation, draft: PromptDraft): string {
+  const messages = PROMPT_MESSAGES[annotation.locale];
+  const targets = annotation.targets.map((target, index) => {
+    const targetDraft = draft.targets[index];
+    const component = target.react.componentName;
+    return [
+      `### ${messages.target(index + 1)}`,
+      `- ${messages.requestedChange}: ${targetDraft?.instruction ?? redactSensitiveText(target.instruction)}`,
+      `- ${messages.file}: ${sourceLocation(target, messages)}`,
+      ...(component === undefined
+        ? []
+        : [`- ${messages.component}: ${redactSensitiveText(component)}`]),
+      `- ${messages.element}: ${redactSensitiveText(openingTag(targetDraft?.dom ?? target.element.sanitizedHtml, messages.unavailable))}`,
+    ].join("\n");
+  });
+
+  return [
+    `## ${messages.selectedTargets(annotation.targets.length)}`,
+    targets.join("\n\n"),
+    `## ${messages.modificationRequirements}`,
+    messages.modificationConstraint,
+  ].join("\n\n");
 }
 
 function composeBounded(annotation: SpotAnnotation, maxCharacters: number): string {
   const draft = createDraft(annotation);
-  const selectedOpeningTag = openingTag(draft.dom);
   let prompt = renderPrompt(annotation, draft);
+  let cursor = 0;
 
   while (prompt.length > maxCharacters) {
-    if (draft.computedEntries.length > 0) {
-      draft.computedEntries.pop();
-    } else if (draft.reactStack.length > 0) {
-      draft.reactStack.pop();
-    } else if (draft.dom !== selectedOpeningTag) {
-      draft.dom = selectedOpeningTag;
-    } else if (draft.matchedRules.length > 0) {
-      draft.matchedRules.shift();
-    } else if (shrinkCode(annotation, draft)) {
-      // The code shrinker preserves the line nearest to the selected source.
-    } else if (draft.warnings.length > 1) {
-      draft.warnings.pop();
-    } else if (draft.pageTitle.length > 0) {
-      draft.pageTitle = "";
-    } else if (draft.note.length > 80) {
-      const excess = prompt.length - maxCharacters;
-      draft.note = `${draft.note.slice(0, Math.max(79, draft.note.length - excess - 1))}…`;
+    const nextCursor = shrinkTargetsFairly(annotation, draft, cursor);
+
+    if (nextCursor === undefined) {
+      if (draft.pageTitle.length > 0) {
+        draft.pageTitle = "";
+      } else {
+        break;
+      }
     } else {
-      break;
+      cursor = nextCursor;
     }
 
     prompt = renderPrompt(annotation, draft);
   }
 
-  return prompt;
+  if (prompt.length <= maxCharacters) {
+    return prompt;
+  }
+
+  const compact = renderCompactPrompt(annotation, draft);
+
+  if (compact.length > maxCharacters) {
+    throw new RangeError(
+      "Prompt budget cannot preserve every target instruction and source location.",
+    );
+  }
+
+  return compact;
 }
 
 export function createPromptComposer(

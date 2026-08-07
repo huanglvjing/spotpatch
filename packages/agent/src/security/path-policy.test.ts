@@ -1,4 +1,4 @@
-import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -12,7 +12,7 @@ import {
   resolveExistingAgentPath,
   resolveWritableAgentPath,
 } from "./path-policy.js";
-import { readAgentTextFile } from "./text-file.js";
+import { readAgentTextFile, writeAgentTextFileIfContentMatches } from "./text-file.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -88,5 +88,38 @@ describe("Agent path policy", () => {
     await expect(readAgentTextFile(root, "binary.bin", 100)).rejects.toMatchObject({
       code: ERROR_CODES.TOOL_DENIED,
     });
+  });
+
+  it("atomically writes only a matching bounded UTF-8 file and preserves its BOM", async () => {
+    const root = await temporaryDirectory();
+    const target = path.join(root, "text.txt");
+    const byteOrderMark = Buffer.from([0xef, 0xbb, 0xbf]);
+    await writeFile(target, Buffer.concat([byteOrderMark, Buffer.from("Before")]));
+
+    await writeAgentTextFileIfContentMatches(root, "text.txt", "Before", "After", 100);
+    expect(await readFile(target)).toEqual(
+      Buffer.concat([byteOrderMark, Buffer.from("After")]),
+    );
+    await expect(
+      writeAgentTextFileIfContentMatches(
+        root,
+        "text.txt",
+        "Before",
+        "Stale overwrite",
+        100,
+      ),
+    ).rejects.toMatchObject({ code: ERROR_CODES.PATCH_REJECTED });
+    await expect(
+      writeAgentTextFileIfContentMatches(
+        root,
+        "text.txt",
+        "After",
+        "Result exceeds the configured byte limit",
+        10,
+      ),
+    ).rejects.toMatchObject({ code: ERROR_CODES.AGENT_LIMIT_EXCEEDED });
+    expect(await readFile(target)).toEqual(
+      Buffer.concat([byteOrderMark, Buffer.from("After")]),
+    );
   });
 });

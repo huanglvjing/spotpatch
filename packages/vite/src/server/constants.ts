@@ -1,2 +1,3 @@
 export const MAX_REQUEST_BODY_BYTES = 32 * 1024;
+export const MAX_AGENT_REQUEST_BODY_BYTES = 256 * 1024;
 export const MAX_SOURCE_FILE_BYTES = 1024 * 1024;

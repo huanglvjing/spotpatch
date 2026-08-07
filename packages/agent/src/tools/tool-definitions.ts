@@ -4,6 +4,7 @@ export const AGENT_TOOL_NAMES = Object.freeze({
   listFiles: "list_files",
   searchText: "search_text",
   readFile: "read_file",
+  replaceText: "replace_text",
   applyPatch: "apply_patch",
   runCheck: "run_check",
 } as const);
@@ -73,9 +74,24 @@ export const AGENT_TOOL_DEFINITIONS = Object.freeze([
     }),
   }),
   Object.freeze({
+    name: AGENT_TOOL_NAMES.replaceText,
+    description:
+      "Replace exactly one occurrence of oldText in one existing allowed UTF-8 file. Prefer this for localized edits. Copy oldText exactly from search_text or file content, without read_file line-number prefixes; include enough surrounding text to make it unique. This tool cannot create, delete, or replace an entire file. A retryable PATCH_REJECTED result means no file changed: re-read and retry with a new tool call ID.",
+    parameters: Object.freeze({
+      type: "object",
+      properties: Object.freeze({
+        path: pathProperty,
+        oldText: Object.freeze({ type: "string", minLength: 1 }),
+        newText: Object.freeze({ type: "string" }),
+      }),
+      required: Object.freeze(["path", "oldText", "newText"]),
+      additionalProperties: false,
+    }),
+  }),
+  Object.freeze({
     name: AGENT_TOOL_NAMES.applyPatch,
     description:
-      "Apply one unified Git patch to allowed files in the isolated worktree. Never send prose or shell commands.",
+      "Apply one raw canonical unified Git diff to allowed files in the isolated worktree. Use this for file creation, deletion, or changes that cannot be expressed as one exact replacement. Begin with 'diff --git a/<path> b/<path>', include matching ---/+++ headers and valid @@ hunks. Never send Markdown fences, prose, shell commands, or '*** Begin Patch' markers. A retryable PATCH_REJECTED result means no file changed: re-read and use replace_text for a localized existing-file edit, or retry a corrected diff with a new tool call ID.",
     parameters: Object.freeze({
       type: "object",
       properties: Object.freeze({

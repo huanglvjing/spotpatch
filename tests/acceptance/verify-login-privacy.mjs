@@ -54,7 +54,7 @@ try {
   await page.mouse.click(formPoint?.x ?? 0, formPoint?.y ?? 0);
 
   const selectedDialog = page.getByRole("dialog", {
-    name: "Describe the change",
+    name: "Plan the change",
   });
   await selectedDialog.waitFor({ state: "visible" });
   const summary = selectedDialog.locator(".spotpatch-summary");
@@ -69,7 +69,7 @@ try {
   });
   const summaryText = (await summary.textContent()) ?? "";
   await selectedDialog
-    .getByRole("textbox", { name: "What should change?" })
+    .locator("textarea[data-target-instruction-id]")
     .fill("Review the login layout without exposing credentials.");
   const previewButton = selectedDialog.getByRole("button", {
     name: "Preview prompt",
@@ -80,7 +80,7 @@ try {
 
   const prompt =
     (await page
-      .getByRole("dialog", { name: "Prompt ready" })
+      .getByRole("dialog", { name: "Review the request" })
       .getByLabel("Generated prompt")
       .textContent()) ?? "";
   const leakedSecrets = Object.values(secrets).filter((secret) =>

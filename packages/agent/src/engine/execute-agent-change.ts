@@ -57,6 +57,19 @@ export interface ExecuteAgentChangeOptions {
   readonly temporaryBase?: string;
 }
 
+function isRetryableToolFailure(result: ProviderToolResult): boolean {
+  const output = result.output;
+
+  if (typeof output !== "object" || output === null) {
+    return false;
+  }
+
+  const candidate = output as Readonly<Record<string, unknown>>;
+  return (
+    candidate.errorCode === ERROR_CODES.PATCH_REJECTED && candidate.retryable === true
+  );
+}
+
 function throwIfCancelled(signal: AbortSignal): void {
   if (signal.aborted) {
     throw new SpotPatchError(ERROR_CODES.AGENT_CANCELLED);
@@ -168,12 +181,13 @@ export async function executeAgentChange(
         );
 
         try {
-          results.push(await executor.execute(call, controller.signal));
+          const result = await executor.execute(call, controller.signal);
+          results.push(result);
           options.callbacks?.onTool?.(
             Object.freeze({
               toolCallId: call.id,
               toolName: call.name,
-              state: "succeeded",
+              state: isRetryableToolFailure(result) ? "failed" : "succeeded",
             }),
           );
         } catch (error: unknown) {

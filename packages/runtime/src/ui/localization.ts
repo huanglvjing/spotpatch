@@ -1,0 +1,652 @@
+import {
+  ERROR_CODES,
+  type AgentJobStatus,
+  type ErrorCode,
+  type SpotPatchLocale,
+  type SpotPatchLocalePreference,
+} from "@spotpatch/shared";
+
+import type { SelectionSummaryMessages } from "./selection-summary.js";
+
+export interface UiMessages {
+  readonly localeName: string;
+  readonly alternateLocaleName: string;
+  readonly switchLocale: string;
+  readonly brand: Readonly<{
+    name: string;
+    context: string;
+  }>;
+  readonly trigger: Readonly<{
+    select: string;
+    stop: string;
+    title: (shortcut: string) => string;
+  }>;
+  readonly dialog: Readonly<{
+    close: string;
+    editTitle: string;
+    editSubtitle: string;
+    previewTitle: string;
+    previewSubtitle: string;
+  }>;
+  readonly context: Readonly<{
+    collecting: string;
+    ready: string;
+    partial: string;
+    sourceUnavailable: string;
+    selectedElement: string;
+    selectedCount: (count: number) => string;
+  }>;
+  readonly targets: Readonly<{
+    title: string;
+    ariaLabel: string;
+    count: (selected: number, maximum: number) => string;
+    complete: (complete: number, total: number) => string;
+    instructionBudget: (used: number, maximum: number) => string;
+    instructionBudgetExceeded: (used: number, maximum: number) => string;
+    statusReady: string;
+    statusPartial: string;
+    statusCollecting: string;
+    instructionReady: string;
+    instructionMissing: string;
+    instructionLabel: (name: string) => string;
+    instructionPlaceholder: string;
+    instructionCount: (used: number, maximum: number) => string;
+    activate: (index: number) => string;
+    remove: (index: number) => string;
+    removeTitle: string;
+    addTitle: string;
+    limitTitle: (maximum: number) => string;
+  }>;
+  readonly diagnostics: Readonly<{
+    title: string;
+    resolving: string;
+    noExactSource: string;
+    promptAriaLabel: string;
+  }>;
+  readonly summary: SelectionSummaryMessages;
+  readonly actions: Readonly<{
+    addElement: string;
+    reselect: string;
+    openEditor: string;
+    preview: string;
+    copy: string;
+    back: string;
+  }>;
+  readonly agent: Readonly<{
+    title: string;
+    review: string;
+    autoGated: string;
+    provider: string;
+    model: string;
+    providerAriaLabel: string;
+    modelAriaLabel: string;
+    providerUnavailable: string;
+    consent: (provider: string) => string;
+    connectionNotTested: string;
+    capabilityVerified: string;
+    capabilityVerifiedAnnouncement: string;
+    testingCapability: string;
+    applying: string;
+    cancelling: string;
+    reverting: string;
+    consentRequired: string;
+    toolsReady: string;
+    testConnection: string;
+    verifyAndRun: string;
+    verifying: string;
+    run: string;
+    cancel: string;
+    discard: string;
+    apply: string;
+    revert: string;
+    revise: string;
+    diffAriaLabel: string;
+    noOutput: string;
+    status: (status: AgentJobStatus) => string;
+  }>;
+  readonly announcements: Readonly<{
+    adapterDisabled: string;
+    selectionEnabled: string;
+    chooseAnother: string;
+    reselectAfterChange: string;
+    sourceLoaded: string;
+    sourceFailed: string;
+    addCancelled: string;
+    selectionLimit: (maximum: number) => string;
+    chooseAdditional: (selected: number, maximum: number) => string;
+    duplicate: string;
+    sourceProbable: string;
+    sourceMissing: string;
+    noSelectable: string;
+    allTargetsRemoved: string;
+    targetRemoved: string;
+    detachedTargetRemoved: string;
+    contextWarning: string;
+    contextCollected: string;
+    editorOpened: string;
+    editorFailed: string;
+    completeInstructions: string;
+    promptCopied: string;
+    clipboardUnavailable: string;
+    copyFailed: string;
+    appliedTargetsDetached: string;
+  }>;
+  readonly errors: Readonly<Record<ErrorCode, string>>;
+}
+
+const STATUS_EN: Readonly<Record<AgentJobStatus, string>> = Object.freeze({
+  queued: "Queued",
+  preparing: "Preparing",
+  running: "Running",
+  validating: "Validating",
+  "awaiting-review": "Awaiting review",
+  applying: "Applying",
+  applied: "Applied",
+  completed: "Completed",
+  cancelling: "Cancelling",
+  cancelled: "Cancelled",
+  reverting: "Reverting",
+  reverted: "Reverted",
+  failed: "Failed",
+});
+
+const STATUS_ZH: Readonly<Record<AgentJobStatus, string>> = Object.freeze({
+  queued: "已排队",
+  preparing: "准备中",
+  running: "执行中",
+  validating: "验证中",
+  "awaiting-review": "等待审阅",
+  applying: "应用中",
+  applied: "已应用",
+  completed: "已完成",
+  cancelling: "取消中",
+  cancelled: "已取消",
+  reverting: "撤销中",
+  reverted: "已撤销",
+  failed: "失败",
+});
+
+const ERROR_MESSAGES_EN = Object.freeze({
+  [ERROR_CODES.INVALID_REQUEST]: "The Agent request was rejected as invalid.",
+  [ERROR_CODES.INVALID_TOKEN]: "The local SpotPatch session expired.",
+  [ERROR_CODES.ORIGIN_NOT_ALLOWED]: "The current page origin is not authorized.",
+  [ERROR_CODES.SOURCE_NOT_FOUND]: "The selected source is no longer available.",
+  [ERROR_CODES.SOURCE_OUTSIDE_ROOT]: "The selected source is outside the project.",
+  [ERROR_CODES.SOURCE_TOO_LARGE]: "The selected source exceeds the safety limit.",
+  [ERROR_CODES.EDITOR_OPEN_FAILED]: "The editor request failed.",
+  [ERROR_CODES.AI_DISABLED]: "AI execution is disabled in Vite configuration.",
+  [ERROR_CODES.PROVIDER_NOT_CONFIGURED]:
+    "The provider Key environment variable is missing on the Vite process.",
+  [ERROR_CODES.PROVIDER_AUTH_FAILED]:
+    "The provider rejected authentication. Check the server-side Key.",
+  [ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED]:
+    "The relay does not match the configured OpenAI-compatible protocol.",
+  [ERROR_CODES.MODEL_NOT_ALLOWED]: "The selected model profile is not allowed.",
+  [ERROR_CODES.MODEL_TOOL_CALL_UNSUPPORTED]:
+    "The selected model did not complete the required tool-call probe.",
+  [ERROR_CODES.PROVIDER_RATE_LIMITED]:
+    "The provider is rate limited. Wait and try again.",
+  [ERROR_CODES.AGENT_BUSY]: "Another write Agent job is still active.",
+  [ERROR_CODES.AGENT_LIMIT_EXCEEDED]:
+    "The Agent stopped at a configured time, turn, output, or size limit.",
+  [ERROR_CODES.AGENT_CANCELLED]: "The Agent job was cancelled.",
+  [ERROR_CODES.WORKTREE_DIRTY]:
+    "Commit or otherwise clean staged, unstaged, and untracked files before running AI.",
+  [ERROR_CODES.TOOL_DENIED]: "A model tool request violated the local safety policy.",
+  [ERROR_CODES.PATCH_REJECTED]: "The proposed patch did not pass local policy.",
+  [ERROR_CODES.VALIDATION_FAILED]:
+    "Required project checks failed. The change cannot be applied.",
+  [ERROR_CODES.APPLY_CONFLICT]:
+    "Project files changed after the Agent baseline; no overwrite was performed.",
+  [ERROR_CODES.INTERNAL_ERROR]:
+    "The Agent job failed without exposing private details.",
+} satisfies Record<ErrorCode, string>);
+
+const ERROR_MESSAGES_ZH = Object.freeze({
+  [ERROR_CODES.INVALID_REQUEST]: "Agent 请求无效，已被拒绝。",
+  [ERROR_CODES.INVALID_TOKEN]: "本地 SpotPatch 会话已失效。",
+  [ERROR_CODES.ORIGIN_NOT_ALLOWED]: "当前页面来源未获授权。",
+  [ERROR_CODES.SOURCE_NOT_FOUND]: "选中目标对应的源码已不可用。",
+  [ERROR_CODES.SOURCE_OUTSIDE_ROOT]: "选中源码位于项目根目录之外。",
+  [ERROR_CODES.SOURCE_TOO_LARGE]: "选中源码超过安全大小限制。",
+  [ERROR_CODES.EDITOR_OPEN_FAILED]: "编辑器打开请求失败。",
+  [ERROR_CODES.AI_DISABLED]: "Vite 配置未启用 AI 执行。",
+  [ERROR_CODES.PROVIDER_NOT_CONFIGURED]:
+    "启动 Vite 的进程中缺少模型服务 Key 环境变量。",
+  [ERROR_CODES.PROVIDER_AUTH_FAILED]: "模型服务鉴权失败，请检查服务端 Key。",
+  [ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED]:
+    "中转服务与配置的 OpenAI 兼容协议不一致。",
+  [ERROR_CODES.MODEL_NOT_ALLOWED]: "当前模型配置未获授权。",
+  [ERROR_CODES.MODEL_TOOL_CALL_UNSUPPORTED]: "当前模型未通过必要的工具调用能力探测。",
+  [ERROR_CODES.PROVIDER_RATE_LIMITED]: "模型服务正在限流，请稍后重试。",
+  [ERROR_CODES.AGENT_BUSY]: "当前项目已有一个写入任务正在运行。",
+  [ERROR_CODES.AGENT_LIMIT_EXCEEDED]: "Agent 达到时间、轮次、输出或变更规模限制。",
+  [ERROR_CODES.AGENT_CANCELLED]: "Agent 任务已取消。",
+  [ERROR_CODES.WORKTREE_DIRTY]: "运行 AI 前，请先提交或清理暂存、未暂存与未跟踪文件。",
+  [ERROR_CODES.TOOL_DENIED]: "模型工具请求违反本地安全策略。",
+  [ERROR_CODES.PATCH_REJECTED]: "建议补丁未通过本地策略检查。",
+  [ERROR_CODES.VALIDATION_FAILED]: "项目必需检查失败，不能应用本次变更。",
+  [ERROR_CODES.APPLY_CONFLICT]: "Agent 建立基线后项目文件已变化，未执行覆盖。",
+  [ERROR_CODES.INTERNAL_ERROR]: "Agent 任务失败，私有细节未暴露到浏览器。",
+} satisfies Record<ErrorCode, string>);
+
+const SUMMARY_MESSAGES_EN = Object.freeze({
+  adapter: "React adapter",
+  api: "API",
+  apiStatuses: Object.freeze({
+    connected: "connected",
+    failed: "failed",
+    loading: "loading",
+    "not-required": "not required",
+  }),
+  available: "available",
+  boundary: "Boundary",
+  boundaries: Object.freeze({
+    component: "component",
+    "nearby-lines": "nearby lines",
+  }),
+  browserContext: "Browser context",
+  collectionStatuses: Object.freeze({
+    failed: "failed",
+    loading: "loading",
+    ready: "ready",
+  }),
+  component: "Component",
+  confidence: "Confidence",
+  confidenceLabels: Object.freeze({
+    exact: "exact element source",
+    probable: "probable owning component",
+    approximate: "nearest business container",
+    unknown: "source not found",
+  }),
+  cssWarnings: "CSS warnings",
+  lineLocation: (line: number, column?: number) =>
+    `line ${String(line)}${column === undefined ? "" : `, column ${String(column)}`}`,
+  origin: "Origin",
+  source: "Source",
+  sourceContext: "Source context",
+  stack: "Stack",
+  target: (index: number, active: boolean) =>
+    `Target ${String(index)}${active ? " (active)" : ""}`,
+  unavailable: "unavailable",
+  unsupported: "unsupported",
+  warning: "Warning",
+} satisfies SelectionSummaryMessages);
+
+const SUMMARY_MESSAGES_ZH = Object.freeze({
+  adapter: "React 适配器",
+  api: "API",
+  apiStatuses: Object.freeze({
+    connected: "已连接",
+    failed: "失败",
+    loading: "加载中",
+    "not-required": "无需请求",
+  }),
+  available: "可用",
+  boundary: "代码边界",
+  boundaries: Object.freeze({
+    component: "完整组件",
+    "nearby-lines": "附近代码",
+  }),
+  browserContext: "浏览器上下文",
+  collectionStatuses: Object.freeze({
+    failed: "失败",
+    loading: "采集中",
+    ready: "已就绪",
+  }),
+  component: "组件",
+  confidence: "置信度",
+  confidenceLabels: Object.freeze({
+    exact: "精确元素源码",
+    probable: "可能的所属组件",
+    approximate: "最近业务容器",
+    unknown: "未找到源码",
+  }),
+  cssWarnings: "CSS 警告",
+  lineLocation: (line: number, column?: number) =>
+    `第 ${String(line)} 行${column === undefined ? "" : `，第 ${String(column)} 列`}`,
+  origin: "定位来源",
+  source: "源码",
+  sourceContext: "源码上下文",
+  stack: "组件栈",
+  target: (index: number, active: boolean) =>
+    `目标 ${String(index)}${active ? "（当前）" : ""}`,
+  unavailable: "不可用",
+  unsupported: "不支持",
+  warning: "警告",
+} satisfies SelectionSummaryMessages);
+
+export const UI_MESSAGES = Object.freeze({
+  "en-US": Object.freeze({
+    localeName: "EN",
+    alternateLocaleName: "中",
+    switchLocale: "Switch interface language to Chinese",
+    brand: Object.freeze({ name: "SpotPatch", context: "Live context" }),
+    trigger: Object.freeze({
+      select: "Select element",
+      stop: "Stop selecting",
+      title: (shortcut: string) => `Toggle SpotPatch (${shortcut})`,
+    }),
+    dialog: Object.freeze({
+      close: "Close SpotPatch",
+      editTitle: "Plan the change",
+      editSubtitle: "Give each selected target its own precise instruction.",
+      previewTitle: "Review the request",
+      previewSubtitle: "Verify the complete context before it leaves the browser.",
+    }),
+    context: Object.freeze({
+      collecting: "Collecting context",
+      ready: "Context ready",
+      partial: "Partial context",
+      sourceUnavailable: "Source unavailable",
+      selectedElement: "Selected element",
+      selectedCount: (count: number) => `${String(count)} elements selected`,
+    }),
+    targets: Object.freeze({
+      title: "Selected targets",
+      ariaLabel: "Selected targets and change instructions",
+      count: (selected: number, maximum: number) =>
+        `${String(selected)} of ${String(maximum)}`,
+      complete: (complete: number, total: number) =>
+        `${String(complete)} of ${String(total)} described`,
+      instructionBudget: (used: number, maximum: number) =>
+        `${String(used)} / ${String(maximum)} characters`,
+      instructionBudgetExceeded: (used: number, maximum: number) =>
+        `${String(used)} / ${String(maximum)} characters — reduce the request`,
+      statusReady: "Ready",
+      statusPartial: "Partial",
+      statusCollecting: "Collecting",
+      instructionReady: "Instruction added",
+      instructionMissing: "Needs instruction",
+      instructionLabel: (name: string) => `Change for ${name}`,
+      instructionPlaceholder:
+        "Describe the desired result for this target, including constraints…",
+      instructionCount: (used: number, maximum: number) =>
+        `${String(used)} / ${String(maximum)}`,
+      activate: (index: number) => `Edit target ${String(index)}`,
+      remove: (index: number) => `Remove target ${String(index)}`,
+      removeTitle: "Remove target",
+      addTitle: "Add another element to this request",
+      limitTitle: (maximum: number) => `Selection limit reached (${String(maximum)})`,
+    }),
+    diagnostics: Object.freeze({
+      title: "Captured context",
+      resolving: "Resolving source…",
+      noExactSource: "No exact source marker",
+      promptAriaLabel: "Generated prompt",
+    }),
+    summary: SUMMARY_MESSAGES_EN,
+    actions: Object.freeze({
+      addElement: "Add element",
+      reselect: "Start over",
+      openEditor: "Open in VS Code",
+      preview: "Preview prompt",
+      copy: "Copy prompt",
+      back: "Back to edit",
+    }),
+    agent: Object.freeze({
+      title: "AI code agent",
+      review: "Review",
+      autoGated: "Auto gated",
+      provider: "Provider",
+      model: "Model",
+      providerAriaLabel: "AI provider",
+      modelAriaLabel: "AI model",
+      providerUnavailable: "Provider configuration is unavailable.",
+      consent: (provider: string) =>
+        `I understand selected context and allowed source may be sent to ${provider}; its data policy is my responsibility.`,
+      connectionNotTested: "Connection not tested",
+      capabilityVerified: "Agent capability verified",
+      capabilityVerifiedAnnouncement: "AI provider capability verified.",
+      testingCapability: "Testing authentication, tools, continuation, and streaming…",
+      applying: "Applying validated changes to the project.",
+      cancelling: "Cancelling Agent job.",
+      reverting: "Reverting the applied Agent change.",
+      consentRequired: "Confirm remote provider data transmission before running AI.",
+      toolsReady: "tools and streaming ready",
+      testConnection: "Test connection",
+      verifyAndRun: "Verify & run",
+      verifying: "Verifying…",
+      run: "Run AI",
+      cancel: "Cancel agent",
+      discard: "Discard changes",
+      apply: "Apply changes",
+      revert: "Revert changes",
+      revise: "Revise request",
+      diffAriaLabel: "Proposed source diff",
+      noOutput: "No output.",
+      status: (status: AgentJobStatus) => STATUS_EN[status],
+    }),
+    announcements: Object.freeze({
+      adapterDisabled: "React inspection was disabled after an adapter failure.",
+      selectionEnabled: "Element selection enabled.",
+      chooseAnother: "Choose another element.",
+      reselectAfterChange: "Choose the current elements again after the file change.",
+      sourceLoaded: "Source context loaded.",
+      sourceFailed: "Source context could not be loaded.",
+      addCancelled: "Additional selection cancelled.",
+      selectionLimit: (maximum: number) =>
+        `The selection limit of ${String(maximum)} elements has been reached.`,
+      chooseAdditional: (selected: number, maximum: number) =>
+        `Choose another element. ${String(selected)} of ${String(maximum)} selected.`,
+      duplicate: "That source target is already selected.",
+      sourceProbable:
+        "A probable React component was found without an authorized file token.",
+      sourceMissing: "No authorized source marker was found for the selected element.",
+      noSelectable: "No selectable element was found.",
+      allTargetsRemoved: "All targets were removed. Choose an element to continue.",
+      targetRemoved: "Selected target removed.",
+      detachedTargetRemoved: "A removed page element was dropped from the selection.",
+      contextWarning: "Browser context collection completed with a warning.",
+      contextCollected: "Browser context collected.",
+      editorOpened: "VS Code open request sent.",
+      editorFailed: "VS Code could not be opened.",
+      completeInstructions:
+        "Add an instruction for every target and wait for context collection to finish.",
+      promptCopied: "Prompt copied to the clipboard.",
+      clipboardUnavailable:
+        "Clipboard access is unavailable. Select the prompt manually.",
+      copyFailed: "Copy failed. Select the prompt manually.",
+      appliedTargetsDetached:
+        "Changes applied. Reselect page elements after HMR before creating another request.",
+    }),
+    errors: ERROR_MESSAGES_EN,
+  }),
+  "zh-CN": Object.freeze({
+    localeName: "中",
+    alternateLocaleName: "EN",
+    switchLocale: "将界面语言切换为英文",
+    brand: Object.freeze({ name: "SpotPatch", context: "实时上下文" }),
+    trigger: Object.freeze({
+      select: "选择元素",
+      stop: "停止选择",
+      title: (shortcut: string) => `切换 SpotPatch（${shortcut}）`,
+    }),
+    dialog: Object.freeze({
+      close: "关闭 SpotPatch",
+      editTitle: "规划本次修改",
+      editSubtitle: "为每个选中目标分别写清楚修改要求。",
+      previewTitle: "审阅修改请求",
+      previewSubtitle: "发送给 AI 前，请核对完整上下文与每项目标说明。",
+    }),
+    context: Object.freeze({
+      collecting: "正在采集上下文",
+      ready: "上下文已就绪",
+      partial: "部分上下文可用",
+      sourceUnavailable: "源码位置不可用",
+      selectedElement: "已选元素",
+      selectedCount: (count: number) => `已选择 ${String(count)} 个元素`,
+    }),
+    targets: Object.freeze({
+      title: "修改目标",
+      ariaLabel: "已选目标与逐项目标说明",
+      count: (selected: number, maximum: number) =>
+        `${String(selected)} / ${String(maximum)}`,
+      complete: (complete: number, total: number) =>
+        `已描述 ${String(complete)} / ${String(total)}`,
+      instructionBudget: (used: number, maximum: number) =>
+        `说明字符 ${String(used)} / ${String(maximum)}`,
+      instructionBudgetExceeded: (used: number, maximum: number) =>
+        `说明字符 ${String(used)} / ${String(maximum)}，请精简后继续`,
+      statusReady: "已就绪",
+      statusPartial: "部分可用",
+      statusCollecting: "采集中",
+      instructionReady: "已填写修改说明",
+      instructionMissing: "待填写修改说明",
+      instructionLabel: (name: string) => `${name} 的修改说明`,
+      instructionPlaceholder: "描述这个目标期望达到的结果，以及不能破坏的约束……",
+      instructionCount: (used: number, maximum: number) =>
+        `${String(used)} / ${String(maximum)}`,
+      activate: (index: number) => `编辑目标 ${String(index)}`,
+      remove: (index: number) => `移除目标 ${String(index)}`,
+      removeTitle: "移除目标",
+      addTitle: "继续为本次请求选择元素",
+      limitTitle: (maximum: number) => `已达到 ${String(maximum)} 个目标的上限`,
+    }),
+    diagnostics: Object.freeze({
+      title: "已采集上下文",
+      resolving: "正在解析源码……",
+      noExactSource: "没有精确源码标记",
+      promptAriaLabel: "生成的 Prompt",
+    }),
+    summary: SUMMARY_MESSAGES_ZH,
+    actions: Object.freeze({
+      addElement: "添加元素",
+      reselect: "重新开始",
+      openEditor: "在 VS Code 中打开",
+      preview: "预览 Prompt",
+      copy: "复制 Prompt",
+      back: "返回编辑",
+    }),
+    agent: Object.freeze({
+      title: "AI 代码 Agent",
+      review: "审阅模式",
+      autoGated: "受控自动模式",
+      provider: "模型服务",
+      model: "模型",
+      providerAriaLabel: "AI 模型服务",
+      modelAriaLabel: "AI 模型",
+      providerUnavailable: "模型服务配置不可用。",
+      consent: (provider: string) =>
+        `我了解选中上下文与获准源码可能发送到 ${provider}，并自行负责其数据策略。`,
+      connectionNotTested: "尚未测试连接",
+      capabilityVerified: "Agent 能力验证通过",
+      capabilityVerifiedAnnouncement: "AI 模型服务能力验证通过。",
+      testingCapability: "正在验证鉴权、工具调用、连续调用与流式响应……",
+      applying: "正在将已验证变更应用到项目。",
+      cancelling: "正在取消 Agent 任务。",
+      reverting: "正在撤销已应用的 Agent 变更。",
+      consentRequired: "运行 AI 前，请先确认允许向远程模型服务传输数据。",
+      toolsReady: "工具调用与流式响应已就绪",
+      testConnection: "测试连接",
+      verifyAndRun: "验证并运行",
+      verifying: "验证中……",
+      run: "运行 AI",
+      cancel: "取消 Agent",
+      discard: "放弃变更",
+      apply: "应用变更",
+      revert: "撤销变更",
+      revise: "修改请求",
+      diffAriaLabel: "建议的源码差异",
+      noOutput: "没有输出。",
+      status: (status: AgentJobStatus) => STATUS_ZH[status],
+    }),
+    announcements: Object.freeze({
+      adapterDisabled: "React 适配器异常，本次会话已停用 React 检查。",
+      selectionEnabled: "元素选择已启用。",
+      chooseAnother: "请选择另一个元素。",
+      reselectAfterChange: "文件变更后，请重新选择当前页面元素。",
+      sourceLoaded: "源码上下文已加载。",
+      sourceFailed: "源码上下文加载失败。",
+      addCancelled: "已取消追加选择。",
+      selectionLimit: (maximum: number) =>
+        `已达到 ${String(maximum)} 个元素的选择上限。`,
+      chooseAdditional: (selected: number, maximum: number) =>
+        `请选择另一个元素，当前已选 ${String(selected)} / ${String(maximum)}。`,
+      duplicate: "该源码目标已经在当前选择中。",
+      sourceProbable: "找到可能的 React 组件，但没有获授权的源码标记。",
+      sourceMissing: "选中元素没有获授权的源码标记。",
+      noSelectable: "当前位置没有可选择的元素。",
+      allTargetsRemoved: "已移除全部目标，请重新选择元素。",
+      targetRemoved: "已移除选中目标。",
+      detachedTargetRemoved: "页面中的目标已卸载，已从当前选择中移除。",
+      contextWarning: "浏览器上下文采集完成，但存在警告。",
+      contextCollected: "浏览器上下文采集完成。",
+      editorOpened: "已发送 VS Code 打开请求。",
+      editorFailed: "无法打开 VS Code。",
+      completeInstructions: "请为每个目标填写修改说明，并等待上下文采集完成。",
+      promptCopied: "Prompt 已复制到剪贴板。",
+      clipboardUnavailable: "无法访问剪贴板，请手动选择并复制 Prompt。",
+      copyFailed: "复制失败，请手动选择并复制 Prompt。",
+      appliedTargetsDetached: "变更已应用；HMR 后请重新选择页面元素再发起新请求。",
+    }),
+    errors: ERROR_MESSAGES_ZH,
+  }),
+} satisfies Readonly<Record<SpotPatchLocale, UiMessages>>);
+
+export interface UiLocalizer {
+  readonly locale: () => SpotPatchLocale;
+  readonly messages: () => UiMessages;
+  readonly subscribe: (listener: () => void) => () => void;
+  readonly toggle: () => void;
+}
+
+function localeFromLanguage(value: string | undefined): SpotPatchLocale | undefined {
+  if (value === undefined || value.trim().length === 0) {
+    return undefined;
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  if (normalized === "zh" || normalized.startsWith("zh-")) {
+    return "zh-CN";
+  }
+
+  return normalized === "en" || normalized.startsWith("en-") ? "en-US" : undefined;
+}
+
+export function resolveUiLocale(
+  preference: SpotPatchLocalePreference,
+  document: Document,
+): SpotPatchLocale {
+  if (preference !== "auto") {
+    return preference;
+  }
+
+  const documentLocale = localeFromLanguage(document.documentElement.lang);
+
+  if (documentLocale !== undefined) {
+    return documentLocale;
+  }
+
+  const navigatorLocale = document.defaultView?.navigator.languages
+    .map(localeFromLanguage)
+    .find((candidate): candidate is SpotPatchLocale => candidate !== undefined);
+  return navigatorLocale ?? "en-US";
+}
+
+export function createUiLocalizer(
+  document: Document,
+  preference: SpotPatchLocalePreference = "auto",
+): UiLocalizer {
+  let currentLocale = resolveUiLocale(preference, document);
+  const listeners = new Set<() => void>();
+
+  return Object.freeze({
+    locale: () => currentLocale,
+    messages: () => UI_MESSAGES[currentLocale],
+    subscribe(listener: () => void): () => void {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    toggle(): void {
+      currentLocale = currentLocale === "en-US" ? "zh-CN" : "en-US";
+
+      for (const listener of listeners) {
+        listener();
+      }
+    },
+  });
+}

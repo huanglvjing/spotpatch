@@ -2,15 +2,14 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   clean: false,
-  dts: true,
-  entry: ["src/runtime-client.ts"],
+  dts: false,
+  entry: ["src/runtime-react-adapter.ts"],
   esbuildOptions(options) {
     options.charset = "utf8";
   },
-  external: ["@spotpatch/react-adapter"],
   format: ["esm"],
   minify: true,
-  noExternal: ["@spotpatch/runtime", "@spotpatch/shared"],
+  noExternal: ["@spotpatch/react-adapter", "@spotpatch/shared", "bippy"],
   outDir: "dist",
   sourcemap: false,
   splitting: false,

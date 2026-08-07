@@ -1,6 +1,12 @@
 import { z } from "zod";
 
-import type { SpotAnnotation } from "../model/annotation.js";
+import {
+  MAX_ANNOTATION_INSTRUCTION_CHARACTERS,
+  MAX_ANNOTATION_TARGETS,
+  MAX_TARGET_INSTRUCTION_CHARACTERS,
+  SPOTPATCH_LOCALES,
+  type SpotAnnotation,
+} from "../model/annotation.js";
 
 const sourceCoordinatesSchema = z.strictObject({
   fileId: z.string().min(1).max(128),
@@ -46,18 +52,8 @@ const codeContextSchema = z.strictObject({
   boundary: z.enum(["component", "nearby-lines"]),
 });
 
-export const spotAnnotationRequestSchema = z.strictObject({
-  schemaVersion: z.literal(1),
-  id: boundedString(128),
-  note: z.string().trim().min(1).max(4_000),
-  page: z.strictObject({
-    url: boundedString(2_048),
-    pathname: boundedString(2_048),
-    title: boundedString(1_024),
-    viewportWidth: z.number().nonnegative(),
-    viewportHeight: z.number().nonnegative(),
-    devicePixelRatio: z.number().positive(),
-  }),
+export const spotTargetContextRequestSchema = z.strictObject({
+  instruction: z.string().trim().min(1).max(MAX_TARGET_INSTRUCTION_CHARACTERS),
   source: sourceRefSchema,
   react: z.strictObject({
     supported: z.boolean(),
@@ -88,8 +84,38 @@ export const spotAnnotationRequestSchema = z.strictObject({
   }),
   code: codeContextSchema.optional(),
   warnings: z.array(boundedString(1_024)).max(64),
-  createdAt: z.iso.datetime(),
 });
+
+export const spotAnnotationRequestSchema = z
+  .strictObject({
+    schemaVersion: z.literal(3),
+    id: boundedString(128),
+    locale: z.enum(SPOTPATCH_LOCALES),
+    page: z.strictObject({
+      url: boundedString(2_048),
+      pathname: boundedString(2_048),
+      title: boundedString(1_024),
+      viewportWidth: z.number().nonnegative(),
+      viewportHeight: z.number().nonnegative(),
+      devicePixelRatio: z.number().positive(),
+    }),
+    targets: z.array(spotTargetContextRequestSchema).min(1).max(MAX_ANNOTATION_TARGETS),
+    createdAt: z.iso.datetime(),
+  })
+  .superRefine((annotation, context) => {
+    const total = annotation.targets.reduce(
+      (characters, target) => characters + target.instruction.length,
+      0,
+    );
+
+    if (total > MAX_ANNOTATION_INSTRUCTION_CHARACTERS) {
+      context.addIssue({
+        code: "custom",
+        message: "Combined target instructions exceed the annotation limit.",
+        path: ["targets"],
+      });
+    }
+  });
 
 export const agentCapabilityRequestSchema = z.strictObject({
   providerProfileId: profileIdSchema,

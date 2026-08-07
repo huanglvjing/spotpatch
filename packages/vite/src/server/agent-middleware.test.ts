@@ -24,9 +24,9 @@ const session = Object.freeze({
 }) satisfies SpotPatchSession;
 
 const annotation = Object.freeze({
-  schemaVersion: 1,
+  schemaVersion: 3,
   id: "annotation-id",
-  note: "Clarify the selected action.",
+  locale: "en-US",
   page: Object.freeze({
     url: "http://localhost:5173/",
     pathname: "/",
@@ -35,28 +35,33 @@ const annotation = Object.freeze({
     viewportHeight: 900,
     devicePixelRatio: 2,
   }),
-  source: Object.freeze({
-    origin: "none",
-    confidence: "unknown",
-  }),
-  react: Object.freeze({
-    supported: true,
-    componentName: "App",
-    componentStack: Object.freeze(["App"]),
-  }),
-  element: Object.freeze({
-    tagName: "button",
-    selector: "button.primary",
-    sanitizedHtml: '<button class="primary">Save</button>',
-    rect: Object.freeze({ x: 10, y: 20, width: 100, height: 40 }),
-  }),
-  styles: Object.freeze({
-    classNames: Object.freeze(["primary"]),
-    matchedRules: Object.freeze([]),
-    computed: Object.freeze({ display: "block" }),
-    warnings: Object.freeze([]),
-  }),
-  warnings: Object.freeze([]),
+  targets: Object.freeze([
+    Object.freeze({
+      instruction: "Clarify the selected action.",
+      source: Object.freeze({
+        origin: "none",
+        confidence: "unknown",
+      }),
+      react: Object.freeze({
+        supported: true,
+        componentName: "App",
+        componentStack: Object.freeze(["App"]),
+      }),
+      element: Object.freeze({
+        tagName: "button",
+        selector: "button.primary",
+        sanitizedHtml: '<button class="primary">Save</button>',
+        rect: Object.freeze({ x: 10, y: 20, width: 100, height: 40 }),
+      }),
+      styles: Object.freeze({
+        classNames: Object.freeze(["primary"]),
+        matchedRules: Object.freeze([]),
+        computed: Object.freeze({ display: "block" }),
+        warnings: Object.freeze([]),
+      }),
+      warnings: Object.freeze([]),
+    }),
+  ]),
   createdAt: "2026-08-07T00:00:00.000Z",
 });
 
@@ -288,7 +293,8 @@ describe("Agent HTTP middleware", () => {
 
     const eventsResponse = await request(
       getAgentJobEndpoint(created.data.jobId, "events"),
-      "GET",
+      "POST",
+      {},
     );
     const events = (await eventsResponse.text())
       .split("\n")
@@ -302,7 +308,8 @@ describe("Agent HTTP middleware", () => {
 
     const resultResponse = await request(
       getAgentJobEndpoint(created.data.jobId, "result"),
-      "GET",
+      "POST",
+      {},
     );
     const resultText = await resultResponse.text();
     expect(resultText).toContain("src/App.tsx");

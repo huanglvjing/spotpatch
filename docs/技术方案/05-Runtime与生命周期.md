@@ -2,9 +2,9 @@
 doc-id: "05-runtime-lifecycle"
 title: "Runtime 与生命周期"
 status: "active"
-version: "1.1.0"
+version: "1.3.0"
 last-updated: "2026-08-07"
-source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘元素选择器’、§10.1–§10.3；v1.1 Agent Runtime 生命周期"
+source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘元素选择器’、§10.1–§10.3；v1.1 Agent Runtime 生命周期；v1.2 多目标选择生命周期；v1.3 逐目标编辑状态"
 参考文献/依赖:
   - "03-public-api-models"
   - "04-vite-plugin"
@@ -38,6 +38,8 @@ bootstrapSpotPatch({
   apiBase: SPOTPATCH_API_BASE,
   sessionToken: "<server-generated-token>",
   shortcut: resolvedOptions.shortcut,
+  locale: resolvedOptions.locale,
+  maxTargets: resolvedOptions.maxTargets,
 });
 ```
 
@@ -96,7 +98,9 @@ previewing
 
 状态转换由纯 reducer 实现；DOM 副作用统一放在 controller 中。禁止让多个 UI 组件各自修改全局状态。
 
-问题描述输入框是 `selected` 状态的直接编辑面，不设独立 `annotating` 状态，也不要求用户执行“添加说明”或“保存说明”。每次输入只更新当前选择的内存数据和 Preview 可用性，不触发文件写入；选中完成后输入框必须立即获得焦点。进入 `previewing` 后返回，应恢复 `selected` 状态并重新聚焦该输入框。
+活动目标的修改说明输入框是 `selected` 状态的直接编辑面，不设独立 `annotating` 状态，也不要求用户执行“添加说明”或“保存说明”。每次输入只更新该目标的内存数据、字符预算和 Preview/Run 可用性，不触发文件写入；选中完成后活动目标输入框必须立即获得焦点。进入 `previewing` 后返回，应恢复 `selected` 状态并重新聚焦原活动目标的输入框。
+
+多目标不增加第二套状态机。`selected → RESELECT → inspecting` 有两种由 controller 明确区分的意图：`Reselect` 清空整个目标集及全部逐目标草稿，`Add element` 保留已有目标与各自草稿并临时隐藏工作台；新增目标、命中重复目标或达到上限后均通过 `SELECT` 回到 `selected`。在追加选择时按 Escape 或再次触发“停止选择”只取消本次追加并回到原目标集；没有已有目标时仍回到 `idle`。
 
 ## Agent Job 生命周期
 
@@ -108,6 +112,7 @@ AI Job 是与元素选择状态正交的服务端状态，不把 `running`、`va
 - 关闭面板不等于静默取消：运行中必须提供明确的“继续后台运行”或“取消任务”行为；v1.1 默认关闭面板时请求用户确认。
 - `dispose()`、Vite HMR 重载或页面卸载必须终止浏览器事件订阅并释放引用；服务端 Job 是否取消按本地协议的显式取消规则处理。
 - Apply 后业务 HMR 可能卸载当前目标元素。Runtime 必须清除陈旧 Element，并提示用户重新选择，不能继续用旧 rect 或 DOM 引用定位新页面。
+- 多目标 Job Apply 后必须一次性释放全部目标的 Element、Observer 和几何引用；不能只释放最后一个活动目标后继续使用其余旧 DOM。
 - Runtime 只展示脱敏 Job 快照、Diff 和检查结果；不能依据模型自然语言自行判定“已修改”或“检查通过”。
 
 ## 元素选择器
@@ -122,6 +127,15 @@ AI Job 是与元素选择状态正交的服务端状态，不把 `running`、`va
 - `click`：只在 inspecting 状态调用 `preventDefault()`、`stopPropagation()` 和 `stopImmediatePropagation()`。
 - `keydown`：处理快捷键和 Escape；输入框聚焦时不触发字母快捷键。
 - 工具 UI 节点统一使用 UI 规范定义的 marker，永远排除 (见 doc-id:10-ui-diagnostics)。
+
+### 多目标选择规则
+
+- 第一次点击创建目标集；`Add element` 追加目标，`Reselect` 才清空目标集。可选数量、默认值和硬上限只由公共配置定义 (见 doc-id:03-public-api-models)。
+- 每个目标独立保存 `instruction` 草稿、DOM Element、来源解析、源码请求状态、DOM/CSS 采集状态和异步任务标识。切换活动项、追加、去重、语言切换或异步上下文刷新都不得覆盖其他目标的草稿；异步回调只有在会话 revision 未变化且目标仍在集合中时才能写回，防止删除或重选后的结果串位。
+- `jsx-host` 或 `dom-ancestor` 有完整 marker 时，以 `fileId + line + column` 作为去重键；因此同一 map/list 源码位置的多个 DOM 实例只进入一次上下文。无完整 marker 时只按当前 Element 身份去重，不猜测两个相似 DOM 是否同源。
+- 目标顺序等于首次加入顺序；最后加入或重复点中的目标成为活动目标。打开编辑器和工作台定位使用活动目标，Prompt 与 Agent 使用完整有序目标集。
+- 删除目标只取消该目标尚未完成的采集结果、解除观察并删除它自己的说明；不得影响其他目标说明。删除最后一个目标后进入追加选择态，等待新目标。
+- Preview/Run AI 只有在至少一个目标存在、每个目标的修改说明 trim 后非空、说明总字符数未超过公共总上限、每个目标的 DOM/CSS 采集完成且没有源码请求仍在 loading 时可用；单个源码请求失败可以带明确 warning 降级，但不能伪装为完整上下文。字符上限只引用公共模型 (见 doc-id:03-public-api-models)。
 
 ### 命中算法
 
@@ -142,6 +156,6 @@ elementsFromPoint(clientX, clientY)
 - 内联元素可使用 `getClientRects()`，高亮全部 line box 或取 union rect。
 - overlay 使用 `position: fixed`，rect 不额外叠加 scroll offset。
 - 页面滚动、viewport resize、目标 ResizeObserver 变化时重新计算。
-- 目标被卸载后自动回到 inspecting，并显示非阻塞提示。
+- 多目标中的某个目标被卸载时只移除该目标并提示；仅当最后一个目标被卸载时才回到 inspecting。滚动、resize 和 ResizeObserver 必须更新所有仍连接目标的固定定位高亮。
 
 生命周期和性能要求的验收方式见测试与验收规范 (见 doc-id:12-testing-acceptance)。

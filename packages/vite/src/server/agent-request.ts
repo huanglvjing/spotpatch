@@ -8,6 +8,7 @@ import {
   type MatchedStyleRule,
   type SourceRef,
   type SpotAnnotation,
+  type SpotTargetContext,
 } from "@spotpatch/shared";
 import type { agentJobCreateRequestSchema } from "@spotpatch/shared";
 import type { z } from "zod";
@@ -25,10 +26,9 @@ export interface AuthorizeAgentJobRequestOptions {
 }
 
 type ParsedAgentJobRequest = AuthorizeAgentJobRequestOptions["request"];
+type ParsedTarget = ParsedAgentJobRequest["annotation"]["targets"][number];
 
-function compactSourceRef(
-  source: ParsedAgentJobRequest["annotation"]["source"],
-): SourceRef {
+function compactSourceRef(source: ParsedTarget["source"]): SourceRef {
   return Object.freeze({
     origin: source.origin,
     confidence: source.confidence,
@@ -40,7 +40,7 @@ function compactSourceRef(
 }
 
 async function authorizeSourceRef(
-  source: ParsedAgentJobRequest["annotation"]["source"],
+  source: ParsedTarget["source"],
   registry: SourceRegistry,
   root: string,
 ): Promise<SourceRef> {
@@ -84,7 +84,7 @@ async function authorizeSourceRef(
 }
 
 function freezeMatchedRule(
-  rule: ParsedAgentJobRequest["annotation"]["styles"]["matchedRules"][number],
+  rule: ParsedTarget["styles"]["matchedRules"][number],
 ): MatchedStyleRule {
   return Object.freeze({
     selector: rule.selector,
@@ -94,15 +94,32 @@ function freezeMatchedRule(
   });
 }
 
-export async function authorizeAgentJobRequest(
+function targetIdentity(target: ParsedTarget): string {
+  const source = target.source;
+
+  if (
+    source.fileId !== undefined &&
+    source.line !== undefined &&
+    source.column !== undefined
+  ) {
+    return `source:${source.fileId}:${String(source.line)}:${String(source.column)}`;
+  }
+
+  return [
+    "element",
+    source.origin,
+    source.relativePath ?? "",
+    target.element.selector,
+    target.element.sanitizedHtml,
+  ].join("\0");
+}
+
+async function authorizeTarget(
+  target: ParsedTarget,
   input: AuthorizeAgentJobRequestOptions,
-): Promise<AgentJobCreateRequest> {
-  const source = await authorizeSourceRef(
-    input.request.annotation.source,
-    input.registry,
-    input.root,
-  );
-  const reactSourceInput = input.request.annotation.react.source;
+): Promise<SpotTargetContext> {
+  const source = await authorizeSourceRef(target.source, input.registry, input.root);
+  const reactSourceInput = target.react.source;
   const reactSource =
     reactSourceInput === undefined
       ? undefined
@@ -119,7 +136,7 @@ export async function authorizeAgentJobRequest(
           maxLines: input.options.budget.maxCodeLines,
         });
 
-  if (marker === undefined && input.request.annotation.code !== undefined) {
+  if (marker === undefined && target.code !== undefined) {
     throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
   }
 
@@ -134,55 +151,71 @@ export async function authorizeAgentJobRequest(
           maxLines: input.options.budget.maxCodeLines,
         });
 
-  if (
-    input.request.annotation.code !== undefined &&
-    input.request.annotation.code.relativePath !== code?.relativePath
-  ) {
+  if (target.code !== undefined && target.code.relativePath !== code?.relativePath) {
     throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
   }
 
-  const annotation = Object.freeze({
-    schemaVersion: 1,
-    id: input.request.annotation.id,
-    note: input.request.annotation.note,
-    page: Object.freeze({ ...input.request.annotation.page }),
+  return Object.freeze({
+    instruction: target.instruction,
     source,
     react: Object.freeze({
-      supported: input.request.annotation.react.supported,
-      ...(input.request.annotation.react.version === undefined
+      supported: target.react.supported,
+      ...(target.react.version === undefined ? {} : { version: target.react.version }),
+      ...(target.react.componentName === undefined
         ? {}
-        : { version: input.request.annotation.react.version }),
-      ...(input.request.annotation.react.componentName === undefined
-        ? {}
-        : { componentName: input.request.annotation.react.componentName }),
-      componentStack: Object.freeze([...input.request.annotation.react.componentStack]),
+        : { componentName: target.react.componentName }),
+      componentStack: Object.freeze([...target.react.componentStack]),
       ...(reactSource === undefined ? {} : { source: reactSource }),
     }),
     element: Object.freeze({
-      tagName: input.request.annotation.element.tagName,
-      selector: input.request.annotation.element.selector,
-      sanitizedHtml: input.request.annotation.element.sanitizedHtml,
-      ...(input.request.annotation.element.textPreview === undefined
+      tagName: target.element.tagName,
+      selector: target.element.selector,
+      sanitizedHtml: target.element.sanitizedHtml,
+      ...(target.element.textPreview === undefined
         ? {}
-        : { textPreview: input.request.annotation.element.textPreview }),
-      ...(input.request.annotation.element.role === undefined
-        ? {}
-        : { role: input.request.annotation.element.role }),
-      rect: Object.freeze({ ...input.request.annotation.element.rect }),
+        : { textPreview: target.element.textPreview }),
+      ...(target.element.role === undefined ? {} : { role: target.element.role }),
+      rect: Object.freeze({ ...target.element.rect }),
     }),
     styles: Object.freeze({
-      classNames: Object.freeze([...input.request.annotation.styles.classNames]),
-      ...(input.request.annotation.styles.inlineStyle === undefined
+      classNames: Object.freeze([...target.styles.classNames]),
+      ...(target.styles.inlineStyle === undefined
         ? {}
-        : { inlineStyle: input.request.annotation.styles.inlineStyle }),
-      matchedRules: Object.freeze(
-        input.request.annotation.styles.matchedRules.map(freezeMatchedRule),
-      ),
-      computed: Object.freeze({ ...input.request.annotation.styles.computed }),
-      warnings: Object.freeze([...input.request.annotation.styles.warnings]),
+        : { inlineStyle: target.styles.inlineStyle }),
+      matchedRules: Object.freeze(target.styles.matchedRules.map(freezeMatchedRule)),
+      computed: Object.freeze({ ...target.styles.computed }),
+      warnings: Object.freeze([...target.styles.warnings]),
     }),
     ...(code === undefined ? {} : { code: Object.freeze({ ...code }) }),
-    warnings: Object.freeze([...input.request.annotation.warnings]),
+    warnings: Object.freeze([...target.warnings]),
+  });
+}
+
+export async function authorizeAgentJobRequest(
+  input: AuthorizeAgentJobRequestOptions,
+): Promise<AgentJobCreateRequest> {
+  const requestedTargets = input.request.annotation.targets;
+
+  if (requestedTargets.length > input.options.maxTargets) {
+    throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+  }
+
+  const identities = requestedTargets.map(targetIdentity);
+
+  if (new Set(identities).size !== identities.length) {
+    throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+  }
+
+  const targets = Object.freeze(
+    await Promise.all(requestedTargets.map((target) => authorizeTarget(target, input))),
+  );
+
+  const annotation = Object.freeze({
+    schemaVersion: 3,
+    id: input.request.annotation.id,
+    locale: input.request.annotation.locale,
+    page: Object.freeze({ ...input.request.annotation.page }),
+    targets,
     createdAt: input.request.annotation.createdAt,
   }) satisfies SpotAnnotation;
 

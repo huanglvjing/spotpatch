@@ -8,14 +8,17 @@ function isJsonContentType(value: string | undefined): boolean {
   return value?.split(";", 1)[0]?.trim().toLowerCase() === "application/json";
 }
 
-export async function readJsonRequestBody(request: IncomingMessage): Promise<unknown> {
+export async function readJsonRequestBody(
+  request: IncomingMessage,
+  maximumBytes = MAX_REQUEST_BODY_BYTES,
+): Promise<unknown> {
   if (!isJsonContentType(request.headers["content-type"])) {
     throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
   }
 
   const declaredLength = Number(request.headers["content-length"]);
 
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_REQUEST_BODY_BYTES) {
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
     throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
   }
 
@@ -33,7 +36,7 @@ export async function readJsonRequestBody(request: IncomingMessage): Promise<unk
     const buffer = Buffer.from(chunk);
     byteLength += buffer.byteLength;
 
-    if (byteLength > MAX_REQUEST_BODY_BYTES) {
+    if (byteLength > maximumBytes) {
       exceededLimit = true;
       continue;
     }

@@ -24,9 +24,9 @@ let registry: SourceRegistry;
 function request(overrides: Readonly<Record<string, unknown>> = {}) {
   return agentJobCreateRequestSchema.parse({
     annotation: {
-      schemaVersion: 1,
+      schemaVersion: 3,
       id: "annotation-id",
-      note: "Update this component.",
+      locale: "en-US",
       page: {
         url: "http://localhost:5173/",
         pathname: "/",
@@ -35,42 +35,47 @@ function request(overrides: Readonly<Record<string, unknown>> = {}) {
         viewportHeight: 900,
         devicePixelRatio: 2,
       },
-      source: {
-        fileId,
-        relativePath: "src/App.tsx",
-        line: 3,
-        column: 5,
-        origin: "jsx-host",
-        confidence: "exact",
-      },
-      react: {
-        supported: true,
-        componentName: "App",
-        componentStack: ["App"],
-      },
-      element: {
-        tagName: "button",
-        selector: "button",
-        sanitizedHtml: "<button>Save</button>",
-        rect: { x: 10, y: 20, width: 100, height: 40 },
-      },
-      styles: {
-        classNames: [],
-        matchedRules: [],
-        computed: { display: "block" },
-        warnings: [],
-      },
-      code: {
-        relativePath: "src/App.tsx",
-        language: "tsx",
-        startLine: 1,
-        endLine: 1,
-        excerpt: "forged browser excerpt",
-        boundary: "nearby-lines",
-      },
-      warnings: [],
+      targets: [
+        {
+          instruction: "Update this component.",
+          source: {
+            fileId,
+            relativePath: "src/App.tsx",
+            line: 3,
+            column: 5,
+            origin: "jsx-host",
+            confidence: "exact",
+          },
+          react: {
+            supported: true,
+            componentName: "App",
+            componentStack: ["App"],
+          },
+          element: {
+            tagName: "button",
+            selector: "button",
+            sanitizedHtml: "<button>Save</button>",
+            rect: { x: 10, y: 20, width: 100, height: 40 },
+          },
+          styles: {
+            classNames: [],
+            matchedRules: [],
+            computed: { display: "block" },
+            warnings: [],
+          },
+          code: {
+            relativePath: "src/App.tsx",
+            language: "tsx",
+            startLine: 1,
+            endLine: 1,
+            excerpt: "forged browser excerpt",
+            boundary: "nearby-lines",
+          },
+          warnings: [],
+          ...overrides,
+        },
+      ],
       createdAt: "2026-08-07T00:00:00.000Z",
-      ...overrides,
     },
     providerProfileId: "relay",
     modelProfileId: "coder",
@@ -125,11 +130,17 @@ describe("Agent job request authorization", () => {
       root,
     });
 
-    expect(authorized.annotation.source.relativePath).toBe("src/App.tsx");
-    expect(authorized.annotation.code?.excerpt).toContain("<button>Save</button>");
-    expect(authorized.annotation.code?.excerpt).not.toContain("forged browser excerpt");
+    expect(authorized.annotation.targets[0]?.source.relativePath).toBe("src/App.tsx");
+    expect(authorized.annotation.targets[0]?.code?.excerpt).toContain(
+      "<button>Save</button>",
+    );
+    expect(authorized.annotation.targets[0]?.code?.excerpt).not.toContain(
+      "forged browser excerpt",
+    );
     expect(Object.isFrozen(authorized)).toBe(true);
-    expect(Object.isFrozen(authorized.annotation.styles.computed)).toBe(true);
+    expect(Object.isFrozen(authorized.annotation.targets[0]?.styles.computed)).toBe(
+      true,
+    );
   });
 
   it("rejects a forged display path for a valid opaque source ID", async () => {
@@ -196,6 +207,61 @@ describe("Agent job request authorization", () => {
           source: { origin: "none", confidence: "unknown" },
         }),
         options: resolveOptions(),
+        registry,
+        root,
+      }),
+      ERROR_CODES.INVALID_REQUEST,
+    );
+  });
+
+  it("authorizes every distinct target and rejects duplicate or over-limit amplification", async () => {
+    const single = request();
+    const first = single.annotation.targets[0];
+
+    if (first === undefined) {
+      throw new Error("Expected a target fixture.");
+    }
+
+    const second = {
+      ...first,
+      source: { ...first.source, line: 4, column: 3 },
+      element: {
+        ...first.element,
+        selector: "button.secondary",
+        sanitizedHtml: '<button class="secondary">Cancel</button>',
+      },
+    };
+    const multi = agentJobCreateRequestSchema.parse({
+      ...single,
+      annotation: { ...single.annotation, targets: [first, second] },
+    });
+    const authorized = await authorizeAgentJobRequest({
+      request: multi,
+      options: resolveOptions({ maxTargets: 2 }),
+      registry,
+      root,
+    });
+
+    expect(authorized.annotation.targets).toHaveLength(2);
+    expect(authorized.annotation.targets[1]?.code?.relativePath).toBe("src/App.tsx");
+
+    const duplicated = agentJobCreateRequestSchema.parse({
+      ...single,
+      annotation: { ...single.annotation, targets: [first, first] },
+    });
+    await expectErrorCode(
+      authorizeAgentJobRequest({
+        request: duplicated,
+        options: resolveOptions({ maxTargets: 2 }),
+        registry,
+        root,
+      }),
+      ERROR_CODES.INVALID_REQUEST,
+    );
+    await expectErrorCode(
+      authorizeAgentJobRequest({
+        request: multi,
+        options: resolveOptions({ maxTargets: 1 }),
         registry,
         root,
       }),

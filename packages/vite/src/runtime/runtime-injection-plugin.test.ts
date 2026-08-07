@@ -6,6 +6,7 @@ import { resolveOptions } from "../options.js";
 import type { SpotPatchSession } from "../session/session.js";
 import {
   createRuntimeInjectionPlugin,
+  RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID,
   RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
   SPOTPATCH_CLIENT_MODULE_ID,
 } from "./runtime-injection-plugin.js";
@@ -16,8 +17,9 @@ const session = Object.freeze({
 
 const clientBundle = [
   "const SPOTPATCH_API_BASE = globalThis.__spotpatchTestApiBase;",
-  "function bootstrapSpotPatch() {}",
+  "void __SPOTPATCH_RUNTIME_CONFIG__;",
 ].join("\n");
+const reactAdapterBundle = "export function createReact18Adapter() {}";
 
 describe("runtime injection plugin", () => {
   it("injects the development virtual client module", () => {
@@ -25,6 +27,7 @@ describe("runtime injection plugin", () => {
       options: resolveOptions(),
       session,
       clientBundle,
+      reactAdapterBundle,
     });
 
     const hook = plugin.transformIndexHtml;
@@ -51,6 +54,7 @@ describe("runtime injection plugin", () => {
       options: resolveOptions({ shortcut: "Alt+S" }),
       session,
       clientBundle,
+      reactAdapterBundle,
     });
 
     const hook = plugin.load;
@@ -65,11 +69,30 @@ describe("runtime injection plugin", () => {
     expect(code).toContain("Alt+S");
     expect(code).toContain('"spotPatchVersion":"0.0.0"');
     expect(code).toContain(`"viteVersion":"${VITE_VERSION}"`);
+    expect(code).toContain('"locale":"auto"');
+    expect(code).toContain('"maxTargets":8');
     expect(code).toContain("SPOTPATCH_API_BASE");
     expect(code).not.toContain(SPOTPATCH_API_BASE);
     expect(code).not.toContain(process.cwd());
     expect(code).not.toContain('"editor"');
     expect(code).not.toContain('"root"');
+  });
+
+  it("injects an explicit locale without relying on the consumer app runtime", () => {
+    const plugin = createRuntimeInjectionPlugin({
+      options: resolveOptions({ locale: "zh-CN" }),
+      session,
+      clientBundle,
+      reactAdapterBundle,
+    });
+    const hook = plugin.load;
+
+    if (typeof hook !== "function") {
+      throw new Error("Expected a load hook.");
+    }
+
+    const code = hook.call({} as never, RESOLVED_SPOTPATCH_CLIENT_MODULE_ID) as string;
+    expect(code).toContain('"locale":"zh-CN"');
   });
 
   it("injects only allowlisted AI profile labels and ids", () => {
@@ -99,6 +122,7 @@ describe("runtime injection plugin", () => {
       }),
       session,
       clientBundle,
+      reactAdapterBundle,
     });
     const hook = plugin.load;
 
@@ -122,6 +146,7 @@ describe("runtime injection plugin", () => {
       options: resolveOptions(),
       session,
       clientBundle,
+      reactAdapterBundle,
     });
 
     const hook = plugin.resolveId;
@@ -133,6 +158,41 @@ describe("runtime injection plugin", () => {
     expect(
       hook.call({} as never, SPOTPATCH_CLIENT_MODULE_ID, undefined, {} as never),
     ).toBe(RESOLVED_SPOTPATCH_CLIENT_MODULE_ID);
+    expect(
+      hook.call(
+        {} as never,
+        "@spotpatch/react-adapter",
+        RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
+        {} as never,
+      ),
+    ).toBe(RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID);
+    expect(
+      hook.call(
+        {} as never,
+        "@spotpatch/react-adapter",
+        "/src/application.tsx",
+        {} as never,
+      ),
+    ).toBeNull();
     expect(hook.call({} as never, "virtual:other", undefined, {} as never)).toBeNull();
+  });
+
+  it("serves the isolated React adapter bundle only through its private id", () => {
+    const plugin = createRuntimeInjectionPlugin({
+      options: resolveOptions(),
+      session,
+      clientBundle,
+      reactAdapterBundle,
+    });
+    const hook = plugin.load;
+
+    if (typeof hook !== "function") {
+      throw new Error("Expected a load hook.");
+    }
+
+    expect(hook.call({} as never, RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID)).toBe(
+      reactAdapterBundle,
+    );
+    expect(hook.call({} as never, "\0virtual:other")).toBeNull();
   });
 });

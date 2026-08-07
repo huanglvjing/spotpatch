@@ -1,5 +1,7 @@
 import {
   DEFAULT_AGENT_LIMITS,
+  MAX_ANNOTATION_TARGETS,
+  SPOTPATCH_LOCALE_PREFERENCES,
   type AgentLimits,
   type AiOptions,
   type ContextBudget,
@@ -8,6 +10,7 @@ import {
   type ResolvedAiOptions,
   type ResolvedOpenAICompatibleProviderOptions,
   type RuntimeAiConfig,
+  type SpotPatchLocalePreference,
 } from "@spotpatch/shared";
 import { z } from "zod";
 
@@ -34,6 +37,8 @@ export interface SpotPatchOptions {
   readonly shortcut?: string;
   readonly allowLan?: boolean;
   readonly debug?: boolean;
+  readonly locale?: SpotPatchLocalePreference;
+  readonly maxTargets?: number;
   readonly ai?: false | AiOptions;
 }
 
@@ -47,6 +52,8 @@ export interface ResolvedSpotPatchOptions {
   readonly shortcut: string;
   readonly allowLan: boolean;
   readonly debug: boolean;
+  readonly locale: SpotPatchLocalePreference;
+  readonly maxTargets: number;
   readonly ai: false | ResolvedAiOptions;
 }
 
@@ -80,6 +87,8 @@ export const DEFAULT_OPTIONS = Object.freeze({
   shortcut: "Mod+Shift+S",
   allowLan: false,
   debug: false,
+  locale: "auto",
+  maxTargets: 8,
   ai: false,
 } satisfies ResolvedSpotPatchOptions);
 
@@ -421,6 +430,23 @@ export function resolveOptions(
 
   assertPositiveBudget(budget);
 
+  const maxTargets = options.maxTargets ?? DEFAULT_OPTIONS.maxTargets;
+  const locale = options.locale ?? DEFAULT_OPTIONS.locale;
+
+  if (!(SPOTPATCH_LOCALE_PREFERENCES as readonly string[]).includes(locale)) {
+    throw new RangeError("SpotPatch locale must be auto, en-US, or zh-CN.");
+  }
+
+  if (
+    !Number.isSafeInteger(maxTargets) ||
+    maxTargets < 1 ||
+    maxTargets > MAX_ANNOTATION_TARGETS
+  ) {
+    throw new RangeError(
+      `SpotPatch maxTargets must be an integer between 1 and ${String(MAX_ANNOTATION_TARGETS)}.`,
+    );
+  }
+
   const resolved = {
     enabled: options.enabled ?? DEFAULT_OPTIONS.enabled,
     include: Object.freeze([...(options.include ?? DEFAULT_OPTIONS.include)]),
@@ -431,6 +457,8 @@ export function resolveOptions(
     shortcut: options.shortcut ?? DEFAULT_OPTIONS.shortcut,
     allowLan: options.allowLan ?? DEFAULT_OPTIONS.allowLan,
     debug: options.debug ?? DEFAULT_OPTIONS.debug,
+    locale,
+    maxTargets,
     ai: resolveAiOptions(options.ai),
   } satisfies ResolvedSpotPatchOptions;
 

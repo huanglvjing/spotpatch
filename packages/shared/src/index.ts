@@ -5,10 +5,18 @@ export {
   redactSensitiveText,
   sanitizeUrl,
 } from "./security/redaction.js";
-export type {
-  ElementContext,
-  PageContext,
-  SpotAnnotation,
+export {
+  MAX_ANNOTATION_INSTRUCTION_CHARACTERS,
+  MAX_ANNOTATION_TARGETS,
+  MAX_TARGET_INSTRUCTION_CHARACTERS,
+  SPOTPATCH_LOCALE_PREFERENCES,
+  SPOTPATCH_LOCALES,
+  type ElementContext,
+  type PageContext,
+  type SpotAnnotation,
+  type SpotPatchLocale,
+  type SpotPatchLocalePreference,
+  type SpotTargetContext,
 } from "./model/annotation.js";
 export type { CodeContext, ContextBudget } from "./model/code-context.js";
 export {
@@ -71,6 +79,7 @@ export {
   openEditorRequestSchema,
   sourceContextRequestSchema,
   spotAnnotationRequestSchema,
+  spotTargetContextRequestSchema,
   type AgentCapabilityRequest,
   type AgentJobCreateRequest,
   type OpenEditorRequest,

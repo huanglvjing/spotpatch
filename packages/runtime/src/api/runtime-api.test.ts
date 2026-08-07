@@ -183,9 +183,9 @@ describe("runtime API client", () => {
     await expect(
       api.createAgentJob({
         annotation: {
-          schemaVersion: 1,
+          schemaVersion: 3,
           id: "annotation-id",
-          note: "Update this component.",
+          locale: "en-US",
           page: {
             url: "http://localhost:5173/",
             pathname: "/",
@@ -194,21 +194,34 @@ describe("runtime API client", () => {
             viewportHeight: 900,
             devicePixelRatio: 2,
           },
-          source: { origin: "none", confidence: "unknown" },
-          react: { supported: false, componentStack: [] },
-          element: {
-            tagName: "button",
-            selector: "button",
-            sanitizedHtml: "<button>Save</button>",
-            rect: { x: 1, y: 2, width: 100, height: 40 },
-          },
-          styles: {
-            classNames: [],
-            matchedRules: [],
-            computed: {},
-            warnings: [],
-          },
-          warnings: [],
+          targets: [
+            {
+              instruction: "Update this component.",
+              source: { origin: "none", confidence: "unknown" },
+              react: { supported: false, componentStack: [] },
+              element: {
+                tagName: "button",
+                selector: "button",
+                sanitizedHtml: "<button>Save</button>",
+                rect: { x: 1, y: 2, width: 100, height: 40 },
+              },
+              styles: {
+                classNames: [],
+                matchedRules: [],
+                computed: {},
+                warnings: [],
+              },
+              code: {
+                relativePath: "src/BrowserOnly.tsx",
+                language: "tsx",
+                startLine: 1,
+                endLine: 1,
+                excerpt: "browser excerpt must be reloaded",
+                boundary: "nearby-lines",
+              },
+              warnings: [],
+            },
+          ],
           createdAt: "2026-08-07T00:00:00.000Z",
         },
         providerProfileId: "relay",
@@ -227,6 +240,7 @@ describe("runtime API client", () => {
     expect(serializedRequests).toContain(getAgentJobEndpoint(jobId, "result"));
     expect(createBody).toBeTypeOf("string");
     expect(createBody).toContain('"providerDataConsent":true');
+    expect(createBody).not.toContain("browser excerpt must be reloaded");
     expect(serializedRequests).not.toContain("baseURL");
     expect(serializedRequests).not.toContain("apiKey");
     expect(serializedRequests).not.toContain("provider-model-v1");
@@ -276,6 +290,10 @@ describe("runtime API client", () => {
 
     await api.agentEvents(jobId, (event) => received.push(event));
     expect(received).toEqual(events);
+    expect(fetchMock).toHaveBeenCalledWith(
+      getAgentJobEndpoint(jobId, "events"),
+      expect.objectContaining({ method: "POST", body: "{}" }),
+    );
 
     const invalidStream = new ReadableStream<Uint8Array>({
       start(controller) {

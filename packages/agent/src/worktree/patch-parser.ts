@@ -33,11 +33,7 @@ function parseDiffHeader(line: string): string {
     return rejectPatch();
   }
 
-  try {
-    return assertAgentPathAllowed(left);
-  } catch {
-    return rejectPatch();
-  }
+  return assertAgentPathAllowed(left);
 }
 
 function parseFileHeader(

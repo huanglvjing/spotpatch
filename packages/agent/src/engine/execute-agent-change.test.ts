@@ -29,9 +29,9 @@ const updatePatch = `diff --git a/src/App.tsx b/src/App.tsx
 `;
 
 const annotation = Object.freeze({
-  schemaVersion: 1,
+  schemaVersion: 3,
   id: "annotation-1",
-  note: "Change the selected button label from Before to After.",
+  locale: "en-US",
   page: Object.freeze({
     url: "http://localhost:5173/",
     pathname: "/",
@@ -40,41 +40,46 @@ const annotation = Object.freeze({
     viewportHeight: 900,
     devicePixelRatio: 2,
   }),
-  source: Object.freeze({
-    relativePath: "src/App.tsx",
-    line: 1,
-    column: 25,
-    origin: "jsx-host",
-    confidence: "exact",
-  }),
-  react: Object.freeze({
-    supported: true,
-    version: "18.3.1",
-    componentName: "App",
-    componentStack: Object.freeze(["App"]),
-  }),
-  element: Object.freeze({
-    tagName: "button",
-    selector: "button",
-    sanitizedHtml: "<button>Before</button>",
-    textPreview: "Before",
-    rect: Object.freeze({ x: 0, y: 0, width: 100, height: 40 }),
-  }),
-  styles: Object.freeze({
-    classNames: Object.freeze([]),
-    matchedRules: Object.freeze([]),
-    computed: Object.freeze({ display: "inline-block" }),
-    warnings: Object.freeze([]),
-  }),
-  code: Object.freeze({
-    relativePath: "src/App.tsx",
-    language: "tsx",
-    startLine: 1,
-    endLine: 1,
-    excerpt: "export const App = () => <button>Before</button>;",
-    boundary: "component",
-  }),
-  warnings: Object.freeze([]),
+  targets: Object.freeze([
+    Object.freeze({
+      instruction: "Change the selected button label from Before to After.",
+      source: Object.freeze({
+        relativePath: "src/App.tsx",
+        line: 1,
+        column: 25,
+        origin: "jsx-host",
+        confidence: "exact",
+      }),
+      react: Object.freeze({
+        supported: true,
+        version: "18.3.1",
+        componentName: "App",
+        componentStack: Object.freeze(["App"]),
+      }),
+      element: Object.freeze({
+        tagName: "button",
+        selector: "button",
+        sanitizedHtml: "<button>Before</button>",
+        textPreview: "Before",
+        rect: Object.freeze({ x: 0, y: 0, width: 100, height: 40 }),
+      }),
+      styles: Object.freeze({
+        classNames: Object.freeze([]),
+        matchedRules: Object.freeze([]),
+        computed: Object.freeze({ display: "inline-block" }),
+        warnings: Object.freeze([]),
+      }),
+      code: Object.freeze({
+        relativePath: "src/App.tsx",
+        language: "tsx",
+        startLine: 1,
+        endLine: 1,
+        excerpt: "export const App = () => <button>Before</button>;",
+        boundary: "component",
+      }),
+      warnings: Object.freeze([]),
+    }),
+  ]),
   createdAt: "2026-08-07T00:00:00.000Z",
 } satisfies SpotAnnotation);
 
@@ -186,7 +191,7 @@ function codingModel(source: ResolvedOpenAICompatibleProviderOptions) {
 }
 
 describe("Agent execution", () => {
-  it("drives read, patch, check, review Apply, and hash-safe Revert", async () => {
+  it("drives read, exact replace, check, review Apply, and hash-safe Revert", async () => {
     const repository = await createTestGitRepository();
     const temporaryBase = await mkdtemp(
       path.join(os.tmpdir(), "spotpatch-engine-test-"),
@@ -194,7 +199,11 @@ describe("Agent execution", () => {
     const source = provider();
     const fetch = queuedFetch([
       toolResponse("read-1", "read_file", { path: "src/App.tsx" }),
-      toolResponse("patch-1", "apply_patch", { patch: updatePatch }),
+      toolResponse("replace-1", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "<button>Before</button>",
+        newText: "<button>After</button>",
+      }),
       toolResponse("check-1", "run_check", { checkId: "verify" }),
       finalResponse("Changed only the selected button label."),
     ]);
@@ -245,8 +254,8 @@ describe("Agent execution", () => {
       expect(toolStates).toEqual([
         "read_file:started",
         "read_file:succeeded",
-        "apply_patch:started",
-        "apply_patch:succeeded",
+        "replace_text:started",
+        "replace_text:succeeded",
         "run_check:started",
         "run_check:succeeded",
       ]);
@@ -324,6 +333,53 @@ describe("Agent execution", () => {
     }
   });
 
+  it("lets the model correct an unchanged rejected patch without weakening policy", async () => {
+    const repository = await createTestGitRepository();
+    const source = provider();
+    const fetch = queuedFetch([
+      toolResponse("patch-invalid", "apply_patch", {
+        patch: updatePatch.replace("Before", "Missing"),
+      }),
+      toolResponse("patch-corrected", "apply_patch", { patch: updatePatch }),
+      finalResponse("Corrected the patch and changed only the button label."),
+    ]);
+    const toolStates: string[] = [];
+
+    try {
+      const prepared = await executeAgentChange({
+        annotation,
+        credential: createProviderCredential("synthetic-test-credential"),
+        execution: execution("process.exit(0)"),
+        fetch,
+        jobId: "job-patch-retry",
+        model: codingModel(source),
+        provider: source,
+        root: repository.root,
+        signal: new AbortController().signal,
+        callbacks: {
+          onTool(event) {
+            toolStates.push(`${event.toolName}:${event.state}`);
+          },
+        },
+      });
+
+      expect(prepared.validationPassed).toBe(true);
+      expect(prepared.result.files).toMatchObject([
+        { relativePath: "src/App.tsx", kind: "modified" },
+      ]);
+      expect(toolStates).toEqual([
+        "apply_patch:started",
+        "apply_patch:failed",
+        "apply_patch:started",
+        "apply_patch:succeeded",
+      ]);
+      expect(JSON.stringify(fetch.mock.calls)).toContain(ERROR_CODES.PATCH_REJECTED);
+      expect(await repository.read("src/App.tsx")).toContain("Before");
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
   it("fails closed on an escaped patch path", async () => {
     const repository = await createTestGitRepository();
     const source = provider();
@@ -345,7 +401,7 @@ describe("Agent execution", () => {
           root: repository.root,
           signal: new AbortController().signal,
         }),
-      ).rejects.toMatchObject({ code: ERROR_CODES.PATCH_REJECTED });
+      ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_DENIED });
       expect(await repository.read("src/App.tsx")).toContain("Before");
     } finally {
       await repository.cleanup();

@@ -1,3 +1,6 @@
+import { mkdir } from "node:fs/promises";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -114,6 +117,30 @@ describe("isolated Git changes", () => {
         }),
       ).rejects.toMatchObject({ code: ERROR_CODES.WORKTREE_DIRTY });
     } finally {
+      await repository.cleanup();
+    }
+  });
+
+  it("uses an installed dependency directory as the default temporary base", async () => {
+    const repository = await createTestGitRepository({
+      ".gitignore": "node_modules/\n",
+      "src/App.tsx": "export const App = () => <button>Before</button>;\n",
+    });
+    await mkdir(path.join(repository.root, "node_modules"));
+    const worktree = await createIsolatedGitWorktree({
+      root: repository.root,
+      signal: new AbortController().signal,
+    });
+
+    try {
+      expect(
+        path.relative(worktree.baseline.root, worktree.root).split(path.sep)[0],
+      ).toBe("node_modules");
+      await expect(
+        assertCleanGitBaseline({ root: repository.root }),
+      ).resolves.toBeDefined();
+    } finally {
+      await worktree.cleanup();
       await repository.cleanup();
     }
   });

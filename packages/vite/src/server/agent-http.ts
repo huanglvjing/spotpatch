@@ -16,6 +16,7 @@ import type { AgentJobManager } from "../agent/job-manager.js";
 import type { ResolvedSpotPatchOptions } from "../options.js";
 import type { SourceRegistry } from "../registry/source-registry.js";
 import { authorizeAgentJobRequest } from "./agent-request.js";
+import { MAX_AGENT_REQUEST_BODY_BYTES } from "./constants.js";
 import { readJsonRequestBody } from "./request-body.js";
 
 interface AgentJobRoute {
@@ -208,7 +209,7 @@ async function handleCreateJob(
   }
 
   const parsed = agentJobCreateRequestSchema.safeParse(
-    await readJsonRequestBody(request),
+    await readJsonRequestBody(request, MAX_AGENT_REQUEST_BODY_BYTES),
   );
 
   if (!parsed.success) {
@@ -234,24 +235,6 @@ async function handleJobAction(
 ): Promise<void> {
   const manager = requireAgentManager(options);
 
-  if (route.action === "events") {
-    if (request.method !== "GET") {
-      throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
-    }
-
-    streamAgentJobEvents(response, manager, route.jobId);
-    return;
-  }
-
-  if (route.action === "result") {
-    if (request.method !== "GET") {
-      throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
-    }
-
-    writeSuccess(response, 200, manager.result(route.jobId));
-    return;
-  }
-
   if (request.method !== "POST") {
     throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
   }
@@ -262,6 +245,16 @@ async function handleJobAction(
 
   if (!parsed.success) {
     throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+  }
+
+  if (route.action === "events") {
+    streamAgentJobEvents(response, manager, route.jobId);
+    return;
+  }
+
+  if (route.action === "result") {
+    writeSuccess(response, 200, manager.result(route.jobId));
+    return;
   }
 
   const data =

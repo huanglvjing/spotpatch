@@ -111,6 +111,129 @@ describe("Agent tool executor", () => {
     expect(executor.touchedPaths()).toEqual(new Set(["src/App.tsx"]));
   });
 
+  it("returns an unchanged patch rejection for a bounded model retry", async () => {
+    const executor = createAgentToolExecutor({
+      checks: {},
+      limits: DEFAULT_AGENT_LIMITS,
+      worktreeRoot: worktree.root,
+    });
+    const signal = new AbortController().signal;
+    const rejected = await executor.execute(
+      call("patch-rejected", "apply_patch", {
+        patch: updatePatch.replace("Before", "Missing"),
+      }),
+      signal,
+    );
+
+    expect(rejected.output).toMatchObject({
+      errorCode: ERROR_CODES.PATCH_REJECTED,
+      retryable: true,
+    });
+    expect(await worktreeFile()).toContain("Before");
+    expect(executor.touchedPaths()).toEqual(new Set());
+
+    const applied = await executor.execute(
+      call("patch-corrected", "apply_patch", { patch: updatePatch }),
+      signal,
+    );
+
+    expect(applied.output).toEqual({ paths: ["src/App.tsx"] });
+    expect(await worktreeFile()).toContain("After");
+    expect(executor.touchedPaths()).toEqual(new Set(["src/App.tsx"]));
+  });
+
+  it("replaces one exact fragment without requiring the model to synthesize a diff", async () => {
+    const executor = createAgentToolExecutor({
+      checks: {},
+      limits: DEFAULT_AGENT_LIMITS,
+      worktreeRoot: worktree.root,
+    });
+    const signal = new AbortController().signal;
+    const replacementCall = call("replace", "replace_text", {
+      path: "src/App.tsx",
+      oldText: "<button>Before</button>",
+      newText: "<button>After</button>",
+    });
+    const first = await executor.execute(replacementCall, signal);
+    const duplicate = await executor.execute(replacementCall, signal);
+
+    expect(first.output).toEqual({
+      paths: ["src/App.tsx"],
+      replacements: 1,
+    });
+    expect(duplicate).toBe(first);
+    expect(await worktreeFile()).toContain("After");
+    expect(executor.touchedPaths()).toEqual(new Set(["src/App.tsx"]));
+  });
+
+  it("rejects missing, ambiguous, unchanged, whole-file, and whitespace-invalid replacements without mutation", async () => {
+    const executor = createAgentToolExecutor({
+      checks: {},
+      limits: DEFAULT_AGENT_LIMITS,
+      worktreeRoot: worktree.root,
+    });
+    const signal = new AbortController().signal;
+    const rejectedCalls = [
+      call("missing", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "Missing",
+        newText: "After",
+      }),
+      call("ambiguous", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "e",
+        newText: "E",
+      }),
+      call("unchanged", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "Before",
+        newText: "Before",
+      }),
+      call("whole-file", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "export const App = () => <button>Before</button>;\n",
+        newText: "export const App = () => <button>After</button>;\n",
+      }),
+      call("whitespace", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "Before</button>;",
+        newText: "After</button>;  ",
+      }),
+    ];
+
+    for (const rejectedCall of rejectedCalls) {
+      await expect(executor.execute(rejectedCall, signal)).resolves.toMatchObject({
+        output: {
+          errorCode: ERROR_CODES.PATCH_REJECTED,
+          retryable: true,
+        },
+      });
+      expect(await worktreeFile()).toContain("Before");
+    }
+
+    expect(executor.touchedPaths()).toEqual(new Set());
+  });
+
+  it("keeps protected files outside the exact replacement tool", async () => {
+    const executor = createAgentToolExecutor({
+      checks: {},
+      limits: DEFAULT_AGENT_LIMITS,
+      worktreeRoot: worktree.root,
+    });
+
+    await expect(
+      executor.execute(
+        call("replace-secret", "replace_text", {
+          path: ".env.local",
+          oldText: "SECRET=hidden",
+          newText: "SECRET=exposed",
+        }),
+        new AbortController().signal,
+      ),
+    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_DENIED });
+    expect(executor.touchedPaths()).toEqual(new Set());
+  });
+
   it("does not allow a configured check to mutate the proposed diff", async () => {
     const mutateCheck = Object.freeze({
       id: "mutate",

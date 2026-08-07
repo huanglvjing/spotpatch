@@ -5,7 +5,7 @@ import path from "node:path";
 import packageMetadata from "../../package.json" with { type: "json" };
 import { version as VITE_VERSION, type Plugin } from "vite";
 
-import type { ResolvedSpotPatchOptions } from "../options.js";
+import { createRuntimeAiConfig, type ResolvedSpotPatchOptions } from "../options.js";
 import type { SpotPatchSession } from "../session/session.js";
 
 export const SPOTPATCH_CLIENT_MODULE_ID = "virtual:spotpatch/client";
@@ -51,6 +51,7 @@ function createClientModule(
   viteVersion: string,
 ): string {
   const runtimeConfig = {
+    ai: createRuntimeAiConfig(input.options.ai),
     budget: input.options.budget,
     debug: input.options.debug,
     redact: input.options.redact,

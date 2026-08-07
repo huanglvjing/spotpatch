@@ -23,6 +23,7 @@ const budget = Object.freeze({
 
 const config = Object.freeze({
   apiBase: SPOTPATCH_API_BASE,
+  ai: Object.freeze({ enabled: false }),
   budget,
   debug: false,
   redact: true,

@@ -4,4 +4,12 @@ export const SPOTPATCH_TOKEN_HEADER = "X-SpotPatch-Token" as const;
 export const SPOTPATCH_ENDPOINTS = Object.freeze({
   sourceContext: `${SPOTPATCH_API_BASE}/source-context`,
   openEditor: `${SPOTPATCH_API_BASE}/open-editor`,
+  agentCapability: `${SPOTPATCH_API_BASE}/agent/capability`,
+  agentJobs: `${SPOTPATCH_API_BASE}/agent/jobs`,
 });
+
+export type AgentJobAction = "events" | "result" | "cancel" | "apply" | "revert";
+
+export function getAgentJobEndpoint(jobId: string, action: AgentJobAction): string {
+  return `${SPOTPATCH_ENDPOINTS.agentJobs}/${encodeURIComponent(jobId)}/${action}`;
+}

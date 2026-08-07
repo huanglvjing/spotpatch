@@ -72,6 +72,51 @@ describe("runtime injection plugin", () => {
     expect(code).not.toContain('"root"');
   });
 
+  it("injects only allowlisted AI profile labels and ids", () => {
+    const plugin = createRuntimeInjectionPlugin({
+      options: resolveOptions({
+        ai: {
+          providers: {
+            relay: {
+              type: "openai-compatible",
+              label: "Team relay",
+              protocol: "chat-completions",
+              baseURL: "https://private-relay.example/v1",
+              apiKeyEnv: "SPOTPATCH_AI_API_KEY",
+              models: {
+                coding: { label: "Coding model", model: "secret-model-name" },
+              },
+              defaultModel: "coding",
+            },
+          },
+          defaultProvider: "relay",
+          execution: {
+            checks: {
+              lint: { label: "Lint", command: "pnpm", args: ["lint"] },
+            },
+          },
+        },
+      }),
+      session,
+      clientBundle,
+    });
+    const hook = plugin.load;
+
+    if (typeof hook !== "function") {
+      throw new Error("Expected a load hook.");
+    }
+
+    const code = hook.call({} as never, RESOLVED_SPOTPATCH_CLIENT_MODULE_ID) as string;
+
+    expect(code).toContain('"label":"Team relay"');
+    expect(code).toContain('"label":"Coding model"');
+    expect(code).toContain('"id":"relay"');
+    expect(code).not.toContain("private-relay.example");
+    expect(code).not.toContain("SPOTPATCH_AI_API_KEY");
+    expect(code).not.toContain("secret-model-name");
+    expect(code).not.toContain('"command":"pnpm"');
+  });
+
   it("resolves only its exact public virtual id", () => {
     const plugin = createRuntimeInjectionPlugin({
       options: resolveOptions(),

@@ -1,6 +1,6 @@
 {
   "name": "@spotpatch/vite",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Vite development plugin for SpotPatch.",
   "license": "MIT",
   "repository": {

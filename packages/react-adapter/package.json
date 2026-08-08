@@ -1,6 +1,6 @@
 {
   "name": "@spotpatch/react-adapter",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Isolated React compatibility adapter for SpotPatch.",
   "license": "MIT",
   "repository": {

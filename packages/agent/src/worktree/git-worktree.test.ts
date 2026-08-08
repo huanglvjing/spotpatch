@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, open, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   AGENT_WORKSPACE_SNAPSHOT_LIMITS,
@@ -22,6 +22,10 @@ import {
   revertPreparedAgentChange,
 } from "./prepared-change.js";
 import { inspectAgentWorkspace } from "./workspace-health.js";
+
+const GIT_WORKTREE_INTEGRATION_TIMEOUT_MS = 15_000;
+
+vi.setConfig({ testTimeout: GIT_WORKTREE_INTEGRATION_TIMEOUT_MS });
 
 const updatePatch = `diff --git a/src/App.tsx b/src/App.tsx
 --- a/src/App.tsx
@@ -300,14 +304,20 @@ describe("isolated Git changes", () => {
         await applyPreparedAgentChange(prepared);
         expect(await repository.read("src/App.tsx")).toContain("Agent result");
         expect(
-          await runGitCommand({ cwd: repository.root, args: ["show", ":src/App.tsx"] }),
+          await runGitCommand({
+            cwd: repository.root,
+            args: ["show", ":src/App.tsx"],
+          }),
         ).toBe(indexBefore);
         expect(await repository.read("notes.txt")).toBe("keep this untracked note\n");
 
         await revertPreparedAgentChange(prepared);
         expect(await repository.read("src/App.tsx")).toContain("Local worktree");
         expect(
-          await runGitCommand({ cwd: repository.root, args: ["show", ":src/App.tsx"] }),
+          await runGitCommand({
+            cwd: repository.root,
+            args: ["show", ":src/App.tsx"],
+          }),
         ).toBe(indexBefore);
         expect(
           await runGitCommand({

@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:loader": "vitest run --config vitest.config.ts",
+    "test:loader": "vitest run --config vitest.config.ts src/loader-poc.test.ts",
+    "test:real-host": "vitest run --config vitest.config.ts src/real-host-poc.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

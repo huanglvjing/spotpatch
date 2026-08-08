@@ -32,6 +32,7 @@
     "test:e2e": "playwright test",
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:next-poc": "pnpm --filter @spotpatch/next-adapter-experiments test:loader",
+    "test:next-real-host": "pnpm --filter @spotpatch/next-adapter-experiments test:real-host",
     "test:performance": "vitest run tests/performance",
     "test:production-leakage": "pnpm build && vitest run tests/production",
     "test:unit": "vitest run packages tests/unit",

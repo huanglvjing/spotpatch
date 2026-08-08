@@ -18,7 +18,11 @@ const schemaValidator = new Ajv2020({ allErrors: true, strict: true });
 addFormats(schemaValidator);
 const validateEvidence = schemaValidator.compile<LoaderPocEvidence>(evidenceSchema);
 
-export const artifactsRoot = path.join(experimentRoot, ".artifacts", "loader-poc");
+export type EvidenceArtifactId = "loader-poc" | "real-host-poc";
+
+function getArtifactsRoot(artifactId: EvidenceArtifactId): string {
+  return path.join(experimentRoot, ".artifacts", artifactId);
+}
 
 function replaceAllLiteral(value: string, search: string, replacement: string): string {
   return search === "" ? value : value.split(search).join(replacement);
@@ -45,13 +49,15 @@ export async function writeCaseLog(
   caseId: string,
   logs: string,
   workDirectory: string,
+  artifactId: EvidenceArtifactId = "loader-poc",
 ): Promise<string> {
+  const artifactsRoot = getArtifactsRoot(artifactId);
   const logsDirectory = path.join(artifactsRoot, "logs");
   const filename = `${caseId}.log`;
   const absolutePath = path.join(logsDirectory, filename);
   await mkdir(logsDirectory, { recursive: true });
   await writeFile(absolutePath, sanitizeLogs(logs, workDirectory), "utf8");
-  return path.posix.join(".artifacts", "loader-poc", "logs", filename);
+  return path.posix.join(".artifacts", artifactId, "logs", filename);
 }
 
 function getCaseIdentity(result: ProbeCaseResult): string {
@@ -61,7 +67,9 @@ function getCaseIdentity(result: ProbeCaseResult): string {
 export async function writeEvidence(
   cases: readonly ProbeCaseResult[],
   expectedCaseCount: number,
+  artifactId: EvidenceArtifactId = "loader-poc",
 ): Promise<void> {
+  const artifactsRoot = getArtifactsRoot(artifactId);
   const uniqueCaseCount = new Set(cases.map(getCaseIdentity)).size;
   const isComplete =
     cases.length === expectedCaseCount && uniqueCaseCount === expectedCaseCount;

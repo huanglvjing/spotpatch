@@ -1,14 +1,4 @@
-import {
-  cp,
-  lstat,
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
-import type { Dirent } from "node:fs";
+import { cp, lstat, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -22,6 +12,7 @@ import {
 import { afterAll, beforeAll, describe, expect as vitestExpect, it } from "vitest";
 
 import probeContract from "../loader/probe-contract.json";
+import { fileTreeContains, fileTreeContainsSourceMap } from "./artifact-scan.js";
 import type {
   FixtureDefinition,
   ProbeAssertion,
@@ -30,6 +21,7 @@ import type {
 } from "./contracts.js";
 import { writeCaseLog, writeEvidence } from "./evidence.js";
 import { experimentRoot, fixtureMatrix, repositoryRoot } from "./fixture-matrix.js";
+import { getNextEntry, waitForNextServer } from "./next-process.js";
 import {
   reserveLoopbackPort,
   runNodeCommand,
@@ -37,13 +29,19 @@ import {
   stopNodeCommand,
   type RunningProcess,
 } from "./process-control.js";
+import { addAssertion, appendError, toErrorMessage } from "./probe-result.js";
+import {
+  generateStressFixture,
+  STRESS_MODULE_COUNT,
+  STRESS_ROUTE_SEGMENT,
+} from "./stress-fixture.js";
 
 const ACTIVE_MARKER_PREFIX = probeContract.activePrefix;
 const INITIAL_REFRESH_LABEL = "INITIAL_REFRESH_LABEL";
 const UPDATED_REFRESH_LABEL = "UPDATED_REFRESH_LABEL";
-const NEXT_START_TIMEOUT_MS = 90_000;
 const NEXT_BUILD_TIMEOUT_MS = 180_000;
 const BROWSER_ASSERTION_TIMEOUT_MS = 30_000;
+const CONCURRENT_STRESS_REQUEST_COUNT = 8;
 const EXPECTED_CASE_COUNT = fixtureMatrix.reduce(
   (count, fixture) => count + fixture.development.length + 1,
   0,
@@ -87,29 +85,12 @@ function hashSource(source: string): string {
   return createHash("sha256").update(source).digest("hex");
 }
 
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 function createCaseId(
   fixture: FixtureDefinition,
   command: ProbeCommand,
   kind: "development" | "production",
 ): string {
   return `${fixture.id}-${kind}-${command.bundler}`;
-}
-
-function addAssertion(
-  assertions: ProbeAssertion[],
-  input: Omit<ProbeAssertion, "passed"> & { readonly passed: boolean },
-): void {
-  assertions.push(Object.freeze(input));
-
-  if (!input.passed) {
-    throw new Error(
-      `${input.name}: expected ${input.expected}, received ${input.actual}.`,
-    );
-  }
 }
 
 async function prepareFixtureWorkDirectory(
@@ -139,6 +120,7 @@ async function prepareFixtureWorkDirectory(
   }
 
   await symlink(fixtureNodeModules, path.join(workDirectory, "node_modules"), "dir");
+  await generateStressFixture(workDirectory);
   return workDirectory;
 }
 
@@ -183,51 +165,6 @@ async function cleanupFixtureWorkDirectory(
   return cleanupError;
 }
 
-function appendCleanupError(
-  error: string | null,
-  cleanupError: string | null,
-): string | null {
-  if (cleanupError === null) {
-    return error;
-  }
-
-  if (error === null) {
-    return cleanupError;
-  }
-
-  return `${error} Cleanup failed: ${cleanupError}`;
-}
-
-function getNextEntry(fixture: FixtureDefinition): string {
-  return path.join(fixture.directory, "node_modules", "next", "dist", "bin", "next");
-}
-
-async function waitForNextServer(url: string, running: RunningProcess): Promise<void> {
-  const deadline = Date.now() + NEXT_START_TIMEOUT_MS;
-
-  while (Date.now() < deadline) {
-    if (running.child.exitCode !== null) {
-      throw new Error(
-        `Next dev exited before becoming ready with code ${String(running.child.exitCode)}.`,
-      );
-    }
-
-    try {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(2_000),
-      });
-      await response.body?.cancel();
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 250));
-    }
-  }
-
-  throw new Error(
-    `Next dev did not become ready within ${String(NEXT_START_TIMEOUT_MS)}ms.`,
-  );
-}
-
 function getRequiredBrowser(): Browser {
   if (browser === undefined) {
     throw new Error("The Chromium POC browser is not initialized.");
@@ -255,7 +192,31 @@ async function executeDevelopmentCase(
     "client-probe.tsx",
   );
   const originalClientSource = await readFile(clientProbePath, "utf8");
-  const devArgs = [...command.args, "--hostname", "127.0.0.1", "--port", String(port)];
+  const createDevArgs = (serverPort: number): readonly string[] => [
+    ...command.args,
+    "--hostname",
+    "127.0.0.1",
+    "--port",
+    String(serverPort),
+  ];
+  const startDevelopmentServer = (
+    serverPort: number,
+    activeProbeId: string,
+  ): RunningProcess =>
+    startNodeCommand({
+      entry: getNextEntry(fixture.directory),
+      args: createDevArgs(serverPort),
+      cwd: workDirectory,
+      additions: {
+        SPOTPATCH_POC_LOADER_PATH: loaderPath,
+        SPOTPATCH_POC_PROBE_ID: activeProbeId,
+        SPOTPATCH_POC_TURBOPACK_ROOT: repositoryRoot,
+        SPOTPATCH_POC_TURBOPACK_SOURCE_MAP_MODE: probeContract.sourceMapModes.turbopack,
+        SPOTPATCH_POC_WEBPACK_SOURCE_MAP_MODE: probeContract.sourceMapModes.webpack,
+      },
+    });
+  const devArgs = createDevArgs(port);
+  const processLogs: string[] = [];
   let context: BrowserContext | undefined;
   let running: RunningProcess | undefined;
   let error: string | null = null;
@@ -291,18 +252,7 @@ async function executeDevelopmentCase(
       outputSha256: hashSource(transformResult.code),
     });
 
-    running = startNodeCommand({
-      entry: getNextEntry(fixture),
-      args: devArgs,
-      cwd: workDirectory,
-      additions: {
-        SPOTPATCH_POC_LOADER_PATH: loaderPath,
-        SPOTPATCH_POC_PROBE_ID: probeId,
-        SPOTPATCH_POC_TURBOPACK_ROOT: repositoryRoot,
-        SPOTPATCH_POC_TURBOPACK_SOURCE_MAP_MODE: probeContract.sourceMapModes.turbopack,
-        SPOTPATCH_POC_WEBPACK_SOURCE_MAP_MODE: probeContract.sourceMapModes.webpack,
-      },
-    });
+    running = startDevelopmentServer(port, probeId);
     await waitForNextServer(url, running);
 
     context = await getRequiredBrowser().newContext();
@@ -336,6 +286,50 @@ async function executeDevelopmentCase(
       actual: [...new Set(markerValues)].join(", "),
       passed: markerValues.every((value) => value === expectedMarkerValue),
     });
+
+    const stressUrl = `${url}/${STRESS_ROUTE_SEGMENT}`;
+    const stressResponses = await Promise.all(
+      Array.from({ length: CONCURRENT_STRESS_REQUEST_COUNT }, () => fetch(stressUrl)),
+    );
+    const stressResponseBodies = await Promise.all(
+      stressResponses.map(async (response) => {
+        const body = await response.text();
+        return Object.freeze({ body, status: response.status });
+      }),
+    );
+    addAssertion(assertions, {
+      name: "concurrent cold stress requests",
+      expected: `${String(CONCURRENT_STRESS_REQUEST_COUNT)} successful responses with the active probe marker`,
+      actual: `${String(stressResponseBodies.filter((response) => response.status === 200 && response.body.includes(expectedMarkerValue)).length)} successful marked responses`,
+      passed: stressResponseBodies.every(
+        (response) =>
+          response.status === 200 && response.body.includes(expectedMarkerValue),
+      ),
+    });
+
+    const stressPage = await context.newPage();
+    await stressPage.goto(stressUrl, { waitUntil: "domcontentloaded" });
+    const stressModules = stressPage.locator("[data-stress-module]");
+    const stressModuleCount = await stressModules.count();
+    transformedModuleCount += stressModuleCount;
+    addAssertion(assertions, {
+      name: "high-module-count compilation",
+      expected: `${String(STRESS_MODULE_COUNT)} transformed stress modules`,
+      actual: `${String(stressModuleCount)} transformed stress modules`,
+      passed: stressModuleCount === STRESS_MODULE_COUNT,
+    });
+    const stressMarkerValues = await stressModules.evaluateAll(
+      (elements, attributeName) =>
+        elements.map((element) => element.getAttribute(attributeName)),
+      probeContract.attributeName,
+    );
+    addAssertion(assertions, {
+      name: "high-module marker determinism",
+      expected: `all ${String(STRESS_MODULE_COUNT)} modules use ${expectedMarkerValue}`,
+      actual: `${String(stressMarkerValues.filter((value) => value === expectedMarkerValue).length)} deterministic markers`,
+      passed: stressMarkerValues.every((value) => value === expectedMarkerValue),
+    });
+    await stressPage.close();
 
     await playwrightExpect(page.locator("[data-hydrated]")).toHaveAttribute(
       "data-hydrated",
@@ -400,22 +394,58 @@ async function executeDevelopmentCase(
       passed: edgeMarkerCount === 1,
     });
     await edgePage.close();
+
+    await context.close();
+    context = undefined;
+    processLogs.push(running.getLogs());
+    await stopNodeCommand(running);
+    running = undefined;
+
+    const restartPort = await reserveLoopbackPort();
+    const restartUrl = `http://127.0.0.1:${String(restartPort)}`;
+    const restartProbeId = `${probeId}-restart`;
+    const restartMarkerValue = `${ACTIVE_MARKER_PREFIX}${restartProbeId}`;
+    running = startDevelopmentServer(restartPort, restartProbeId);
+    await waitForNextServer(restartUrl, running);
+    context = await getRequiredBrowser().newContext();
+    const restartPage = await context.newPage();
+    await restartPage.goto(`${restartUrl}/${STRESS_ROUTE_SEGMENT}`, {
+      waitUntil: "domcontentloaded",
+    });
+    const restartedModules = restartPage.locator("[data-stress-module]");
+    const restartedMarkerValues = await restartedModules.evaluateAll(
+      (elements, attributeName) =>
+        elements.map((element) => element.getAttribute(attributeName)),
+      probeContract.attributeName,
+    );
+    addAssertion(assertions, {
+      name: "warm cache restart isolation",
+      expected: `${String(STRESS_MODULE_COUNT)} modules use the restarted probe marker and no stale marker`,
+      actual: `${String(restartedMarkerValues.filter((value) => value === restartMarkerValue).length)} restarted markers`,
+      passed:
+        restartedMarkerValues.length === STRESS_MODULE_COUNT &&
+        restartedMarkerValues.every((value) => value === restartMarkerValue),
+    });
   } catch (caughtError: unknown) {
     error = toErrorMessage(caughtError);
   } finally {
     await context?.close();
     if (running !== undefined) {
+      processLogs.push(running.getLogs());
       await stopNodeCommand(running);
     }
   }
 
-  const logs = running?.getLogs() ?? "Next dev was not started.";
+  const logs =
+    processLogs.length === 0
+      ? "Next dev was not started."
+      : processLogs.join("\n--- warm restart ---\n");
   let logPath: string;
 
   try {
     logPath = await writeCaseLog(caseId, logs, workDirectory);
   } finally {
-    error = appendCleanupError(
+    error = appendError(
       error,
       await cleanupFixtureWorkDirectory(workDirectory, assertions),
     );
@@ -438,165 +468,12 @@ async function executeDevelopmentCase(
   });
 }
 
-function hasErrorCode(error: unknown, code: string): boolean {
-  return isUnknownRecord(error) && error.code === code;
-}
-
-async function readDirectoryIfPresent(directory: string): Promise<readonly Dirent[]> {
-  try {
-    return await readdir(directory, { withFileTypes: true });
-  } catch (error: unknown) {
-    if (hasErrorCode(error, "ENOENT")) {
-      return [];
-    }
-
-    throw error;
-  }
-}
-
-async function readFileIfPresent(absolutePath: string): Promise<Buffer | null> {
-  try {
-    return await readFile(absolutePath);
-  } catch (error: unknown) {
-    if (hasErrorCode(error, "ENOENT")) {
-      return null;
-    }
-
-    throw error;
-  }
-}
-
-async function fileTreeContains(directory: string, needle: Buffer): Promise<boolean> {
-  const entries = await readDirectoryIfPresent(directory);
-
-  for (const entry of entries) {
-    const absolutePath = path.join(directory, entry.name);
-
-    if (entry.isDirectory()) {
-      if (await fileTreeContains(absolutePath, needle)) {
-        return true;
-      }
-    } else if (entry.isFile()) {
-      const content = await readFileIfPresent(absolutePath);
-
-      if (content?.includes(needle) === true) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
 function isUnknownRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null;
 }
 
-function sourceMapMatches(
-  value: unknown,
-  expectedSource: string,
-  expectedContent: string,
-): boolean {
-  if (!isUnknownRecord(value)) {
-    return false;
-  }
-
-  const { sources, sourcesContent } = value;
-
-  if (Array.isArray(sources) && Array.isArray(sourcesContent)) {
-    const hasMatchingSource = sources.some(
-      (source, index) =>
-        typeof source === "string" &&
-        source.endsWith(expectedSource) &&
-        sourcesContent[index] === expectedContent,
-    );
-
-    if (hasMatchingSource) {
-      return true;
-    }
-  }
-
-  const { sections } = value;
-
-  return (
-    Array.isArray(sections) &&
-    sections.some(
-      (section) =>
-        isUnknownRecord(section) &&
-        sourceMapMatches(section.map, expectedSource, expectedContent),
-    )
-  );
-}
-
-function parseJson(value: string): unknown {
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return undefined;
-  }
-}
-
-function contentContainsSourceMap(
-  content: Buffer,
-  expectedSource: string,
-  expectedContent: string,
-): boolean {
-  const text = content.toString("utf8");
-  const directMap = parseJson(text);
-
-  if (sourceMapMatches(directMap, expectedSource, expectedContent)) {
-    return true;
-  }
-
-  const inlineMapPattern =
-    /sourceMappingURL=data:application\/json(?:;charset=utf-8)?;base64,([A-Za-z0-9+/=]+)/gu;
-
-  for (const match of text.matchAll(inlineMapPattern)) {
-    const encodedMap = match[1];
-
-    if (encodedMap === undefined) {
-      continue;
-    }
-
-    const decodedMap = Buffer.from(encodedMap, "base64").toString("utf8");
-
-    if (sourceMapMatches(parseJson(decodedMap), expectedSource, expectedContent)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-async function fileTreeContainsSourceMap(
-  directory: string,
-  expectedSource: string,
-  expectedContent: string,
-): Promise<boolean> {
-  const entries = await readDirectoryIfPresent(directory);
-
-  for (const entry of entries) {
-    const absolutePath = path.join(directory, entry.name);
-
-    if (entry.isDirectory()) {
-      if (
-        await fileTreeContainsSourceMap(absolutePath, expectedSource, expectedContent)
-      ) {
-        return true;
-      }
-    } else if (entry.isFile()) {
-      const content = await readFileIfPresent(absolutePath);
-
-      if (
-        content !== null &&
-        contentContainsSourceMap(content, expectedSource, expectedContent)
-      ) {
-        return true;
-      }
-    }
-  }
-
-  return false;
+function hasErrorCode(error: unknown, code: string): boolean {
+  return isUnknownRecord(error) && error.code === code;
 }
 
 async function executeProductionCase(
@@ -612,7 +489,7 @@ async function executeProductionCase(
 
   try {
     const commandResult = await runNodeCommand({
-      entry: getNextEntry(fixture),
+      entry: getNextEntry(fixture.directory),
       args: command.args,
       cwd: workDirectory,
       timeoutMs: NEXT_BUILD_TIMEOUT_MS,
@@ -656,7 +533,7 @@ async function executeProductionCase(
   try {
     logPath = await writeCaseLog(caseId, logs, workDirectory);
   } finally {
-    error = appendCleanupError(
+    error = appendError(
       error,
       await cleanupFixtureWorkDirectory(workDirectory, assertions),
     );

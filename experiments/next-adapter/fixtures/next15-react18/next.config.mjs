@@ -24,6 +24,20 @@ function readDevelopmentEnvironment() {
   return values;
 }
 
+function scopeWebpackFilesystemCache(config, probeId) {
+  if (
+    config.cache !== null &&
+    typeof config.cache === "object" &&
+    config.cache.type === "filesystem"
+  ) {
+    const existingVersion =
+      typeof config.cache.version === "string" ? config.cache.version : "";
+    config.cache.version = [existingVersion, `spotpatch:${probeId}`]
+      .filter(Boolean)
+      .join("|");
+  }
+}
+
 export default function createNextConfig(phase) {
   if (phase !== PHASE_DEVELOPMENT_SERVER) {
     return {};
@@ -53,6 +67,8 @@ export default function createNextConfig(phase) {
       if (!dev) {
         return config;
       }
+
+      scopeWebpackFilesystemCache(config, probeId);
 
       config.module.rules.push({
         enforce: "pre",

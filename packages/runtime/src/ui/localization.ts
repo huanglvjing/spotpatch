@@ -2,6 +2,7 @@ import {
   ERROR_CODES,
   type AgentJobStatus,
   type ErrorCode,
+  type SpotPatchEditorPreference,
   type SpotPatchLocale,
   type SpotPatchLocalePreference,
 } from "@spotpatch/shared";
@@ -15,6 +16,8 @@ export interface UiMessages {
   readonly brand: Readonly<{
     name: string;
     context: string;
+    repository: string;
+    repositoryTitle: string;
   }>;
   readonly trigger: Readonly<{
     select: string;
@@ -67,7 +70,8 @@ export interface UiMessages {
   readonly actions: Readonly<{
     addElement: string;
     reselect: string;
-    openEditor: string;
+    openEditor: (editor: SpotPatchEditorPreference) => string;
+    openTarget: (index: number, editor: SpotPatchEditorPreference) => string;
     preview: string;
     copy: string;
     back: string;
@@ -123,8 +127,9 @@ export interface UiMessages {
     detachedTargetRemoved: string;
     contextWarning: string;
     contextCollected: string;
-    editorOpened: string;
-    editorFailed: string;
+    editorOpening: (editor: SpotPatchEditorPreference) => string;
+    editorOpened: (editor: SpotPatchEditorPreference) => string;
+    editorFailed: (editor: SpotPatchEditorPreference) => string;
     completeInstructions: string;
     promptCopied: string;
     clipboardUnavailable: string;
@@ -165,6 +170,18 @@ const STATUS_ZH: Readonly<Record<AgentJobStatus, string>> = Object.freeze({
   reverted: "已撤销",
   failed: "失败",
 });
+
+function editorName(editor: SpotPatchEditorPreference, automatic: string): string {
+  if (editor === "vscode") {
+    return "VS Code";
+  }
+
+  if (editor === "cursor") {
+    return "Cursor";
+  }
+
+  return automatic;
+}
 
 const ERROR_MESSAGES_EN = Object.freeze({
   [ERROR_CODES.INVALID_REQUEST]: "The Agent request was rejected as invalid.",
@@ -321,7 +338,12 @@ export const UI_MESSAGES = Object.freeze({
     localeName: "EN",
     alternateLocaleName: "中",
     switchLocale: "Switch interface language to Chinese",
-    brand: Object.freeze({ name: "SpotPatch", context: "Live context" }),
+    brand: Object.freeze({
+      name: "SpotPatch",
+      context: "Live context",
+      repository: "GitHub",
+      repositoryTitle: "Star SpotPatch on GitHub",
+    }),
     trigger: Object.freeze({
       select: "Select element",
       stop: "Stop selecting",
@@ -379,7 +401,10 @@ export const UI_MESSAGES = Object.freeze({
     actions: Object.freeze({
       addElement: "Add element",
       reselect: "Start over",
-      openEditor: "Open in VS Code",
+      openEditor: (editor: SpotPatchEditorPreference) =>
+        editor === "auto" ? "Open source" : `Open in ${editorName(editor, "editor")}`,
+      openTarget: (index: number, editor: SpotPatchEditorPreference) =>
+        `Open target ${String(index)} in ${editorName(editor, "the detected editor")}`,
       preview: "Preview prompt",
       copy: "Copy prompt",
       back: "Back to edit",
@@ -439,8 +464,12 @@ export const UI_MESSAGES = Object.freeze({
       detachedTargetRemoved: "A removed page element was dropped from the selection.",
       contextWarning: "Browser context collection completed with a warning.",
       contextCollected: "Browser context collected.",
-      editorOpened: "VS Code open request sent.",
-      editorFailed: "VS Code could not be opened.",
+      editorOpening: (editor: SpotPatchEditorPreference) =>
+        `Opening ${editorName(editor, "the detected editor")}…`,
+      editorOpened: (editor: SpotPatchEditorPreference) =>
+        `Opened the source in ${editorName(editor, "the detected editor")}.`,
+      editorFailed: (editor: SpotPatchEditorPreference) =>
+        `Could not open ${editorName(editor, "an editor")}. Start the editor or configure editor: "cursor" / "vscode".`,
       completeInstructions:
         "Add an instruction for every target and wait for context collection to finish.",
       promptCopied: "Prompt copied to the clipboard.",
@@ -456,7 +485,12 @@ export const UI_MESSAGES = Object.freeze({
     localeName: "中",
     alternateLocaleName: "EN",
     switchLocale: "将界面语言切换为英文",
-    brand: Object.freeze({ name: "SpotPatch", context: "实时上下文" }),
+    brand: Object.freeze({
+      name: "SpotPatch",
+      context: "实时上下文",
+      repository: "GitHub",
+      repositoryTitle: "在 GitHub 上 Star SpotPatch",
+    }),
     trigger: Object.freeze({
       select: "选择元素",
       stop: "停止选择",
@@ -513,7 +547,10 @@ export const UI_MESSAGES = Object.freeze({
     actions: Object.freeze({
       addElement: "添加元素",
       reselect: "重新开始",
-      openEditor: "在 VS Code 中打开",
+      openEditor: (editor: SpotPatchEditorPreference) =>
+        editor === "auto" ? "打开源码" : `在 ${editorName(editor, "编辑器")} 中打开`,
+      openTarget: (index: number, editor: SpotPatchEditorPreference) =>
+        `在${editorName(editor, "自动检测的编辑器")}中打开目标 ${String(index)} 的源码`,
       preview: "预览 Prompt",
       copy: "复制 Prompt",
       back: "返回编辑",
@@ -572,8 +609,12 @@ export const UI_MESSAGES = Object.freeze({
       detachedTargetRemoved: "页面中的目标已卸载，已从当前选择中移除。",
       contextWarning: "浏览器上下文采集完成，但存在警告。",
       contextCollected: "浏览器上下文采集完成。",
-      editorOpened: "已发送 VS Code 打开请求。",
-      editorFailed: "无法打开 VS Code。",
+      editorOpening: (editor: SpotPatchEditorPreference) =>
+        `正在打开${editorName(editor, "自动检测的编辑器")}……`,
+      editorOpened: (editor: SpotPatchEditorPreference) =>
+        `已在${editorName(editor, "自动检测的编辑器")}中打开源码。`,
+      editorFailed: (editor: SpotPatchEditorPreference) =>
+        `无法打开${editorName(editor, "编辑器")}。请先启动编辑器，或配置 editor: "cursor" / "vscode"。`,
       completeInstructions: "请为每个目标填写修改说明，并等待上下文采集完成。",
       promptCopied: "Prompt 已复制到剪贴板。",
       clipboardUnavailable: "无法访问剪贴板，请手动选择并复制 Prompt。",

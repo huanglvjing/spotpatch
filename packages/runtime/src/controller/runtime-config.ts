@@ -2,6 +2,7 @@ import type {
   ContextBudget,
   RuntimeAiConfig,
   SPOTPATCH_API_BASE,
+  SpotPatchEditorPreference,
   SpotPatchLocalePreference,
 } from "@spotpatch/shared";
 
@@ -10,6 +11,7 @@ export interface RuntimeConfig {
   readonly ai: RuntimeAiConfig;
   readonly budget: Readonly<ContextBudget>;
   readonly debug: boolean;
+  readonly editor: SpotPatchEditorPreference;
   readonly locale: SpotPatchLocalePreference;
   readonly maxTargets: number;
   readonly redact: boolean;

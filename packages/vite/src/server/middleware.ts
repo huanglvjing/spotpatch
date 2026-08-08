@@ -10,6 +10,7 @@ import {
   type ApiFailure,
   type ApiSuccess,
   type CodeContext,
+  type EditorOpenResult,
   type ErrorCode,
 } from "@spotpatch/shared";
 
@@ -18,7 +19,7 @@ import type { SourceRegistry } from "../registry/source-registry.js";
 import type { SpotPatchSession } from "../session/session.js";
 import type { AgentJobManager } from "../agent/job-manager.js";
 import { handleAgentRequest, matchAgentRequestPath } from "./agent-http.js";
-import { type EditorLauncher, launchVSCode } from "./editor.js";
+import { type EditorLauncher, launchConfiguredEditor } from "./editor.js";
 import { readJsonRequestBody } from "./request-body.js";
 import { assertRequestAuthorized } from "./request-security.js";
 import { readSourceContext } from "./source-context.js";
@@ -168,7 +169,7 @@ async function handleSourceContext(
 async function handleOpenEditor(
   request: IncomingMessage,
   options: CreateMiddlewareOptions,
-): Promise<Readonly<Record<string, never>>> {
+): Promise<EditorOpenResult> {
   const parsed = openEditorRequestSchema.safeParse(await readJsonRequestBody(request));
 
   if (!parsed.success) {
@@ -182,19 +183,20 @@ async function handleOpenEditor(
     root: options.root,
   });
   const target = `${sourcePath}:${String(body.line)}:${String(body.column)}`;
-  const editorLauncher = options.editorLauncher ?? launchVSCode;
+  const editorLauncher = options.editorLauncher ?? launchConfiguredEditor;
 
   try {
-    editorLauncher(target, () => {
-      options.logger?.warn("[spotpatch:server] VS Code rejected an editor request.");
-    });
+    await editorLauncher(target, options.options.editor);
   } catch (error: unknown) {
+    options.logger?.warn(
+      `[spotpatch:server] ${options.options.editor === "auto" ? "The detected editor" : options.options.editor} rejected an editor request.`,
+    );
     throw new SpotPatchError(ERROR_CODES.EDITOR_OPEN_FAILED, undefined, {
       cause: error,
     });
   }
 
-  return Object.freeze({});
+  return Object.freeze({ editor: options.options.editor });
 }
 
 export function createSpotPatchMiddleware(

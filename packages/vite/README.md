@@ -42,6 +42,12 @@ SPOTPATCH_AI_API_KEY=<your-key>
 default) or `x-api-key`. Partial environment configuration fails fast without
 printing credential values. API keys must never use a `VITE_` prefix.
 
+Source actions auto-detect Cursor or VS Code and open the selected file at its
+exact line and column. Set `editor: "cursor"` or `editor: "vscode"` only when an
+explicit preference is required. The workbench also links to the
+[SpotPatch GitHub repository](https://github.com/huanglvjing/spotpatch) for docs,
+issues, and project updates.
+
 Non-secret URL and model values can instead use the concise API:
 
 ```ts

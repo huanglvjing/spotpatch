@@ -71,6 +71,15 @@ describe("resolveOptions", () => {
     expect(() => resolveOptions({ locale: "fr-FR" as "en-US" })).toThrow(RangeError);
   });
 
+  it("defaults to editor auto-detection and accepts only supported editors", () => {
+    expect(resolveOptions().editor).toBe("auto");
+    expect(resolveOptions({ editor: "vscode" }).editor).toBe("vscode");
+    expect(resolveOptions({ editor: "cursor" }).editor).toBe("cursor");
+    expect(() => resolveOptions({ editor: "shell-command" as "cursor" })).toThrow(
+      RangeError,
+    );
+  });
+
   it("resolves a bounded multi-target limit", () => {
     expect(resolveOptions().maxTargets).toBe(8);
     expect(resolveOptions({ maxTargets: 12 }).maxTargets).toBe(12);

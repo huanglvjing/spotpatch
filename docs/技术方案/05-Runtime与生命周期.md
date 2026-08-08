@@ -2,9 +2,9 @@
 doc-id: "05-runtime-lifecycle"
 title: "Runtime 与生命周期"
 status: "active"
-version: "1.3.0"
-last-updated: "2026-08-07"
-source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘元素选择器’、§10.1–§10.3；v1.1 Agent Runtime 生命周期；v1.2 多目标选择生命周期；v1.3 逐目标编辑状态"
+version: "1.4.0"
+last-updated: "2026-08-08"
+source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘元素选择器’、§10.1–§10.3；v1.1 Agent Runtime 生命周期；v1.2 多目标选择生命周期；v1.3 逐目标编辑状态；v1.4 源码导航生命周期"
 参考文献/依赖:
   - "03-public-api-models"
   - "04-vite-plugin"
@@ -133,7 +133,7 @@ AI Job 是与元素选择状态正交的服务端状态，不把 `running`、`va
 - 第一次点击创建目标集；`Add element` 追加目标，`Reselect` 才清空目标集。可选数量、默认值和硬上限只由公共配置定义 (见 doc-id:03-public-api-models)。
 - 每个目标独立保存 `instruction` 草稿、DOM Element、来源解析、源码请求状态、DOM/CSS 采集状态和异步任务标识。切换活动项、追加、去重、语言切换或异步上下文刷新都不得覆盖其他目标的草稿；异步回调只有在会话 revision 未变化且目标仍在集合中时才能写回，防止删除或重选后的结果串位。
 - `jsx-host` 或 `dom-ancestor` 有完整 marker 时，以 `fileId + line + column` 作为去重键；因此同一 map/list 源码位置的多个 DOM 实例只进入一次上下文。无完整 marker 时只按当前 Element 身份去重，不猜测两个相似 DOM 是否同源。
-- 目标顺序等于首次加入顺序；最后加入或重复点中的目标成为活动目标。打开编辑器和工作台定位使用活动目标，Prompt 与 Agent 使用完整有序目标集。
+- 目标顺序等于首次加入顺序；最后加入或重复点中的目标成为活动目标。底部源码入口和工作台定位使用活动目标；目标行快捷入口先激活对应目标再打开其坐标；Prompt 与 Agent 使用完整有序目标集。Apply 后释放旧 Element 和高亮但保留 source marker 供只读导航，具体交互 (见 doc-id:10-ui-diagnostics)。
 - 删除目标只取消该目标尚未完成的采集结果、解除观察并删除它自己的说明；不得影响其他目标说明。删除最后一个目标后进入追加选择态，等待新目标。
 - Preview/Run AI 只有在至少一个目标存在、每个目标的修改说明 trim 后非空、说明总字符数未超过公共总上限、每个目标的 DOM/CSS 采集完成且没有源码请求仍在 loading 时可用；单个源码请求失败可以带明确 warning 降级，但不能伪装为完整上下文。字符上限只引用公共模型 (见 doc-id:03-public-api-models)。
 

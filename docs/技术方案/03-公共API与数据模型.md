@@ -2,9 +2,9 @@
 doc-id: "03-public-api-models"
 title: "公共 API 与数据模型"
 status: "active"
-version: "1.4.0"
+version: "1.5.0"
 last-updated: "2026-08-08"
-source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言；v1.4 约定式与简洁 AI 配置"
+source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言；v1.4 约定式与简洁 AI 配置；v1.5 编辑器偏好与仓库标识"
 参考文献/依赖:
   - "04-vite-plugin"
   - "08-code-prompt"
@@ -31,8 +31,8 @@ export interface SpotPatchOptions {
   /** 默认排除 node_modules、测试、故事文件和生成文件。 */
   exclude?: Array<string | RegExp>;
 
-  /** v1 仅正式支持 vscode。 */
-  editor?: "vscode";
+  /** 默认 auto；可显式固定 Cursor 或 VS Code。 */
+  editor?: SpotPatchEditorPreference;
 
   /** 默认 true。关闭时仍强制清洗密码。 */
   redact?: boolean;
@@ -73,6 +73,7 @@ export type AiProviderAuthentication = "bearer" | "x-api-key";
 export type AgentApplyMode = "review" | "auto";
 export type SpotPatchLocale = "en-US" | "zh-CN";
 export type SpotPatchLocalePreference = "auto" | SpotPatchLocale;
+export type SpotPatchEditorPreference = "auto" | "vscode" | "cursor";
 
 export interface AiModelProfile {
   /** UI 中展示的非敏感名称。 */
@@ -183,10 +184,17 @@ export const SPOTPATCH_LOCALE_PREFERENCES = Object.freeze([
   "auto",
   ...SPOTPATCH_LOCALES,
 ] as const);
+export const SPOTPATCH_EDITOR_PREFERENCES = Object.freeze([
+  "auto",
+  "vscode",
+  "cursor",
+] as const);
+export const SPOTPATCH_REPOSITORY_URL =
+  "https://github.com/huanglvjing/spotpatch" as const;
 
 export const DEFAULT_OPTIONS = Object.freeze({
   enabled: true,
-  editor: "vscode",
+  editor: "auto",
   redact: true,
   shortcut: "Mod+Shift+S",
   allowLan: false,
@@ -208,6 +216,8 @@ export const DEFAULT_OPTIONS = Object.freeze({
 普通选项先做无环境解析；Vite `config` 阶段加载本地环境后完成一次最终解析，之后通过只读上下文向内部模块提供 `Readonly<ResolvedSpotPatchOptions>`，不得让各模块重复处理默认值。`maxTargets` 必须是从 1 到 `MAX_ANNOTATION_TARGETS` 的安全整数；Runtime 使用已解析值限制交互，协议使用硬上限限制不可信请求，服务端再次使用已解析值授权，三层都不得只依赖 UI。
 
 `locale` 只接受 `auto | en-US | zh-CN`。`auto` 先读取宿主 `<html lang>`，没有可用值时读取 `navigator.languages`，最后回退 `en-US`；该设置只决定初始界面和 Prompt 语言，用户仍可在工作台内显式切换。Runtime 不依赖宿主项目的 i18n 库，也不读取宿主业务语言状态；显示和交互规则见 UI 规范 (见 doc-id:10-ui-diagnostics)。
+
+`editor` 只接受 `auto | vscode | cursor`。`auto` 把探测交给服务端 `launch-editor` 适配器；显式值只映射到固定的 `code` 或 `cursor` 命令。浏览器不能传入编辑器名、命令或参数，服务端成功响应返回实际采用的受控偏好。官方仓库 URL 只由 `SPOTPATCH_REPOSITORY_URL` 定义，UI 不复制字面量；协议和外链行为分别见安全与 UI 规范 (见 doc-id:09-local-protocol-security)、(见 doc-id:10-ui-diagnostics)。
 
 预算的裁剪行为由源码与 Prompt 规范定义 (见 doc-id:08-code-prompt)；`redact` 和 `allowLan` 的强制安全边界由本地协议与安全规范定义 (见 doc-id:09-local-protocol-security)。
 

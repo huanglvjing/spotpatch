@@ -155,7 +155,13 @@ export function createController(
   const browser = resolveBrowserDependencies(dependencies);
   const view =
     dependencies.view ??
-    createRuntimeView(browser.document, config.shortcut, config.ai, config.locale);
+    createRuntimeView(
+      browser.document,
+      config.shortcut,
+      config.ai,
+      config.locale,
+      config.editor,
+    );
   const api =
     dependencies.api ??
     createRuntimeApi({
@@ -195,6 +201,7 @@ export function createController(
   let activeTargetId: string | undefined;
   let targetSequence = 0;
   let sessionRevision = 0;
+  let editorRequestRevision = 0;
   let addingTarget = false;
   let previewPrompt = "";
   let previousFocus: HTMLElement | undefined;
@@ -300,6 +307,7 @@ export function createController(
             ? (target.elementContext?.tagName ?? "Element")
             : elementLabel(target.element)),
         source: sourceLabel(target, view.messages().context.sourceUnavailable),
+        canOpenEditor: target.marker !== undefined,
         status: targetStatus(target),
         active: target.id === activeTargetId,
         instruction: target.instruction,
@@ -473,7 +481,6 @@ export function createController(
 
     for (const target of targets) {
       target.element = undefined;
-      target.marker = undefined;
     }
 
     view.hideHighlight();
@@ -837,15 +844,28 @@ export function createController(
     refreshHighlights();
   }
 
-  function handleOpenEditor(): void {
-    const current = activeTarget();
+  function handleOpenEditor(targetId?: string): void {
+    const current =
+      targetId === undefined
+        ? activeTarget()
+        : targets.find((target) => target.id === targetId);
 
     if (state.status !== "selected" || current?.marker === undefined) {
       return;
     }
 
+    if (activeTargetId !== current.id) {
+      activeTargetId = current.id;
+      refreshSelectionView();
+    }
+
     const marker = current.marker;
+    const selectionRevision = sessionRevision;
+    const requestRevision = ++editorRequestRevision;
     transition({ type: "OPEN_EDITOR" });
+    const openingMessage = view.messages().announcements.editorOpening(config.editor);
+    view.renderEditorStatus("opening", openingMessage);
+    view.announce(openingMessage);
 
     void api
       .openEditor({
@@ -853,14 +873,32 @@ export function createController(
         line: marker.line,
         column: marker.column,
       })
-      .then(() => {
-        if (mounted && state.status === "selected") {
-          view.announce(view.messages().announcements.editorOpened);
+      .then((result) => {
+        if (
+          mounted &&
+          state.status === "selected" &&
+          selectionRevision === sessionRevision &&
+          requestRevision === editorRequestRevision &&
+          activeTargetId === current.id &&
+          targets.includes(current)
+        ) {
+          const message = view.messages().announcements.editorOpened(result.editor);
+          view.renderEditorStatus("success", message);
+          view.announce(message);
         }
       })
       .catch(() => {
-        if (mounted && state.status === "selected") {
-          view.announce(view.messages().announcements.editorFailed);
+        if (
+          mounted &&
+          state.status === "selected" &&
+          selectionRevision === sessionRevision &&
+          requestRevision === editorRequestRevision &&
+          activeTargetId === current.id &&
+          targets.includes(current)
+        ) {
+          const message = view.messages().announcements.editorFailed(config.editor);
+          view.renderEditorStatus("error", message);
+          view.announce(message);
         }
       });
   }
@@ -880,6 +918,10 @@ export function createController(
     target.instruction = event.target.value;
     view.updateTargetInstruction(target.id, target.instruction);
     view.setPreviewEnabled(canPreview());
+  }
+
+  function handleOpenEditorButtonClick(): void {
+    handleOpenEditor();
   }
 
   function handleTargetListKeydown(event: KeyboardEvent): void {
@@ -985,6 +1027,15 @@ export function createController(
       return;
     }
 
+    const openButton = eventTarget.closest<HTMLButtonElement>(
+      "button[data-open-target-id]",
+    );
+
+    if (openButton?.dataset.openTargetId !== undefined) {
+      handleOpenEditor(openButton.dataset.openTargetId);
+      return;
+    }
+
     const activateButton = eventTarget.closest<HTMLButtonElement>(
       "button[data-activate-target-id]",
     );
@@ -1025,7 +1076,7 @@ export function createController(
     view.targetList.addEventListener("click", handleTargetListClick);
     view.targetList.addEventListener("input", handleTargetListInput);
     view.targetList.addEventListener("keydown", handleTargetListKeydown);
-    view.openEditorButton.addEventListener("click", handleOpenEditor);
+    view.openEditorButton.addEventListener("click", handleOpenEditorButtonClick);
     view.previewButton.addEventListener("click", handlePreview);
     view.copyButton.addEventListener("click", handleCopy);
     view.backButton.addEventListener("click", handleBack);
@@ -1090,7 +1141,7 @@ export function createController(
     view.targetList.removeEventListener("click", handleTargetListClick);
     view.targetList.removeEventListener("input", handleTargetListInput);
     view.targetList.removeEventListener("keydown", handleTargetListKeydown);
-    view.openEditorButton.removeEventListener("click", handleOpenEditor);
+    view.openEditorButton.removeEventListener("click", handleOpenEditorButtonClick);
     view.previewButton.removeEventListener("click", handlePreview);
     view.copyButton.removeEventListener("click", handleCopy);
     view.backButton.removeEventListener("click", handleBack);

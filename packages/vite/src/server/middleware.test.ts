@@ -283,13 +283,13 @@ describe("SpotPatch server middleware", () => {
     expect(payload).not.toContain("never expose");
   });
 
-  it("passes only the registered file and coordinates to VS Code", async () => {
+  it("passes only the registered file, coordinates, and configured editor", async () => {
     if (testServer === undefined) {
       throw new Error("Test server has not started.");
     }
 
     await stopServer(testServer.server);
-    const launcher = vi.fn<EditorLauncher>();
+    const launcher = vi.fn<EditorLauncher>().mockResolvedValue(undefined);
     testServer = await startServer(launcher);
 
     const response = await post(SPOTPATCH_ENDPOINTS.openEditor, {
@@ -303,6 +303,11 @@ describe("SpotPatch server middleware", () => {
     expect(launcher.mock.calls[0]?.[0]).toBe(
       `${await realpath(path.join(root, "Example.tsx"))}:36:5`,
     );
+    expect(launcher.mock.calls[0]?.[1]).toBe("auto");
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      data: { editor: "auto" },
+    });
 
     const injectedArguments = await post(SPOTPATCH_ENDPOINTS.openEditor, {
       fileId,
@@ -321,9 +326,9 @@ describe("SpotPatch server middleware", () => {
     }
 
     await stopServer(testServer.server);
-    testServer = await startServer(() => {
-      throw new Error(`failed for ${path.join(root, "Example.tsx")}`);
-    });
+    testServer = await startServer(() =>
+      Promise.reject(new Error(`failed for ${path.join(root, "Example.tsx")}`)),
+    );
 
     const response = await post(SPOTPATCH_ENDPOINTS.openEditor, {
       fileId,

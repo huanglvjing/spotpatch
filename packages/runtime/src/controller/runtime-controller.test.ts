@@ -26,6 +26,7 @@ const config = Object.freeze({
   ai: Object.freeze({ enabled: false }),
   budget,
   debug: false,
+  editor: "auto",
   locale: "en-US",
   maxTargets: 8,
   redact: true,
@@ -54,7 +55,9 @@ function createApi(): RuntimeApi {
     cancelPending: vi.fn(),
     createAgentJob: vi.fn<RuntimeApi["createAgentJob"]>(),
     dispose: vi.fn(),
-    openEditor: vi.fn<RuntimeApi["openEditor"]>().mockResolvedValue(undefined),
+    openEditor: vi
+      .fn<RuntimeApi["openEditor"]>()
+      .mockResolvedValue(Object.freeze({ editor: "auto" })),
     revertAgentJob: vi.fn<RuntimeApi["revertAgentJob"]>(),
     sourceContext: vi.fn<RuntimeApi["sourceContext"]>().mockResolvedValue(context),
   };
@@ -175,7 +178,9 @@ describe("runtime controller", () => {
       ).toContain("src/App.tsx:36:5");
     });
 
-    findShadowButton(host?.shadowRoot ?? undefined, "Open in VS Code").click();
+    host?.shadowRoot
+      ?.querySelector<HTMLButtonElement>("button[data-open-target-id='target-1']")
+      ?.click();
     await vi.waitFor(() => {
       expect(api.openEditor).toHaveBeenCalledWith({
         fileId: "file-id",
@@ -183,6 +188,9 @@ describe("runtime controller", () => {
         column: 5,
       });
     });
+    expect(
+      host?.shadowRoot?.querySelector(".spotpatch-editor-feedback")?.textContent,
+    ).toContain("Opened the source");
 
     controller.dispose();
     expect(api.dispose).toHaveBeenCalledOnce();
@@ -763,6 +771,18 @@ describe("runtime controller", () => {
         shadowRoot?.querySelector<HTMLElement>(".spotpatch-highlight")?.hidden,
       ).toBe(true);
       expect(findShadowButton(shadowRoot, "Revert changes").hidden).toBe(false);
+    });
+    const appliedSourceButton = shadowRoot?.querySelector<HTMLButtonElement>(
+      "button[data-open-target-id='target-1']",
+    );
+    expect(appliedSourceButton?.disabled).toBe(false);
+    appliedSourceButton?.click();
+    await vi.waitFor(() => {
+      expect(api.openEditor).toHaveBeenCalledWith({
+        fileId: "file-id",
+        line: 36,
+        column: 5,
+      });
     });
 
     const revertButton = findShadowButton(shadowRoot, "Revert changes");

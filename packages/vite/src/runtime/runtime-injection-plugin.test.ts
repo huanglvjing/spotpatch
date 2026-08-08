@@ -58,7 +58,7 @@ describe("runtime injection plugin", () => {
     ]);
   });
 
-  it("keeps absolute paths and editor commands out of browser configuration", () => {
+  it("keeps absolute paths and executable commands out of browser configuration", () => {
     const plugin = createRuntimeInjectionPlugin({
       context: createContext(resolveOptions({ shortcut: "Alt+S" })),
       session,
@@ -79,11 +79,11 @@ describe("runtime injection plugin", () => {
     expect(code).toContain(`"spotPatchVersion":"${packageMetadata.version}"`);
     expect(code).toContain(`"viteVersion":"${VITE_VERSION}"`);
     expect(code).toContain('"locale":"auto"');
+    expect(code).toContain('"editor":"auto"');
     expect(code).toContain('"maxTargets":8');
     expect(code).toContain("SPOTPATCH_API_BASE");
     expect(code).not.toContain(SPOTPATCH_API_BASE);
     expect(code).not.toContain(process.cwd());
-    expect(code).not.toContain('"editor"');
     expect(code).not.toContain('"root"');
   });
 
@@ -102,6 +102,23 @@ describe("runtime injection plugin", () => {
 
     const code = hook.call({} as never, RESOLVED_SPOTPATCH_CLIENT_MODULE_ID) as string;
     expect(code).toContain('"locale":"zh-CN"');
+  });
+
+  it("injects only the allowlisted editor preference", () => {
+    const plugin = createRuntimeInjectionPlugin({
+      context: createContext(resolveOptions({ editor: "cursor" })),
+      session,
+      clientBundle,
+      reactAdapterBundle,
+    });
+    const hook = plugin.load;
+
+    if (typeof hook !== "function") {
+      throw new Error("Expected a load hook.");
+    }
+
+    const code = hook.call({} as never, RESOLVED_SPOTPATCH_CLIENT_MODULE_ID) as string;
+    expect(code).toContain('"editor":"cursor"');
   });
 
   it("injects only allowlisted AI profile labels and ids", () => {

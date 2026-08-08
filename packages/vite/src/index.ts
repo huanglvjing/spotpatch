@@ -19,4 +19,5 @@ export {
   type AiProviderProtocol,
   type ContextBudget,
   type OpenAICompatibleProviderOptions,
+  type SpotPatchEditorPreference,
 } from "@spotpatch/shared";

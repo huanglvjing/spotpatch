@@ -124,7 +124,7 @@ test("selects a native element and sends an authorized editor request", async ({
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ ok: true, data: {} }),
+      body: JSON.stringify({ ok: true, data: { editor: "auto" } }),
     });
   });
 
@@ -140,7 +140,18 @@ test("selects a native element and sends an authorized editor request", async ({
   await expect(summary).toContainText("Confidence: exact (exact element source)");
   await expect(summary).toContainText("Component: App");
 
-  await dialog.getByRole("button", { name: "Open in VS Code" }).click();
+  const repositoryLink = dialog.getByRole("link", { name: "Star SpotPatch on GitHub" });
+  await expect(repositoryLink).toHaveAttribute(
+    "href",
+    "https://github.com/huanglvjing/spotpatch",
+  );
+  await expect(repositoryLink).toHaveAttribute("target", "_blank");
+  await expect(repositoryLink).toHaveAttribute("rel", /noopener/);
+
+  await expect(dialog.getByRole("button", { name: "Open source" })).toBeEnabled();
+  await dialog
+    .getByRole("button", { name: "Open target 1 in the detected editor" })
+    .click();
   await expect.poll(() => editorRequestBody).toBeDefined();
 
   expect(editorRequestBody).toEqual({
@@ -273,7 +284,7 @@ test("resolves an Ant Design Button to its probable business call site", async (
   await expect(summary).toContainText("Origin: react-fiber");
   await expect(summary).toContainText("Component: Button");
   await expect(summary).toContainText(/Stack: .*App/);
-  await expect(dialog.getByRole("button", { name: "Open in VS Code" })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Open source" })).toBeDisabled();
   expect(browserErrors).toEqual([]);
 });
 

@@ -57,7 +57,10 @@ describe("runtime view", () => {
     expect(view.triggerButton.title).toContain("Mod+Shift+S");
     expect(dialog?.getAttribute("aria-labelledby")).toBe("spotpatch-selection-title");
     expect(view.host.shadowRoot?.querySelector(".spotpatch-brand-mark")).not.toBeNull();
-    expect(view.openEditorButton.textContent).toBe("Open in VS Code");
+    expect(view.openEditorButton.textContent).toBe("Open source");
+    expect(view.repositoryLink.href).toBe("https://github.com/huanglvjing/spotpatch");
+    expect(view.repositoryLink.target).toBe("_blank");
+    expect(view.repositoryLink.rel).toContain("noopener");
     expect(view.previewButton.textContent).toBe("Preview prompt");
     expect(view.copyButton.textContent).toBe("Copy prompt");
     expect(view.closeButton.getAttribute("aria-label")).toBe("Close SpotPatch");
@@ -86,6 +89,7 @@ describe("runtime view", () => {
       [
         {
           id: "target-1",
+          canOpenEditor: true,
           instruction: "Align the first target.",
           label: hostile,
           source: "src/First.tsx:10:2",
@@ -94,6 +98,7 @@ describe("runtime view", () => {
         },
         {
           id: "target-2",
+          canOpenEditor: false,
           instruction: "",
           label: "SecondAction",
           source: "src/Second.tsx:20:3",
@@ -121,6 +126,15 @@ describe("runtime view", () => {
     expect(view.targetList.querySelectorAll(".spotpatch-target-item")).toHaveLength(2);
     expect(view.targetList.textContent).toContain(hostile);
     expect(view.targetList.querySelector("img")).toBeNull();
+    const openButtons = view.targetList.querySelectorAll<HTMLButtonElement>(
+      "button[data-open-target-id]",
+    );
+    expect(openButtons).toHaveLength(2);
+    expect(openButtons[0]?.disabled).toBe(false);
+    expect(openButtons[0]?.getAttribute("aria-label")).toBe(
+      "Open target 1 in the detected editor",
+    );
+    expect(openButtons[1]?.disabled).toBe(true);
     expect(
       view.host.shadowRoot?.querySelectorAll(".spotpatch-selection-highlight"),
     ).toHaveLength(2);
@@ -130,12 +144,38 @@ describe("runtime view", () => {
       )?.textContent,
     ).toContain("2 · SecondAction");
 
+    view.showSelection("Summary", true, false);
     view.setAgentEditingEnabled(false);
     expect(
       view.targetList.querySelector<HTMLButtonElement>("button[data-remove-target-id]")
         ?.disabled,
     ).toBe(true);
     expect(view.addTargetButton.disabled).toBe(true);
+    expect(view.openEditorButton.disabled).toBe(false);
+    expect(openButtons[0]?.disabled).toBe(false);
+    expect(openButtons[1]?.disabled).toBe(true);
+  });
+
+  it("shows visible localized editor launch feedback", () => {
+    const view = createRuntimeView(
+      document,
+      "Mod+Shift+S",
+      Object.freeze({ enabled: false }),
+      "zh-CN",
+      "cursor",
+    );
+    const feedback = view.host.shadowRoot?.querySelector<HTMLElement>(
+      ".spotpatch-editor-feedback",
+    );
+
+    view.renderEditorStatus("opening");
+    expect(feedback?.hidden).toBe(false);
+    expect(feedback?.dataset.state).toBe("opening");
+    expect(feedback?.textContent).toContain("Cursor");
+
+    view.renderEditorStatus("error");
+    expect(feedback?.dataset.state).toBe("error");
+    expect(feedback?.textContent).toContain("无法打开Cursor");
   });
 
   it("keeps a distinct active-target instruction and previews content as plain text", () => {
@@ -148,6 +188,7 @@ describe("runtime view", () => {
       [
         {
           id: "target-1",
+          canOpenEditor: true,
           instruction: "Existing instruction",
           label: "PrimaryAction",
           source: "src/App.tsx:1:1",
@@ -167,6 +208,7 @@ describe("runtime view", () => {
       [
         {
           id: "target-1",
+          canOpenEditor: true,
           instruction: "Existing instruction",
           label: "PrimaryAction",
           source: "src/App.tsx:1:1",
@@ -202,6 +244,7 @@ describe("runtime view", () => {
     const view = createRuntimeView(document, "Mod+Shift+S");
     const targets = ["target-1", "target-2", "target-3"].map((id, index) => ({
       id,
+      canOpenEditor: true,
       instruction: String(index).repeat(1_500),
       label: `Target${String(index + 1)}`,
       source: `src/Target${String(index + 1)}.tsx:1:1`,
@@ -329,6 +372,7 @@ describe("runtime view", () => {
       [
         {
           id: "target-1",
+          canOpenEditor: true,
           instruction: "保留已有内容",
           label: "PrimaryAction",
           source: "src/App.tsx:1:1",

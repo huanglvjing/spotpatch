@@ -59,6 +59,7 @@ function createClientModule(
     ai: createRuntimeAiConfig(options.ai),
     budget: options.budget,
     debug: options.debug,
+    editor: options.editor,
     locale: options.locale,
     maxTargets: options.maxTargets,
     redact: options.redact,

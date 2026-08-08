@@ -43,6 +43,10 @@ export default defineConfig({
 `Mod+Shift+S`，即可完成“选择元素 → 为当前目标输入修改要求 → 按需追加并分别描述其他目标 → 预览 Prompt → 复制”。标题栏可在中文和英文之间切换，已有草稿不会丢失。生产构建
 不会注入 runtime、source marker 或本地协议端点。
 
+源码按钮默认自动识别当前可用的 Cursor 或 VS Code，并精确打开到所选元素的行、列；
+也可通过 `editor: "cursor"` 或 `editor: "vscode"` 固定选择。工作台标题栏提供
+[GitHub 仓库](https://github.com/huanglvjing/spotpatch)入口，方便查看文档、反馈问题和 Star 项目。
+
 接入选项、默认值和安全边界分别见公共 API 与安全规范
 (见 doc-id:03-public-api-models) (见 doc-id:09-local-protocol-security)。
 
@@ -81,7 +85,6 @@ spotPatch({
 
 ```ts
 spotPatch({
-  editor: "vscode",
   redact: true,
   ai: {
     providers: {

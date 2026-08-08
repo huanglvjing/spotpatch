@@ -20,6 +20,11 @@ export {
 } from "./model/annotation.js";
 export type { CodeContext, ContextBudget } from "./model/code-context.js";
 export {
+  SPOTPATCH_EDITOR_PREFERENCES,
+  type EditorOpenResult,
+  type SpotPatchEditorPreference,
+} from "./model/editor.js";
+export {
   AGENT_CAPABILITY_STATES,
   AGENT_CHECK_STATUSES,
   AGENT_FILE_CHANGE_KINDS,
@@ -97,3 +102,4 @@ export {
   agentJobSnapshotSchema,
 } from "./protocol/agent-schemas.js";
 export type { ApiFailure, ApiResponse, ApiSuccess } from "./protocol/responses.js";
+export { SPOTPATCH_REPOSITORY_URL } from "./product.js";

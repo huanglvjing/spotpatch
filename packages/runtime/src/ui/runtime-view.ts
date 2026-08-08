@@ -4,12 +4,14 @@ import type {
   AgentJobSnapshot,
   ErrorCode,
   RuntimeAiConfig,
+  SpotPatchEditorPreference,
   SpotPatchLocale,
   SpotPatchLocalePreference,
 } from "@spotpatch/shared";
 import {
   MAX_ANNOTATION_INSTRUCTION_CHARACTERS,
   MAX_TARGET_INSTRUCTION_CHARACTERS,
+  SPOTPATCH_REPOSITORY_URL,
 } from "@spotpatch/shared";
 
 import type { ElementRect } from "../picker/geometry.js";
@@ -32,6 +34,7 @@ import { UI_MARKER_ATTRIBUTE, UI_Z_INDEX } from "./ui-constants.js";
 
 export interface SelectionTargetView {
   readonly active: boolean;
+  readonly canOpenEditor: boolean;
   readonly id: string;
   readonly instruction: string;
   readonly label: string;
@@ -62,6 +65,7 @@ export interface RuntimeView {
   readonly copyButton: HTMLButtonElement;
   readonly host: HTMLElement;
   readonly openEditorButton: HTMLButtonElement;
+  readonly repositoryLink: HTMLAnchorElement;
   readonly previewButton: HTMLButtonElement;
   readonly reselectButton: HTMLButtonElement;
   readonly triggerButton: HTMLButtonElement;
@@ -92,6 +96,10 @@ export interface RuntimeView {
     errorCode?: ErrorCode,
   ) => void;
   readonly renderStatus: (status: RuntimeStatus) => void;
+  readonly renderEditorStatus: (
+    state: "idle" | "opening" | "success" | "error",
+    message?: string,
+  ) => void;
   readonly resetAgentJob: () => void;
   readonly setAgentEditingEnabled: (enabled: boolean) => void;
   readonly setAgentProviderConsent: (granted: boolean) => void;
@@ -361,6 +369,28 @@ function createStyles(document: Document): HTMLStyleElement {
       gap: 8px;
       flex: none;
     }
+    .spotpatch-repository {
+      display: inline-flex;
+      height: 30px;
+      align-items: center;
+      gap: 5px;
+      border: 1px solid rgb(68 202 224 / 20%);
+      border-radius: 9px;
+      padding: 0 10px;
+      color: #bcecf2;
+      background: rgb(8 145 178 / 7%);
+      font-size: 11px;
+      font-weight: 680;
+      text-decoration: none;
+      transition: border-color 150ms ease, color 150ms ease, background 150ms ease, transform 150ms ease;
+    }
+    .spotpatch-repository::after { content: "↗"; font-size: 10px; }
+    .spotpatch-repository:hover {
+      border-color: rgb(68 202 224 / 42%);
+      color: #e6fbff;
+      background: rgb(8 145 178 / 12%);
+      transform: translateY(-1px);
+    }
     .spotpatch-locale {
       min-width: 38px;
       height: 30px;
@@ -504,7 +534,7 @@ function createStyles(document: Document): HTMLStyleElement {
     }
     .spotpatch-target-summary {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 34px;
+      grid-template-columns: minmax(0, 1fr) 34px 34px;
       align-items: stretch;
       gap: 4px;
       padding: 5px;
@@ -555,6 +585,7 @@ function createStyles(document: Document): HTMLStyleElement {
       white-space: nowrap;
     }
     .spotpatch-target-state[data-complete="false"] { color: #f5c97a; background: rgb(245 158 11 / 9%); }
+    .spotpatch-target-open,
     .spotpatch-target-remove {
       display: inline-grid;
       width: 34px;
@@ -568,6 +599,8 @@ function createStyles(document: Document): HTMLStyleElement {
       background: transparent;
       cursor: pointer;
     }
+    .spotpatch-target-open { color: #79d9e7; }
+    .spotpatch-target-open:hover:not(:disabled) { border-color: rgb(68 202 224 / 30%); color: #c8f7ff; background: rgb(8 145 178 / 11%); }
     .spotpatch-target-remove:hover:not(:disabled) { border-color: rgb(251 113 133 / 24%); color: #fda4af; background: rgb(127 29 29 / 12%); }
     .spotpatch-target-editor {
       border-top: 1px solid rgb(255 255 255 / 7%);
@@ -677,6 +710,30 @@ function createStyles(document: Document): HTMLStyleElement {
       border-top: 1px solid rgb(255 255 255 / 8%);
       background: rgb(8 12 22 / 82%);
     }
+    .spotpatch-editor-feedback {
+      display: flex;
+      width: 100%;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 1px;
+      color: #9ca5b5;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .spotpatch-editor-feedback[hidden] { display: none; }
+    .spotpatch-editor-feedback::before {
+      width: 6px;
+      height: 6px;
+      flex: none;
+      border-radius: 999px;
+      background: #94a3b8;
+      content: "";
+    }
+    .spotpatch-editor-feedback[data-state="opening"]::before { background: #38bdf8; }
+    .spotpatch-editor-feedback[data-state="success"] { color: #9fe3c4; }
+    .spotpatch-editor-feedback[data-state="success"]::before { background: #34d399; }
+    .spotpatch-editor-feedback[data-state="error"] { color: #fecaca; }
+    .spotpatch-editor-feedback[data-state="error"]::before { background: #fb7185; }
     .spotpatch-actions button {
       display: inline-flex;
       min-height: 40px;
@@ -708,6 +765,8 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-actions .spotpatch-primary::after { margin-left: 8px; content: "↗"; font-size: 12px; }
     .spotpatch-actions button:disabled { cursor: not-allowed; opacity: .4; transform: none; }
     .spotpatch-actions button:focus-visible,
+    .spotpatch-repository:focus-visible,
+    .spotpatch-target-open:focus-visible,
     .spotpatch-target-remove:focus-visible,
     .spotpatch-close:focus-visible,
     .spotpatch-trigger:focus-visible,
@@ -740,6 +799,8 @@ function createStyles(document: Document): HTMLStyleElement {
       .spotpatch-actions { padding-left: 16px; padding-right: 16px; }
       .spotpatch-target-select { grid-template-columns: 32px minmax(0, 1fr); }
       .spotpatch-target-state { display: none; }
+      .spotpatch-repository { width: 30px; overflow: hidden; padding: 0; justify-content: center; color: transparent; }
+      .spotpatch-repository::after { color: #bcecf2; content: "↗"; }
     }
     ${AGENT_PANEL_STYLES}
   `;
@@ -758,6 +819,7 @@ export function createRuntimeView(
   shortcut: string,
   ai: RuntimeAiConfig = Object.freeze({ enabled: false }),
   localePreference: SpotPatchLocalePreference = "auto",
+  editorPreference: SpotPatchEditorPreference = "auto",
 ): RuntimeView {
   const localizer: UiLocalizer = createUiLocalizer(document, localePreference);
   let messages = localizer.messages();
@@ -811,9 +873,14 @@ export function createRuntimeView(
   brand.append(createBrandMark(document), brandCopy);
   const headerControls = createMarkedElement(document, "span");
   headerControls.className = "spotpatch-header-controls";
+  const repositoryLink = createMarkedElement(document, "a");
+  repositoryLink.className = "spotpatch-repository";
+  repositoryLink.href = SPOTPATCH_REPOSITORY_URL;
+  repositoryLink.target = "_blank";
+  repositoryLink.rel = "noopener noreferrer";
   const localeButton = createButton(document, "", "spotpatch-locale");
   const closeButton = createButton(document, "×", "spotpatch-close");
-  headerControls.append(localeButton, closeButton);
+  headerControls.append(repositoryLink, localeButton, closeButton);
   brandRow.append(brand, headerControls);
   const title = createMarkedElement(document, "h2");
   title.id = "spotpatch-selection-title";
@@ -880,9 +947,18 @@ export function createRuntimeView(
 
   const actions = createMarkedElement(document, "footer");
   actions.className = "spotpatch-actions";
+  const editorFeedback = createMarkedElement(document, "div");
+  editorFeedback.className = "spotpatch-editor-feedback";
+  editorFeedback.dataset.state = "idle";
+  editorFeedback.setAttribute("role", "status");
+  editorFeedback.setAttribute("aria-live", "polite");
+  editorFeedback.hidden = true;
   const addTargetButton = createButton(document, messages.actions.addElement);
   const reselectButton = createButton(document, messages.actions.reselect);
-  const openEditorButton = createButton(document, messages.actions.openEditor);
+  const openEditorButton = createButton(
+    document,
+    messages.actions.openEditor(editorPreference),
+  );
   const previewButton = createButton(
     document,
     messages.actions.preview,
@@ -891,6 +967,7 @@ export function createRuntimeView(
   const copyButton = createButton(document, messages.actions.copy, "spotpatch-primary");
   const backButton = createButton(document, messages.actions.back);
   actions.append(
+    editorFeedback,
     agentPanel.runButton,
     previewButton,
     agentPanel.testButton,
@@ -931,6 +1008,34 @@ export function createRuntimeView(
   let editingEnabled = true;
   let currentTargets: readonly SelectionTargetView[] = [];
   let currentMaximum = 0;
+  let currentEditorFeedbackState: "idle" | "opening" | "success" | "error" = "idle";
+
+  function defaultEditorFeedback(
+    state: "idle" | "opening" | "success" | "error",
+  ): string {
+    if (state === "opening") {
+      return messages.announcements.editorOpening(editorPreference);
+    }
+
+    if (state === "success") {
+      return messages.announcements.editorOpened(editorPreference);
+    }
+
+    return state === "error"
+      ? messages.announcements.editorFailed(editorPreference)
+      : "";
+  }
+
+  function renderEditorStatus(
+    state: "idle" | "opening" | "success" | "error",
+    message = defaultEditorFeedback(state),
+  ): void {
+    currentEditorFeedbackState = state;
+    editorFeedback.dataset.state = state;
+    editorFeedback.hidden = state === "idle";
+    editorFeedback.textContent = message;
+    placeDialog();
+  }
 
   function statusText(target: SelectionTargetView): string {
     if (target.status === "ready") {
@@ -1031,12 +1136,20 @@ export function createRuntimeView(
         ? messages.targets.instructionReady
         : messages.targets.instructionMissing;
       select.append(number, copy, state);
+      const open = createButton(document, "↗", "spotpatch-target-open");
+      open.dataset.openTargetId = target.id;
+      open.disabled = !target.canOpenEditor;
+      open.setAttribute(
+        "aria-label",
+        messages.actions.openTarget(index + 1, editorPreference),
+      );
+      open.title = messages.actions.openTarget(index + 1, editorPreference);
       const remove = createButton(document, "×", "spotpatch-target-remove");
       remove.dataset.removeTargetId = target.id;
       remove.disabled = !editingEnabled;
       remove.setAttribute("aria-label", messages.targets.remove(index + 1));
       remove.title = messages.targets.removeTitle;
-      targetSummary.append(select, remove);
+      targetSummary.append(select, open, remove);
       item.append(targetSummary);
 
       if (target.active) {
@@ -1260,6 +1373,9 @@ export function createRuntimeView(
     messages = localizer.messages();
     brandName.textContent = messages.brand.name;
     brandContext.textContent = messages.brand.context;
+    repositoryLink.textContent = messages.brand.repository;
+    repositoryLink.title = messages.brand.repositoryTitle;
+    repositoryLink.setAttribute("aria-label", messages.brand.repositoryTitle);
     localeButton.textContent = messages.alternateLocaleName;
     localeButton.title = messages.switchLocale;
     localeButton.setAttribute("aria-label", messages.switchLocale);
@@ -1271,7 +1387,7 @@ export function createRuntimeView(
     promptOutput.setAttribute("aria-label", messages.diagnostics.promptAriaLabel);
     addTargetButton.textContent = messages.actions.addElement;
     reselectButton.textContent = messages.actions.reselect;
-    openEditorButton.textContent = messages.actions.openEditor;
+    openEditorButton.textContent = messages.actions.openEditor(editorPreference);
     previewButton.textContent = messages.actions.preview;
     copyButton.textContent = messages.actions.copy;
     backButton.textContent = messages.actions.back;
@@ -1279,6 +1395,7 @@ export function createRuntimeView(
     triggerButton.textContent =
       currentStatus === "inspecting" ? messages.trigger.stop : messages.trigger.select;
     renderPanelStatus(currentStatus);
+    renderEditorStatus(currentEditorFeedbackState);
 
     if (currentTargets.length > 0) {
       renderTargets(currentTargets, currentMaximum);
@@ -1313,6 +1430,7 @@ export function createRuntimeView(
     targetList,
     reselectButton,
     openEditorButton,
+    repositoryLink,
     previewButton,
     copyButton,
     backButton,
@@ -1335,6 +1453,8 @@ export function createRuntimeView(
         : messages.trigger.select;
       renderPanelStatus(status);
     },
+
+    renderEditorStatus,
 
     showHighlight(rect: ElementRect, label: string): void {
       currentRect = rect;
@@ -1392,6 +1512,7 @@ export function createRuntimeView(
       currentTargets = [];
       currentMaximum = 0;
       currentSummaryText = "";
+      renderEditorStatus("idle");
       targetCount.textContent = messages.targets.count(0, 0);
       targetComplete.textContent = messages.targets.complete(0, 0);
       targetLabel.textContent = messages.context.selectedElement;
@@ -1443,7 +1564,7 @@ export function createRuntimeView(
         .forEach((control) => {
           control.disabled = !enabled;
         });
-      openEditorButton.disabled = !enabled || !currentCanOpenEditor;
+      openEditorButton.disabled = !currentCanOpenEditor;
       previewButton.disabled = !enabled || !currentCanPreview;
       agentPanel.setEditingEnabled(enabled);
       placeDialog();

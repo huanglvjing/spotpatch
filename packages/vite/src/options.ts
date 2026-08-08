@@ -1,6 +1,7 @@
 import {
   DEFAULT_AGENT_LIMITS,
   MAX_ANNOTATION_TARGETS,
+  SPOTPATCH_EDITOR_PREFERENCES,
   SPOTPATCH_LOCALE_PREFERENCES,
   type AgentLimits,
   type AiExecutionOptions,
@@ -13,6 +14,7 @@ import {
   type ResolvedAiOptions,
   type ResolvedOpenAICompatibleProviderOptions,
   type RuntimeAiConfig,
+  type SpotPatchEditorPreference,
   type SpotPatchLocalePreference,
 } from "@spotpatch/shared";
 import { z } from "zod";
@@ -48,7 +50,7 @@ export interface SpotPatchOptions {
   readonly enabled?: boolean;
   readonly include?: readonly FilterEntry[];
   readonly exclude?: readonly FilterEntry[];
-  readonly editor?: "vscode";
+  readonly editor?: SpotPatchEditorPreference;
   readonly redact?: boolean;
   readonly budget?: Partial<ContextBudget>;
   readonly shortcut?: string;
@@ -63,7 +65,7 @@ export interface ResolvedSpotPatchOptions {
   readonly enabled: boolean;
   readonly include: readonly FilterEntry[];
   readonly exclude: readonly FilterEntry[];
-  readonly editor: "vscode";
+  readonly editor: SpotPatchEditorPreference;
   readonly redact: boolean;
   readonly budget: Readonly<ContextBudget>;
   readonly shortcut: string;
@@ -98,7 +100,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
   enabled: true,
   include: DEFAULT_INCLUDE,
   exclude: DEFAULT_EXCLUDE,
-  editor: "vscode",
+  editor: "auto",
   redact: true,
   budget: DEFAULT_BUDGET,
   shortcut: "Mod+Shift+S",
@@ -502,9 +504,14 @@ export function resolveOptions(
 
   const maxTargets = options.maxTargets ?? DEFAULT_OPTIONS.maxTargets;
   const locale = options.locale ?? DEFAULT_OPTIONS.locale;
+  const editor = options.editor ?? DEFAULT_OPTIONS.editor;
 
   if (!(SPOTPATCH_LOCALE_PREFERENCES as readonly string[]).includes(locale)) {
     throw new RangeError("SpotPatch locale must be auto, en-US, or zh-CN.");
+  }
+
+  if (!(SPOTPATCH_EDITOR_PREFERENCES as readonly string[]).includes(editor)) {
+    throw new RangeError("SpotPatch editor must be auto, vscode, or cursor.");
   }
 
   if (
@@ -521,7 +528,7 @@ export function resolveOptions(
     enabled: options.enabled ?? DEFAULT_OPTIONS.enabled,
     include: Object.freeze([...(options.include ?? DEFAULT_OPTIONS.include)]),
     exclude: Object.freeze([...(options.exclude ?? DEFAULT_OPTIONS.exclude)]),
-    editor: options.editor ?? DEFAULT_OPTIONS.editor,
+    editor,
     redact: options.redact ?? DEFAULT_OPTIONS.redact,
     budget,
     shortcut: options.shortcut ?? DEFAULT_OPTIONS.shortcut,

@@ -136,6 +136,33 @@ describe("runtime API client", () => {
     ).rejects.toThrow("SpotPatch local API request failed.");
   });
 
+  it("accepts only a bounded editor launch acknowledgement", async () => {
+    const successFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ ok: true, data: { editor: "cursor" } }));
+    const malformedFetch = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        jsonResponse({ ok: true, data: { editor: "malicious-command" } }),
+      );
+    const request = { fileId: "file-id", line: 12, column: 4 };
+
+    await expect(
+      createRuntimeApi({
+        apiBase: SPOTPATCH_API_BASE,
+        fetch: successFetch,
+        sessionToken: "token",
+      }).openEditor(request),
+    ).resolves.toEqual({ editor: "cursor" });
+    await expect(
+      createRuntimeApi({
+        apiBase: SPOTPATCH_API_BASE,
+        fetch: malformedFetch,
+        sessionToken: "token",
+      }).openEditor(request),
+    ).rejects.toThrow("SpotPatch local API request failed.");
+  });
+
   it("aborts every unfinished request during cancellation", async () => {
     let observedSignal: AbortSignal | undefined;
     const fetchMock = vi.fn<typeof fetch>().mockImplementation((_input, init) => {

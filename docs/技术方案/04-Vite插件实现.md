@@ -2,9 +2,9 @@
 doc-id: "04-vite-plugin"
 title: "Vite 插件实现"
 status: "active"
-version: "1.2.0"
+version: "1.3.0"
 last-updated: "2026-08-08"
-source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界；v1.2 约定式环境解析生命周期"
+source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界；v1.2 约定式环境解析生命周期；v1.3 编辑器适配器"
 参考文献/依赖:
   - "02-architecture-stack"
   - "03-public-api-models"
@@ -170,6 +170,12 @@ return {
 
 不能返回 `map: null`，否则会破坏 Vite 后续 transform、错误 overlay 和调试器的位置链。
 
+## 编辑器适配器
+
+打开源码由 Vite Node 端的窄适配器完成。插件把解析后的公共 `editor` 偏好注入 Runtime 仅用于标签与反馈；浏览器请求仍只发送 source ID 和行列，不能覆盖服务端编辑器配置。适配器只执行以下固定映射：`vscode -> code`、`cursor -> cursor`、`auto -> launch-editor 自动识别`。不得把任意字符串转为命令或参数。
+
+适配器必须把规范化的绝对文件、行、列交给 `launch-editor`，等待短暂启动确认窗口；在窗口内收到启动错误时拒绝请求并由协议层返回脱敏错误。只有未出现即时启动错误时才返回成功，避免客户端在命令不存在时显示虚假成功。完整请求、响应和错误边界 (见 doc-id:09-local-protocol-security)，公共枚举 (见 doc-id:03-public-api-models)。
+
 ## 错误策略
 
 - AST 转换失败时 fail-open：记录警告并返回原代码。
@@ -187,4 +193,4 @@ try {
 
 禁止使用空 `catch`，禁止将 parser 异常变成业务页面无法启动的致命错误。debug 模式展示完整错误；普通模式每个文件只警告一次。
 
-错误处理和模块边界同时遵守统一编码规范 (见 doc-id:11-coding-standards)。本实现受 ADR-001 与 ADR-002 约束 (见 doc-id:15-risks-adr)。
+错误处理和模块边界同时遵守统一编码规范 (见 doc-id:11-coding-standards)。AST 与编辑器实现分别受 ADR-001/002 与 ADR-018 约束 (见 doc-id:15-risks-adr)。

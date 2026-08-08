@@ -1,5 +1,6 @@
 import {
   SPOTPATCH_ENDPOINTS,
+  SPOTPATCH_EDITOR_PREFERENCES,
   SPOTPATCH_TOKEN_HEADER,
   getAgentJobEndpoint,
   type AgentCapabilityRequest,
@@ -10,6 +11,7 @@ import {
   type AgentJobSnapshot,
   type ApiResponse,
   type CodeContext,
+  type EditorOpenResult,
   type ErrorCode,
   type OpenEditorRequest,
   type SPOTPATCH_API_BASE,
@@ -54,7 +56,7 @@ export interface RuntimeApi {
     request: AgentJobCreateRequest,
   ) => Promise<AgentJobSnapshot>;
   readonly dispose: () => void;
-  readonly openEditor: (request: OpenEditorRequest) => Promise<void>;
+  readonly openEditor: (request: OpenEditorRequest) => Promise<EditorOpenResult>;
   readonly revertAgentJob: (jobId: string) => Promise<AgentJobSnapshot>;
   readonly sourceContext: (request: SourceContextRequest) => Promise<CodeContext>;
 }
@@ -94,6 +96,14 @@ function isCodeContext(value: unknown): value is CodeContext {
     typeof value.endLine === "number" &&
     typeof value.excerpt === "string" &&
     (value.boundary === "component" || value.boundary === "nearby-lines")
+  );
+}
+
+function isEditorOpenResult(value: unknown): value is EditorOpenResult {
+  return (
+    isRecord(value) &&
+    typeof value.editor === "string" &&
+    (SPOTPATCH_EDITOR_PREFERENCES as readonly string[]).includes(value.editor)
   );
 }
 
@@ -413,8 +423,14 @@ export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {
       return Object.freeze({ ...data });
     },
 
-    async openEditor(request: OpenEditorRequest): Promise<void> {
-      await requestJson(SPOTPATCH_ENDPOINTS.openEditor, "POST", request);
+    async openEditor(request: OpenEditorRequest): Promise<EditorOpenResult> {
+      const data = await requestJson(SPOTPATCH_ENDPOINTS.openEditor, "POST", request);
+
+      if (!isEditorOpenResult(data)) {
+        throw new RuntimeApiError();
+      }
+
+      return Object.freeze({ editor: data.editor });
     },
 
     async agentCapability(

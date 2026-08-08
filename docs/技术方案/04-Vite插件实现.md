@@ -2,9 +2,9 @@
 doc-id: "04-vite-plugin"
 title: "Vite 插件实现"
 status: "active"
-version: "1.4.0"
+version: "1.5.0"
 last-updated: "2026-08-08"
-source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界；v1.2 约定式环境解析生命周期；v1.3 编辑器适配器；v1.4 编辑器工作区路由"
+source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界；v1.2 约定式环境解析生命周期；v1.3 编辑器适配器；v1.4 编辑器工作区路由；Next.js 公共编译内核迁移约束"
 参考文献/依赖:
   - "02-architecture-stack"
   - "03-public-api-models"
@@ -13,11 +13,15 @@ source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent serv
   - "15-risks-adr"
   - "16-ai-agent-execution"
   - "17-model-provider-credentials"
+  - "next-02-package-architecture"
+  - "next-04-transform-source"
 ---
 
 # Vite 插件实现
 
 本文件是 source marker、Source Registry、AST transform 和 source map 行为的唯一事实来源，并遵守总体包依赖方向 (见 doc-id:02-architecture-stack)。公共配置由公共 API 文档定义 (见 doc-id:03-public-api-models)，文件读取与 HTTP 边界由安全规范定义 (见 doc-id:09-local-protocol-security)。
+
+Next.js 适配规划要求未来把框架无关 transform 抽入公共编译内核，但在该迁移实际完成前，本文件继续是上述事实的唯一来源。迁移必须原子地移动规范、实现和测试，并让 Vite/Next 只引用公共事实；不得先在 Next 文档或包中复制 marker 格式、过滤规则或 source map 语义 (见 doc-id:next-02-package-architecture)、(见 doc-id:next-04-transform-source)。
 
 ## 插件拆分
 

@@ -2,9 +2,9 @@
 doc-id: "next-03-integration-lifecycle"
 title: "Next.js 接入 API 与生命周期"
 status: "active"
-version: "0.1.0"
-last-updated: "2026-08-08"
-source-range: "Next.js next.config phase、instrumentation-client 与 CLI 生命周期调研；SpotPatch 接入提案"
+version: "0.2.0"
+last-updated: "2026-08-09"
+source-range: "Next.js next.config phase、instrumentation-client、CLI 与环境变量官方调研；SpotPatch 接入提案；编码前架构复核"
 implementation-status: "planned"
 参考文献/依赖:
   - "03-public-api-models"
@@ -51,11 +51,11 @@ type NextConfigInput =
   | ((phase: string, context: NextConfigContext) => NextConfig | Promise<NextConfig>);
 
 declare function withSpotPatch(
-  options?: SpotPatchOptions,
+  options?: NextSpotPatchOptions,
 ): (config?: NextConfigInput) => NextConfigInput;
 ```
 
-包装器必须同时接受对象、同步函数和异步函数，先解析宿主结果再做无损组合。不得改变宿主函数的 phase/context，不得丢失 Promise、插件顺序、webpack 回调、rewrites 对象形态或未知 Next 配置字段。
+`NextSpotPatchOptions` 由 `@spotpatch/next` 导出，组合公共子类型但不从 `@spotpatch/vite` 导入。字段所有权和默认值归属 (见 doc-id:03-public-api-models)。包装器必须同时接受对象、同步函数和异步函数，先解析宿主结果再做无损组合。不得改变宿主函数的 phase/context，不得丢失 Promise、插件顺序、webpack 回调、rewrites 对象形态或未知 Next 配置字段。
 
 ## 一次性初始化
 
@@ -69,8 +69,8 @@ import "@spotpatch/next/client";
 不要求用户手工猜测路径，包提供：
 
 ```bash
-npx spotpatch-next init
-npx spotpatch-next check
+npm exec -- spotpatch-next init
+npm exec -- spotpatch-next check
 ```
 
 `init` 的设计要求：
@@ -97,24 +97,42 @@ npx spotpatch-next check
 }
 ```
 
-CLI 使用本项目安装的 Next binary，不下载或调用全局 Next，不启用 shell。所有 `next dev` 参数原样作为用户 CLI 输入传递，例如端口、host 或 `--webpack`；浏览器和模型不能影响这些参数。
+CLI 使用本项目安装的 Next binary，不下载或调用全局 Next，不启用 shell。端口、构建器和 Next 认可的其他 `next dev` 参数按顺序透传；浏览器和模型不能影响这些参数。首版安全边界要求 Next 仅监听 loopback：用户未传 hostname 时 CLI 显式补入 loopback，显式非 loopback 的 `-H/--hostname` 或等价值直接拒绝；不得按 Next 当前的 `0.0.0.0` 默认值启动。
+
+## CLI 与配置的受控握手
+
+AI URL、模型与环境变量名定义在 `withSpotPatch(...)` 中，父 CLI 不能通过读取命令行直接取得；同时，CLI 不得自行再次求值 `next.config`，否则会重复执行用户配置副作用，也无法等价复用 Next 的 phase/context 与 `.env*` 加载顺序。因此采用单向受控握手：
+
+1. CLI 通过 `process.execPath` 启动解析到的本地 Next CLI，`shell: false`，并建立仅限父子进程的 Node IPC 通道。
+2. Next 按官方流程加载 `.env*` 并求值 `next.config`。
+3. `withSpotPatch` 仅在 `PHASE_DEVELOPMENT_SERVER` 中验证并规范化可序列化选项；需要凭据时只按配置声明从当前服务端 `process.env` 解析值。
+4. 包装器通过私有 IPC 发送一次配置消息；消息可包含按环境引用解析出的 Provider Key，但不得包含浏览器 session/internal registration secret，也不得把 Key 写回 Next config、Loader options、日志或浏览器。
+5. 父 CLI 完成 schema、root 和安全校验，初始化唯一 dev service，再返回 ack；包装器收到 ack 后才返回已组合配置。
+6. 完全相同的重复消息幂等返回同一 ack；同一启动中出现不一致配置立即失败，不能启动第二个 Session。
+
+IPC 消息须有协议版本、启动 nonce、最大消息尺寸、严格 schema、一次性状态机和超时；未知字段、重复 request id、子进程之外的 sender 或超时全部 fail-fast。具体消息字段和错误码在 POC 后进入公共 schema，本提案不提前写死。
+
+直接执行 `next dev` 时没有父进程 IPC。`withSpotPatch` 在开发 phase 必须返回清晰错误和正确命令，不允许在配置求值中自行启动 Sidecar，也不允许静默变成只有 marker 或只有 UI 的半可用状态。
+
+Next 会把非 `NEXT_PUBLIC_*` 环境变量留在服务端，但项目自身的可信服务端代码仍可访问它们；SpotPatch 不能防御已被恶意依赖或服务端代码控制的宿主项目。任何 Key 都禁止放入 `next.config.env`，因为该配置会把值固定进 JavaScript bundle。
 
 启动顺序：
 
-1. 校验 Next/Node 版本和接入完整性。
-2. 解析项目 root 与本地环境，生成进程内 Session。
-3. 在 loopback 随机空闲端口启动 Sidecar 并完成自检。
-4. 通过仅供子进程使用的环境握手启动本地 `next dev`。
-5. Next 配置在 `PHASE_DEVELOPMENT_SERVER` 中完成 Loader/rewrite/client alias 组合。
-6. Next 就绪后输出单条脱敏状态；不打印 token、Sidecar secret、Key 或绝对临时路径。
-7. 收到终止信号或 Next 退出时，先停止接收新 Job，再取消活动任务、释放 worktree/registry，最后关闭 Sidecar 并透传 Next 退出码。
+1. 校验 Node、接入文件、本地 Next binary 和 CLI 参数；此时不解析 AI Key。
+2. 解析并 realpath 应用/Git边界，生成本次启动 nonce、内部注册凭据与 epoch，绑定 sealed loopback listener 并建立私有父子 IPC。
+3. 以显式 loopback hostname 启动本地 `next dev` 子进程。
+4. Next 配置在 `PHASE_DEVELOPMENT_SERVER` 中完成选项解析和一次 IPC configure。
+5. 父 CLI 收到并验证配置后生成 Session，把既有 sealed listener 原子配置为 Sidecar 并完成自检，随后 ack。
+6. 包装器只使用 ack 中的非敏感承载信息组合 Loader/rewrite/client alias；secret 不进入 NextConfig 返回值。
+7. Next 就绪后输出单条脱敏状态；不打印 token、Sidecar secret、Key 或绝对临时路径。
+8. 收到终止信号、Sidecar 崩溃或 Next 退出时，停止接收新 Job，取消活动任务、释放 worktree/registry，关闭另一进程并透传确定退出码。
 
 配置 phase 必须使用 Next 官方 `PHASE_DEVELOPMENT_SERVER`，不得检查 `process.argv.includes("dev")`；Next 16 已改变 dev 命令参数可见性。
 
 ## 非开发生命周期
 
 - `next build`、`next start` 与 `output: "export"` 静态导出不启动 Sidecar、不解析 AI Key、不注册 Loader、不注入 marker。
-- `@spotpatch/next/client` 在非开发 phase 必须解析为无副作用、可树摇的 noop；只在运行时判断 `NODE_ENV` 不满足零残留。
+- `instrumentation-client` 中的静态 import 会在所有构建阶段存在，因此 `withSpotPatch` 在非开发 phase 仍须分别为 webpack 与 Turbopack组合 side-effect-free noop alias；package manifest 必须保留真实开发 client 的副作用语义并允许 noop 被消除，禁止把整个包粗暴标为 `sideEffects: false`。除此之外不解析 Key、不注册 Loader/rewrite 或服务。只在运行时判断 `NODE_ENV` 不满足零残留。
 - 用户误用 `spotpatch-next build` 应拒绝并提示直接使用 Next 原命令；SpotPatch CLI 只承载 `dev`，避免成为通用命令代理。
 - 直接运行 `next dev` 且缺少受控 Sidecar 握手时必须给出确定诊断；不能静默生成半可用 UI，也不能在配置求值时偷偷启动常驻服务。
 
@@ -124,11 +142,11 @@ CLI 使用本项目安装的 Next binary，不下载或调用全局 Next，不�
 
 ### webpack
 
-调用宿主原有 `webpack(config, context)` 后，对其返回值追加 SpotPatch pre-loader；如果宿主回调返回 `undefined`，按 Next 约定继续使用传入 config。包装器不得覆盖 alias、rules、plugins 或 devtool，不得改变生产配置。
+调用宿主原有 `webpack(config, context)` 后，对其返回值追加 SpotPatch配置；如果宿主回调返回 `undefined`，按 Next 约定继续使用传入 config。开发 phase 追加 pre-loader 与真实 client alias；非开发 phase 只追加 noop alias。包装器不得覆盖宿主 alias、rules、plugins 或 devtool，且除该可审计 alias 外不得改变生产配置。
 
 ### Turbopack
 
-只合并 SpotPatch 拥有的 rule key 和 client alias。用户已有相同 rule/alias 时，如果不能证明等价，启动失败并指出冲突位置；禁止后写覆盖。
+只合并 SpotPatch 拥有的 rule key 和 client/noop alias。用户已有相同 rule/alias 时，如果不能证明等价，启动失败并指出冲突位置；禁止后写覆盖。Loader options 只能包含可序列化、非敏感值，不能包含函数、`RegExp`、token、Key 或内部注册 secret。
 
 ### rewrites
 

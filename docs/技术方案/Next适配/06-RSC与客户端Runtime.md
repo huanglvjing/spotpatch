@@ -2,9 +2,9 @@
 doc-id: "next-06-rsc-runtime"
 title: "Next.js RSC 与客户端 Runtime"
 status: "active"
-version: "0.1.0"
-last-updated: "2026-08-08"
-source-range: "Next.js Server/Client Components 与 instrumentation-client 官方调研；SpotPatch Runtime 适配提案"
+version: "0.2.0"
+last-updated: "2026-08-09"
+source-range: "Next.js Server/Client Components 与 instrumentation-client 官方调研；SpotPatch Runtime 适配提案；React Adapter 现状审计"
 implementation-status: "planned"
 参考文献/依赖:
   - "03-public-api-models"
@@ -24,14 +24,14 @@ Next 官方 `instrumentation-client` 在 HTML 加载后、React hydration 前执
 
 ```text
 instrumentation-client import
-  → sync install-hook-only
+  → sync import "bippy/install-hook-only"
   → async bootstrap config/token
   → load Runtime + React Adapter
   → create singleton controller/UI
   → React hydration/commit events continue feeding installed hook
 ```
 
-hook 安装不得等待网络、动态 import 或 DOM ready。bootstrap 失败只能禁用 SpotPatch 并显示终端/浏览器开发诊断，不能抛出未捕获异常阻断业务 hydration。
+同步入口只能静态导入最小 hook，不得读取配置、等待网络、动态 import、DOM ready 或创建 UI；Next 官方建议该入口初始化控制在 16 ms 内，因此 POC 必须单独测量同步路径。bootstrap 在下一异步阶段启动，失败只能禁用 SpotPatch并显示终端/浏览器开发诊断，不能抛出未捕获异常阻断业务 hydration。
 
 ## RSC 事实边界
 
@@ -67,7 +67,7 @@ Runtime 本身不依赖 `next/router`、`next/navigation` 或宿主 React Contex
 
 ## React 18/19
 
-- React Adapter peer 范围允许 React 18/19，但正式 Next 发布前必须补真实 React 19 E2E。
+- 当前 `@spotpatch/react-adapter` 的 package peer 范围允许 React 18/19，但实现中的版本门禁只识别 React 18.2/18.3；因此“包可安装”不等于 React 19 已支持。Gate N2/N3 必须先统一版本能力判断并补真实 React 19 单测/E2E，完成前 Next + React 19 保持 planned。
 - 不要求宿主把 `jsxImportSource` 改为 Bippy；这会改变整个项目编译语义并与其他 JSX runtime 冲突。
 - React 19 不能提供 Fiber source 时，组件名/栈仍可在安全 adapter 支持范围内展示，源码坐标继续取 marker。
 - hook 或私有 Fiber API 不兼容时，Adapter 返回 `supported: false`，不得让 Runtime、marker、DOM/CSS 和 Prompt 失效。

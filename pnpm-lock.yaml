@@ -23,6 +23,9 @@ importers:
       '@types/node':
         specifier: 20.19.33
         version: 20.19.33
+      '@types/react':
+        specifier: 18.3.28
+        version: 18.3.28
       '@vitejs/plugin-react-swc':
         specifier: 4.3.3
         version: 4.3.3(vite@7.3.6(@types/node@20.19.33)(jiti@1.21.7))
@@ -41,6 +44,9 @@ importers:
       publint:
         specifier: 0.3.23
         version: 0.3.23
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
       tsup:
         specifier: 8.5.1
         version: 8.5.1(@swc/core@1.15.47)(jiti@1.21.7)(postcss@8.5.23)(typescript@5.9.3)
@@ -142,7 +148,7 @@ importers:
         version: link:../shared
       bippy:
         specifier: 0.6.1
-        version: 0.6.1(react@19.2.8)
+        version: 0.6.1(react@18.3.1)
 
   packages/runtime:
     dependencies:
@@ -5627,9 +5633,9 @@ snapshots:
 
   binary-extensions@2.3.0: {}
 
-  bippy@0.6.1(react@19.2.8):
+  bippy@0.6.1(react@18.3.1):
     dependencies:
-      react: 19.2.8
+      react: 18.3.1
 
   brace-expansion@1.1.18:
     dependencies:

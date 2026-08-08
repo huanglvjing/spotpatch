@@ -8,6 +8,7 @@ import {
   symlink,
   writeFile,
 } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -146,7 +147,7 @@ async function pathExists(absolutePath: string): Promise<boolean> {
     await lstat(absolutePath);
     return true;
   } catch (error: unknown) {
-    if (isUnknownRecord(error) && error.code === "ENOENT") {
+    if (hasErrorCode(error, "ENOENT")) {
       return false;
     }
 
@@ -437,8 +438,36 @@ async function executeDevelopmentCase(
   });
 }
 
+function hasErrorCode(error: unknown, code: string): boolean {
+  return isUnknownRecord(error) && error.code === code;
+}
+
+async function readDirectoryIfPresent(directory: string): Promise<readonly Dirent[]> {
+  try {
+    return await readdir(directory, { withFileTypes: true });
+  } catch (error: unknown) {
+    if (hasErrorCode(error, "ENOENT")) {
+      return [];
+    }
+
+    throw error;
+  }
+}
+
+async function readFileIfPresent(absolutePath: string): Promise<Buffer | null> {
+  try {
+    return await readFile(absolutePath);
+  } catch (error: unknown) {
+    if (hasErrorCode(error, "ENOENT")) {
+      return null;
+    }
+
+    throw error;
+  }
+}
+
 async function fileTreeContains(directory: string, needle: Buffer): Promise<boolean> {
-  const entries = await readdir(directory, { withFileTypes: true });
+  const entries = await readDirectoryIfPresent(directory);
 
   for (const entry of entries) {
     const absolutePath = path.join(directory, entry.name);
@@ -448,9 +477,9 @@ async function fileTreeContains(directory: string, needle: Buffer): Promise<bool
         return true;
       }
     } else if (entry.isFile()) {
-      const content = await readFile(absolutePath);
+      const content = await readFileIfPresent(absolutePath);
 
-      if (content.includes(needle)) {
+      if (content?.includes(needle) === true) {
         return true;
       }
     }
@@ -544,7 +573,7 @@ async function fileTreeContainsSourceMap(
   expectedSource: string,
   expectedContent: string,
 ): Promise<boolean> {
-  const entries = await readdir(directory, { withFileTypes: true });
+  const entries = await readDirectoryIfPresent(directory);
 
   for (const entry of entries) {
     const absolutePath = path.join(directory, entry.name);
@@ -555,15 +584,15 @@ async function fileTreeContainsSourceMap(
       ) {
         return true;
       }
-    } else if (
-      entry.isFile() &&
-      contentContainsSourceMap(
-        await readFile(absolutePath),
-        expectedSource,
-        expectedContent,
-      )
-    ) {
-      return true;
+    } else if (entry.isFile()) {
+      const content = await readFileIfPresent(absolutePath);
+
+      if (
+        content !== null &&
+        contentContainsSourceMap(content, expectedSource, expectedContent)
+      ) {
+        return true;
+      }
     }
   }
 

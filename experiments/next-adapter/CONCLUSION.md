@@ -9,10 +9,10 @@ scope: "Gate N1 Loader compilation-chain evidence only"
 
 ## Current conclusion
 
-The local macOS matrix passes, but this POC remains `blocked` as a Gate N1 decision because the
-required Ubuntu run and explicit multi-worker stress evidence have not yet been collected. This
-status does not authorize `@spotpatch/next`, public exports, npm publication, or a Next.js support
-claim.
+The local macOS matrix and the required Ubuntu/Node 22 CI matrix pass, but this POC remains
+`blocked` as a Gate N1 decision because explicit multi-worker stress evidence has not yet been
+collected. This status does not authorize `@spotpatch/next`, public exports, npm publication, or a
+Next.js support claim.
 
 ## Reproduced local evidence
 
@@ -25,6 +25,9 @@ claim.
 - Command: `pnpm test:next-poc`.
 - Result: 6/6 cases passed. The generated result and sanitized logs are under
   `.artifacts/loader-poc/` and conform to `evidence/result.schema.json`.
+- Ubuntu evidence: GitHub Actions run
+  [`31271056046`](https://github.com/huanglvjing/spotpatch/actions/runs/31271056046), Node 22,
+  `Next Loader POC (Ubuntu, Node 22)` succeeded with its evidence artifact.
 
 ## Proven facts
 
@@ -47,7 +50,6 @@ claim.
 
 ## Remaining blockers
 
-- Run the same locked command on Ubuntu with Node 22 and retain the CI artifact.
 - Add a deterministic high-module-count fixture and establish concurrency/cache behavior without
   writing worker identity into DOM or using unsupported Loader side effects.
 - Validate cache restart/epoch behavior in the separate source-registration POC.

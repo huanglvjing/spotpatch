@@ -1,5 +1,11 @@
 # @spotpatch/runtime
 
+## 1.1.1
+
+### Patch Changes
+
+- c5e7f61: Keep the source-navigation workbench below its cross-platform runtime bundle budget while preserving GitHub promotion, per-target quick-open controls, bilingual feedback, and VS Code/Cursor launch support.
+
 ## 1.1.0
 
 ### Minor Changes

@@ -15,6 +15,11 @@ assert.equal(typeof createServer, "function");
 const server = await createServer({
   root: projectRoot,
   logLevel: "silent",
+  optimizeDeps: {
+    force: true,
+    include: [],
+    noDiscovery: true,
+  },
   server: {
     host: "127.0.0.1",
     port: 0,

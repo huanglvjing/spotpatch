@@ -1,6 +1,6 @@
 ---
 poc-id: "next-loader-compilation-chain"
-status: "blocked"
+status: "pass"
 last-updated: "2026-08-09"
 scope: "Gate N1 Loader compilation-chain evidence only"
 ---
@@ -9,11 +9,10 @@ scope: "Gate N1 Loader compilation-chain evidence only"
 
 ## Current conclusion
 
-The expanded local macOS matrix passes deterministic high-module and cache-restart stress. The
-earlier Ubuntu/Node 22 baseline also passed, but the updated stress suite has not yet completed on
-Ubuntu CI. The POC therefore remains `blocked` until that exact revision passes required CI. This
-status does not authorize `@spotpatch/next`, public exports, npm publication, or a Next.js support
-claim.
+The Loader compilation-chain POC is `pass` for its locked matrix. The expanded local macOS matrix
+and required Ubuntu/Node 22 CI both pass deterministic high-module, concurrent cold-request and
+warm cache-restart stress. This scoped status does not complete Gate N1 and does not authorize
+`@spotpatch/next`, public exports, npm publication, or a Next.js support claim.
 
 ## Reproduced local evidence
 
@@ -29,9 +28,10 @@ claim.
   after a warm `.next` cache restart. The generated result and sanitized logs are under
   `.artifacts/loader-poc/` and conform to `evidence/result.schema.json`.
 - Ubuntu evidence: GitHub Actions run
-  [`31271056046`](https://github.com/huanglvjing/spotpatch/actions/runs/31271056046), Node 22,
-  `Next Loader POC (Ubuntu, Node 22)` succeeded with the earlier baseline artifact; the expanded
-  stress revision is pending CI.
+  [`31274574516`](https://github.com/huanglvjing/spotpatch/actions/runs/31274574516), commit
+  `93ddae3`, Node 22. `Next Loader POC (Ubuntu, Node 22)` succeeded and uploaded
+  `next-loader-poc-31274574516` with digest
+  `sha256:40c46630f08b2e7d8fa2626b78972d866e9878a71cd279417dcbc96a3f015f5d`.
 - Supplemental real-host evidence: private project `my-marketing-site` revision `fd0b4e825df8`,
   Next 16.3.0, React 19.2.8 and TypeScript 5.9.3 passed 3/3 Turbopack/webpack/production cases via
   `pnpm test:next-real-host`. The production build reported seven page-data workers. Sanitized
@@ -65,10 +65,8 @@ claim.
     Component hydration under both bundlers; production output contains neither an active marker
     nor the Loader POC environment-key name.
 
-## Remaining blockers
+## Remaining Gate N1 work
 
-- Run the expanded 500-module/concurrent/warm-restart suite on Ubuntu/Node 22 CI and retain its
-  machine-readable artifact; the earlier CI run does not cover these new assertions.
 - Validate cache restart/epoch behavior in the separate source-registration POC.
 - Complete the other Gate N1 POCs before changing ADR-025 from Proposed or creating public code.
 

@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import {
   applyPreparedAgentChange,
   executeAgentChange,
+  inspectAgentWorkspace,
   probeProviderCapability,
   resolveProviderCredential,
   revertPreparedAgentChange,
@@ -21,6 +22,8 @@ import {
   type AgentJobResultResponse,
   type AgentJobSnapshot,
   type AgentJobStatus,
+  type AgentWorkspaceHealthSnapshot,
+  type AgentWorkingTreeMode,
   type ErrorCode,
   type ResolvedAiModelProfile,
   type ResolvedAiOptions,
@@ -76,6 +79,7 @@ interface InternalAgentJob {
   readonly listeners: Set<AgentJobEventListener>;
   readonly model: ResolvedAiModelProfile;
   readonly provider: ResolvedOpenAICompatibleProviderOptions;
+  readonly workingTreeMode: AgentWorkingTreeMode;
   errorCode: ErrorCode | undefined;
   phaseMessage: string;
   preparedChange: PreparedAgentChange | undefined;
@@ -99,12 +103,14 @@ export interface AgentJobManager {
   result(jobId: string): AgentJobResultResponse;
   revert(jobId: string): Promise<AgentJobSnapshot>;
   subscribe(jobId: string, listener: AgentJobEventListener): () => void;
+  workspaceHealth(signal: AbortSignal): Promise<AgentWorkspaceHealthSnapshot>;
 }
 
 interface AgentJobManagerDependencies {
   readonly applyChange: typeof applyPreparedAgentChange;
   readonly createJobId: () => string;
   readonly executeChange: typeof executeAgentChange;
+  readonly inspectWorkspace: typeof inspectAgentWorkspace;
   readonly now: () => string;
   readonly probeCapability: typeof probeProviderCapability;
   readonly resolveCredential: typeof resolveProviderCredential;
@@ -123,6 +129,7 @@ const DEFAULT_DEPENDENCIES: AgentJobManagerDependencies = Object.freeze({
   applyChange: applyPreparedAgentChange,
   createJobId: () => randomBytes(16).toString("base64url"),
   executeChange: executeAgentChange,
+  inspectWorkspace: inspectAgentWorkspace,
   now: () => new Date().toISOString(),
   probeCapability: probeProviderCapability,
   resolveCredential: resolveProviderCredential,
@@ -412,6 +419,7 @@ export function createAgentJobManager(
         provider: job.provider,
         root: options.root,
         signal: job.controller.signal,
+        workingTreeMode: job.workingTreeMode,
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
       });
       job.preparedChange = preparedChange;
@@ -587,6 +595,7 @@ export function createAgentJobManager(
         sequence: 0,
         status: "queued",
         updatedAt: timestamp,
+        workingTreeMode: request.workingTreeMode,
       };
       jobs.set(id, job);
       emitSnapshot(job);
@@ -658,6 +667,14 @@ export function createAgentJobManager(
       return () => {
         job.listeners.delete(listener);
       };
+    },
+
+    workspaceHealth(signal) {
+      if (closed) {
+        throw new SpotPatchError(ERROR_CODES.AI_DISABLED);
+      }
+
+      return dependencies.inspectWorkspace(options.root, signal);
     },
   } satisfies AgentJobManager);
 }

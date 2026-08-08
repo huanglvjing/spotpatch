@@ -75,7 +75,7 @@ interface CachedToolResult {
 }
 
 function invalidTool(): never {
-  throw new SpotPatchError(ERROR_CODES.TOOL_DENIED);
+  throw new SpotPatchError(ERROR_CODES.TOOL_INPUT_INVALID);
 }
 
 function parseArguments<T>(

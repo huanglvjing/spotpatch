@@ -3,11 +3,13 @@ import {
   AGENT_CHECK_STATUSES,
   AGENT_FILE_CHANGE_KINDS,
   AGENT_JOB_STATUSES,
+  AGENT_WORKSPACE_STATES,
   ERROR_CODES,
   type AgentCapabilitySnapshot,
   type AgentJobEvent,
   type AgentJobResultResponse,
   type AgentJobSnapshot,
+  type AgentWorkspaceHealthSnapshot,
   type ErrorCode,
 } from "@spotpatch/shared";
 
@@ -19,6 +21,7 @@ const CAPABILITY_STATE_VALUES = new Set<string>(AGENT_CAPABILITY_STATES);
 const CHECK_STATUS_VALUES = new Set<string>(AGENT_CHECK_STATUSES);
 const FILE_CHANGE_KIND_VALUES = new Set<string>(AGENT_FILE_CHANGE_KINDS);
 const JOB_STATUS_VALUES = new Set<string>(AGENT_JOB_STATUSES);
+const WORKSPACE_STATE_VALUES = new Set<string>(AGENT_WORKSPACE_STATES);
 const PROFILE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const JOB_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
@@ -64,7 +67,7 @@ function isIsoTimestamp(value: unknown): boolean {
   );
 }
 
-function isNonnegativeInteger(value: unknown): boolean {
+function isNonnegativeInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
@@ -120,6 +123,71 @@ export function isAgentCapabilitySnapshot(
     (value.checkedAt === undefined || isIsoTimestamp(value.checkedAt)) &&
     (value.errorCode === undefined || isAgentErrorCode(value.errorCode))
   );
+}
+
+export function isAgentWorkspaceHealthSnapshot(
+  value: unknown,
+): value is AgentWorkspaceHealthSnapshot {
+  if (
+    !isRecord(value) ||
+    !hasOnlyKeys(value, [
+      "state",
+      "checkedAt",
+      "changes",
+      "canIncludeLocalChanges",
+      "errorCode",
+    ]) ||
+    typeof value.state !== "string" ||
+    !WORKSPACE_STATE_VALUES.has(value.state) ||
+    !isIsoTimestamp(value.checkedAt) ||
+    typeof value.canIncludeLocalChanges !== "boolean" ||
+    (value.errorCode !== undefined && !isAgentErrorCode(value.errorCode)) ||
+    !isRecord(value.changes) ||
+    !hasOnlyKeys(value.changes, [
+      "staged",
+      "unstaged",
+      "untracked",
+      "conflicted",
+      "total",
+    ])
+  ) {
+    return false;
+  }
+
+  const changes = value.changes;
+  const { staged, unstaged, untracked, conflicted, total } = changes;
+
+  if (
+    !isNonnegativeInteger(staged) ||
+    !isNonnegativeInteger(unstaged) ||
+    !isNonnegativeInteger(untracked) ||
+    !isNonnegativeInteger(conflicted) ||
+    !isNonnegativeInteger(total) ||
+    total < staged ||
+    total < unstaged ||
+    total < untracked ||
+    total < conflicted ||
+    total > staged + unstaged + untracked
+  ) {
+    return false;
+  }
+
+  if (value.state === "ready") {
+    return (
+      total === 0 && !value.canIncludeLocalChanges && value.errorCode === undefined
+    );
+  }
+
+  if (value.state === "consent-required") {
+    return (
+      total > 0 &&
+      conflicted === 0 &&
+      value.canIncludeLocalChanges &&
+      value.errorCode === undefined
+    );
+  }
+
+  return !value.canIncludeLocalChanges && value.errorCode !== undefined;
 }
 
 export function isAgentJobSnapshot(value: unknown): value is AgentJobSnapshot {

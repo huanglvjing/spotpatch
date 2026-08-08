@@ -30,7 +30,7 @@ export async function readAgentTextFile(
   const bytes = await readFile(absolutePath);
 
   if (bytes.includes(0)) {
-    throw new SpotPatchError(ERROR_CODES.TOOL_DENIED);
+    throw new SpotPatchError(ERROR_CODES.TOOL_PATH_DENIED);
   }
 
   let content: string;
@@ -38,7 +38,7 @@ export async function readAgentTextFile(
   try {
     content = utf8Decoder.decode(bytes);
   } catch {
-    throw new SpotPatchError(ERROR_CODES.TOOL_DENIED);
+    throw new SpotPatchError(ERROR_CODES.TOOL_PATH_DENIED);
   }
 
   return Object.freeze({ content, relativePath, size: metadata.size });
@@ -66,7 +66,7 @@ export async function writeAgentTextFileIfContentMatches(
   maximumBytes: number,
 ): Promise<void> {
   if (nextContent.includes("\0")) {
-    throw new SpotPatchError(ERROR_CODES.TOOL_DENIED);
+    throw new SpotPatchError(ERROR_CODES.TOOL_INPUT_INVALID);
   }
 
   const absolutePath = await resolveExistingAgentPath(root, relativePath);
@@ -84,7 +84,7 @@ export async function writeAgentTextFileIfContentMatches(
   try {
     currentContent = utf8Decoder.decode(currentBytes);
   } catch {
-    throw new SpotPatchError(ERROR_CODES.TOOL_DENIED);
+    throw new SpotPatchError(ERROR_CODES.TOOL_PATH_DENIED);
   }
 
   if (currentBytes.includes(0) || currentContent !== expectedContent) {

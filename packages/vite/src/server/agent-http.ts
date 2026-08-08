@@ -7,6 +7,7 @@ import {
   agentCapabilityRequestSchema,
   agentJobActionRequestSchema,
   agentJobCreateRequestSchema,
+  agentWorkspaceHealthRequestSchema,
   type AgentJobAction,
   type AgentJobEvent,
   type AgentJobStatus,
@@ -26,7 +27,10 @@ interface AgentJobRoute {
 }
 
 export type AgentRequestRoute =
-  Readonly<{ kind: "capability" }> | Readonly<{ kind: "create-job" }> | AgentJobRoute;
+  | Readonly<{ kind: "capability" }>
+  | Readonly<{ kind: "workspace-health" }>
+  | Readonly<{ kind: "create-job" }>
+  | AgentJobRoute;
 
 export interface AgentHttpOptions {
   readonly agentManager?: AgentJobManager;
@@ -61,6 +65,10 @@ const EVENT_STREAM_END_STATUSES = new Set<AgentJobStatus>([
 export function matchAgentRequestPath(path: string): AgentRequestRoute | undefined {
   if (path === SPOTPATCH_ENDPOINTS.agentCapability) {
     return Object.freeze({ kind: "capability" });
+  }
+
+  if (path === SPOTPATCH_ENDPOINTS.agentWorkspaceHealth) {
+    return Object.freeze({ kind: "workspace-health" });
   }
 
   if (path === SPOTPATCH_ENDPOINTS.agentJobs) {
@@ -226,6 +234,38 @@ async function handleCreateJob(
   writeSuccess(response, 202, data);
 }
 
+async function handleWorkspaceHealth(
+  request: IncomingMessage,
+  response: ServerResponse,
+  options: AgentHttpOptions,
+  writeSuccess: WriteAgentSuccess,
+): Promise<void> {
+  if (request.method !== "POST") {
+    throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+  }
+
+  const parsed = agentWorkspaceHealthRequestSchema.safeParse(
+    await readJsonRequestBody(request),
+  );
+
+  if (!parsed.success) {
+    throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+  }
+
+  const controller = new AbortController();
+  const abort = (): void => {
+    controller.abort("agent-workspace-health-client-disconnected");
+  };
+  response.once("close", abort);
+
+  try {
+    const data = await requireAgentManager(options).workspaceHealth(controller.signal);
+    writeSuccess(response, 200, data);
+  } finally {
+    response.removeListener("close", abort);
+  }
+}
+
 async function handleJobAction(
   request: IncomingMessage,
   response: ServerResponse,
@@ -280,6 +320,11 @@ export async function handleAgentRequest(
 
   if (route.kind === "create-job") {
     await handleCreateJob(request, response, options, writeSuccess);
+    return;
+  }
+
+  if (route.kind === "workspace-health") {
+    await handleWorkspaceHealth(request, response, options, writeSuccess);
     return;
   }
 

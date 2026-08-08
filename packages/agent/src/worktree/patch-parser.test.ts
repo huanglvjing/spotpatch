@@ -32,7 +32,7 @@ describe("unified patch parser", () => {
     validPatch.replaceAll("src/App.tsx", "../outside.ts"),
     validPatch.replaceAll("src/App.tsx", ".env.local"),
   ])("denies unsafe paths", (patch) => {
-    expect(() => parseUnifiedPatch(patch)).toThrowError(ERROR_CODES.TOOL_DENIED);
+    expect(() => parseUnifiedPatch(patch)).toThrowError(ERROR_CODES.TOOL_PATH_DENIED);
   });
 
   it.each([

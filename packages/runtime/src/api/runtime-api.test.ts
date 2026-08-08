@@ -11,7 +11,7 @@ import {
 } from "@spotpatch/shared";
 import { describe, expect, it, vi } from "vitest";
 
-import { createRuntimeApi } from "./runtime-api.js";
+import { RuntimeApiError, createRuntimeApi } from "./runtime-api.js";
 
 const codeContext = Object.freeze({
   relativePath: "src/App.tsx",
@@ -254,6 +254,7 @@ describe("runtime API client", () => {
         providerProfileId: "relay",
         modelProfileId: "coder",
         providerDataConsent: true,
+        workingTreeMode: "require-clean",
       }),
     ).resolves.toEqual(jobSnapshot);
     await expect(api.agentResult(jobId)).resolves.toEqual(jobResult);
@@ -271,6 +272,62 @@ describe("runtime API client", () => {
     expect(serializedRequests).not.toContain("baseURL");
     expect(serializedRequests).not.toContain("apiKey");
     expect(serializedRequests).not.toContain("provider-model-v1");
+  });
+
+  it("validates the bounded local workspace health response", async () => {
+    const health = Object.freeze({
+      state: "consent-required" as const,
+      checkedAt: "2026-08-08T00:00:00.000Z",
+      changes: Object.freeze({
+        staged: 1,
+        unstaged: 1,
+        untracked: 2,
+        conflicted: 0,
+        total: 3,
+      }),
+      canIncludeLocalChanges: true,
+    });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ ok: true, data: health }));
+    const api = createRuntimeApi({
+      apiBase: SPOTPATCH_API_BASE,
+      fetch: fetchMock,
+      sessionToken: "token",
+    });
+
+    await expect(api.agentWorkspaceHealth()).resolves.toEqual(health);
+    expect(fetchMock).toHaveBeenCalledWith(
+      SPOTPATCH_ENDPOINTS.agentWorkspaceHealth,
+      expect.objectContaining({ method: "POST", body: "{}" }),
+    );
+  });
+
+  it("rejects a workspace health response with inconsistent state", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse({
+        ok: true,
+        data: {
+          state: "ready",
+          checkedAt: "2026-08-08T00:00:00.000Z",
+          changes: {
+            staged: 1,
+            unstaged: 0,
+            untracked: 0,
+            conflicted: 0,
+            total: 1,
+          },
+          canIncludeLocalChanges: true,
+        },
+      }),
+    );
+    const api = createRuntimeApi({
+      apiBase: SPOTPATCH_API_BASE,
+      fetch: fetchMock,
+      sessionToken: "token",
+    });
+
+    await expect(api.agentWorkspaceHealth()).rejects.toBeInstanceOf(RuntimeApiError);
   });
 
   it("parses arbitrarily chunked UTF-8 NDJSON and rejects out-of-order events", async () => {

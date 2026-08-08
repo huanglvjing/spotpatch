@@ -257,6 +257,21 @@ describe("Agent HTTP middleware", () => {
               autoApplyEligible: false,
             }),
           ),
+        inspectWorkspace: () =>
+          Promise.resolve(
+            Object.freeze({
+              state: "ready" as const,
+              checkedAt: "2026-08-08T00:00:00.000Z",
+              changes: Object.freeze({
+                staged: 0,
+                unstaged: 0,
+                untracked: 0,
+                conflicted: 0,
+                total: 0,
+              }),
+              canIncludeLocalChanges: false,
+            }),
+          ),
         probeCapability,
         revertChange,
       },
@@ -269,6 +284,17 @@ describe("Agent HTTP middleware", () => {
       { providerProfileId: "relay", modelProfileId: "coder" },
     );
     expect(capabilityResponse.status).toBe(200);
+
+    const workspaceResponse = await request(
+      SPOTPATCH_ENDPOINTS.agentWorkspaceHealth,
+      "POST",
+      {},
+    );
+    expect(workspaceResponse.status).toBe(200);
+    await expect(workspaceResponse.json()).resolves.toMatchObject({
+      ok: true,
+      data: { state: "ready", canIncludeLocalChanges: false },
+    });
 
     const createResponse = await request(SPOTPATCH_ENDPOINTS.agentJobs, "POST", {
       annotation,

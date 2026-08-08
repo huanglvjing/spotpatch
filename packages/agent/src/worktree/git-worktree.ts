@@ -1,14 +1,29 @@
-import { lstat, mkdtemp, realpath, rm } from "node:fs/promises";
+import {
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+} from "node:fs/promises";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 
-import { ERROR_CODES, SpotPatchError } from "@spotpatch/shared";
+import {
+  ERROR_CODES,
+  SpotPatchError,
+  type AgentWorkingTreeMode,
+} from "@spotpatch/shared";
 
 import { runGitCommand, runRawGitCommand, samePath } from "./git-command.js";
+import { inspectGitWorkspace } from "./workspace-health.js";
 
 export interface GitBaseline {
   readonly head: string;
   readonly root: string;
+  readonly workingTreeMode: AgentWorkingTreeMode;
 }
 
 export interface IsolatedGitWorktree {
@@ -26,43 +41,14 @@ interface AssertGitBaselineOptions {
 export async function assertCleanGitBaseline(
   options: AssertGitBaselineOptions,
 ): Promise<GitBaseline> {
-  const root = await realpath(options.root).catch(() => {
-    throw new SpotPatchError(ERROR_CODES.WORKTREE_DIRTY);
-  });
-  const topLevel = (
-    await runGitCommand({
-      cwd: root,
-      args: ["rev-parse", "--show-toplevel"],
-      errorCode: ERROR_CODES.WORKTREE_DIRTY,
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    })
-  ).trim();
-
-  if (!samePath(root, topLevel)) {
-    throw new SpotPatchError(ERROR_CODES.WORKTREE_DIRTY);
-  }
-
-  const head = (
-    await runGitCommand({
-      cwd: root,
-      args: ["rev-parse", "--verify", "HEAD"],
-      errorCode: ERROR_CODES.WORKTREE_DIRTY,
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    })
-  ).trim();
+  const inspection = await inspectGitWorkspace(options.root, options.signal);
+  const { head, root } = inspection;
 
   if (options.expectedHead !== undefined && head !== options.expectedHead) {
     throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
   }
 
-  const status = await runGitCommand({
-    cwd: root,
-    args: ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-    errorCode: ERROR_CODES.WORKTREE_DIRTY,
-    ...(options.signal === undefined ? {} : { signal: options.signal }),
-  });
-
-  if (status.length > 0) {
+  if (inspection.health.state !== "ready") {
     throw new SpotPatchError(
       options.expectedHead === undefined
         ? ERROR_CODES.WORKTREE_DIRTY
@@ -70,13 +56,172 @@ export async function assertCleanGitBaseline(
     );
   }
 
-  return Object.freeze({ root, head });
+  return Object.freeze({ root, head, workingTreeMode: "require-clean" });
 }
 
 interface CreateIsolatedWorktreeOptions {
   readonly root: string;
   readonly signal: AbortSignal;
   readonly temporaryBase?: string;
+  readonly workingTreeMode?: AgentWorkingTreeMode;
+}
+
+function workspacePath(root: string, relativePath: string): string {
+  const candidate = path.resolve(root, relativePath);
+  const relative = path.relative(root, candidate);
+
+  if (
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new SpotPatchError(ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED);
+  }
+
+  return candidate;
+}
+
+async function fileDigest(filePath: string): Promise<string> {
+  return createHash("sha256")
+    .update(await readFile(filePath))
+    .digest("hex");
+}
+
+async function copyUntrackedFiles(
+  sourceRoot: string,
+  worktreeRoot: string,
+  relativePaths: readonly string[],
+): Promise<void> {
+  for (const relativePath of relativePaths) {
+    const sourcePath = workspacePath(sourceRoot, relativePath);
+    const targetPath = workspacePath(worktreeRoot, relativePath);
+    const metadata = await lstat(sourcePath).catch(() => undefined);
+
+    if (metadata === undefined || !metadata.isFile() || metadata.isSymbolicLink()) {
+      throw new SpotPatchError(ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED);
+    }
+
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await copyFile(sourcePath, targetPath);
+
+    const [sourceDigest, targetDigest] = await Promise.all([
+      fileDigest(sourcePath),
+      fileDigest(targetPath),
+    ]).catch(() => {
+      throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
+    });
+
+    if (sourceDigest !== targetDigest) {
+      throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
+    }
+  }
+}
+
+async function assertUntrackedFilesUnchanged(
+  sourceRoot: string,
+  worktreeRoot: string,
+  relativePaths: readonly string[],
+): Promise<void> {
+  for (const relativePath of relativePaths) {
+    const sourcePath = workspacePath(sourceRoot, relativePath);
+    const targetPath = workspacePath(worktreeRoot, relativePath);
+
+    const [sourceDigest, targetDigest] = await Promise.all([
+      fileDigest(sourcePath),
+      fileDigest(targetPath),
+    ]).catch(() => {
+      throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
+    });
+
+    if (sourceDigest !== targetDigest) {
+      throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
+    }
+  }
+}
+
+async function materializeLocalBaseline(
+  sourceRoot: string,
+  worktreeRoot: string,
+  expectedHead: string,
+  untrackedPaths: readonly string[],
+  signal: AbortSignal,
+): Promise<void> {
+  const sourceDiff = await runGitCommand({
+    cwd: sourceRoot,
+    args: [
+      "diff",
+      "--binary",
+      "--full-index",
+      "--no-ext-diff",
+      "--no-color",
+      "--no-renames",
+      "HEAD",
+      "--",
+    ],
+    signal,
+    errorCode: ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED,
+  });
+
+  if (sourceDiff.length > 0) {
+    await runGitCommand({
+      cwd: worktreeRoot,
+      args: ["apply", "--binary", "--whitespace=nowarn", "-"],
+      stdin: sourceDiff,
+      signal,
+      errorCode: ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED,
+    });
+  }
+
+  await copyUntrackedFiles(sourceRoot, worktreeRoot, untrackedPaths);
+  const confirmation = await inspectGitWorkspace(sourceRoot, signal);
+  const confirmationDiff = await runGitCommand({
+    cwd: sourceRoot,
+    args: [
+      "diff",
+      "--binary",
+      "--full-index",
+      "--no-ext-diff",
+      "--no-color",
+      "--no-renames",
+      "HEAD",
+      "--",
+    ],
+    signal,
+    errorCode: ERROR_CODES.APPLY_CONFLICT,
+  });
+
+  if (
+    confirmation.head !== expectedHead ||
+    confirmationDiff !== sourceDiff ||
+    confirmation.untrackedPaths.length !== untrackedPaths.length ||
+    confirmation.untrackedPaths.some((value, index) => value !== untrackedPaths[index])
+  ) {
+    throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
+  }
+
+  await assertUntrackedFilesUnchanged(sourceRoot, worktreeRoot, untrackedPaths);
+
+  await runGitCommand({
+    cwd: worktreeRoot,
+    args: ["add", "--all"],
+    signal,
+    errorCode: ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED,
+  });
+  await runGitCommand({
+    cwd: worktreeRoot,
+    args: [
+      "-c",
+      "user.name=SpotPatch Agent",
+      "-c",
+      "user.email=spotpatch-agent@example.invalid",
+      "commit",
+      "--quiet",
+      "-m",
+      "SpotPatch local workspace baseline",
+    ],
+    signal,
+    errorCode: ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED,
+  });
 }
 
 async function defaultTemporaryBase(root: string): Promise<string> {
@@ -98,9 +243,26 @@ async function defaultTemporaryBase(root: string): Promise<string> {
 export async function createIsolatedGitWorktree(
   options: CreateIsolatedWorktreeOptions,
 ): Promise<IsolatedGitWorktree> {
-  const baseline = await assertCleanGitBaseline({
-    root: options.root,
-    signal: options.signal,
+  const workingTreeMode = options.workingTreeMode ?? "require-clean";
+  const inspection = await inspectGitWorkspace(options.root, options.signal);
+
+  if (inspection.health.state === "blocked") {
+    throw new SpotPatchError(
+      inspection.health.errorCode ?? ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED,
+    );
+  }
+
+  if (
+    inspection.health.state === "consent-required" &&
+    workingTreeMode === "require-clean"
+  ) {
+    throw new SpotPatchError(ERROR_CODES.WORKTREE_DIRTY);
+  }
+
+  const baseline = Object.freeze({
+    root: inspection.root,
+    head: inspection.head,
+    workingTreeMode,
   });
   const temporaryBase =
     options.temporaryBase ?? (await defaultTemporaryBase(baseline.root));
@@ -160,6 +322,16 @@ export async function createIsolatedGitWorktree(
 
     if (actualHead !== baseline.head || !samePath(actualRoot, worktreeRoot)) {
       throw new SpotPatchError(ERROR_CODES.INTERNAL_ERROR);
+    }
+
+    if (inspection.health.state === "consent-required") {
+      await materializeLocalBaseline(
+        baseline.root,
+        worktreeRoot,
+        baseline.head,
+        inspection.untrackedPaths,
+        options.signal,
+      );
     }
 
     return Object.freeze({ baseline, root: worktreeRoot, cleanup });

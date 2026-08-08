@@ -86,6 +86,13 @@ export interface UiMessages {
     providerUnavailable: string;
     consent: (provider: string) => string;
     connectionNotTested: string;
+    workspaceNotChecked: string;
+    checkingWorkspace: string;
+    workspaceReady: string;
+    workspaceDirty: (staged: number, unstaged: number, untracked: number) => string;
+    includeLocalChanges: string;
+    includeLocalChangesHelp: string;
+    localChangesConsentRequired: string;
     capabilityVerified: string;
     capabilityVerifiedAnnouncement: string;
     testingCapability: string;
@@ -195,8 +202,24 @@ const ERROR_MESSAGES_EN = Object.freeze({
     "The Agent stopped at a configured time, turn, output, or size limit.",
   [ERROR_CODES.AGENT_CANCELLED]: "The Agent job was cancelled.",
   [ERROR_CODES.WORKTREE_DIRTY]:
-    "Commit or otherwise clean staged, unstaged, and untracked files before running AI.",
+    "Local changes require explicit inclusion consent before running AI.",
+  [ERROR_CODES.WORKTREE_NOT_REPOSITORY]:
+    "The Vite root is not the top level of an initialized Git repository.",
+  [ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS]:
+    "Finish the active merge, rebase, cherry-pick, or revert before running AI.",
+  [ERROR_CODES.WORKTREE_CONFLICTED]:
+    "Resolve all merge conflicts before running AI; SpotPatch will not guess a resolution.",
+  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_TOO_LARGE]:
+    "Local untracked files exceed the safe isolation limit. Reduce their count or total size.",
+  [ERROR_CODES.WORKTREE_UNTRACKED_UNSUPPORTED]:
+    "An untracked item is missing, linked, or not a regular file and cannot be isolated safely.",
+  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]:
+    "Local changes include conflicts, unsupported files, or exceed the safe baseline limit.",
   [ERROR_CODES.TOOL_DENIED]: "A model tool request violated the local safety policy.",
+  [ERROR_CODES.TOOL_INPUT_INVALID]:
+    "The model sent invalid tool arguments or reused a tool call ID inconsistently.",
+  [ERROR_CODES.TOOL_PATH_DENIED]:
+    "The model tried to access a protected, non-text, linked, or out-of-project path.",
   [ERROR_CODES.PATCH_REJECTED]: "The proposed patch did not pass local policy.",
   [ERROR_CODES.VALIDATION_FAILED]:
     "Required project checks failed. The change cannot be applied.",
@@ -226,8 +249,22 @@ const ERROR_MESSAGES_ZH = Object.freeze({
   [ERROR_CODES.AGENT_BUSY]: "当前项目已有一个写入任务正在运行。",
   [ERROR_CODES.AGENT_LIMIT_EXCEEDED]: "Agent 达到时间、轮次、输出或变更规模限制。",
   [ERROR_CODES.AGENT_CANCELLED]: "Agent 任务已取消。",
-  [ERROR_CODES.WORKTREE_DIRTY]: "运行 AI 前，请先提交或清理暂存、未暂存与未跟踪文件。",
+  [ERROR_CODES.WORKTREE_DIRTY]: "运行 AI 前，请明确同意将当前本地修改纳入隔离基线。",
+  [ERROR_CODES.WORKTREE_NOT_REPOSITORY]: "Vite 根目录不是已初始化 Git 仓库的顶层目录。",
+  [ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS]:
+    "请先完成当前 merge、rebase、cherry-pick 或 revert，再运行 AI。",
+  [ERROR_CODES.WORKTREE_CONFLICTED]:
+    "请先解决全部合并冲突；SpotPatch 不会猜测冲突解决方式。",
+  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_TOO_LARGE]:
+    "本地未跟踪文件超过安全隔离上限，请减少文件数量或总体积。",
+  [ERROR_CODES.WORKTREE_UNTRACKED_UNSUPPORTED]:
+    "某个未跟踪项已丢失、是符号链接或不是普通文件，无法安全隔离。",
+  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]:
+    "本地修改存在冲突、不支持的文件，或超过安全基线限制。",
   [ERROR_CODES.TOOL_DENIED]: "模型工具请求违反本地安全策略。",
+  [ERROR_CODES.TOOL_INPUT_INVALID]:
+    "模型发送了无效工具参数，或不一致地复用了工具调用 ID。",
+  [ERROR_CODES.TOOL_PATH_DENIED]: "模型尝试访问受保护、非文本、符号链接或项目外路径。",
   [ERROR_CODES.PATCH_REJECTED]: "建议补丁未通过本地策略检查。",
   [ERROR_CODES.VALIDATION_FAILED]: "项目必需检查失败，不能应用本次变更。",
   [ERROR_CODES.APPLY_CONFLICT]: "Agent 建立基线后项目文件已变化，未执行覆盖。",
@@ -406,6 +443,16 @@ export const UI_MESSAGES = Object.freeze({
       consent: (provider: string) =>
         `I understand selected context and allowed source may be sent to ${provider}; its data policy is my responsibility.`,
       connectionNotTested: "Connection not tested",
+      workspaceNotChecked: "Local workspace not checked",
+      checkingWorkspace: "Checking Git workspace and isolated execution…",
+      workspaceReady: "Local workspace is ready for isolated execution",
+      workspaceDirty: (staged: number, unstaged: number, untracked: number) =>
+        `Local changes found · ${String(staged)} staged · ${String(unstaged)} unstaged · ${String(untracked)} untracked`,
+      includeLocalChanges: "Allow the Agent to continue from my current local changes",
+      includeLocalChangesHelp:
+        "The Agent may edit these files. SpotPatch preserves the baseline and applies or reverts only the Agent delta.",
+      localChangesConsentRequired:
+        "Confirm inclusion of current local changes before running AI.",
       capabilityVerified: "Agent capability verified",
       capabilityVerifiedAnnouncement: "AI provider capability verified.",
       testingCapability: "Testing authentication, tools, continuation, and streaming…",
@@ -414,7 +461,7 @@ export const UI_MESSAGES = Object.freeze({
       reverting: "Reverting the applied Agent change.",
       consentRequired: "Confirm remote provider data transmission before running AI.",
       toolsReady: "tools and streaming ready",
-      testConnection: "Test connection",
+      testConnection: "Check environment",
       verifyAndRun: "Verify & run",
       verifying: "Verifying…",
       run: "Run AI",
@@ -547,6 +594,15 @@ export const UI_MESSAGES = Object.freeze({
       consent: (provider: string) =>
         `我了解选中上下文与获准源码可能发送到 ${provider}，并自行负责其数据策略。`,
       connectionNotTested: "尚未测试连接",
+      workspaceNotChecked: "尚未检查本地工作区",
+      checkingWorkspace: "正在检查 Git 工作区与隔离执行环境……",
+      workspaceReady: "本地工作区已满足隔离执行条件",
+      workspaceDirty: (staged: number, unstaged: number, untracked: number) =>
+        `发现本地修改 · 暂存 ${String(staged)} · 未暂存 ${String(unstaged)} · 未跟踪 ${String(untracked)}`,
+      includeLocalChanges: "允许 Agent 基于我当前的本地修改继续",
+      includeLocalChangesHelp:
+        "Agent 可能继续修改这些文件；SpotPatch 会保留原基线，仅应用或撤销 Agent 自己的增量。",
+      localChangesConsentRequired: "运行 AI 前，请确认允许纳入当前本地修改。",
       capabilityVerified: "Agent 能力验证通过",
       capabilityVerifiedAnnouncement: "AI 模型服务能力验证通过。",
       testingCapability: "正在验证鉴权、工具调用、连续调用与流式响应……",
@@ -555,7 +611,7 @@ export const UI_MESSAGES = Object.freeze({
       reverting: "正在撤销已应用的 Agent 变更。",
       consentRequired: "运行 AI 前，请先确认允许向远程模型服务传输数据。",
       toolsReady: "工具调用与流式响应已就绪",
-      testConnection: "测试连接",
+      testConnection: "检查运行环境",
       verifyAndRun: "验证并运行",
       verifying: "验证中……",
       run: "运行 AI",

@@ -116,10 +116,13 @@ spotPatch({
 });
 ```
 
-使用顺序是“选择一个或多个元素 → 为每个目标分别输入要求 → 确认远程传输 → Verify & run → 审阅完整
-Diff/检查 → Apply changes”，应用后可在文件未继续变化时安全 Revert。真实 Job
-要求业务 Git 工作区干净；能力探测未确认结构化工具调用、工具结果续传和流式协议时，
-SpotPatch 只保留本地 Prompt，不会从自然语言代码块自动改文件。
+使用顺序是“选择一个或多个元素 → 为每个目标分别输入要求 → 确认远程传输 → 检查运行环境 →
+Verify & run → 审阅完整 Diff/检查 → Apply changes”，应用后可在 Agent 触及文件未继续变化时安全
+Revert。工作区干净时可直接运行；存在 staged、unstaged 或有界普通 untracked 文件时，工作台会列出
+分类计数并要求一次明确的“纳入本地修改”同意。SpotPatch 把这些内容复制成隔离基线，不会自动
+stash、reset、commit 或改动暂存区；Apply/Revert 只处理 Agent 增量。冲突、进行中的 Git 操作、
+不支持的未跟踪项或超出安全快照上限时会显示具体阻断原因。能力探测未确认结构化工具调用、工具
+结果续传和流式协议时，SpotPatch 只保留本地 Prompt，不会从自然语言代码块自动改文件。
 
 ## 本地开发
 

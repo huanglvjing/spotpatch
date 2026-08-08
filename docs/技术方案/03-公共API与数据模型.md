@@ -2,9 +2,9 @@
 doc-id: "03-public-api-models"
 title: "公共 API 与数据模型"
 status: "active"
-version: "1.6.0"
+version: "1.7.0"
 last-updated: "2026-08-08"
-source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言；v1.4 约定式与简洁 AI 配置；v1.5 编辑器偏好与仓库标识；v1.6 实际编辑器响应"
+source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言；v1.4 约定式与简洁 AI 配置；v1.5 编辑器偏好与仓库标识；v1.6 实际编辑器响应；v1.7 本地工作区健康与纳入同意模型"
 参考文献/依赖:
   - "04-vite-plugin"
   - "08-code-prompt"
@@ -484,5 +484,37 @@ export interface AgentJobResult {
   readonly checks: readonly AgentCheckResult[];
 }
 ```
+
+### 本地工作区健康模型
+
+```ts
+export type AgentWorkingTreeMode = "require-clean" | "include-local-changes";
+
+export type AgentWorkspaceState = "ready" | "consent-required" | "blocked";
+
+export const AGENT_WORKSPACE_SNAPSHOT_LIMITS = Object.freeze({
+  maxUntrackedFiles: 1_000,
+  maxUntrackedBytes: 20 * 1024 * 1024,
+});
+
+export interface AgentWorkspaceChangeSummary {
+  readonly staged: number;
+  readonly unstaged: number;
+  readonly untracked: number;
+  readonly conflicted: number;
+  /** 去重后的本地变更文件数；同一文件同时 staged/unstaged 只计一次。 */
+  readonly total: number;
+}
+
+export interface AgentWorkspaceHealthSnapshot {
+  readonly state: AgentWorkspaceState;
+  readonly checkedAt: string;
+  readonly changes: AgentWorkspaceChangeSummary;
+  readonly canIncludeLocalChanges: boolean;
+  readonly errorCode?: ErrorCode;
+}
+```
+
+`require-clean` 是协议默认值和兼容旧客户端的安全回退；只有 Runtime 已取得 `consent-required` 健康快照并获得用户显式同意时，Job 请求才能发送 `include-local-changes`。`blocked` 不能被同意按钮覆盖。未跟踪快照只接受最多 1,000 个普通非符号链接文件且合计不超过 20 MiB；该固定安全上限由 `AGENT_WORKSPACE_SNAPSHOT_LIMITS` 唯一定义，不是用户可放宽配置。具体基线、Apply/Revert 语义由 Agent 执行规范唯一规定 (见 doc-id:16-ai-agent-execution)，endpoint 与稳定错误码由本地协议规定 (见 doc-id:09-local-protocol-security)。
 
 Job 的状态转换、工具循环和变更语义只由 Agent 执行规范定义 (见 doc-id:16-ai-agent-execution)；HTTP event 包络与稳定错误码只由本地协议定义 (见 doc-id:09-local-protocol-security)。

@@ -1,9 +1,11 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, open, rm } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import {
+  AGENT_WORKSPACE_SNAPSHOT_LIMITS,
   DEFAULT_AGENT_LIMITS,
   ERROR_CODES,
   type AgentJobResult,
@@ -11,6 +13,7 @@ import {
 
 import { createTestGitRepository } from "../test-utils/git-repository.js";
 import { applyAgentPatch, collectAgentChangeSet } from "./change-set.js";
+import { runGitCommand } from "./git-command.js";
 import { assertCleanGitBaseline, createIsolatedGitWorktree } from "./git-worktree.js";
 import {
   applyPreparedAgentChange,
@@ -18,6 +21,7 @@ import {
   createPreparedAgentChange,
   revertPreparedAgentChange,
 } from "./prepared-change.js";
+import { inspectAgentWorkspace } from "./workspace-health.js";
 
 const updatePatch = `diff --git a/src/App.tsx b/src/App.tsx
 --- a/src/App.tsx
@@ -39,6 +43,22 @@ new file mode 100644
 +++ b/src/new.ts
 @@ -0,0 +1 @@
 +export const created = true;
+`;
+
+const updateDirtyBaselinePatch = `diff --git a/src/App.tsx b/src/App.tsx
+--- a/src/App.tsx
++++ b/src/App.tsx
+@@ -1 +1 @@
+-export const App = () => <button>Local worktree</button>;
++export const App = () => <button>Agent result</button>;
+`;
+
+const updateUntrackedBaselinePatch = `diff --git a/src/local.ts b/src/local.ts
+--- a/src/local.ts
++++ b/src/local.ts
+@@ -1 +1 @@
+-export const localValue = "user draft";
++export const localValue = "agent result";
 `;
 
 describe("isolated Git changes", () => {
@@ -73,6 +93,10 @@ describe("isolated Git changes", () => {
       const prepared = createPreparedAgentChange({
         autoApplyEligible: false,
         baselineHead: worktree.baseline.head,
+        baselineHashes: await captureAgentFileHashes(
+          repository.root,
+          changeSet.touchedPaths,
+        ),
         expectedHashes: await captureAgentFileHashes(
           worktree.root,
           changeSet.touchedPaths,
@@ -116,6 +140,264 @@ describe("isolated Git changes", () => {
           signal: new AbortController().signal,
         }),
       ).rejects.toMatchObject({ code: ERROR_CODES.WORKTREE_DIRTY });
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
+  it("reports local changes and blocks an in-progress Git operation", async () => {
+    const repository = await createTestGitRepository();
+
+    try {
+      await repository.write(
+        "src/App.tsx",
+        "export const App = () => <button>Local</button>;\n",
+      );
+      await runGitCommand({
+        cwd: repository.root,
+        args: ["add", "--", "src/App.tsx"],
+      });
+      await repository.write(
+        "src/App.tsx",
+        "export const App = () => <button>Local worktree</button>;\n",
+      );
+      await repository.write("notes.txt", "local note\n");
+      const dirty = await inspectAgentWorkspace(repository.root);
+
+      expect(dirty).toMatchObject({
+        state: "consent-required",
+        canIncludeLocalChanges: true,
+        changes: {
+          staged: 1,
+          unstaged: 1,
+          untracked: 1,
+          conflicted: 0,
+          total: 2,
+        },
+      });
+
+      const head = (
+        await runGitCommand({
+          cwd: repository.root,
+          args: ["rev-parse", "--verify", "HEAD"],
+        })
+      ).trim();
+      await repository.write(".git/MERGE_HEAD", `${head}\n`);
+      await expect(inspectAgentWorkspace(repository.root)).resolves.toMatchObject({
+        state: "blocked",
+        canIncludeLocalChanges: false,
+        errorCode: ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS,
+      });
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
+  it("reports non-repository and oversized untracked workspace failures precisely", async () => {
+    const nonRepository = await mkdtemp(path.join(os.tmpdir(), "spotpatch-non-git-"));
+    const repository = await createTestGitRepository();
+
+    try {
+      await expect(inspectAgentWorkspace(nonRepository)).resolves.toMatchObject({
+        state: "blocked",
+        canIncludeLocalChanges: false,
+        errorCode: ERROR_CODES.WORKTREE_NOT_REPOSITORY,
+      });
+
+      const oversizedPath = path.join(repository.root, "oversized-local-draft.txt");
+      const oversized = await open(oversizedPath, "w");
+
+      try {
+        await oversized.truncate(AGENT_WORKSPACE_SNAPSHOT_LIMITS.maxUntrackedBytes + 1);
+      } finally {
+        await oversized.close();
+      }
+
+      await expect(inspectAgentWorkspace(repository.root)).resolves.toMatchObject({
+        state: "blocked",
+        canIncludeLocalChanges: false,
+        errorCode: ERROR_CODES.WORKTREE_LOCAL_CHANGES_TOO_LARGE,
+      });
+    } finally {
+      await rm(nonRepository, { recursive: true, force: true });
+      await repository.cleanup();
+    }
+  });
+
+  it("preserves staged, unstaged, and untracked user changes across Apply and Revert", async () => {
+    const repository = await createTestGitRepository();
+    const signal = new AbortController().signal;
+
+    try {
+      await repository.write(
+        "src/App.tsx",
+        "export const App = () => <button>Local staged</button>;\n",
+      );
+      await runGitCommand({
+        cwd: repository.root,
+        args: ["add", "--", "src/App.tsx"],
+      });
+      await repository.write(
+        "src/App.tsx",
+        "export const App = () => <button>Local worktree</button>;\n",
+      );
+      await repository.write("notes.txt", "keep this untracked note\n");
+      const statusBefore = await runGitCommand({
+        cwd: repository.root,
+        args: ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+      });
+      const indexBefore = await runGitCommand({
+        cwd: repository.root,
+        args: ["show", ":src/App.tsx"],
+      });
+      const worktree = await createIsolatedGitWorktree({
+        root: repository.root,
+        signal,
+        workingTreeMode: "include-local-changes",
+      });
+
+      try {
+        expect(await repository.read("src/App.tsx")).toContain("Local worktree");
+        expect(await repository.read("notes.txt")).toBe("keep this untracked note\n");
+        expect(
+          await runGitCommand({ cwd: worktree.root, args: ["status", "--short"] }),
+        ).toBe("");
+        const touched = await applyAgentPatch(
+          worktree.root,
+          updateDirtyBaselinePatch,
+          DEFAULT_AGENT_LIMITS,
+          signal,
+        );
+        const changeSet = await collectAgentChangeSet(
+          worktree.root,
+          new Set(touched),
+          DEFAULT_AGENT_LIMITS,
+          signal,
+        );
+        const prepared = createPreparedAgentChange({
+          autoApplyEligible: false,
+          baselineHead: worktree.baseline.head,
+          baselineHashes: await captureAgentFileHashes(
+            repository.root,
+            changeSet.touchedPaths,
+          ),
+          expectedHashes: await captureAgentFileHashes(
+            worktree.root,
+            changeSet.touchedPaths,
+          ),
+          result: {
+            jobId: "job-dirty-baseline",
+            summary: "dirty baseline test",
+            diff: changeSet.diff,
+            files: changeSet.files,
+            checks: [],
+          },
+          root: repository.root,
+          validationPassed: true,
+        });
+        await worktree.cleanup();
+
+        await applyPreparedAgentChange(prepared);
+        expect(await repository.read("src/App.tsx")).toContain("Agent result");
+        expect(
+          await runGitCommand({ cwd: repository.root, args: ["show", ":src/App.tsx"] }),
+        ).toBe(indexBefore);
+        expect(await repository.read("notes.txt")).toBe("keep this untracked note\n");
+
+        await revertPreparedAgentChange(prepared);
+        expect(await repository.read("src/App.tsx")).toContain("Local worktree");
+        expect(
+          await runGitCommand({ cwd: repository.root, args: ["show", ":src/App.tsx"] }),
+        ).toBe(indexBefore);
+        expect(
+          await runGitCommand({
+            cwd: repository.root,
+            args: ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+          }),
+        ).toBe(statusBefore);
+      } finally {
+        await worktree.cleanup();
+      }
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
+  it("modifies and reverts a user-created untracked source without staging or deleting it", async () => {
+    const repository = await createTestGitRepository();
+    const signal = new AbortController().signal;
+
+    try {
+      await repository.write(
+        "src/local.ts",
+        'export const localValue = "user draft";\n',
+      );
+      const statusBefore = await runGitCommand({
+        cwd: repository.root,
+        args: ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+      });
+      const worktree = await createIsolatedGitWorktree({
+        root: repository.root,
+        signal,
+        workingTreeMode: "include-local-changes",
+      });
+
+      try {
+        const touched = await applyAgentPatch(
+          worktree.root,
+          updateUntrackedBaselinePatch,
+          DEFAULT_AGENT_LIMITS,
+          signal,
+        );
+        const changeSet = await collectAgentChangeSet(
+          worktree.root,
+          new Set(touched),
+          DEFAULT_AGENT_LIMITS,
+          signal,
+        );
+        const prepared = createPreparedAgentChange({
+          autoApplyEligible: false,
+          baselineHead: worktree.baseline.head,
+          baselineHashes: await captureAgentFileHashes(
+            repository.root,
+            changeSet.touchedPaths,
+          ),
+          expectedHashes: await captureAgentFileHashes(
+            worktree.root,
+            changeSet.touchedPaths,
+          ),
+          result: {
+            jobId: "job-untracked-baseline",
+            summary: "untracked baseline test",
+            diff: changeSet.diff,
+            files: changeSet.files,
+            checks: [],
+          },
+          root: repository.root,
+          validationPassed: true,
+        });
+        await worktree.cleanup();
+
+        await applyPreparedAgentChange(prepared);
+        expect(await repository.read("src/local.ts")).toContain("agent result");
+        expect(
+          await runGitCommand({
+            cwd: repository.root,
+            args: ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+          }),
+        ).toBe(statusBefore);
+
+        await revertPreparedAgentChange(prepared);
+        expect(await repository.read("src/local.ts")).toContain("user draft");
+        expect(
+          await runGitCommand({
+            cwd: repository.root,
+            args: ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+          }),
+        ).toBe(statusBefore);
+      } finally {
+        await worktree.cleanup();
+      }
     } finally {
       await repository.cleanup();
     }
@@ -188,7 +470,7 @@ describe("isolated Git changes", () => {
     }
   });
 
-  it("refuses Apply after a concurrent source-worktree change", async () => {
+  it("allows unrelated concurrent edits while preserving them during Apply", async () => {
     const repository = await createTestGitRepository();
     const signal = new AbortController().signal;
     const worktree = await createIsolatedGitWorktree({
@@ -212,6 +494,10 @@ describe("isolated Git changes", () => {
       const prepared = createPreparedAgentChange({
         autoApplyEligible: false,
         baselineHead: worktree.baseline.head,
+        baselineHashes: await captureAgentFileHashes(
+          repository.root,
+          changeSet.touchedPaths,
+        ),
         expectedHashes: await captureAgentFileHashes(
           worktree.root,
           changeSet.touchedPaths,
@@ -229,10 +515,64 @@ describe("isolated Git changes", () => {
       await worktree.cleanup();
       await repository.write("README.md", "concurrent change\n");
 
+      await expect(applyPreparedAgentChange(prepared)).resolves.toBeUndefined();
+      expect(await repository.read("src/App.tsx")).toContain("After");
+      expect(await repository.read("README.md")).toBe("concurrent change\n");
+    } finally {
+      await worktree.cleanup();
+      await repository.cleanup();
+    }
+  });
+
+  it("refuses Apply when an Agent-touched file changed after baseline capture", async () => {
+    const repository = await createTestGitRepository();
+    const signal = new AbortController().signal;
+    const worktree = await createIsolatedGitWorktree({
+      root: repository.root,
+      signal,
+    });
+
+    try {
+      const touched = await applyAgentPatch(
+        worktree.root,
+        updatePatch,
+        DEFAULT_AGENT_LIMITS,
+        signal,
+      );
+      const changeSet = await collectAgentChangeSet(
+        worktree.root,
+        new Set(touched),
+        DEFAULT_AGENT_LIMITS,
+        signal,
+      );
+      const prepared = createPreparedAgentChange({
+        autoApplyEligible: false,
+        baselineHead: worktree.baseline.head,
+        baselineHashes: await captureAgentFileHashes(
+          repository.root,
+          changeSet.touchedPaths,
+        ),
+        expectedHashes: await captureAgentFileHashes(
+          worktree.root,
+          changeSet.touchedPaths,
+        ),
+        result: {
+          jobId: "job-touched-conflict",
+          summary: "touched conflict test",
+          diff: changeSet.diff,
+          files: changeSet.files,
+          checks: [],
+        },
+        root: repository.root,
+        validationPassed: true,
+      });
+      await worktree.cleanup();
+      await repository.write("src/App.tsx", "changed after baseline\n");
+
       await expect(applyPreparedAgentChange(prepared)).rejects.toMatchObject({
         code: ERROR_CODES.APPLY_CONFLICT,
       });
-      expect(await repository.read("src/App.tsx")).toContain("Before");
+      expect(await repository.read("src/App.tsx")).toBe("changed after baseline\n");
     } finally {
       await worktree.cleanup();
       await repository.cleanup();
@@ -263,6 +603,10 @@ describe("isolated Git changes", () => {
       const prepared = createPreparedAgentChange({
         autoApplyEligible: false,
         baselineHead: worktree.baseline.head,
+        baselineHashes: await captureAgentFileHashes(
+          repository.root,
+          changeSet.touchedPaths,
+        ),
         expectedHashes: await captureAgentFileHashes(
           worktree.root,
           changeSet.touchedPaths,

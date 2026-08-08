@@ -3,6 +3,7 @@ import type { ErrorCode } from "../errors/error-code.js";
 export type AiProviderProtocol = "responses" | "chat-completions";
 export type AiProviderAuthentication = "bearer" | "x-api-key";
 export type AgentApplyMode = "review" | "auto";
+export type AgentWorkingTreeMode = "require-clean" | "include-local-changes";
 
 export interface AiModelProfile {
   readonly label: string;
@@ -172,6 +173,35 @@ export interface AgentCapabilitySnapshot {
   readonly toolResultContinuation: boolean;
   readonly streaming: boolean;
   readonly checkedAt?: string;
+  readonly errorCode?: ErrorCode;
+}
+
+export const AGENT_WORKSPACE_STATES = Object.freeze([
+  "ready",
+  "consent-required",
+  "blocked",
+] as const);
+
+export const AGENT_WORKSPACE_SNAPSHOT_LIMITS = Object.freeze({
+  maxUntrackedFiles: 1_000,
+  maxUntrackedBytes: 20 * 1024 * 1024,
+});
+
+export type AgentWorkspaceState = (typeof AGENT_WORKSPACE_STATES)[number];
+
+export interface AgentWorkspaceChangeSummary {
+  readonly staged: number;
+  readonly unstaged: number;
+  readonly untracked: number;
+  readonly conflicted: number;
+  readonly total: number;
+}
+
+export interface AgentWorkspaceHealthSnapshot {
+  readonly state: AgentWorkspaceState;
+  readonly checkedAt: string;
+  readonly changes: AgentWorkspaceChangeSummary;
+  readonly canIncludeLocalChanges: boolean;
   readonly errorCode?: ErrorCode;
 }
 

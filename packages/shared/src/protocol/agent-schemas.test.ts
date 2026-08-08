@@ -4,6 +4,7 @@ import {
   agentJobEventSchema,
   agentJobResultResponseSchema,
   agentJobSnapshotSchema,
+  agentWorkspaceHealthSnapshotSchema,
 } from "./agent-schemas.js";
 
 const jobId = "0123456789abcdefghijklmn";
@@ -23,6 +24,54 @@ const snapshot = Object.freeze({
 });
 
 describe("Agent response schemas", () => {
+  it("accepts a bounded workspace health snapshot", () => {
+    expect(
+      agentWorkspaceHealthSnapshotSchema.safeParse({
+        state: "consent-required",
+        checkedAt: "2026-08-08T00:00:00.000Z",
+        changes: {
+          staged: 1,
+          unstaged: 1,
+          untracked: 1,
+          conflicted: 0,
+          total: 2,
+        },
+        canIncludeLocalChanges: true,
+      }).success,
+    ).toBe(true);
+  });
+
+  it("rejects inconsistent workspace health states and counts", () => {
+    expect(
+      agentWorkspaceHealthSnapshotSchema.safeParse({
+        state: "ready",
+        checkedAt: "2026-08-08T00:00:00.000Z",
+        changes: {
+          staged: 1,
+          unstaged: 0,
+          untracked: 0,
+          conflicted: 0,
+          total: 0,
+        },
+        canIncludeLocalChanges: true,
+      }).success,
+    ).toBe(false);
+    expect(
+      agentWorkspaceHealthSnapshotSchema.safeParse({
+        state: "blocked",
+        checkedAt: "2026-08-08T00:00:00.000Z",
+        changes: {
+          staged: 0,
+          unstaged: 0,
+          untracked: 0,
+          conflicted: 0,
+          total: 0,
+        },
+        canIncludeLocalChanges: false,
+      }).success,
+    ).toBe(false);
+  });
+
   it("accepts a bounded, correlated snapshot event and result", () => {
     expect(agentJobSnapshotSchema.safeParse(snapshot).success).toBe(true);
     expect(

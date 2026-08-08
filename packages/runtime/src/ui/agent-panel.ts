@@ -2,6 +2,7 @@ import type {
   AgentCapabilitySnapshot,
   AgentJobResult,
   AgentJobSnapshot,
+  AgentWorkspaceHealthSnapshot,
   ErrorCode,
   RuntimeAiConfig,
   RuntimeAiProviderProfile,
@@ -25,6 +26,7 @@ export interface AgentPanel {
   readonly applyButton: HTMLButtonElement;
   readonly cancelButton: HTMLButtonElement;
   readonly consentCheckbox: HTMLInputElement;
+  readonly workspaceConsentCheckbox: HTMLInputElement;
   readonly modelSelect: HTMLSelectElement;
   readonly providerSelect: HTMLSelectElement;
   readonly resetButton: HTMLButtonElement;
@@ -33,6 +35,7 @@ export interface AgentPanel {
   readonly runButton: HTMLButtonElement;
   readonly testButton: HTMLButtonElement;
   readonly consentGranted: () => boolean;
+  readonly workspaceConsentGranted: () => boolean;
   readonly dispose: () => void;
   readonly readSelection: () => AgentSelectionValue | undefined;
   readonly renderCapability: (
@@ -45,6 +48,11 @@ export interface AgentPanel {
     snapshot: AgentJobSnapshot,
     result: AgentJobResult | undefined,
     activities: readonly AgentActivityItem[],
+    errorCode?: ErrorCode,
+  ) => void;
+  readonly renderWorkspaceHealth: (
+    state: "idle" | "checking" | "ready" | "consent-required" | "blocked",
+    snapshot?: AgentWorkspaceHealthSnapshot,
     errorCode?: ErrorCode,
   ) => void;
   readonly resetJob: () => void;
@@ -90,15 +98,65 @@ export const AGENT_PANEL_STYLES = `
     min-height: 46px;
     margin-top: 7px;
     border: 1px solid var(--spotpatch-border);
-    border-radius: 10px;
-    padding: 8px 30px 8px 10px;
+    border-radius: 12px;
+    padding: 10px 38px 10px 13px;
     color: #e8ebf2;
     color-scheme: dark;
-    background: var(--spotpatch-bg-raised);
+    background: linear-gradient(180deg, rgb(255 255 255 / 4%), rgb(255 255 255 / 2%));
     font-size: 15px;
+    font-weight: 560;
+    line-height: 1.35;
     outline: none;
+    transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
   }
-  .spotpatch-agent select option { color: #e8ebf2; background: #10151e; }
+  .spotpatch-agent select:hover { border-color: rgb(148 163 184 / 38%); background-color: rgb(255 255 255 / 5%); }
+  .spotpatch-agent select:focus-visible { border-color: rgb(139 124 247 / 76%); box-shadow: 0 0 0 3px rgb(109 93 246 / 18%); }
+  .spotpatch-agent select option { min-height: 42px; color: #e8ebf2; background: #10151e; }
+  @supports (appearance: base-select) {
+    .spotpatch-agent select,
+    ::picker(select) { appearance: base-select; }
+    .spotpatch-agent select { padding: 10px 13px; }
+    .spotpatch-agent select::picker-icon {
+      color: #9da6b5;
+      transition: rotate 180ms cubic-bezier(.2, .8, .2, 1), color 160ms ease;
+    }
+    .spotpatch-agent select:open::picker-icon { rotate: 180deg; color: #c4b5fd; }
+    .spotpatch-agent select::picker(select) {
+      top: calc(anchor(bottom) + 7px);
+      left: anchor(left);
+      width: anchor-size(width);
+      max-height: min(280px, 40vh);
+      margin: 0;
+      overflow: hidden;
+      border: 1px solid rgb(139 124 247 / 28%);
+      border-radius: 12px;
+      padding: 6px;
+      color: #e8ebf2;
+      background: #10151e;
+      box-shadow: 0 18px 50px rgb(0 0 0 / 38%), 0 0 0 1px rgb(255 255 255 / 3%);
+      opacity: 0;
+      transform: translateY(-5px) scale(.985);
+      transform-origin: top center;
+      transition: opacity 150ms ease, transform 180ms cubic-bezier(.2, .8, .2, 1), overlay 180ms allow-discrete, display 180ms allow-discrete;
+    }
+    ::picker(select):popover-open { opacity: 1; transform: translateY(0) scale(1); }
+    @starting-style {
+      ::picker(select):popover-open { opacity: 0; transform: translateY(-5px) scale(.985); }
+    }
+    .spotpatch-agent select option {
+      min-height: 42px;
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #dfe4ee;
+      background: transparent;
+      cursor: pointer;
+      transition: color 120ms ease, background-color 120ms ease;
+    }
+    .spotpatch-agent select option:hover,
+    .spotpatch-agent select option:focus { color: #fff; background: rgb(109 93 246 / 16%); }
+    .spotpatch-agent select option:checked { color: #fff; background: rgb(109 93 246 / 24%); }
+    .spotpatch-agent select option::checkmark { color: #8b7cf7; }
+  }
   .spotpatch-agent select:focus-visible,
   .spotpatch-consent input:focus-visible {
     outline: 2px solid #8b7cf7;
@@ -115,11 +173,22 @@ export const AGENT_PANEL_STYLES = `
     line-height: 1.6;
   }
   .spotpatch-consent input { width: 16px; height: 16px; flex: none; margin: 3px 0 0; accent-color: var(--spotpatch-accent); }
+  .spotpatch-workspace-consent {
+    margin-top: 12px;
+    border: 1px solid rgb(251 191 36 / 18%);
+    border-radius: 10px;
+    padding: 11px 12px;
+    background: rgb(120 53 15 / 9%);
+  }
+  .spotpatch-workspace-consent strong { display: block; color: #fde68a; font-size: 13px; font-weight: 620; }
+  .spotpatch-workspace-consent small { display: block; margin-top: 2px; color: #aeb6c4; font-size: 12px; line-height: 1.5; }
+  .spotpatch-agent-health-list { display: grid; gap: 8px; margin-top: 14px; }
+  .spotpatch-agent-workspace,
   .spotpatch-agent-capability {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 14px 0 0;
+    margin: 0;
     color: #929bab;
     font-size: 13px;
   }
@@ -136,6 +205,21 @@ export const AGENT_PANEL_STYLES = `
   .spotpatch-agent-capability[data-state="ready"]::before { background: var(--spotpatch-success); }
   .spotpatch-agent-capability[data-state="error"] { color: #fecaca; }
   .spotpatch-agent-capability[data-state="error"]::before { background: var(--spotpatch-danger); }
+  .spotpatch-agent-workspace::before {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 999px;
+    background: #64748b;
+    content: "";
+  }
+  .spotpatch-agent-workspace[data-state="checking"]::before { background: var(--spotpatch-warning); }
+  .spotpatch-agent-workspace[data-state="ready"] { color: #a7f3d0; }
+  .spotpatch-agent-workspace[data-state="ready"]::before { background: var(--spotpatch-success); }
+  .spotpatch-agent-workspace[data-state="consent-required"] { color: #fde68a; }
+  .spotpatch-agent-workspace[data-state="consent-required"]::before { background: #fbbf24; }
+  .spotpatch-agent-workspace[data-state="blocked"] { color: #fecaca; }
+  .spotpatch-agent-workspace[data-state="blocked"]::before { background: var(--spotpatch-danger); }
   .spotpatch-agent-job { padding: 16px; }
   .spotpatch-agent-job-meta { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .spotpatch-agent-model { min-width: 0; overflow: hidden; color: #d6dafe; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
@@ -236,10 +320,26 @@ export function createAgentPanel(
   consentCheckbox.type = "checkbox";
   const consentText = createMarkedElement(document, "span");
   consent.append(consentCheckbox, consentText);
+  const workspaceConsent = createMarkedElement(document, "label");
+  workspaceConsent.className = "spotpatch-consent spotpatch-workspace-consent";
+  workspaceConsent.hidden = true;
+  const workspaceConsentCheckbox = createMarkedElement(document, "input");
+  workspaceConsentCheckbox.type = "checkbox";
+  const workspaceConsentContent = createMarkedElement(document, "span");
+  const workspaceConsentTitle = createMarkedElement(document, "strong");
+  const workspaceConsentHelp = createMarkedElement(document, "small");
+  workspaceConsentContent.append(workspaceConsentTitle, workspaceConsentHelp);
+  workspaceConsent.append(workspaceConsentCheckbox, workspaceConsentContent);
+  const healthList = createMarkedElement(document, "div");
+  healthList.className = "spotpatch-agent-health-list";
+  const workspace = createMarkedElement(document, "p");
+  workspace.className = "spotpatch-agent-workspace";
+  workspace.dataset.state = "idle";
   const capability = createMarkedElement(document, "p");
   capability.className = "spotpatch-agent-capability";
   capability.dataset.state = "idle";
-  setup.append(selectors, consent, capability);
+  healthList.append(workspace, capability);
+  setup.append(selectors, consent, workspaceConsent, healthList);
 
   const job = createMarkedElement(document, "div");
   job.className = "spotpatch-agent-job";
@@ -301,6 +401,10 @@ export function createAgentPanel(
   let latestCapabilityState: "idle" | "probing" | "ready" | "error" = "idle";
   let latestCapabilityMessage = messages.agent.connectionNotTested;
   let latestCapabilityErrorCode: ErrorCode | undefined;
+  let latestWorkspaceState:
+    "idle" | "checking" | "ready" | "consent-required" | "blocked" = "idle";
+  let latestWorkspaceSnapshot: AgentWorkspaceHealthSnapshot | undefined;
+  let latestWorkspaceErrorCode: ErrorCode | undefined;
 
   for (const provider of providers) {
     addOption(document, providerSelect, provider.id, provider.label);
@@ -347,6 +451,11 @@ export function createAgentPanel(
       capabilityProbing ||
       !contextReady ||
       !consentCheckbox.checked ||
+      latestWorkspaceState === "idle" ||
+      latestWorkspaceState === "checking" ||
+      latestWorkspaceState === "blocked" ||
+      (latestWorkspaceState === "consent-required" &&
+        !workspaceConsentCheckbox.checked) ||
       selectedProvider() === undefined ||
       modelSelect.value.length === 0;
 
@@ -355,6 +464,28 @@ export function createAgentPanel(
       applyButton.hidden = true;
       revertButton.hidden = true;
       resetButton.hidden = true;
+    }
+  };
+
+  const renderWorkspaceMessage = (): void => {
+    if (latestWorkspaceState === "idle") {
+      workspace.textContent = messages.agent.workspaceNotChecked;
+    } else if (latestWorkspaceState === "checking") {
+      workspace.textContent = messages.agent.checkingWorkspace;
+    } else if (latestWorkspaceState === "ready") {
+      workspace.textContent = messages.agent.workspaceReady;
+    } else if (latestWorkspaceState === "consent-required") {
+      const changes = latestWorkspaceSnapshot?.changes;
+      workspace.textContent = messages.agent.workspaceDirty(
+        changes?.staged ?? 0,
+        changes?.unstaged ?? 0,
+        changes?.untracked ?? 0,
+      );
+    } else {
+      workspace.textContent =
+        latestWorkspaceErrorCode === undefined
+          ? messages.errors.INTERNAL_ERROR
+          : messages.errors[latestWorkspaceErrorCode];
     }
   };
 
@@ -382,6 +513,7 @@ export function createAgentPanel(
   providerSelect.addEventListener("change", handleProviderChange);
   modelSelect.addEventListener("change", handleModelChange);
   consentCheckbox.addEventListener("change", refreshActions);
+  workspaceConsentCheckbox.addEventListener("change", refreshActions);
   function renderCurrentJob(): void {
     if (latestSnapshot === undefined) {
       return;
@@ -452,6 +584,8 @@ export function createAgentPanel(
     modelText.textContent = messages.agent.model;
     providerSelect.setAttribute("aria-label", messages.agent.providerAriaLabel);
     modelSelect.setAttribute("aria-label", messages.agent.modelAriaLabel);
+    workspaceConsentTitle.textContent = messages.agent.includeLocalChanges;
+    workspaceConsentHelp.textContent = messages.agent.includeLocalChangesHelp;
     diff.setAttribute("aria-label", messages.agent.diffAriaLabel);
     testButton.textContent = messages.agent.testConnection;
     applyButton.textContent = messages.agent.apply;
@@ -477,6 +611,7 @@ export function createAgentPanel(
       capability.textContent = latestCapabilityMessage;
     }
 
+    renderWorkspaceMessage();
     refreshActions();
     renderCurrentJob();
   }
@@ -489,6 +624,7 @@ export function createAgentPanel(
     providerSelect,
     modelSelect,
     consentCheckbox,
+    workspaceConsentCheckbox,
     testButton,
     runButton,
     cancelButton,
@@ -498,6 +634,10 @@ export function createAgentPanel(
 
     consentGranted(): boolean {
       return consentCheckbox.checked;
+    },
+
+    workspaceConsentGranted(): boolean {
+      return workspaceConsentCheckbox.checked;
     },
 
     readSelection(): AgentSelectionValue | undefined {
@@ -534,6 +674,27 @@ export function createAgentPanel(
       refreshActions();
     },
 
+    renderWorkspaceHealth(
+      state: "idle" | "checking" | "ready" | "consent-required" | "blocked",
+      snapshot?: AgentWorkspaceHealthSnapshot,
+      errorCode?: ErrorCode,
+    ) {
+      latestWorkspaceState = state;
+      latestWorkspaceSnapshot = snapshot;
+      latestWorkspaceErrorCode = errorCode ?? snapshot?.errorCode;
+      workspace.dataset.state = state;
+      if (state !== "checking") {
+        workspaceConsent.hidden = state !== "consent-required";
+      }
+
+      if (state === "idle" || state === "ready" || state === "blocked") {
+        workspaceConsentCheckbox.checked = false;
+      }
+
+      renderWorkspaceMessage();
+      refreshActions();
+    },
+
     renderJob(
       snapshot: AgentJobSnapshot,
       result: AgentJobResult | undefined,
@@ -546,6 +707,7 @@ export function createAgentPanel(
       providerSelect.disabled = true;
       modelSelect.disabled = true;
       consentCheckbox.disabled = true;
+      workspaceConsentCheckbox.disabled = true;
       latestSnapshot = snapshot;
       latestResult = result;
       latestActivities = activities;
@@ -564,6 +726,7 @@ export function createAgentPanel(
       providerSelect.disabled = false;
       modelSelect.disabled = false;
       consentCheckbox.disabled = false;
+      workspaceConsentCheckbox.disabled = false;
       activity.replaceChildren();
       files.replaceChildren();
       checks.replaceChildren();
@@ -583,6 +746,7 @@ export function createAgentPanel(
       providerSelect.disabled = !enabled || jobPresented;
       modelSelect.disabled = !enabled || jobPresented;
       consentCheckbox.disabled = !enabled || jobPresented;
+      workspaceConsentCheckbox.disabled = !enabled || jobPresented;
       refreshActions();
     },
 
@@ -608,6 +772,7 @@ export function createAgentPanel(
       providerSelect.removeEventListener("change", handleProviderChange);
       modelSelect.removeEventListener("change", handleModelChange);
       consentCheckbox.removeEventListener("change", refreshActions);
+      workspaceConsentCheckbox.removeEventListener("change", refreshActions);
     },
   });
 }

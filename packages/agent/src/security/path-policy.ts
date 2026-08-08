@@ -29,7 +29,7 @@ const PROTECTED_FILE_NAMES = new Set([
 ]);
 
 function deny(): never {
-  throw new SpotPatchError(ERROR_CODES.TOOL_DENIED);
+  throw new SpotPatchError(ERROR_CODES.TOOL_PATH_DENIED);
 }
 
 function hasControlCharacter(value: string): boolean {

@@ -4,6 +4,7 @@ import {
   type AgentJobEvent,
   type AgentJobResult,
   type AgentJobSnapshot,
+  type AgentWorkspaceHealthSnapshot,
   type RuntimeAiConfig,
   type SpotAnnotation,
 } from "@spotpatch/shared";
@@ -90,6 +91,29 @@ export function createAgentWorkflow(
   let actionPending = false;
 
   const selectedProfiles = () => options.view.readAgentSelection();
+
+  const refreshWorkspaceHealth = async (
+    workflowRevision: number,
+  ): Promise<AgentWorkspaceHealthSnapshot> => {
+    options.view.renderAgentWorkspaceHealth("checking");
+
+    try {
+      const health = await options.api.agentWorkspaceHealth();
+
+      if (workflowRevision !== revision) {
+        return health;
+      }
+
+      options.view.renderAgentWorkspaceHealth(health.state, health, health.errorCode);
+      return health;
+    } catch (error: unknown) {
+      if (workflowRevision === revision) {
+        options.view.renderAgentWorkspaceHealth("blocked", undefined, errorCode(error));
+      }
+
+      throw error;
+    }
+  };
 
   const renderJob = (explicitErrorCode?: ReturnType<typeof errorCode>): void => {
     if (snapshot === undefined) {
@@ -322,6 +346,11 @@ export function createAgentWorkflow(
 
     beginSelection(): void {
       resetState();
+      const workflowRevision = revision;
+
+      if (options.ai.enabled) {
+        void refreshWorkspaceHealth(workflowRevision).catch(() => undefined);
+      }
     },
 
     cancel(): void {
@@ -364,6 +393,8 @@ export function createAgentWorkflow(
     providerOrModelChanged(): void {
       revision += 1;
       restoreProviderState();
+      const workflowRevision = revision;
+      void refreshWorkspaceHealth(workflowRevision).catch(() => undefined);
     },
 
     reset(): void {
@@ -372,6 +403,9 @@ export function createAgentWorkflow(
 
       if (mustReselect) {
         options.onReselectRequired();
+      } else if (options.ai.enabled) {
+        const workflowRevision = revision;
+        void refreshWorkspaceHealth(workflowRevision).catch(() => undefined);
       }
     },
 
@@ -405,10 +439,26 @@ export function createAgentWorkflow(
       const workflowRevision = ++revision;
       options.view.setAgentEditingEnabled(false);
 
-      void probe(workflowRevision)
-        .then(async () => {
+      void Promise.all([
+        probe(workflowRevision),
+        refreshWorkspaceHealth(workflowRevision),
+      ])
+        .then(async ([, health]) => {
           if (workflowRevision !== revision) {
             return;
+          }
+
+          if (health.state === "blocked") {
+            throw new RuntimeApiError(
+              health.errorCode ?? ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED,
+            );
+          }
+
+          if (
+            health.state === "consent-required" &&
+            !options.view.agentWorkspaceConsentGranted()
+          ) {
+            throw new RuntimeApiError(ERROR_CODES.WORKTREE_DIRTY);
           }
 
           const created = await options.api.createAgentJob({
@@ -416,6 +466,10 @@ export function createAgentWorkflow(
             providerProfileId: selection.providerProfileId,
             modelProfileId: selection.modelProfileId,
             providerDataConsent: true,
+            workingTreeMode:
+              health.state === "consent-required"
+                ? "include-local-changes"
+                : "require-clean",
           });
 
           if (workflowRevision !== revision) {
@@ -450,7 +504,10 @@ export function createAgentWorkflow(
       }
 
       const workflowRevision = ++revision;
-      void probe(workflowRevision).catch((error: unknown) => {
+      void Promise.all([
+        probe(workflowRevision),
+        refreshWorkspaceHealth(workflowRevision),
+      ]).catch((error: unknown) => {
         if (workflowRevision === revision) {
           options.view.renderAgentCapability(
             "error",

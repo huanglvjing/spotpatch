@@ -21,7 +21,7 @@ function compileGlob(glob: string): RegExp {
     ["[", "]", "{", "}", "(", ")", "!"].some((character) => glob.includes(character)) ||
     glob.split("/").some((segment) => segment === "..")
   ) {
-    throw new SpotPatchError(ERROR_CODES.TOOL_DENIED);
+    throw new SpotPatchError(ERROR_CODES.TOOL_INPUT_INVALID);
   }
 
   let expression = "^";

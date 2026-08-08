@@ -122,11 +122,16 @@ export const agentCapabilityRequestSchema = z.strictObject({
   modelProfileId: profileIdSchema,
 });
 
+export const agentWorkspaceHealthRequestSchema = z.strictObject({});
+
 export const agentJobCreateRequestSchema = z.strictObject({
   annotation: spotAnnotationRequestSchema,
   providerProfileId: profileIdSchema,
   modelProfileId: profileIdSchema,
   providerDataConsent: z.literal(true),
+  workingTreeMode: z
+    .enum(["require-clean", "include-local-changes"])
+    .default("require-clean"),
 });
 
 export const agentJobActionRequestSchema = z.strictObject({});
@@ -139,4 +144,5 @@ export interface AgentJobCreateRequest {
   readonly providerProfileId: string;
   readonly modelProfileId: string;
   readonly providerDataConsent: true;
+  readonly workingTreeMode: "require-clean" | "include-local-changes";
 }

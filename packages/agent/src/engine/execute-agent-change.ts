@@ -55,6 +55,7 @@ export interface ExecuteAgentChangeOptions {
   readonly root: string;
   readonly signal: AbortSignal;
   readonly temporaryBase?: string;
+  readonly workingTreeMode?: "require-clean" | "include-local-changes";
 }
 
 function isRetryableToolFailure(result: ProviderToolResult): boolean {
@@ -117,6 +118,7 @@ export async function executeAgentChange(
     worktree = await createIsolatedGitWorktree({
       root: options.root,
       signal: controller.signal,
+      workingTreeMode: options.workingTreeMode ?? "require-clean",
       ...(options.temporaryBase === undefined
         ? {}
         : { temporaryBase: options.temporaryBase }),
@@ -267,10 +269,15 @@ export async function executeAgentChange(
       worktree.root,
       initialChangeSet.touchedPaths,
     );
+    const baselineHashes = await captureAgentFileHashes(
+      worktree.baseline.root,
+      initialChangeSet.touchedPaths,
+    );
 
     return createPreparedAgentChange({
       autoApplyEligible,
       baselineHead: worktree.baseline.head,
+      baselineHashes,
       expectedHashes,
       result,
       root: worktree.baseline.root,

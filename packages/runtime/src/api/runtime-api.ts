@@ -8,6 +8,7 @@ import {
   type AgentJobEvent,
   type AgentJobResultResponse,
   type AgentJobSnapshot,
+  type AgentWorkspaceHealthSnapshot,
   type ApiResponse,
   type CodeContext,
   type EditorOpenResult,
@@ -23,6 +24,7 @@ import {
   isAgentJobEvent,
   isAgentJobResultResponse,
   isAgentJobSnapshot,
+  isAgentWorkspaceHealthSnapshot,
 } from "./agent-response-validation.js";
 
 const MAX_JSON_RESPONSE_BYTES = 2_000_000;
@@ -48,6 +50,7 @@ export interface RuntimeApi {
     onEvent: (event: AgentJobEvent) => void,
   ) => Promise<void>;
   readonly agentResult: (jobId: string) => Promise<AgentJobResultResponse>;
+  readonly agentWorkspaceHealth: () => Promise<AgentWorkspaceHealthSnapshot>;
   readonly applyAgentJob: (jobId: string) => Promise<AgentJobSnapshot>;
   readonly cancelAgentJob: (jobId: string) => Promise<AgentJobSnapshot>;
   readonly cancelPending: () => void;
@@ -434,6 +437,20 @@ export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {
         await requestJson(SPOTPATCH_ENDPOINTS.agentCapability, "POST", request),
         request,
       );
+    },
+
+    async agentWorkspaceHealth(): Promise<AgentWorkspaceHealthSnapshot> {
+      const data = await requestJson(
+        SPOTPATCH_ENDPOINTS.agentWorkspaceHealth,
+        "POST",
+        emptyAction,
+      );
+
+      if (!isAgentWorkspaceHealthSnapshot(data)) {
+        throw new RuntimeApiError();
+      }
+
+      return deepFreeze(data);
     },
 
     async createAgentJob(request: AgentJobCreateRequest): Promise<AgentJobSnapshot> {

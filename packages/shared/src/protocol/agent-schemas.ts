@@ -6,6 +6,7 @@ import {
   AGENT_CHECK_STATUSES,
   AGENT_FILE_CHANGE_KINDS,
   AGENT_JOB_STATUSES,
+  AGENT_WORKSPACE_STATES,
 } from "../model/agent.js";
 
 const profileIdSchema = z
@@ -31,6 +32,53 @@ export const agentCapabilitySnapshotSchema = z.strictObject({
   checkedAt: z.iso.datetime().optional(),
   errorCode: errorCodeSchema.optional(),
 });
+
+export const agentWorkspaceHealthSnapshotSchema = z
+  .strictObject({
+    state: z.enum(AGENT_WORKSPACE_STATES),
+    checkedAt: z.iso.datetime(),
+    changes: z.strictObject({
+      staged: z.number().int().nonnegative(),
+      unstaged: z.number().int().nonnegative(),
+      untracked: z.number().int().nonnegative(),
+      conflicted: z.number().int().nonnegative(),
+      total: z.number().int().nonnegative(),
+    }),
+    canIncludeLocalChanges: z.boolean(),
+    errorCode: errorCodeSchema.optional(),
+  })
+  .refine(
+    ({ state, changes, canIncludeLocalChanges, errorCode }) => {
+      const countsAreConsistent =
+        changes.total >= changes.staged &&
+        changes.total >= changes.unstaged &&
+        changes.total >= changes.untracked &&
+        changes.total >= changes.conflicted &&
+        changes.total <= changes.staged + changes.unstaged + changes.untracked;
+
+      if (!countsAreConsistent) {
+        return false;
+      }
+
+      if (state === "ready") {
+        return (
+          changes.total === 0 && !canIncludeLocalChanges && errorCode === undefined
+        );
+      }
+
+      if (state === "consent-required") {
+        return (
+          changes.total > 0 &&
+          changes.conflicted === 0 &&
+          canIncludeLocalChanges &&
+          errorCode === undefined
+        );
+      }
+
+      return !canIncludeLocalChanges && errorCode !== undefined;
+    },
+    { message: "Agent workspace health fields are inconsistent." },
+  );
 
 export const agentChangedFileSchema = z.strictObject({
   relativePath: boundedString(1_024),

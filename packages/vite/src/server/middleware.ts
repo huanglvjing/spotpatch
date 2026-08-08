@@ -65,7 +65,15 @@ const STATUS_BY_ERROR = Object.freeze({
   [ERROR_CODES.AGENT_LIMIT_EXCEEDED]: 413,
   [ERROR_CODES.AGENT_CANCELLED]: 409,
   [ERROR_CODES.WORKTREE_DIRTY]: 409,
+  [ERROR_CODES.WORKTREE_NOT_REPOSITORY]: 409,
+  [ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS]: 409,
+  [ERROR_CODES.WORKTREE_CONFLICTED]: 409,
+  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_TOO_LARGE]: 413,
+  [ERROR_CODES.WORKTREE_UNTRACKED_UNSUPPORTED]: 409,
+  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]: 409,
   [ERROR_CODES.TOOL_DENIED]: 403,
+  [ERROR_CODES.TOOL_INPUT_INVALID]: 422,
+  [ERROR_CODES.TOOL_PATH_DENIED]: 403,
   [ERROR_CODES.PATCH_REJECTED]: 422,
   [ERROR_CODES.VALIDATION_FAILED]: 422,
   [ERROR_CODES.APPLY_CONFLICT]: 409,
@@ -92,8 +100,21 @@ const PUBLIC_MESSAGES = Object.freeze({
   [ERROR_CODES.AGENT_BUSY]: "Another Agent job is already running.",
   [ERROR_CODES.AGENT_LIMIT_EXCEEDED]: "The Agent job exceeded a safety limit.",
   [ERROR_CODES.AGENT_CANCELLED]: "The Agent job was cancelled.",
-  [ERROR_CODES.WORKTREE_DIRTY]: "The project worktree must be clean.",
+  [ERROR_CODES.WORKTREE_DIRTY]: "Local changes require explicit inclusion consent.",
+  [ERROR_CODES.WORKTREE_NOT_REPOSITORY]: "The project root is not a Git repository.",
+  [ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS]:
+    "A Git operation is currently in progress.",
+  [ERROR_CODES.WORKTREE_CONFLICTED]:
+    "The local workspace contains unresolved merge conflicts.",
+  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_TOO_LARGE]:
+    "The local workspace exceeds the safe isolation size limit.",
+  [ERROR_CODES.WORKTREE_UNTRACKED_UNSUPPORTED]:
+    "An untracked path cannot be isolated safely.",
+  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]:
+    "The local workspace state cannot be isolated safely.",
   [ERROR_CODES.TOOL_DENIED]: "The Agent tool request was denied.",
+  [ERROR_CODES.TOOL_INPUT_INVALID]: "The Agent tool input was invalid.",
+  [ERROR_CODES.TOOL_PATH_DENIED]: "The Agent tool path was denied.",
   [ERROR_CODES.PATCH_REJECTED]: "The proposed patch was rejected.",
   [ERROR_CODES.VALIDATION_FAILED]: "The proposed change failed validation.",
   [ERROR_CODES.APPLY_CONFLICT]: "The change conflicts with the current worktree.",

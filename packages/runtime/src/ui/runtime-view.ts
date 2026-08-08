@@ -2,6 +2,7 @@ import type {
   AgentCapabilitySnapshot,
   AgentJobResult,
   AgentJobSnapshot,
+  AgentWorkspaceHealthSnapshot,
   ErrorCode,
   RuntimeAiConfig,
   SpotPatchLocale,
@@ -59,6 +60,7 @@ export interface RuntimeView {
   readonly agentRevertButton: HTMLButtonElement;
   readonly agentRunButton: HTMLButtonElement;
   readonly agentTestButton: HTMLButtonElement;
+  readonly agentWorkspaceConsentCheckbox: HTMLInputElement;
   readonly backButton: HTMLButtonElement;
   readonly closeButton: HTMLButtonElement;
   readonly copyButton: HTMLButtonElement;
@@ -78,6 +80,7 @@ export interface RuntimeView {
   readonly hideSelection: () => void;
   readonly hideSelectionTemporarily: () => void;
   readonly agentConsentGranted: () => boolean;
+  readonly agentWorkspaceConsentGranted: () => boolean;
   readonly readAgentSelection: () => AgentSelectionValue | undefined;
   readonly locale: () => SpotPatchLocale;
   readonly messages: () => UiMessages;
@@ -92,6 +95,11 @@ export interface RuntimeView {
     snapshot: AgentJobSnapshot,
     result: AgentJobResult | undefined,
     activities: readonly AgentActivityItem[],
+    errorCode?: ErrorCode,
+  ) => void;
+  readonly renderAgentWorkspaceHealth: (
+    state: "idle" | "checking" | "ready" | "consent-required" | "blocked",
+    snapshot?: AgentWorkspaceHealthSnapshot,
     errorCode?: ErrorCode,
   ) => void;
   readonly renderStatus: (status: RuntimeStatus) => void;
@@ -1387,6 +1395,7 @@ export function createRuntimeView(
     agentProviderSelect: agentPanel.providerSelect,
     agentModelSelect: agentPanel.modelSelect,
     agentConsentCheckbox: agentPanel.consentCheckbox,
+    agentWorkspaceConsentCheckbox: agentPanel.workspaceConsentCheckbox,
     agentTestButton: agentPanel.testButton,
     agentRunButton: agentPanel.runButton,
     agentCancelButton: agentPanel.cancelButton,
@@ -1532,6 +1541,15 @@ export function createRuntimeView(
       placeDialog();
     },
 
+    renderAgentWorkspaceHealth(
+      state: "idle" | "checking" | "ready" | "consent-required" | "blocked",
+      snapshot?: AgentWorkspaceHealthSnapshot,
+      errorCode?: ErrorCode,
+    ): void {
+      agentPanel.renderWorkspaceHealth(state, snapshot, errorCode);
+      placeDialog();
+    },
+
     renderAgentJob(
       snapshot: AgentJobSnapshot,
       result: AgentJobResult | undefined,
@@ -1563,6 +1581,8 @@ export function createRuntimeView(
     locale: localizer.locale,
 
     messages: localizer.messages,
+
+    agentWorkspaceConsentGranted: agentPanel.workspaceConsentGranted,
 
     subscribeLocale: localizer.subscribe,
 

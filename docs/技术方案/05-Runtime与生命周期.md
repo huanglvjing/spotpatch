@@ -2,9 +2,9 @@
 doc-id: "05-runtime-lifecycle"
 title: "Runtime 与生命周期"
 status: "active"
-version: "1.4.0"
+version: "1.5.0"
 last-updated: "2026-08-08"
-source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘元素选择器’、§10.1–§10.3；v1.1 Agent Runtime 生命周期；v1.2 多目标选择生命周期；v1.3 逐目标编辑状态；v1.4 源码导航生命周期"
+source-range: "规格书 §2.4 第 4–5 条、§9、§9.1–§9.3、原文‘元素选择器’、§10.1–§10.3；v1.1 Agent Runtime 生命周期；v1.2 多目标选择生命周期；v1.3 逐目标编辑状态；v1.4 源码导航生命周期；v1.5 本地工作区预检与同意生命周期"
 参考文献/依赖:
   - "03-public-api-models"
   - "04-vite-plugin"
@@ -114,6 +114,9 @@ AI Job 是与元素选择状态正交的服务端状态，不把 `running`、`va
 - Apply 后业务 HMR 可能卸载当前目标元素。Runtime 必须清除陈旧 Element，并提示用户重新选择，不能继续用旧 rect 或 DOM 引用定位新页面。
 - 多目标 Job Apply 后必须一次性释放全部目标的 Element、Observer 和几何引用；不能只释放最后一个活动目标后继续使用其余旧 DOM。
 - Runtime 只展示脱敏 Job 快照、Diff 和检查结果；不能依据模型自然语言自行判定“已修改”或“检查通过”。
+- AI 启用且进入选中态时，Runtime 必须读取本地工作区健康快照；provider/model 改变、环境检查、重置 Job 和真正运行前都必须重新检查，不能复用过期快照。健康状态与公共结构只在公共模型定义 (见 doc-id:03-public-api-models)。
+- `ready` 直接允许继续；`consent-required` 必须展示 staged/unstaged/untracked 数量和独立的本地修改纳入同意，用户勾选前 Run 保持禁用；`blocked` 必须展示稳定错误码对应的具体原因，不能用同意绕过。检查中的瞬时状态不得清空用户刚刚作出的同意，最终变为 `ready` 或 `blocked` 时必须清除不再适用的同意。
+- 创建 Job 时只能根据本次最新健康快照生成 `workingTreeMode`：干净为 `require-clean`，存在且已同意的可隔离修改为 `include-local-changes`。该字段不是长期偏好，不写盘，也不能由 provider capability 同意代替。服务端仍重新检查，防止浏览器状态与磁盘状态之间的竞态。
 
 ## 元素选择器
 

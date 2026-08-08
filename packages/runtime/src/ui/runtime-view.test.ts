@@ -5,6 +5,7 @@ import type {
   AgentJobSnapshot,
   RuntimeAiConfig,
 } from "@spotpatch/shared";
+import { ERROR_CODES } from "@spotpatch/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createRuntimeView } from "./runtime-view.js";
@@ -339,6 +340,9 @@ describe("runtime view", () => {
       .join("\n");
     expect(styles).toContain("color-scheme: dark");
     expect(styles).toContain(".spotpatch-agent select option");
+    expect(styles).toContain("appearance: base-select");
+    expect(styles).toContain("::picker(select):popover-open");
+    expect(styles).toContain("@starting-style");
     expect(view.agentRunButton.disabled).toBe(true);
     expect(view.agentRunButton.textContent).toBe("Verify & run");
     expect(view.previewButton.classList.contains("spotpatch-primary")).toBe(true);
@@ -347,6 +351,18 @@ describe("runtime view", () => {
     );
 
     view.setAgentProviderConsent(true);
+    view.renderAgentWorkspaceHealth("ready", {
+      state: "ready",
+      checkedAt: "2026-08-07T00:00:00.000Z",
+      changes: {
+        staged: 0,
+        unstaged: 0,
+        untracked: 0,
+        conflicted: 0,
+        total: 0,
+      },
+      canIncludeLocalChanges: false,
+    });
     view.renderAgentCapability(
       "probing",
       "Testing authentication, tools, continuation, and streaming…",
@@ -373,6 +389,47 @@ describe("runtime view", () => {
     expect(view.agentRunButton.textContent).toBe("Run AI");
     expect(view.agentRunButton.classList.contains("spotpatch-primary")).toBe(true);
     expect(view.previewButton.classList.contains("spotpatch-primary")).toBe(false);
+
+    view.renderAgentWorkspaceHealth("consent-required", {
+      state: "consent-required",
+      checkedAt: "2026-08-07T00:00:02.000Z",
+      changes: {
+        staged: 1,
+        unstaged: 2,
+        untracked: 1,
+        conflicted: 0,
+        total: 3,
+      },
+      canIncludeLocalChanges: true,
+    });
+    expect(view.agentRunButton.disabled).toBe(true);
+    expect(view.agentWorkspaceConsentCheckbox.closest("label")?.hidden).toBe(false);
+    expect(view.host.shadowRoot?.textContent).toContain(
+      "Local changes found · 1 staged · 2 unstaged · 1 untracked",
+    );
+    view.agentWorkspaceConsentCheckbox.checked = true;
+    view.agentWorkspaceConsentCheckbox.dispatchEvent(
+      new Event("change", { bubbles: true }),
+    );
+    expect(view.agentRunButton.disabled).toBe(false);
+
+    view.renderAgentWorkspaceHealth("blocked", {
+      state: "blocked",
+      checkedAt: "2026-08-07T00:00:03.000Z",
+      changes: {
+        staged: 1,
+        unstaged: 2,
+        untracked: 1,
+        conflicted: 1,
+        total: 3,
+      },
+      canIncludeLocalChanges: false,
+      errorCode: ERROR_CODES.WORKTREE_CONFLICTED,
+    });
+    expect(view.agentRunButton.disabled).toBe(true);
+    expect(view.host.shadowRoot?.textContent).toContain(
+      "Resolve all merge conflicts before running AI",
+    );
   });
 
   it("renders a complete Chinese interface and switches language without losing target drafts", () => {

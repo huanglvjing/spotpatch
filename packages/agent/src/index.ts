@@ -23,3 +23,4 @@ export {
   revertPreparedAgentChange,
   type PreparedAgentChange,
 } from "./worktree/prepared-change.js";
+export { inspectAgentWorkspace } from "./worktree/workspace-health.js";

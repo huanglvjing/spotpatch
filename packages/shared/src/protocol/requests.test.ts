@@ -91,6 +91,7 @@ describe("protocol request schemas", () => {
         providerProfileId: "relay",
         modelProfileId: "coding-model",
         providerDataConsent: true,
+        workingTreeMode: "include-local-changes",
       }).success,
     ).toBe(true);
     expect(
@@ -99,6 +100,22 @@ describe("protocol request schemas", () => {
         modelProfileId: "coding-model",
       }).success,
     ).toBe(true);
+  });
+
+  it("defaults to clean execution and rejects unknown working-tree modes", () => {
+    const parsed = agentJobCreateRequestSchema.parse({
+      annotation,
+      providerProfileId: "relay",
+      modelProfileId: "coding-model",
+      providerDataConsent: true,
+    });
+    expect(parsed.workingTreeMode).toBe("require-clean");
+    expect(
+      agentJobCreateRequestSchema.safeParse({
+        ...parsed,
+        workingTreeMode: "overwrite-local-changes",
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects injected execution configuration and oversized annotation fields", () => {

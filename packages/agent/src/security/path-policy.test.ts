@@ -57,7 +57,9 @@ describe("Agent path policy", () => {
     "dist/bundle.js",
     "pnpm-lock.yaml",
   ])("rejects unsafe path %s", (value) => {
-    expect(() => assertAgentPathAllowed(value)).toThrowError(ERROR_CODES.TOOL_DENIED);
+    expect(() => assertAgentPathAllowed(value)).toThrowError(
+      ERROR_CODES.TOOL_PATH_DENIED,
+    );
   });
 
   it("rejects a symlink escape for reads and writes", async () => {
@@ -68,10 +70,10 @@ describe("Agent path policy", () => {
 
     await expect(
       resolveExistingAgentPath(root, "linked/secret.txt"),
-    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_DENIED });
+    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_PATH_DENIED });
     await expect(
       resolveWritableAgentPath(root, "linked/new.txt"),
-    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_DENIED });
+    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_PATH_DENIED });
   });
 
   it("reads bounded UTF-8 text and rejects binary or oversized files", async () => {
@@ -86,7 +88,7 @@ describe("Agent path policy", () => {
       code: ERROR_CODES.AGENT_LIMIT_EXCEEDED,
     });
     await expect(readAgentTextFile(root, "binary.bin", 100)).rejects.toMatchObject({
-      code: ERROR_CODES.TOOL_DENIED,
+      code: ERROR_CODES.TOOL_PATH_DENIED,
     });
   });
 

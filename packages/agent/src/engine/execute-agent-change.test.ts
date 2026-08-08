@@ -404,7 +404,7 @@ describe("Agent execution", { timeout: AGENT_EXECUTION_INTEGRATION_TIMEOUT_MS },
           root: repository.root,
           signal: new AbortController().signal,
         }),
-      ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_DENIED });
+      ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_PATH_DENIED });
       expect(await repository.read("src/App.tsx")).toContain("Before");
     } finally {
       await repository.cleanup();

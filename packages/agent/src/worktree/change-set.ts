@@ -98,9 +98,17 @@ export async function applyAgentPatch(
   }
 
   await Promise.all(
-    files.map(async (file) =>
-      resolveWritableAgentPath(worktreeRoot, file.relativePath),
-    ),
+    files.map(async (file) => {
+      await resolveWritableAgentPath(worktreeRoot, file.relativePath);
+
+      if (file.kind !== "added") {
+        await readAgentTextFile(
+          worktreeRoot,
+          file.relativePath,
+          limits.maxReadBytesPerFile,
+        );
+      }
+    }),
   );
   await runGitCommand({
     cwd: worktreeRoot,

@@ -107,7 +107,7 @@ describe("Agent tool executor", () => {
         call("patch", "apply_patch", { patch: `${updatePatch}\n` }),
         signal,
       ),
-    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_DENIED });
+    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_INPUT_INVALID });
     expect(executor.touchedPaths()).toEqual(new Set(["src/App.tsx"]));
   });
 
@@ -230,7 +230,7 @@ describe("Agent tool executor", () => {
         }),
         new AbortController().signal,
       ),
-    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_DENIED });
+    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_PATH_DENIED });
     expect(executor.touchedPaths()).toEqual(new Set());
   });
 

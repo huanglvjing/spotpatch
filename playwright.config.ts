@@ -18,7 +18,7 @@ export default defineConfig({
   ],
   webServer: {
     command:
-      "pnpm build && pnpm --filter @spotpatch/playground dev --host 127.0.0.1 --port 4173",
+      "pnpm build && SPOTPATCH_E2E_AI_UI=1 SPOTPATCH_E2E_API_KEY=non-secret-e2e-key pnpm --filter @spotpatch/playground dev --host 127.0.0.1 --port 4173",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     url: "http://127.0.0.1:4173",

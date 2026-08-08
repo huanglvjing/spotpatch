@@ -111,6 +111,7 @@ function jobRequest(): AgentJobCreateRequest {
     providerProfileId: "relay",
     modelProfileId: "coder",
     providerDataConsent: true,
+    workingTreeMode: "require-clean",
   });
 }
 

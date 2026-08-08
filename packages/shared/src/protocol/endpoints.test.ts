@@ -11,6 +11,9 @@ describe("protocol endpoints", () => {
     expect(SPOTPATCH_ENDPOINTS.agentCapability).toBe(
       `${SPOTPATCH_API_BASE}/agent/capability`,
     );
+    expect(SPOTPATCH_ENDPOINTS.agentWorkspaceHealth).toBe(
+      `${SPOTPATCH_API_BASE}/agent/workspace-health`,
+    );
     expect(SPOTPATCH_ENDPOINTS.agentJobs).toBe(`${SPOTPATCH_API_BASE}/agent/jobs`);
     expect(getAgentJobEndpoint("job/id", "apply")).toBe(
       `${SPOTPATCH_API_BASE}/agent/jobs/job%2Fid/apply`,

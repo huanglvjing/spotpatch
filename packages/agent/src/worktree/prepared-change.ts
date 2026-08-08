@@ -7,8 +7,8 @@ import {
   assertAgentPathAllowed,
   resolveWritableAgentPath,
 } from "../security/path-policy.js";
-import { assertCleanGitBaseline } from "./git-worktree.js";
 import { runGitCommand } from "./git-command.js";
+import { inspectGitWorkspace } from "./workspace-health.js";
 
 export interface PreparedAgentChange {
   readonly kind: "prepared-agent-change";
@@ -21,6 +21,7 @@ type PreparedState = "prepared" | "applying" | "applied" | "reverting" | "revert
 
 interface PrivatePreparedChange {
   readonly baselineHead: string;
+  readonly baselineHashes: ReadonlyMap<string, string>;
   readonly diff: string;
   readonly expectedHashes: ReadonlyMap<string, string>;
   readonly root: string;
@@ -35,6 +36,7 @@ const DELETED_HASH = "<deleted>";
 interface CreatePreparedChangeOptions {
   readonly autoApplyEligible: boolean;
   readonly baselineHead: string;
+  readonly baselineHashes: ReadonlyMap<string, string>;
   readonly expectedHashes: ReadonlyMap<string, string>;
   readonly result: AgentJobResult;
   readonly root: string;
@@ -49,8 +51,13 @@ export function createPreparedAgentChange(
   );
 
   if (
+    options.baselineHashes.size !== touchedPaths.length ||
     options.expectedHashes.size !== touchedPaths.length ||
-    touchedPaths.some((relativePath) => !options.expectedHashes.has(relativePath))
+    touchedPaths.some(
+      (relativePath) =>
+        !options.baselineHashes.has(relativePath) ||
+        !options.expectedHashes.has(relativePath),
+    )
   ) {
     throw new SpotPatchError(ERROR_CODES.INTERNAL_ERROR);
   }
@@ -63,6 +70,7 @@ export function createPreparedAgentChange(
   } as const);
   privateChanges.set(change, {
     baselineHead: options.baselineHead,
+    baselineHashes: new Map(options.baselineHashes),
     diff: options.result.diff,
     expectedHashes: new Map(options.expectedHashes),
     root: options.root,
@@ -82,14 +90,20 @@ function requirePrivateChange(change: PreparedAgentChange): PrivatePreparedChang
   return privateChange;
 }
 
-async function currentHead(root: string): Promise<string> {
-  return (
-    await runGitCommand({
-      cwd: root,
-      args: ["rev-parse", "--verify", "HEAD"],
-      errorCode: ERROR_CODES.APPLY_CONFLICT,
-    })
-  ).trim();
+async function assertWorkspaceOperationSafe(
+  root: string,
+  expectedHead: string,
+): Promise<void> {
+  const inspection = await inspectGitWorkspace(root).catch(() => {
+    throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
+  });
+  const blockingOperation =
+    inspection.health.errorCode === ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS ||
+    inspection.health.errorCode === ERROR_CODES.WORKTREE_CONFLICTED;
+
+  if (inspection.head !== expectedHead || blockingOperation) {
+    throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
+  }
 }
 
 async function fileHash(root: string, relativePath: string): Promise<string> {
@@ -152,10 +166,16 @@ export async function applyPreparedAgentChange(
   privateChange.state = "applying";
 
   try {
-    await assertCleanGitBaseline({
-      root: privateChange.root,
-      expectedHead: privateChange.baselineHead,
-    });
+    await assertWorkspaceOperationSafe(privateChange.root, privateChange.baselineHead);
+
+    const currentHashes = await captureAgentFileHashes(
+      privateChange.root,
+      privateChange.touchedPaths,
+    );
+
+    if (!hashesMatch(privateChange.baselineHashes, currentHashes)) {
+      throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
+    }
     await runGitCommand({
       cwd: privateChange.root,
       args: ["apply", "--check", "--whitespace=error-all", "-"],
@@ -197,9 +217,7 @@ export async function revertPreparedAgentChange(
   privateChange.state = "reverting";
 
   try {
-    if ((await currentHead(privateChange.root)) !== privateChange.baselineHead) {
-      throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
-    }
+    await assertWorkspaceOperationSafe(privateChange.root, privateChange.baselineHead);
 
     const currentHashes = await captureAgentFileHashes(
       privateChange.root,
@@ -224,6 +242,15 @@ export async function revertPreparedAgentChange(
       stdin: privateChange.diff,
       errorCode: ERROR_CODES.APPLY_CONFLICT,
     });
+    const revertedHashes = await captureAgentFileHashes(
+      privateChange.root,
+      privateChange.touchedPaths,
+    );
+
+    if (!hashesMatch(privateChange.baselineHashes, revertedHashes)) {
+      throw new SpotPatchError(ERROR_CODES.APPLY_CONFLICT);
+    }
+
     privateChange.state = "reverted";
   } catch (error: unknown) {
     privateChange.state = "applied";

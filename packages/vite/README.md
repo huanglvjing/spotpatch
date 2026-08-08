@@ -62,5 +62,12 @@ spotPatch({
 The full provider map remains available for multiple providers, multiple models,
 custom labels, checks, and limits.
 
+AI runs directly when the Git workspace is clean. If staged, unstaged, or
+bounded regular untracked files exist, the workbench reports their counts and
+requires explicit consent before copying them into an isolated Agent baseline.
+SpotPatch never stashes, resets, commits, or changes the source index, and Apply
+or Revert touches only the Agent delta. Conflicts and unsupported workspace
+states remain blocked with an actionable reason.
+
 See the [repository README](https://github.com/huanglvjing/spotpatch#readme) for
 the complete setup and security model.

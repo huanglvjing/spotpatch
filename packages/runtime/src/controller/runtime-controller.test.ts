@@ -48,6 +48,20 @@ const context = Object.freeze({
 function createApi(): RuntimeApi {
   return {
     agentCapability: vi.fn<RuntimeApi["agentCapability"]>(),
+    agentWorkspaceHealth: vi.fn<RuntimeApi["agentWorkspaceHealth"]>().mockResolvedValue(
+      Object.freeze({
+        state: "ready",
+        checkedAt: "2026-08-08T00:00:00.000Z",
+        changes: Object.freeze({
+          staged: 0,
+          unstaged: 0,
+          untracked: 0,
+          conflicted: 0,
+          total: 0,
+        }),
+        canIncludeLocalChanges: false,
+      }),
+    ),
     agentEvents: vi.fn<RuntimeApi["agentEvents"]>(),
     agentResult: vi.fn<RuntimeApi["agentResult"]>(),
     applyAgentJob: vi.fn<RuntimeApi["applyAgentJob"]>(),
@@ -614,6 +628,20 @@ describe("runtime controller", () => {
       ]),
     });
     const api = createApi();
+    vi.mocked(api.agentWorkspaceHealth).mockResolvedValue(
+      Object.freeze({
+        state: "consent-required",
+        checkedAt: "2026-08-07T00:00:00.500Z",
+        changes: Object.freeze({
+          staged: 1,
+          unstaged: 1,
+          untracked: 1,
+          conflicted: 0,
+          total: 2,
+        }),
+        canIncludeLocalChanges: true,
+      }),
+    );
     vi.mocked(api.agentCapability).mockResolvedValue({
       providerProfileId: "relay",
       providerLabel: "Trusted Relay",
@@ -706,6 +734,11 @@ describe("runtime controller", () => {
       expect(
         shadowRoot?.querySelector<HTMLInputElement>(".spotpatch-consent input"),
       ).toBeTruthy();
+      expect(
+        shadowRoot?.querySelector<HTMLInputElement>(
+          ".spotpatch-workspace-consent input",
+        ),
+      ).toBeTruthy();
     });
     const instructionInput = shadowRoot?.querySelector<HTMLTextAreaElement>(
       "textarea[data-target-instruction-id]",
@@ -713,13 +746,18 @@ describe("runtime controller", () => {
     const consent = shadowRoot?.querySelector<HTMLInputElement>(
       ".spotpatch-consent input",
     );
+    const workspaceConsent = shadowRoot?.querySelector<HTMLInputElement>(
+      ".spotpatch-workspace-consent input",
+    );
     let runButton = findShadowButton(shadowRoot, "Verify & run");
 
     if (
       instructionInput === null ||
       instructionInput === undefined ||
       consent === null ||
-      consent === undefined
+      consent === undefined ||
+      workspaceConsent === null ||
+      workspaceConsent === undefined
     ) {
       throw new Error("Expected Agent inputs.");
     }
@@ -729,7 +767,7 @@ describe("runtime controller", () => {
     await vi.waitFor(() => {
       expect(runButton.disabled).toBe(true);
     });
-    findShadowButton(shadowRoot, "Test connection").click();
+    findShadowButton(shadowRoot, "Check environment").click();
     await vi.waitFor(() => {
       expect(api.agentCapability).toHaveBeenCalledWith({
         providerProfileId: "relay",
@@ -740,6 +778,8 @@ describe("runtime controller", () => {
     runButton = findShadowButton(shadowRoot, "Run AI");
     consent.checked = true;
     consent.dispatchEvent(new Event("change", { bubbles: true }));
+    workspaceConsent.checked = true;
+    workspaceConsent.dispatchEvent(new Event("change", { bubbles: true }));
     await vi.waitFor(() => {
       expect(runButton.disabled).toBe(false);
     });
@@ -751,6 +791,7 @@ describe("runtime controller", () => {
           providerProfileId: "relay",
           modelProfileId: "coder",
           providerDataConsent: true,
+          workingTreeMode: "include-local-changes",
         }),
       );
       expect(shadowRoot?.querySelector(".spotpatch-agent-diff")?.textContent).toContain(

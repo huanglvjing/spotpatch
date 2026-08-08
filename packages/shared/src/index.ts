@@ -29,6 +29,8 @@ export {
   AGENT_CHECK_STATUSES,
   AGENT_FILE_CHANGE_KINDS,
   AGENT_JOB_STATUSES,
+  AGENT_WORKSPACE_SNAPSHOT_LIMITS,
+  AGENT_WORKSPACE_STATES,
   DEFAULT_AGENT_LIMITS,
   type AgentApplyMode,
   type AgentCapabilitySnapshot,
@@ -42,6 +44,10 @@ export {
   type AgentJobResultResponse,
   type AgentJobSnapshot,
   type AgentJobStatus,
+  type AgentWorkingTreeMode,
+  type AgentWorkspaceChangeSummary,
+  type AgentWorkspaceHealthSnapshot,
+  type AgentWorkspaceState,
   type AgentLimits,
   type AiExecutionOptions,
   type AiModelProfile,
@@ -80,6 +86,7 @@ export {
 } from "./protocol/endpoints.js";
 export {
   agentCapabilityRequestSchema,
+  agentWorkspaceHealthRequestSchema,
   agentJobActionRequestSchema,
   agentJobCreateRequestSchema,
   openEditorRequestSchema,
@@ -94,6 +101,7 @@ export {
 export type { AgentJobEvent } from "./protocol/agent-events.js";
 export {
   agentCapabilitySnapshotSchema,
+  agentWorkspaceHealthSnapshotSchema,
   agentChangedFileSchema,
   agentCheckResultSchema,
   agentJobEventSchema,

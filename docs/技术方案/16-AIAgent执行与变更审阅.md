@@ -2,9 +2,9 @@
 doc-id: "16-ai-agent-execution"
 title: "AI Agent 执行与变更审阅"
 status: "active"
-version: "1.4.0"
-last-updated: "2026-08-07"
-source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅；v1.2 多目标原子执行；v1.3 逐目标说明执行语义"
+version: "1.5.0"
+last-updated: "2026-08-08"
+source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅；v1.2 多目标原子执行；v1.3 逐目标说明执行语义；v1.5 显式同意的本地修改隔离、健康检查与 Agent 增量撤销"
 参考文献/依赖:
   - "01-product-boundary"
   - "02-architecture-stack"
@@ -153,23 +153,25 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 
 ## Git worktree 隔离
 
-### v1.1 前置条件
+### 前置条件与工作区健康
 
 - 目标目录必须是 Git 仓库。
 - 当前 HEAD 必须可解析。
-- v1.1 首版要求业务工作区干净；存在 staged、unstaged 或 untracked 变更时返回安全规范定义的结构化错误，不创建 Agent Job。
-- 不允许通过自动 stash、reset、checkout 或临时 commit 隐藏用户改动。
+- `require-clean` 是默认模式；业务工作区存在 staged、unstaged 或 untracked 变更时返回 `consent-required`，未取得本次显式同意不创建 Agent Job。
+- `include-local-changes` 只允许在健康检查确认本地变更可隔离且用户明确同意后使用。未初始化仓库、非顶层 root、无法解析 HEAD、进行中的 merge/rebase/cherry-pick/revert、冲突、符号链接/非普通未跟踪项、超过本地快照上限均为 `blocked`，不能被同意覆盖；快照上限只引用公共模型 (见 doc-id:03-public-api-models)。
+- 不允许在业务仓库执行自动 stash、reset、checkout、临时 commit 或 index 写入来隐藏用户改动。
 
-干净工作区门禁是 v1.1 的明确限制。后续如支持脏工作区，必须先设计可审计快照和三方合并，不得在现有流程中静默放宽。
+v1.1 的 clean-only 历史限制由 ADR-019 有条件取代 (见 doc-id:15-risks-adr)。公共健康状态与计数只在公共模型定义 (见 doc-id:03-public-api-models)，错误码只在本地安全协议定义 (见 doc-id:09-local-protocol-security)。健康响应是当前时刻的诊断而不是文件锁；真正创建、Apply 和 Revert 都必须重新读取磁盘状态。
 
 ### worktree 生命周期
 
 1. 在受控临时目录创建随机 Job 目录。若业务仓库存在真实目录形式的 `node_modules`，默认把临时目录放在其下，使 worktree 中的受控检查可以通过 Node 的父级解析复用已安装依赖；禁止复制 Key、自动安装依赖或接受符号链接形式的 `node_modules`。不存在合格目录时回退系统临时目录。
-2. 使用固定参数从记录的 HEAD 创建 detached worktree。
-3. 再次校验真实路径、HEAD 和干净状态。
-4. 所有 Agent 文件工具和检查只在该 worktree 中运行。
-5. 生成相对于原 HEAD 的变更集、文件哈希和统计信息。
-6. Job 完成、失败或取消后移除 worktree 注册并清理临时目录；清理失败只记录脱敏诊断，不覆盖 Job 主结果。
+2. 使用固定参数从记录的源 HEAD 创建 detached worktree。
+3. `require-clean` 再次校验真实路径、HEAD 和干净状态；`include-local-changes` 读取 `git diff --binary HEAD`，复制有界的普通 untracked 文件，并对 HEAD、Diff、路径集合和文件摘要进行复验。任一竞态或不一致都失败。
+4. 只在隔离 worktree 执行 `git add --all` 和临时 baseline commit，使 staged、unstaged 与 untracked 的最终工作树内容成为 Agent 基线；该提交不进入业务分支，业务 index 不变。
+5. 所有 Agent 文件工具和检查只在该 worktree 中运行。
+6. 生成相对于隔离 baseline commit 的变更集、基线/结果文件哈希和统计信息；因此结果 Diff 只包含 Agent 增量，不包含用户先前改动。
+7. Job 完成、失败或取消后移除 worktree 注册并清理临时目录；清理失败只记录脱敏诊断，不覆盖 Job 主结果。
 
 Agent 没有 Git 命令工具。宿主只允许通过固定 argv 调用创建、检查、生成 Diff、应用和清理所需的有限 Git 子命令；禁止把模型文本拼接进 shell。
 
@@ -217,14 +219,14 @@ required check 失败时：
 - 每个 required check 的命令显示名、状态、耗时和有界输出。
 - 应用、取消和返回编辑操作。
 
-用户点击 Apply 后，服务端必须重新确认业务仓库 HEAD、状态和相关文件哈希与 Job 基线一致，先执行 patch check，再以全有或全无方式应用。任何并发变化或冲突都返回失败，禁止覆盖用户修改。
+用户点击 Apply 后，服务端必须重新确认业务仓库 HEAD、没有被阻断的 Git 操作，并确认 Agent 触及路径的当前 SHA-256 与隔离 baseline 一致；无关路径可继续存在或变化，不作为冲突。随后先执行 patch check，再以全有或全无方式把 Agent Diff 应用到工作树，禁止写业务 index。Agent 触及路径的任何并发变化或 patch 冲突都返回失败，禁止覆盖用户修改。
 
 ### auto 模式
 
 `auto` 只有在可信配置显式开启时可用，并且必须同时满足：
 
 - provider 能力探测通过。
-- worktree 和业务工作区基线未变化。
+- worktree 基线、业务 HEAD 和 Agent 触及路径基线未变化。
 - 所有安全与规模门禁通过。
 - 所有 required checks 成功。
 - 变更中没有删除文件。
@@ -234,7 +236,7 @@ required check 失败时：
 
 ### 撤销
 
-应用成功后记录本次变更的正向 patch、逆向 patch 和应用后文件哈希。Revert 前必须确认相关文件仍匹配应用后哈希；如果用户或 HMR 之外的进程已经继续修改这些文件，撤销必须拒绝并提示人工处理。
+应用成功后记录本次 Agent Diff、隔离基线哈希和应用后文件哈希。Revert 前必须确认业务 HEAD、Git 操作状态和 Agent 触及路径仍匹配应用后哈希；如果用户或其他进程已经继续修改这些文件，撤销必须拒绝并提示人工处理。验证通过后只逆向应用 Agent Diff，并复验结果等于隔离基线哈希；用户任务前已有的 staged、unstaged、untracked 内容和 index 状态不得被撤销。无关路径后续变化不阻断 Revert，也不得被 Revert 修改。
 
 Apply/Revert 都不执行 `git commit`、`git push`、`git reset` 或分支操作。Git 提交仍由用户在审阅最终工作区后完成。
 

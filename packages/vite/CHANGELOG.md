@@ -1,5 +1,13 @@
 # @spotpatch/vite
 
+## 1.3.1
+
+### Patch Changes
+
+- f5174d9: Reduce the cross-platform Runtime bundle while retaining precise workspace diagnostics and the animated native provider/model picker, keeping Linux Node 22 builds below the documented gzip gate.
+- Updated dependencies [f5174d9]
+  - @spotpatch/runtime@1.2.1
+
 ## 1.3.0
 
 ### Minor Changes

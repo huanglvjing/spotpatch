@@ -190,7 +190,7 @@ describe("runtime controller", () => {
     });
     expect(
       host?.shadowRoot?.querySelector(".spotpatch-editor-feedback")?.textContent,
-    ).toContain("Opened the source");
+    ).toBe("Source opened in the editor.");
 
     controller.dispose();
     expect(api.dispose).toHaveBeenCalledOnce();

@@ -155,13 +155,7 @@ export function createController(
   const browser = resolveBrowserDependencies(dependencies);
   const view =
     dependencies.view ??
-    createRuntimeView(
-      browser.document,
-      config.shortcut,
-      config.ai,
-      config.locale,
-      config.editor,
-    );
+    createRuntimeView(browser.document, config.shortcut, config.ai, config.locale);
   const api =
     dependencies.api ??
     createRuntimeApi({
@@ -863,9 +857,7 @@ export function createController(
     const selectionRevision = sessionRevision;
     const requestRevision = ++editorRequestRevision;
     transition({ type: "OPEN_EDITOR" });
-    const openingMessage = view.messages().announcements.editorOpening(config.editor);
-    view.renderEditorStatus("opening", openingMessage);
-    view.announce(openingMessage);
+    view.renderEditorStatus("opening");
 
     void api
       .openEditor({
@@ -873,7 +865,7 @@ export function createController(
         line: marker.line,
         column: marker.column,
       })
-      .then((result) => {
+      .then(() => {
         if (
           mounted &&
           state.status === "selected" &&
@@ -882,9 +874,7 @@ export function createController(
           activeTargetId === current.id &&
           targets.includes(current)
         ) {
-          const message = view.messages().announcements.editorOpened(result.editor);
-          view.renderEditorStatus("success", message);
-          view.announce(message);
+          view.renderEditorStatus("success");
         }
       })
       .catch(() => {
@@ -896,9 +886,7 @@ export function createController(
           activeTargetId === current.id &&
           targets.includes(current)
         ) {
-          const message = view.messages().announcements.editorFailed(config.editor);
-          view.renderEditorStatus("error", message);
-          view.announce(message);
+          view.renderEditorStatus("error");
         }
       });
   }

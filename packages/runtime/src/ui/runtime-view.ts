@@ -4,7 +4,6 @@ import type {
   AgentJobSnapshot,
   ErrorCode,
   RuntimeAiConfig,
-  SpotPatchEditorPreference,
   SpotPatchLocale,
   SpotPatchLocalePreference,
 } from "@spotpatch/shared";
@@ -98,7 +97,6 @@ export interface RuntimeView {
   readonly renderStatus: (status: RuntimeStatus) => void;
   readonly renderEditorStatus: (
     state: "idle" | "opening" | "success" | "error",
-    message?: string,
   ) => void;
   readonly resetAgentJob: () => void;
   readonly setAgentEditingEnabled: (enabled: boolean) => void;
@@ -369,36 +367,27 @@ function createStyles(document: Document): HTMLStyleElement {
       gap: 8px;
       flex: none;
     }
-    .spotpatch-repository {
-      display: inline-flex;
-      height: 30px;
-      align-items: center;
-      gap: 5px;
-      border: 1px solid rgb(68 202 224 / 20%);
-      border-radius: 9px;
-      padding: 0 10px;
-      color: #bcecf2;
-      background: rgb(8 145 178 / 7%);
-      font-size: 11px;
-      font-weight: 680;
-      text-decoration: none;
-      transition: border-color 150ms ease, color 150ms ease, background 150ms ease, transform 150ms ease;
-    }
-    .spotpatch-repository::after { content: "↗"; font-size: 10px; }
-    .spotpatch-repository:hover {
-      border-color: rgb(68 202 224 / 42%);
-      color: #e6fbff;
-      background: rgb(8 145 178 / 12%);
-      transform: translateY(-1px);
-    }
-    .spotpatch-locale {
-      min-width: 38px;
+    .spotpatch-repository,
+    .spotpatch-locale,
+    .spotpatch-close {
       height: 30px;
       border: 1px solid rgb(255 255 255 / 11%);
       border-radius: 9px;
+      background: rgb(255 255 255 / 4%);
+    }
+    .spotpatch-repository {
+      display: inline-flex;
+      align-items: center;
+      padding: 0 10px;
+      color: #bcecf2;
+      font-size: 11px;
+      font-weight: 680;
+      text-decoration: none;
+    }
+    .spotpatch-locale {
+      min-width: 38px;
       padding: 0 9px;
       color: #c5cad5;
-      background: rgb(255 255 255 / 4%);
       cursor: pointer;
       font-size: 12px;
       font-weight: 650;
@@ -406,20 +395,17 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-close {
       display: inline-grid;
       width: 30px;
-      height: 30px;
       padding: 0;
       place-items: center;
-      border: 1px solid rgb(255 255 255 / 11%);
-      border-radius: 9px;
       color: #9da5b4;
-      background: rgb(255 255 255 / 4%);
       cursor: pointer;
       font-size: 17px;
       line-height: 1;
       transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
     }
     .spotpatch-close:hover,
-    .spotpatch-locale:hover { border-color: rgb(129 112 247 / 45%); color: #fff; background: rgb(109 93 246 / 10%); }
+    .spotpatch-locale:hover,
+    .spotpatch-repository:hover { border-color: rgb(129 112 247 / 45%); color: #fff; background: rgb(109 93 246 / 10%); }
     .spotpatch-title {
       margin: 0;
       color: #fff;
@@ -469,10 +455,14 @@ function createStyles(document: Document): HTMLStyleElement {
       background: #f59e0b;
       content: "";
     }
-    .spotpatch-context-state[data-state="ready"] { color: #9fe3c4; }
-    .spotpatch-context-state[data-state="ready"]::before { background: #34d399; }
-    .spotpatch-context-state[data-state="warning"] { color: #fecaca; }
-    .spotpatch-context-state[data-state="warning"]::before { background: #fb7185; }
+    .spotpatch-context-state[data-state="ready"],
+    .spotpatch-editor-feedback[data-state="success"] { color: #9fe3c4; }
+    .spotpatch-context-state[data-state="ready"]::before,
+    .spotpatch-editor-feedback[data-state="success"]::before { background: #34d399; }
+    .spotpatch-context-state[data-state="warning"],
+    .spotpatch-editor-feedback[data-state="error"] { color: #fecaca; }
+    .spotpatch-context-state[data-state="warning"]::before,
+    .spotpatch-editor-feedback[data-state="error"]::before { background: #fb7185; }
     .spotpatch-body {
       min-height: 0;
       overflow: auto;
@@ -711,29 +701,9 @@ function createStyles(document: Document): HTMLStyleElement {
       background: rgb(8 12 22 / 82%);
     }
     .spotpatch-editor-feedback {
-      display: flex;
-      width: 100%;
-      align-items: center;
-      gap: 7px;
-      margin-bottom: 1px;
-      color: #9ca5b5;
-      font-size: 11px;
-      line-height: 1.45;
+      flex-basis: 100%;
+      white-space: normal;
     }
-    .spotpatch-editor-feedback[hidden] { display: none; }
-    .spotpatch-editor-feedback::before {
-      width: 6px;
-      height: 6px;
-      flex: none;
-      border-radius: 999px;
-      background: #94a3b8;
-      content: "";
-    }
-    .spotpatch-editor-feedback[data-state="opening"]::before { background: #38bdf8; }
-    .spotpatch-editor-feedback[data-state="success"] { color: #9fe3c4; }
-    .spotpatch-editor-feedback[data-state="success"]::before { background: #34d399; }
-    .spotpatch-editor-feedback[data-state="error"] { color: #fecaca; }
-    .spotpatch-editor-feedback[data-state="error"]::before { background: #fb7185; }
     .spotpatch-actions button {
       display: inline-flex;
       min-height: 40px;
@@ -799,8 +769,6 @@ function createStyles(document: Document): HTMLStyleElement {
       .spotpatch-actions { padding-left: 16px; padding-right: 16px; }
       .spotpatch-target-select { grid-template-columns: 32px minmax(0, 1fr); }
       .spotpatch-target-state { display: none; }
-      .spotpatch-repository { width: 30px; overflow: hidden; padding: 0; justify-content: center; color: transparent; }
-      .spotpatch-repository::after { color: #bcecf2; content: "↗"; }
     }
     ${AGENT_PANEL_STYLES}
   `;
@@ -819,7 +787,6 @@ export function createRuntimeView(
   shortcut: string,
   ai: RuntimeAiConfig = Object.freeze({ enabled: false }),
   localePreference: SpotPatchLocalePreference = "auto",
-  editorPreference: SpotPatchEditorPreference = "auto",
 ): RuntimeView {
   const localizer: UiLocalizer = createUiLocalizer(document, localePreference);
   let messages = localizer.messages();
@@ -948,17 +915,14 @@ export function createRuntimeView(
   const actions = createMarkedElement(document, "footer");
   actions.className = "spotpatch-actions";
   const editorFeedback = createMarkedElement(document, "div");
-  editorFeedback.className = "spotpatch-editor-feedback";
+  editorFeedback.className = "spotpatch-context-state spotpatch-editor-feedback";
   editorFeedback.dataset.state = "idle";
   editorFeedback.setAttribute("role", "status");
   editorFeedback.setAttribute("aria-live", "polite");
   editorFeedback.hidden = true;
   const addTargetButton = createButton(document, messages.actions.addElement);
   const reselectButton = createButton(document, messages.actions.reselect);
-  const openEditorButton = createButton(
-    document,
-    messages.actions.openEditor(editorPreference),
-  );
+  const openEditorButton = createButton(document, messages.actions.openEditor);
   const previewButton = createButton(
     document,
     messages.actions.preview,
@@ -1010,30 +974,18 @@ export function createRuntimeView(
   let currentMaximum = 0;
   let currentEditorFeedbackState: "idle" | "opening" | "success" | "error" = "idle";
 
-  function defaultEditorFeedback(
-    state: "idle" | "opening" | "success" | "error",
-  ): string {
-    if (state === "opening") {
-      return messages.announcements.editorOpening(editorPreference);
-    }
-
-    if (state === "success") {
-      return messages.announcements.editorOpened(editorPreference);
-    }
-
-    return state === "error"
-      ? messages.announcements.editorFailed(editorPreference)
-      : "";
-  }
-
-  function renderEditorStatus(
-    state: "idle" | "opening" | "success" | "error",
-    message = defaultEditorFeedback(state),
-  ): void {
+  function renderEditorStatus(state: "idle" | "opening" | "success" | "error"): void {
     currentEditorFeedbackState = state;
     editorFeedback.dataset.state = state;
     editorFeedback.hidden = state === "idle";
-    editorFeedback.textContent = message;
+    editorFeedback.textContent =
+      state === "opening"
+        ? messages.announcements.editorOpening
+        : state === "success"
+          ? messages.announcements.editorOpened
+          : state === "error"
+            ? messages.announcements.editorFailed
+            : "";
     placeDialog();
   }
 
@@ -1139,11 +1091,8 @@ export function createRuntimeView(
       const open = createButton(document, "↗", "spotpatch-target-open");
       open.dataset.openTargetId = target.id;
       open.disabled = !target.canOpenEditor;
-      open.setAttribute(
-        "aria-label",
-        messages.actions.openTarget(index + 1, editorPreference),
-      );
-      open.title = messages.actions.openTarget(index + 1, editorPreference);
+      open.setAttribute("aria-label", messages.actions.openTarget(index + 1));
+      open.title = messages.actions.openTarget(index + 1);
       const remove = createButton(document, "×", "spotpatch-target-remove");
       remove.dataset.removeTargetId = target.id;
       remove.disabled = !editingEnabled;
@@ -1387,7 +1336,7 @@ export function createRuntimeView(
     promptOutput.setAttribute("aria-label", messages.diagnostics.promptAriaLabel);
     addTargetButton.textContent = messages.actions.addElement;
     reselectButton.textContent = messages.actions.reselect;
-    openEditorButton.textContent = messages.actions.openEditor(editorPreference);
+    openEditorButton.textContent = messages.actions.openEditor;
     previewButton.textContent = messages.actions.preview;
     copyButton.textContent = messages.actions.copy;
     backButton.textContent = messages.actions.back;

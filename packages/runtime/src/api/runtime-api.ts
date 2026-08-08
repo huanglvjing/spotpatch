@@ -1,6 +1,5 @@
 import {
   SPOTPATCH_ENDPOINTS,
-  SPOTPATCH_EDITOR_PREFERENCES,
   SPOTPATCH_TOKEN_HEADER,
   getAgentJobEndpoint,
   type AgentCapabilityRequest,
@@ -96,14 +95,6 @@ function isCodeContext(value: unknown): value is CodeContext {
     typeof value.endLine === "number" &&
     typeof value.excerpt === "string" &&
     (value.boundary === "component" || value.boundary === "nearby-lines")
-  );
-}
-
-function isEditorOpenResult(value: unknown): value is EditorOpenResult {
-  return (
-    isRecord(value) &&
-    typeof value.editor === "string" &&
-    (SPOTPATCH_EDITOR_PREFERENCES as readonly string[]).includes(value.editor)
   );
 }
 
@@ -426,7 +417,10 @@ export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {
     async openEditor(request: OpenEditorRequest): Promise<EditorOpenResult> {
       const data = await requestJson(SPOTPATCH_ENDPOINTS.openEditor, "POST", request);
 
-      if (!isEditorOpenResult(data)) {
+      if (
+        !isRecord(data) ||
+        (data.editor !== "auto" && data.editor !== "vscode" && data.editor !== "cursor")
+      ) {
         throw new RuntimeApiError();
       }
 

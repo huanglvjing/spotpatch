@@ -131,9 +131,7 @@ describe("runtime view", () => {
     );
     expect(openButtons).toHaveLength(2);
     expect(openButtons[0]?.disabled).toBe(false);
-    expect(openButtons[0]?.getAttribute("aria-label")).toBe(
-      "Open target 1 in the detected editor",
-    );
+    expect(openButtons[0]?.getAttribute("aria-label")).toBe("Open source for target 1");
     expect(openButtons[1]?.disabled).toBe(true);
     expect(
       view.host.shadowRoot?.querySelectorAll(".spotpatch-selection-highlight"),
@@ -162,7 +160,6 @@ describe("runtime view", () => {
       "Mod+Shift+S",
       Object.freeze({ enabled: false }),
       "zh-CN",
-      "cursor",
     );
     const feedback = view.host.shadowRoot?.querySelector<HTMLElement>(
       ".spotpatch-editor-feedback",
@@ -171,11 +168,11 @@ describe("runtime view", () => {
     view.renderEditorStatus("opening");
     expect(feedback?.hidden).toBe(false);
     expect(feedback?.dataset.state).toBe("opening");
-    expect(feedback?.textContent).toContain("Cursor");
+    expect(feedback?.textContent).toBe("正在打开源码……");
 
     view.renderEditorStatus("error");
     expect(feedback?.dataset.state).toBe("error");
-    expect(feedback?.textContent).toContain("无法打开Cursor");
+    expect(feedback?.textContent).toContain("无法打开编辑器");
   });
 
   it("keeps a distinct active-target instruction and previews content as plain text", () => {

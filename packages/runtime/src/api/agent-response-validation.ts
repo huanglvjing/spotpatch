@@ -287,7 +287,7 @@ export function isAgentJobResultResponse(
 function isAgentEventBase(value: unknown): value is Readonly<{
   data: Readonly<Record<string, unknown>>;
   jobId: string;
-  schemaVersion: 1;
+  schemaVersion: 2;
   sequence: number;
   status: AgentJobSnapshot["status"];
   timestamp: string;
@@ -304,7 +304,7 @@ function isAgentEventBase(value: unknown): value is Readonly<{
       "type",
       "data",
     ]) &&
-    value.schemaVersion === 1 &&
+    value.schemaVersion === 2 &&
     isPositiveInteger(value.sequence) &&
     isJobId(value.jobId) &&
     typeof value.status === "string" &&
@@ -335,12 +335,14 @@ export function isAgentJobEvent(value: unknown): value is AgentJobEvent {
     case "tool":
       return (
         hasOnlyKeys(data, [
+          "turn",
           "toolCallId",
           "toolName",
           "state",
           "relativePath",
           "checkLabel",
         ]) &&
+        isPositiveInteger(data.turn) &&
         isBoundedString(data.toolCallId, 256) &&
         isBoundedString(data.toolName, 100) &&
         (data.state === "started" ||

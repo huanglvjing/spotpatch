@@ -64,9 +64,14 @@ interface AgentToolExecutorOptions {
 export interface AgentToolExecutor {
   readonly execute: (
     call: ProviderToolCall,
+    scope: AgentToolExecutionScope,
     signal: AbortSignal,
   ) => Promise<ProviderToolResult>;
   readonly touchedPaths: () => ReadonlySet<string>;
+}
+
+export interface AgentToolExecutionScope {
+  readonly turn: number;
 }
 
 interface CachedToolResult {
@@ -75,7 +80,7 @@ interface CachedToolResult {
 }
 
 function invalidTool(): never {
-  throw new SpotPatchError(ERROR_CODES.TOOL_INPUT_INVALID);
+  throw new SpotPatchError(ERROR_CODES.TOOL_ARGUMENTS_INVALID);
 }
 
 function parseArguments<T>(
@@ -160,10 +165,20 @@ function retryableWriteRejection(
   });
 }
 
+function retryableArgumentsRejection(): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    errorCode: ERROR_CODES.TOOL_ARGUMENTS_INVALID,
+    retryable: true,
+    reason: "ARGUMENTS_DO_NOT_MATCH_CONTRACT",
+    guidance:
+      "No files changed. Retry once with a new tool call ID and only the declared fields and value types.",
+  });
+}
+
 export function createAgentToolExecutor(
   options: AgentToolExecutorOptions,
 ): AgentToolExecutor {
-  const cache = new Map<string, CachedToolResult>();
+  const cacheByTurn = new Map<number, Map<string, CachedToolResult>>();
   const touchedPaths = new Set<string>();
 
   const executeUncached = async (
@@ -460,24 +475,44 @@ export function createAgentToolExecutor(
   return Object.freeze({
     async execute(
       call: ProviderToolCall,
+      scope: AgentToolExecutionScope,
       signal: AbortSignal,
     ): Promise<ProviderToolResult> {
+      if (!Number.isSafeInteger(scope.turn) || scope.turn < 1) {
+        throw new SpotPatchError(ERROR_CODES.INTERNAL_ERROR);
+      }
+
+      const turnCache =
+        cacheByTurn.get(scope.turn) ?? new Map<string, CachedToolResult>();
+      cacheByTurn.set(scope.turn, turnCache);
       const signature = `${call.name}\0${JSON.stringify(call.arguments)}`;
-      const cached = cache.get(call.id);
+      const cached = turnCache.get(call.id);
 
       if (cached !== undefined) {
         if (cached.signature !== signature) {
-          return invalidTool();
+          throw new SpotPatchError(ERROR_CODES.TOOL_CALL_ID_CONFLICT);
         }
 
         return cached.result;
       }
 
-      const result = Object.freeze({
-        toolCallId: call.id,
-        output: await executeUncached(call, signal),
-      });
-      cache.set(call.id, Object.freeze({ signature, result }));
+      let output: unknown;
+
+      try {
+        output = await executeUncached(call, signal);
+      } catch (error: unknown) {
+        if (
+          error instanceof SpotPatchError &&
+          error.code === ERROR_CODES.TOOL_ARGUMENTS_INVALID
+        ) {
+          output = retryableArgumentsRejection();
+        } else {
+          throw error;
+        }
+      }
+
+      const result = Object.freeze({ toolCallId: call.id, output });
+      turnCache.set(call.id, Object.freeze({ signature, result }));
       return result;
     },
     touchedPaths() {

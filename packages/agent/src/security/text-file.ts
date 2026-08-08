@@ -66,7 +66,7 @@ export async function writeAgentTextFileIfContentMatches(
   maximumBytes: number,
 ): Promise<void> {
   if (nextContent.includes("\0")) {
-    throw new SpotPatchError(ERROR_CODES.TOOL_INPUT_INVALID);
+    throw new SpotPatchError(ERROR_CODES.TOOL_ARGUMENTS_INVALID);
   }
 
   const absolutePath = await resolveExistingAgentPath(root, relativePath);

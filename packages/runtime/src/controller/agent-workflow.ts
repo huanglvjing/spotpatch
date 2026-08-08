@@ -46,7 +46,7 @@ function capabilityKey(providerProfileId: string, modelProfileId: string): strin
 function activityFromEvent(event: AgentJobEvent): AgentActivityItem | undefined {
   if (event.type === "tool") {
     return Object.freeze({
-      key: `tool:${event.data.toolCallId}`,
+      key: `tool:${String(event.data.turn)}:${event.data.toolCallId}`,
       label: `${event.data.toolName} · ${event.data.state}`,
       state:
         event.data.state === "started"

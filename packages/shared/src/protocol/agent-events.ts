@@ -6,7 +6,7 @@ import type {
 } from "../model/agent.js";
 
 interface AgentJobEventBase {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly sequence: number;
   readonly jobId: string;
   readonly status: AgentJobStatus;
@@ -25,6 +25,7 @@ export type AgentJobEvent =
   | (AgentJobEventBase & {
       readonly type: "tool";
       readonly data: Readonly<{
+        turn: number;
         toolCallId: string;
         toolName: string;
         state: "started" | "succeeded" | "failed";

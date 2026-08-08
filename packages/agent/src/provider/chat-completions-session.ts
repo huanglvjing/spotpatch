@@ -1,6 +1,7 @@
 import { ERROR_CODES, SpotPatchError } from "@spotpatch/shared";
 
 import {
+  assertUniqueToolCallIds,
   isRecord,
   jsonStringifyToolOutput,
   parseJsonRecord,
@@ -164,6 +165,7 @@ function parseChatEvents(
 
   const finalText = content.join("");
   const toolCalls = finalizeToolCalls(calls);
+  assertUniqueToolCallIds(toolCalls);
 
   if (toolCalls.length === 0 && finalText.trim().length === 0) {
     throw new SpotPatchError(ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED);

@@ -192,6 +192,34 @@ function chatToolTurn(callId: string, name: string, argumentsJson: string): Resp
   );
 }
 
+function chatToolCallsTurn(
+  calls: readonly Readonly<{
+    id: string;
+    name: string;
+    argumentsJson: string;
+  }>[],
+): Response {
+  return sseResponse(
+    chatData({
+      choices: [
+        {
+          delta: {
+            tool_calls: calls.map((call, index) => ({
+              index,
+              id: call.id,
+              type: "function",
+              function: { name: call.name, arguments: call.argumentsJson },
+            })),
+          },
+          finish_reason: null,
+        },
+      ],
+    }) +
+      chatData({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }) +
+      "data: [DONE]\n\n",
+  );
+}
+
 function chatTextTurn(text: string): Response {
   return sseResponse(
     chatData({
@@ -374,6 +402,121 @@ describe("OpenAI-compatible provider", () => {
         content: '{"content":"source"}',
       },
     ]);
+  });
+
+  it.each(["responses", "chat-completions"] as const)(
+    "accepts a %s relay reusing a provider call ID in a later turn",
+    async (protocol) => {
+      const source = provider(protocol);
+      const turns =
+        protocol === "responses"
+          ? [
+              responsesToolTurn("resp-1", "reused-call", "read_file", {
+                path: "src/App.tsx",
+              }),
+              responsesToolTurn("resp-2", "reused-call", "read_file", {
+                path: "src/other.ts",
+              }),
+              responsesTextTurn("resp-3", "Change prepared."),
+            ]
+          : [
+              chatToolTurn(
+                "reused-call",
+                "read_file",
+                JSON.stringify({ path: "src/App.tsx" }),
+              ),
+              chatToolTurn(
+                "reused-call",
+                "read_file",
+                JSON.stringify({ path: "src/other.ts" }),
+              ),
+              chatTextTurn("Change prepared."),
+            ];
+      const { fetch } = createFetchQueue(turns);
+      const session = createOpenAICompatibleProviderSession({
+        provider: source,
+        model: model(source),
+        credential: createProviderCredential(TEST_KEY),
+        instructions: "Use only the declared tools.",
+        userPrompt: "Inspect both files.",
+        tools: [toolDefinition()],
+        limits: DEFAULT_AGENT_LIMITS,
+        fetch,
+      });
+      const signal = new AbortController().signal;
+      const first = await session.next(undefined, signal);
+      const second = await session.next(
+        [{ toolCallId: "reused-call", output: { content: "first" } }],
+        signal,
+      );
+      const third = await session.next(
+        [{ toolCallId: "reused-call", output: { content: "second" } }],
+        signal,
+      );
+
+      expect(first.toolCalls[0]).toMatchObject({
+        id: "reused-call",
+        arguments: { path: "src/App.tsx" },
+      });
+      expect(second.toolCalls[0]).toMatchObject({
+        id: "reused-call",
+        arguments: { path: "src/other.ts" },
+      });
+      expect(third).toEqual({ finalText: "Change prepared.", toolCalls: [] });
+    },
+  );
+
+  it("rejects conflicting Chat Completions call IDs within one turn", async () => {
+    const source = provider("chat-completions");
+    const { fetch } = createFetchQueue([
+      chatToolCallsTurn([
+        {
+          id: "duplicate-call",
+          name: "read_file",
+          argumentsJson: JSON.stringify({ path: "src/App.tsx" }),
+        },
+        {
+          id: "duplicate-call",
+          name: "read_file",
+          argumentsJson: JSON.stringify({ path: "src/other.ts" }),
+        },
+      ]),
+    ]);
+    const session = createOpenAICompatibleProviderSession({
+      provider: source,
+      model: model(source),
+      credential: createProviderCredential(TEST_KEY),
+      instructions: "Use only the declared tools.",
+      userPrompt: "Inspect the source.",
+      tools: [toolDefinition()],
+      limits: DEFAULT_AGENT_LIMITS,
+      fetch,
+    });
+
+    await expect(
+      session.next(undefined, new AbortController().signal),
+    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_CALL_ID_CONFLICT });
+  });
+
+  it("reports malformed tool argument JSON separately from relay protocol errors", async () => {
+    const source = provider("chat-completions");
+    const { fetch } = createFetchQueue([
+      chatToolTurn("invalid-arguments", "read_file", '{"path":'),
+    ]);
+    const session = createOpenAICompatibleProviderSession({
+      provider: source,
+      model: model(source),
+      credential: createProviderCredential(TEST_KEY),
+      instructions: "Use only the declared tools.",
+      userPrompt: "Inspect the source.",
+      tools: [toolDefinition()],
+      limits: DEFAULT_AGENT_LIMITS,
+      fetch,
+    });
+
+    await expect(
+      session.next(undefined, new AbortController().signal),
+    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_ARGUMENTS_INVALID });
   });
 
   it("uses x-api-key authentication without also sending a Bearer credential", async () => {

@@ -52,7 +52,7 @@ function collectFunctionCall(
     (existing.name !== call.name ||
       JSON.stringify(existing.arguments) !== JSON.stringify(call.arguments))
   ) {
-    throw new SpotPatchError(ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED);
+    throw new SpotPatchError(ERROR_CODES.TOOL_CALL_ID_CONFLICT);
   }
 
   calls.set(id, call);

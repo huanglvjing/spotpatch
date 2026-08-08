@@ -69,5 +69,10 @@ SpotPatch never stashes, resets, commits, or changes the source index, and Apply
 or Revert touches only the Agent delta. Conflicts and unsupported workspace
 states remain blocked with an actionable reason.
 
+OpenAI-compatible relays may reuse a provider tool call ID in a later model
+turn. SpotPatch scopes idempotency to the model turn, while conflicting IDs in
+the same turn still fail without source-side effects. Invalid tool arguments
+and same-turn ID conflicts are reported separately.
+
 See the [repository README](https://github.com/huanglvjing/spotpatch#readme) for
 the complete setup and security model.

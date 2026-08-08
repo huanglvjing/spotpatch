@@ -160,6 +160,40 @@ function toolResponse(
   });
 }
 
+function toolCallsResponse(
+  calls: readonly Readonly<{
+    id: string;
+    name: string;
+    arguments: Readonly<Record<string, unknown>>;
+  }>[],
+): Response {
+  const source =
+    chatData({
+      choices: [
+        {
+          delta: {
+            tool_calls: calls.map((call, index) => ({
+              index,
+              id: call.id,
+              type: "function",
+              function: {
+                name: call.name,
+                arguments: JSON.stringify(call.arguments),
+              },
+            })),
+          },
+          finish_reason: null,
+        },
+      ],
+    }) +
+    chatData({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }) +
+    "data: [DONE]\n\n";
+
+  return new Response(source, {
+    headers: { "Content-Type": "text/event-stream" },
+  });
+}
+
 function finalResponse(text: string): Response {
   return new Response(
     chatData({
@@ -308,6 +342,96 @@ describe("Agent execution", { timeout: AGENT_EXECUTION_INTEGRATION_TIMEOUT_MS },
     }
   });
 
+  it("allows an OpenAI-compatible relay to reuse a tool call ID in a later turn", async () => {
+    const repository = await createTestGitRepository();
+    const source = provider();
+    const fetch = queuedFetch([
+      toolResponse("relay-call", "read_file", { path: "src/App.tsx" }),
+      toolResponse("relay-call", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "<button>Before</button>",
+        newText: "<button>After</button>",
+      }),
+      finalResponse("Changed the selected button label."),
+    ]);
+    const toolStates: string[] = [];
+
+    try {
+      const prepared = await executeAgentChange({
+        annotation,
+        credential: createProviderCredential("synthetic-test-credential"),
+        execution: execution("process.exit(0)"),
+        fetch,
+        jobId: "job-reused-provider-call-id",
+        model: codingModel(source),
+        provider: source,
+        root: repository.root,
+        signal: new AbortController().signal,
+        callbacks: {
+          onTool(event) {
+            toolStates.push(`${String(event.turn)}:${event.toolName}:${event.state}`);
+          },
+        },
+      });
+
+      expect(prepared.validationPassed).toBe(true);
+      expect(prepared.result.files).toMatchObject([
+        { relativePath: "src/App.tsx", kind: "modified" },
+      ]);
+      expect(toolStates).toEqual([
+        "1:read_file:started",
+        "1:read_file:succeeded",
+        "2:replace_text:started",
+        "2:replace_text:succeeded",
+      ]);
+      expect(await repository.read("src/App.tsx")).toContain("Before");
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
+  it("rejects duplicate provider tool call IDs within one turn before mutation", async () => {
+    const repository = await createTestGitRepository();
+    const source = provider();
+    const fetch = queuedFetch([
+      toolCallsResponse([
+        {
+          id: "duplicate-call",
+          name: "read_file",
+          arguments: { path: "src/App.tsx" },
+        },
+        {
+          id: "duplicate-call",
+          name: "replace_text",
+          arguments: {
+            path: "src/App.tsx",
+            oldText: "<button>Before</button>",
+            newText: "<button>After</button>",
+          },
+        },
+      ]),
+    ]);
+
+    try {
+      await expect(
+        executeAgentChange({
+          annotation,
+          credential: createProviderCredential("synthetic-test-credential"),
+          execution: execution("process.exit(0)"),
+          fetch,
+          jobId: "job-duplicate-provider-call-id",
+          model: codingModel(source),
+          provider: source,
+          root: repository.root,
+          signal: new AbortController().signal,
+        }),
+      ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_CALL_ID_CONFLICT });
+      expect(await repository.read("src/App.tsx")).toContain("Before");
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
   it("marks safe validated auto-mode changes as eligible without applying them itself", async () => {
     const repository = await createTestGitRepository();
     const source = provider();
@@ -377,6 +501,61 @@ describe("Agent execution", { timeout: AGENT_EXECUTION_INTEGRATION_TIMEOUT_MS },
         "apply_patch:succeeded",
       ]);
       expect(JSON.stringify(fetch.mock.calls)).toContain(ERROR_CODES.PATCH_REJECTED);
+      expect(await repository.read("src/App.tsx")).toContain("Before");
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
+  it("lets the model correct contract-invalid tool arguments without mutation", async () => {
+    const repository = await createTestGitRepository();
+    const source = provider();
+    const fetch = queuedFetch([
+      toolResponse("replace-invalid", "replace_text", {
+        path: "src/App.tsx",
+        old_text: "<button>Before</button>",
+        new_text: "<button>After</button>",
+      }),
+      toolResponse("replace-corrected", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "<button>Before</button>",
+        newText: "<button>After</button>",
+      }),
+      finalResponse("Corrected the arguments and changed the button label."),
+    ]);
+    const toolStates: string[] = [];
+
+    try {
+      const prepared = await executeAgentChange({
+        annotation,
+        credential: createProviderCredential("synthetic-test-credential"),
+        execution: execution("process.exit(0)"),
+        fetch,
+        jobId: "job-argument-retry",
+        model: codingModel(source),
+        provider: source,
+        root: repository.root,
+        signal: new AbortController().signal,
+        callbacks: {
+          onTool(event) {
+            toolStates.push(`${event.toolName}:${event.state}`);
+          },
+        },
+      });
+
+      expect(prepared.validationPassed).toBe(true);
+      expect(prepared.result.files).toMatchObject([
+        { relativePath: "src/App.tsx", kind: "modified" },
+      ]);
+      expect(toolStates).toEqual([
+        "replace_text:started",
+        "replace_text:failed",
+        "replace_text:started",
+        "replace_text:succeeded",
+      ]);
+      expect(JSON.stringify(fetch.mock.calls)).toContain(
+        ERROR_CODES.TOOL_ARGUMENTS_INVALID,
+      );
       expect(await repository.read("src/App.tsx")).toContain("Before");
     } finally {
       await repository.cleanup();

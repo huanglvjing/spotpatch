@@ -24,10 +24,34 @@ export function parseJsonRecord(value: string): Readonly<Record<string, unknown>
 
 export function parseToolArguments(value: unknown): Readonly<Record<string, unknown>> {
   if (typeof value !== "string") {
-    throw new SpotPatchError(ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED);
+    throw new SpotPatchError(ERROR_CODES.TOOL_ARGUMENTS_INVALID);
   }
 
-  return parseJsonRecord(value);
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(value) as unknown;
+  } catch {
+    throw new SpotPatchError(ERROR_CODES.TOOL_ARGUMENTS_INVALID);
+  }
+
+  if (!isRecord(parsed)) {
+    throw new SpotPatchError(ERROR_CODES.TOOL_ARGUMENTS_INVALID);
+  }
+
+  return parsed;
+}
+
+export function assertUniqueToolCallIds(calls: readonly ProviderToolCall[]): void {
+  const ids = new Set<string>();
+
+  for (const call of calls) {
+    if (ids.has(call.id)) {
+      throw new SpotPatchError(ERROR_CODES.TOOL_CALL_ID_CONFLICT);
+    }
+
+    ids.add(call.id);
+  }
 }
 
 export function requireString(
@@ -47,6 +71,8 @@ export function validateToolResults(
   pendingCalls: readonly ProviderToolCall[],
   results: readonly ProviderToolResult[] | undefined,
 ): readonly ProviderToolResult[] {
+  assertUniqueToolCallIds(pendingCalls);
+
   if (pendingCalls.length === 0) {
     if (results !== undefined && results.length > 0) {
       throw new SpotPatchError(ERROR_CODES.INTERNAL_ERROR);

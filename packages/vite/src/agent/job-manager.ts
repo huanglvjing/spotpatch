@@ -255,7 +255,7 @@ export function createAgentJobManager(
   const eventBase = (job: InternalAgentJob) => {
     job.sequence += 1;
     return {
-      schemaVersion: 1 as const,
+      schemaVersion: 2 as const,
       sequence: job.sequence,
       jobId: job.id,
       status: job.status,

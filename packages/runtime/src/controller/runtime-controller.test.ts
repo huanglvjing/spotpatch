@@ -659,13 +659,14 @@ describe("runtime controller", () => {
     vi.mocked(api.createAgentJob).mockResolvedValue(queued);
     vi.mocked(api.agentEvents).mockImplementation((_id, onEvent) => {
       onEvent({
-        schemaVersion: 1,
+        schemaVersion: 2,
         sequence: 1,
         jobId,
         status: "running",
         timestamp: "2026-08-07T00:00:01.000Z",
         type: "tool",
         data: {
+          turn: 1,
           toolCallId: "call-1",
           toolName: "read_file",
           state: "succeeded",
@@ -673,8 +674,23 @@ describe("runtime controller", () => {
         },
       });
       onEvent({
-        schemaVersion: 1,
+        schemaVersion: 2,
         sequence: 2,
+        jobId,
+        status: "running",
+        timestamp: "2026-08-07T00:00:01.500Z",
+        type: "tool",
+        data: {
+          turn: 2,
+          toolCallId: "call-1",
+          toolName: "replace_text",
+          state: "succeeded",
+          relativePath: "src/App.tsx",
+        },
+      });
+      onEvent({
+        schemaVersion: 2,
+        sequence: 3,
         jobId,
         status: "awaiting-review",
         timestamp: "2026-08-07T00:00:02.000Z",
@@ -800,6 +816,8 @@ describe("runtime controller", () => {
     });
     expect(api.agentCapability).toHaveBeenCalledOnce();
     expect(shadowRoot?.textContent).toContain("Typecheck: passed");
+    expect(shadowRoot?.textContent).toContain("read_file · succeeded");
+    expect(shadowRoot?.textContent).toContain("replace_text · succeeded");
     expect(shadowRoot?.textContent).not.toContain("provider-model-v1");
 
     const applyButton = findShadowButton(shadowRoot, "Apply changes");

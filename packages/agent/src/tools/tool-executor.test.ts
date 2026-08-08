@@ -19,6 +19,8 @@ import {
 } from "../worktree/git-worktree.js";
 import { createAgentToolExecutor } from "./tool-executor.js";
 
+const turn = (value: number) => Object.freeze({ turn: value });
+
 const updatePatch = `diff --git a/src/App.tsx b/src/App.tsx
 --- a/src/App.tsx
 +++ b/src/App.tsx
@@ -65,6 +67,7 @@ describe("Agent tool executor", () => {
     const signal = new AbortController().signal;
     const listed = await executor.execute(
       call("list", "list_files", { glob: "**/*", maxResults: 100 }),
+      turn(1),
       signal,
     );
     const searched = await executor.execute(
@@ -73,10 +76,12 @@ describe("Agent tool executor", () => {
         glob: "src/**/*.ts",
         maxResults: 10,
       }),
+      turn(1),
       signal,
     );
     const read = await executor.execute(
       call("read", "read_file", { path: "src/App.tsx" }),
+      turn(1),
       signal,
     );
 
@@ -89,7 +94,7 @@ describe("Agent tool executor", () => {
     expect(JSON.stringify(read.output)).toContain("Before");
   });
 
-  it("applies each toolCallId once and rejects changed duplicate arguments", async () => {
+  it("scopes idempotency to one turn and permits a provider ID in a later turn", async () => {
     const executor = createAgentToolExecutor({
       checks: {},
       limits: DEFAULT_AGENT_LIMITS,
@@ -97,17 +102,34 @@ describe("Agent tool executor", () => {
     });
     const signal = new AbortController().signal;
     const patchCall = call("patch", "apply_patch", { patch: updatePatch });
-    const first = await executor.execute(patchCall, signal);
-    const duplicate = await executor.execute(patchCall, signal);
+    const first = await executor.execute(patchCall, turn(1), signal);
+    const duplicate = await executor.execute(patchCall, turn(1), signal);
 
     expect(duplicate).toBe(first);
     expect(await worktreeFile()).toContain("After");
     await expect(
       executor.execute(
         call("patch", "apply_patch", { patch: `${updatePatch}\n` }),
+        turn(1),
         signal,
       ),
-    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_INPUT_INVALID });
+    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_CALL_ID_CONFLICT });
+
+    const laterTurn = await executor.execute(
+      call("patch", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "<button>After</button>",
+        newText: "<button>Final</button>",
+      }),
+      turn(2),
+      signal,
+    );
+
+    expect(laterTurn.output).toEqual({
+      paths: ["src/App.tsx"],
+      replacements: 1,
+    });
+    expect(await worktreeFile()).toContain("Final");
     expect(executor.touchedPaths()).toEqual(new Set(["src/App.tsx"]));
   });
 
@@ -122,6 +144,7 @@ describe("Agent tool executor", () => {
       call("patch-rejected", "apply_patch", {
         patch: updatePatch.replace("Before", "Missing"),
       }),
+      turn(1),
       signal,
     );
 
@@ -134,6 +157,7 @@ describe("Agent tool executor", () => {
 
     const applied = await executor.execute(
       call("patch-corrected", "apply_patch", { patch: updatePatch }),
+      turn(2),
       signal,
     );
 
@@ -154,8 +178,8 @@ describe("Agent tool executor", () => {
       oldText: "<button>Before</button>",
       newText: "<button>After</button>",
     });
-    const first = await executor.execute(replacementCall, signal);
-    const duplicate = await executor.execute(replacementCall, signal);
+    const first = await executor.execute(replacementCall, turn(1), signal);
+    const duplicate = await executor.execute(replacementCall, turn(1), signal);
 
     expect(first.output).toEqual({
       paths: ["src/App.tsx"],
@@ -202,7 +226,9 @@ describe("Agent tool executor", () => {
     ];
 
     for (const rejectedCall of rejectedCalls) {
-      await expect(executor.execute(rejectedCall, signal)).resolves.toMatchObject({
+      await expect(
+        executor.execute(rejectedCall, turn(1), signal),
+      ).resolves.toMatchObject({
         output: {
           errorCode: ERROR_CODES.PATCH_REJECTED,
           retryable: true,
@@ -228,9 +254,36 @@ describe("Agent tool executor", () => {
           oldText: "SECRET=hidden",
           newText: "SECRET=exposed",
         }),
+        turn(1),
         new AbortController().signal,
       ),
     ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_PATH_DENIED });
+    expect(executor.touchedPaths()).toEqual(new Set());
+  });
+
+  it("reports arguments that do not match a declared tool contract", async () => {
+    const executor = createAgentToolExecutor({
+      checks: {},
+      limits: DEFAULT_AGENT_LIMITS,
+      worktreeRoot: worktree.root,
+    });
+
+    await expect(
+      executor.execute(
+        call("invalid-read", "read_file", {
+          path: "src/App.tsx",
+          unexpected: true,
+        }),
+        turn(1),
+        new AbortController().signal,
+      ),
+    ).resolves.toMatchObject({
+      output: {
+        errorCode: ERROR_CODES.TOOL_ARGUMENTS_INVALID,
+        retryable: true,
+        reason: "ARGUMENTS_DO_NOT_MATCH_CONTRACT",
+      },
+    });
     expect(executor.touchedPaths()).toEqual(new Set());
   });
 
@@ -255,6 +308,7 @@ describe("Agent tool executor", () => {
     await expect(
       executor.execute(
         call("check", "run_check", { checkId: "mutate" }),
+        turn(1),
         new AbortController().signal,
       ),
     ).rejects.toMatchObject({ code: ERROR_CODES.VALIDATION_FAILED });

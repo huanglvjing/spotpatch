@@ -73,6 +73,8 @@ const STATUS_BY_ERROR = Object.freeze({
   [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]: 409,
   [ERROR_CODES.TOOL_DENIED]: 403,
   [ERROR_CODES.TOOL_INPUT_INVALID]: 422,
+  [ERROR_CODES.TOOL_ARGUMENTS_INVALID]: 422,
+  [ERROR_CODES.TOOL_CALL_ID_CONFLICT]: 422,
   [ERROR_CODES.TOOL_PATH_DENIED]: 403,
   [ERROR_CODES.PATCH_REJECTED]: 422,
   [ERROR_CODES.VALIDATION_FAILED]: 422,
@@ -114,6 +116,9 @@ const PUBLIC_MESSAGES = Object.freeze({
     "The local workspace state cannot be isolated safely.",
   [ERROR_CODES.TOOL_DENIED]: "The Agent tool request was denied.",
   [ERROR_CODES.TOOL_INPUT_INVALID]: "The Agent tool input was invalid.",
+  [ERROR_CODES.TOOL_ARGUMENTS_INVALID]: "The Agent tool arguments are invalid.",
+  [ERROR_CODES.TOOL_CALL_ID_CONFLICT]:
+    "A tool call ID conflicts within one Agent turn.",
   [ERROR_CODES.TOOL_PATH_DENIED]: "The Agent tool path was denied.",
   [ERROR_CODES.PATCH_REJECTED]: "The proposed patch was rejected.",
   [ERROR_CODES.VALIDATION_FAILED]: "The proposed change failed validation.",

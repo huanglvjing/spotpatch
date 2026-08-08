@@ -76,7 +76,7 @@ describe("Agent response schemas", () => {
     expect(agentJobSnapshotSchema.safeParse(snapshot).success).toBe(true);
     expect(
       agentJobEventSchema.safeParse({
-        schemaVersion: 1,
+        schemaVersion: 2,
         sequence: 1,
         jobId,
         status: "awaiting-review",
@@ -112,7 +112,7 @@ describe("Agent response schemas", () => {
   it("rejects mismatched nested job identity and status", () => {
     expect(
       agentJobEventSchema.safeParse({
-        schemaVersion: 1,
+        schemaVersion: 2,
         sequence: 1,
         jobId,
         status: "running",
@@ -150,7 +150,7 @@ describe("Agent response schemas", () => {
     ).toBe(false);
     expect(
       agentJobEventSchema.safeParse({
-        schemaVersion: 1,
+        schemaVersion: 2,
         sequence: 1,
         jobId,
         status: "running",

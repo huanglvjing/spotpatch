@@ -143,7 +143,7 @@ export const agentJobResultResponseSchema = z
   });
 
 const agentJobEventBaseSchema = z.strictObject({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   sequence: z.number().int().positive(),
   jobId: z
     .string()
@@ -167,6 +167,7 @@ export const agentJobEventSchema = z
     agentJobEventBaseSchema.extend({
       type: z.literal("tool"),
       data: z.strictObject({
+        turn: z.number().int().positive(),
         toolCallId: boundedString(256),
         toolName: boundedString(100),
         state: z.enum(["started", "succeeded", "failed"]),

@@ -10,6 +10,7 @@ import {
 } from "@spotpatch/shared";
 
 import { createOpenAICompatibleProviderSession } from "../provider/openai-compatible-provider.js";
+import { assertUniqueToolCallIds } from "../provider/provider-parsing.js";
 import type { ProviderCredential } from "../provider/provider-credential.js";
 import type { ProviderToolResult } from "../provider/provider-types.js";
 import { isRestartSensitivePath } from "../security/path-policy.js";
@@ -35,6 +36,7 @@ export interface AgentExecutionCallbacks {
   ) => void;
   readonly onTool?: (
     event: Readonly<{
+      turn: number;
       toolCallId: string;
       toolName: string;
       state: "started" | "succeeded" | "failed";
@@ -67,7 +69,9 @@ function isRetryableToolFailure(result: ProviderToolResult): boolean {
 
   const candidate = output as Readonly<Record<string, unknown>>;
   return (
-    candidate.errorCode === ERROR_CODES.PATCH_REJECTED && candidate.retryable === true
+    candidate.retryable === true &&
+    (candidate.errorCode === ERROR_CODES.PATCH_REJECTED ||
+      candidate.errorCode === ERROR_CODES.TOOL_ARGUMENTS_INVALID)
   );
 }
 
@@ -155,8 +159,10 @@ export async function executeAgentChange(
     let toolCallCount = 0;
 
     for (let turn = 0; turn < options.execution.limits.maxTurns; turn += 1) {
+      const turnNumber = turn + 1;
       throwIfCancelled(controller.signal);
       const response = await session.next(pendingResults, controller.signal);
+      assertUniqueToolCallIds(response.toolCalls);
 
       if (response.toolCalls.length === 0) {
         summary = response.finalText
@@ -176,6 +182,7 @@ export async function executeAgentChange(
       for (const call of response.toolCalls) {
         options.callbacks?.onTool?.(
           Object.freeze({
+            turn: turnNumber,
             toolCallId: call.id,
             toolName: call.name,
             state: "started",
@@ -183,10 +190,15 @@ export async function executeAgentChange(
         );
 
         try {
-          const result = await executor.execute(call, controller.signal);
+          const result = await executor.execute(
+            call,
+            Object.freeze({ turn: turnNumber }),
+            controller.signal,
+          );
           results.push(result);
           options.callbacks?.onTool?.(
             Object.freeze({
+              turn: turnNumber,
               toolCallId: call.id,
               toolName: call.name,
               state: isRetryableToolFailure(result) ? "failed" : "succeeded",
@@ -195,6 +207,7 @@ export async function executeAgentChange(
         } catch (error: unknown) {
           options.callbacks?.onTool?.(
             Object.freeze({
+              turn: turnNumber,
               toolCallId: call.id,
               toolName: call.name,
               state: "failed",

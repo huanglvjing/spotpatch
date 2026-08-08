@@ -2,9 +2,9 @@
 doc-id: "16-ai-agent-execution"
 title: "AI Agent 执行与变更审阅"
 status: "active"
-version: "1.5.0"
+version: "1.6.0"
 last-updated: "2026-08-08"
-source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅；v1.2 多目标原子执行；v1.3 逐目标说明执行语义；v1.5 显式同意的本地修改隔离、健康检查与 Agent 增量撤销"
+source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅；v1.2 多目标原子执行；v1.3 逐目标说明执行语义；v1.5 显式同意的本地修改隔离、健康检查与 Agent 增量撤销；v1.6 跨轮工具 ID 兼容与轮次作用域幂等"
 参考文献/依赖:
   - "01-product-boundary"
   - "02-architecture-stack"
@@ -92,7 +92,7 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 | `apply_patch` | 单个结构化 patch | 在 worktree 中创建、更新或删除允许文件 | 有 |
 | `run_check` | 服务端登记的 `checkId` | 执行一个预配置验证命令 | 有限进程副作用 |
 
-所有工具使用严格 JSON Schema；对象必须设置 `additionalProperties: false`，字段缺失、未知字段、类型错误和超限输入一律拒绝。模型提供商是否能可靠返回严格工具调用由能力探测确认 (见 doc-id:17-model-provider-credentials)。
+所有工具使用严格 JSON Schema；对象必须设置 `additionalProperties: false`。字段缺失、未知字段或类型错误在执行任何副作用前返回 `TOOL_ARGUMENTS_INVALID`、`retryable: true` 和固定脱敏指引，模型只允许用新调用 ID 修正一次；重复失败仍受轮次/调用上限约束。无法解析成 JSON 对象、超限输入、路径或权限错误是终止性失败，不能通过参数重试降级。模型提供商是否能可靠返回严格工具调用由能力探测确认 (见 doc-id:17-model-provider-credentials)。
 
 ### 只读工具
 
@@ -110,7 +110,7 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 - patch 必须是原始 canonical unified Git diff：以 `diff --git a/<path> b/<path>` 开始，包含一致的 `--- a/<path>`、`+++ b/<path>` 文件头和有效 `@@` hunk；禁止 Markdown 代码围栏、解释文本、Shell 命令和 `*** Begin Patch` 包装标记。
 - 每个 patch 只允许相对路径，不允许绝对路径、`..`、NUL、URL 编码逃逸或平台分隔符混淆。
 - 同一轮的多个写入按事件顺序串行执行，不并发修改同一 worktree。
-- 相同 `toolCallId` 只能产生一次副作用；网络重试或重复流事件必须返回已记录结果，不得重复应用。
+- 相同模型轮次内的 `toolCallId` 只能产生一次副作用；网络重试或同一逻辑调用的重复流事件必须返回该轮已记录结果，不得重复应用。provider 可以在后续轮次复用原始 ID，执行器必须以 SpotPatch 生成的 `turn + toolCallId` 作为幂等键，不能把后续轮次误判为旧调用重放。
 - 删除文件属于破坏性变更：允许进入审阅结果，但禁止自动应用到业务工作区。
 - patch 因格式或 hunk 上下文不匹配而被拒绝，且拒绝前后的 worktree 指纹完全一致时，必须返回带 `PATCH_REJECTED` 和 `retryable: true` 的结构化工具结果；局部既有文件修改应改用 `replace_text`，其他情形才重新读取并使用新的 `toolCallId` 提交纠正后的 canonical diff。该次工具活动记为失败，但 Job 可在既有轮数和工具调用上限内继续。
 - 路径越界、保护文件、超限输入、拒绝后 worktree 已变化或达到既有限制仍是终止性失败；不得把这些情况降级为重试。`apply_patch` 实现不得私自把任意 patch 猜测性转换成文本替换，不得开放整文件覆盖，也不得使用 `--reject` 留下部分结果；唯一允许的精确文本替换只来自独立、严格校验的 `replace_text` 工具。
@@ -131,10 +131,11 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 
 1. 向 provider 发送当前对话状态、允许工具和剩余预算。
 2. 解析并 Schema 校验 provider 事件。
-3. 若返回最终消息，进入变更校验；若返回工具调用，继续下一步。
-4. 对每个工具调用执行名称、参数、预算、授权和幂等校验。
-5. 执行允许的工具，把结构化结果关联到原 `toolCallId`。
-6. 将工具结果加入下一轮输入，直至完成、取消、失败或达到限制。
+3. 为当前响应分配从 1 开始、严格递增的内部 `turn`；同一轮内冲突的重复 `toolCallId` 立即失败，跨轮复用保持合法。
+4. 若返回最终消息，进入变更校验；若返回工具调用，继续下一步。
+5. 对每个工具调用执行名称、参数、预算、授权和 `turn + toolCallId` 幂等校验。
+6. 执行允许的工具，把结构化结果关联到当前轮原始 `toolCallId`。
+7. 将工具结果加入下一轮输入，直至完成、取消、失败或达到限制。
 
 模型文字不能直接触发文件或命令副作用。只有结构化工具调用可以进入工具执行器；不支持工具调用的模型只能生成建议或 Prompt，不得启用自动修改。
 
@@ -272,6 +273,7 @@ provider adapter 不进入 `tools/` 或 `worktree/`，文件工具也不得直�
 
 - fake provider 可完整驱动读、搜、改、检查和最终响应。
 - Responses 与 Chat Completions adapter 产生相同的内部工具事件语义。
+- 两种 adapter 均允许中转站跨轮复用 provider `toolCallId`，同时拒绝同轮冲突；Runtime 中不同轮的活动不能相互覆盖。
 - provider 返回任意恶意路径、重复调用和畸形参数都不能逃离 worktree。
 - 脏工作区、并发变化、检查失败和 apply 冲突全部 fail-closed。
 - review 模式可 Apply 和安全 Revert；auto 模式只在全部门禁通过时应用。

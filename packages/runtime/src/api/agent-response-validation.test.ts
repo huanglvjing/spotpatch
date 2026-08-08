@@ -71,7 +71,7 @@ const resultResponse = Object.freeze({
 });
 
 const event = Object.freeze({
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   sequence: 1,
   jobId,
   status: "awaiting-review" as const,

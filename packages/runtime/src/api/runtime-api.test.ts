@@ -333,7 +333,7 @@ describe("runtime API client", () => {
   it("parses arbitrarily chunked UTF-8 NDJSON and rejects out-of-order events", async () => {
     const events: readonly AgentJobEvent[] = [
       Object.freeze({
-        schemaVersion: 1,
+        schemaVersion: 2,
         sequence: 1,
         jobId,
         status: "running",
@@ -342,7 +342,7 @@ describe("runtime API client", () => {
         data: Object.freeze({ message: "正在分析" }),
       }),
       Object.freeze({
-        schemaVersion: 1,
+        schemaVersion: 2,
         sequence: 2,
         jobId,
         status: "awaiting-review",

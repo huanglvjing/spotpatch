@@ -110,7 +110,7 @@ export function requireConfiguredCheck(
   const check = checks[checkId];
 
   if (check === undefined) {
-    throw new SpotPatchError(ERROR_CODES.TOOL_INPUT_INVALID);
+    throw new SpotPatchError(ERROR_CODES.TOOL_ARGUMENTS_INVALID);
   }
 
   return check;

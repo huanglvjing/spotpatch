@@ -213,18 +213,15 @@ const ERROR_MESSAGES_EN = Object.freeze({
     "An untracked path is missing, linked, or not a regular file.",
   [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]:
     "Local changes cannot be isolated safely.",
-  [ERROR_CODES.TOOL_DENIED]: "A model tool request violated the local safety policy.",
-  [ERROR_CODES.TOOL_INPUT_INVALID]:
-    "The model sent invalid tool arguments or reused a tool ID.",
-  [ERROR_CODES.TOOL_PATH_DENIED]:
-    "The model requested a protected, linked, non-text, or external path.",
-  [ERROR_CODES.PATCH_REJECTED]: "The proposed patch did not pass local policy.",
-  [ERROR_CODES.VALIDATION_FAILED]:
-    "Required project checks failed. The change cannot be applied.",
-  [ERROR_CODES.APPLY_CONFLICT]:
-    "Project files changed after the Agent baseline; no overwrite was performed.",
-  [ERROR_CODES.INTERNAL_ERROR]:
-    "The Agent job failed without exposing private details.",
+  [ERROR_CODES.TOOL_DENIED]: "A tool request violated local safety policy.",
+  [ERROR_CODES.TOOL_INPUT_INVALID]: "Invalid tool request.",
+  [ERROR_CODES.TOOL_ARGUMENTS_INVALID]: "Tool arguments are invalid.",
+  [ERROR_CODES.TOOL_CALL_ID_CONFLICT]: "Tool ID conflicts in this turn.",
+  [ERROR_CODES.TOOL_PATH_DENIED]: "The model requested a protected or external path.",
+  [ERROR_CODES.PATCH_REJECTED]: "The patch violated local policy.",
+  [ERROR_CODES.VALIDATION_FAILED]: "Required checks failed; changes cannot be applied.",
+  [ERROR_CODES.APPLY_CONFLICT]: "Agent-touched files changed; nothing was overwritten.",
+  [ERROR_CODES.INTERNAL_ERROR]: "The Agent failed without exposing private details.",
 } satisfies Record<ErrorCode, string>);
 
 const ERROR_MESSAGES_ZH = Object.freeze({
@@ -257,13 +254,15 @@ const ERROR_MESSAGES_ZH = Object.freeze({
   [ERROR_CODES.WORKTREE_UNTRACKED_UNSUPPORTED]:
     "未跟踪项已丢失、是符号链接或不是普通文件。",
   [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]: "当前本地修改无法安全隔离。",
-  [ERROR_CODES.TOOL_DENIED]: "模型工具请求违反本地安全策略。",
-  [ERROR_CODES.TOOL_INPUT_INVALID]: "模型发送了无效工具参数，或复用了工具调用 ID。",
-  [ERROR_CODES.TOOL_PATH_DENIED]: "模型请求了受保护、非文本、符号链接或项目外路径。",
-  [ERROR_CODES.PATCH_REJECTED]: "建议补丁未通过本地策略检查。",
-  [ERROR_CODES.VALIDATION_FAILED]: "项目必需检查失败，不能应用本次变更。",
-  [ERROR_CODES.APPLY_CONFLICT]: "Agent 建立基线后项目文件已变化，未执行覆盖。",
-  [ERROR_CODES.INTERNAL_ERROR]: "Agent 任务失败，私有细节未暴露到浏览器。",
+  [ERROR_CODES.TOOL_DENIED]: "工具请求违反本地安全策略。",
+  [ERROR_CODES.TOOL_INPUT_INVALID]: "工具请求无效。",
+  [ERROR_CODES.TOOL_ARGUMENTS_INVALID]: "工具参数无效。",
+  [ERROR_CODES.TOOL_CALL_ID_CONFLICT]: "本轮工具 ID 冲突。",
+  [ERROR_CODES.TOOL_PATH_DENIED]: "模型请求了受保护或项目外路径。",
+  [ERROR_CODES.PATCH_REJECTED]: "补丁违反本地策略。",
+  [ERROR_CODES.VALIDATION_FAILED]: "必需检查失败，无法应用变更。",
+  [ERROR_CODES.APPLY_CONFLICT]: "Agent 触及文件已变化，未覆盖。",
+  [ERROR_CODES.INTERNAL_ERROR]: "Agent 失败，未暴露私有细节。",
 } satisfies Record<ErrorCode, string>);
 
 const SUMMARY_MESSAGES_EN = Object.freeze({

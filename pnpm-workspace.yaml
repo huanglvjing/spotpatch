@@ -1,6 +1,8 @@
 packages:
   - "packages/*"
   - "playgrounds/*"
+  - "experiments/next-adapter"
+  - "experiments/next-adapter/fixtures/*"
 
 onlyBuiltDependencies:
   - "@swc/core"

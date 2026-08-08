@@ -1,0 +1,10 @@
+{
+  "attributeName": "data-spotpatch-loader-probe",
+  "inactiveValue": "inactive",
+  "activePrefix": "active-",
+  "probeIdPattern": "^[a-z0-9-]+$",
+  "sourceMapModes": {
+    "turbopack": "resource-relative",
+    "webpack": "project-relative"
+  }
+}

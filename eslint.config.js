@@ -17,6 +17,8 @@ export default tseslint.config(
       "**/dist/**",
       "**/coverage/**",
       "**/node_modules/**",
+      "experiments/next-adapter/.artifacts/**",
+      "experiments/next-adapter/.work/**",
       "docs/**",
       "playwright-report/**",
       "test-results/**",
@@ -30,6 +32,7 @@ export default tseslint.config(
       "*.ts",
       "packages/**/*.{ts,tsx}",
       "playgrounds/**/*.{ts,tsx}",
+      "experiments/next-adapter/**/*.{ts,tsx}",
       "tests/**/*.ts",
     ],
     languageOptions: {
@@ -83,6 +86,10 @@ export default tseslint.config(
         ...globals.browser,
         ...globals.node,
       },
+    },
+    rules: {
+      ...tseslint.configs.disableTypeChecked.rules,
+      "@typescript-eslint/no-require-imports": "off",
     },
   },
 );

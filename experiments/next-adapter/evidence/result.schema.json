@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:spotpatch:schema:next-loader-poc-result:v1",
+  "title": "SpotPatch Next Loader POC result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "environment",
+    "expectedCaseCount",
+    "conclusion",
+    "cases"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "operatingSystem", "architecture", "nodeVersion"],
+      "properties": {
+        "platform": { "type": "string" },
+        "operatingSystem": { "type": "string" },
+        "architecture": { "type": "string" },
+        "nodeVersion": { "type": "string" }
+      }
+    },
+    "expectedCaseCount": { "type": "integer", "minimum": 1 },
+    "conclusion": { "enum": ["failed", "passed"] },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "assertions",
+          "bundler",
+          "command",
+          "durationMs",
+          "error",
+          "fixtureId",
+          "kind",
+          "logPath",
+          "nextVersion",
+          "reactVersion",
+          "sourceHashes",
+          "status",
+          "transformedModuleCount"
+        ],
+        "properties": {
+          "assertions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["actual", "expected", "name", "passed"],
+              "properties": {
+                "actual": { "type": "string" },
+                "expected": { "type": "string" },
+                "name": { "type": "string" },
+                "passed": { "type": "boolean" }
+              }
+            }
+          },
+          "bundler": { "enum": ["turbopack", "webpack"] },
+          "command": { "type": "string" },
+          "durationMs": { "type": "integer", "minimum": 0 },
+          "error": { "type": ["string", "null"] },
+          "fixtureId": { "type": "string" },
+          "kind": { "enum": ["development", "production"] },
+          "logPath": { "type": "string" },
+          "nextVersion": { "type": "string" },
+          "reactVersion": { "type": "string" },
+          "sourceHashes": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["inputSha256", "outputSha256"],
+            "properties": {
+              "inputSha256": {
+                "type": ["string", "null"],
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "outputSha256": {
+                "type": ["string", "null"],
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            }
+          },
+          "status": { "enum": ["failed", "passed"] },
+          "transformedModuleCount": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

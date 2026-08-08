@@ -58,6 +58,27 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  next-loader-poc:
+    name: Next Loader POC (Ubuntu, Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          node-version: 22
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:next-poc
+      - name: Upload Next Loader POC evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: next-loader-poc-${{ github.run_id }}
+          path: experiments/next-adapter/.artifacts/loader-poc/
+          if-no-files-found: warn
+          include-hidden-files: true
+          retention-days: 14
+
   package:
     name: Package validation
     runs-on: ubuntu-latest

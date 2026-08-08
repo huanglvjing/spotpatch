@@ -5,3 +5,5 @@ playwright-report/
 test-results/
 pnpm-lock.yaml
 docs/技术方案/
+experiments/next-adapter/.artifacts/
+experiments/next-adapter/.work/

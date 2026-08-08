@@ -1,5 +1,13 @@
 # @spotpatch/shared
 
+## 1.2.0
+
+### Minor Changes
+
+- 5822446: Add safe, source-aware Cursor and VS Code navigation with automatic editor
+  detection, per-target quick-open controls, visible bilingual launch feedback,
+  and a non-tracking link to the official SpotPatch GitHub repository.
+
 ## 1.1.0
 
 ### Minor Changes

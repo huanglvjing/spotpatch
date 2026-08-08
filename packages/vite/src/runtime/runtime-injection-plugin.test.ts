@@ -2,6 +2,7 @@ import { SPOTPATCH_API_BASE } from "@spotpatch/shared";
 import { describe, expect, it } from "vitest";
 import { version as VITE_VERSION } from "vite";
 
+import packageMetadata from "../../package.json" with { type: "json" };
 import { resolveOptions } from "../options.js";
 import type { SpotPatchSession } from "../session/session.js";
 import {
@@ -67,7 +68,7 @@ describe("runtime injection plugin", () => {
 
     expect(code).toContain("browser-session-token");
     expect(code).toContain("Alt+S");
-    expect(code).toContain('"spotPatchVersion":"0.0.0"');
+    expect(code).toContain(`"spotPatchVersion":"${packageMetadata.version}"`);
     expect(code).toContain(`"viteVersion":"${VITE_VERSION}"`);
     expect(code).toContain('"locale":"auto"');
     expect(code).toContain('"maxTargets":8');

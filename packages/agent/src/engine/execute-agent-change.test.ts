@@ -20,6 +20,8 @@ import {
 } from "../worktree/prepared-change.js";
 import { executeAgentChange } from "./execute-agent-change.js";
 
+const AGENT_EXECUTION_INTEGRATION_TIMEOUT_MS = 15_000;
+
 const updatePatch = `diff --git a/src/App.tsx b/src/App.tsx
 --- a/src/App.tsx
 +++ b/src/App.tsx
@@ -190,7 +192,7 @@ function codingModel(source: ResolvedOpenAICompatibleProviderOptions) {
   return model;
 }
 
-describe("Agent execution", () => {
+describe("Agent execution", { timeout: AGENT_EXECUTION_INTEGRATION_TIMEOUT_MS }, () => {
   it("drives read, exact replace, check, review Apply, and hash-safe Revert", async () => {
     const repository = await createTestGitRepository();
     const temporaryBase = await mkdtemp(

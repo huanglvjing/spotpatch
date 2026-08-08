@@ -46,7 +46,6 @@ try {
   const transformedSource = await sourceResponse.text();
   const marker = transformedSource.match(/([A-Za-z0-9_-]+:\d+:\d+)/u)?.[1];
   assert.notEqual(marker, undefined);
-  await server.waitForRequestsIdle();
 
   const runtimeResponse = await fetch(new URL(clientPath, origin));
   assert.equal(runtimeResponse.status, 200);

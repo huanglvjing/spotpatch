@@ -428,7 +428,7 @@ describe("runtime view", () => {
     });
     expect(view.agentRunButton.disabled).toBe(true);
     expect(view.host.shadowRoot?.textContent).toContain(
-      "Resolve all merge conflicts before running AI",
+      "Resolve all Git conflicts before running AI",
     );
   });
 

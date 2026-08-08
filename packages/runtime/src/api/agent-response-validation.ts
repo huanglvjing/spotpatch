@@ -3,7 +3,6 @@ import {
   AGENT_CHECK_STATUSES,
   AGENT_FILE_CHANGE_KINDS,
   AGENT_JOB_STATUSES,
-  AGENT_WORKSPACE_STATES,
   ERROR_CODES,
   type AgentCapabilitySnapshot,
   type AgentJobEvent,
@@ -21,7 +20,6 @@ const CAPABILITY_STATE_VALUES = new Set<string>(AGENT_CAPABILITY_STATES);
 const CHECK_STATUS_VALUES = new Set<string>(AGENT_CHECK_STATUSES);
 const FILE_CHANGE_KIND_VALUES = new Set<string>(AGENT_FILE_CHANGE_KINDS);
 const JOB_STATUS_VALUES = new Set<string>(AGENT_JOB_STATUSES);
-const WORKSPACE_STATE_VALUES = new Set<string>(AGENT_WORKSPACE_STATES);
 const PROFILE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const JOB_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 const ISO_TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
@@ -137,8 +135,9 @@ export function isAgentWorkspaceHealthSnapshot(
       "canIncludeLocalChanges",
       "errorCode",
     ]) ||
-    typeof value.state !== "string" ||
-    !WORKSPACE_STATE_VALUES.has(value.state) ||
+    (value.state !== "ready" &&
+      value.state !== "consent-required" &&
+      value.state !== "blocked") ||
     !isIsoTimestamp(value.checkedAt) ||
     typeof value.canIncludeLocalChanges !== "boolean" ||
     (value.errorCode !== undefined && !isAgentErrorCode(value.errorCode)) ||

@@ -201,25 +201,23 @@ const ERROR_MESSAGES_EN = Object.freeze({
   [ERROR_CODES.AGENT_LIMIT_EXCEEDED]:
     "The Agent stopped at a configured time, turn, output, or size limit.",
   [ERROR_CODES.AGENT_CANCELLED]: "The Agent job was cancelled.",
-  [ERROR_CODES.WORKTREE_DIRTY]:
-    "Local changes require explicit inclusion consent before running AI.",
+  [ERROR_CODES.WORKTREE_DIRTY]: "Confirm inclusion of local changes before running AI.",
   [ERROR_CODES.WORKTREE_NOT_REPOSITORY]:
-    "The Vite root is not the top level of an initialized Git repository.",
+    "Vite root must be an initialized Git repository root.",
   [ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS]:
-    "Finish the active merge, rebase, cherry-pick, or revert before running AI.",
-  [ERROR_CODES.WORKTREE_CONFLICTED]:
-    "Resolve all merge conflicts before running AI; SpotPatch will not guess a resolution.",
+    "Finish the active merge, rebase, cherry-pick, or revert.",
+  [ERROR_CODES.WORKTREE_CONFLICTED]: "Resolve all Git conflicts before running AI.",
   [ERROR_CODES.WORKTREE_LOCAL_CHANGES_TOO_LARGE]:
-    "Local untracked files exceed the safe isolation limit. Reduce their count or total size.",
+    "Reduce untracked files below the safe count and size limits.",
   [ERROR_CODES.WORKTREE_UNTRACKED_UNSUPPORTED]:
-    "An untracked item is missing, linked, or not a regular file and cannot be isolated safely.",
+    "An untracked path is missing, linked, or not a regular file.",
   [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]:
-    "Local changes include conflicts, unsupported files, or exceed the safe baseline limit.",
+    "Local changes cannot be isolated safely.",
   [ERROR_CODES.TOOL_DENIED]: "A model tool request violated the local safety policy.",
   [ERROR_CODES.TOOL_INPUT_INVALID]:
-    "The model sent invalid tool arguments or reused a tool call ID inconsistently.",
+    "The model sent invalid tool arguments or reused a tool ID.",
   [ERROR_CODES.TOOL_PATH_DENIED]:
-    "The model tried to access a protected, non-text, linked, or out-of-project path.",
+    "The model requested a protected, linked, non-text, or external path.",
   [ERROR_CODES.PATCH_REJECTED]: "The proposed patch did not pass local policy.",
   [ERROR_CODES.VALIDATION_FAILED]:
     "Required project checks failed. The change cannot be applied.",
@@ -253,18 +251,15 @@ const ERROR_MESSAGES_ZH = Object.freeze({
   [ERROR_CODES.WORKTREE_NOT_REPOSITORY]: "Vite 根目录不是已初始化 Git 仓库的顶层目录。",
   [ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS]:
     "请先完成当前 merge、rebase、cherry-pick 或 revert，再运行 AI。",
-  [ERROR_CODES.WORKTREE_CONFLICTED]:
-    "请先解决全部合并冲突；SpotPatch 不会猜测冲突解决方式。",
+  [ERROR_CODES.WORKTREE_CONFLICTED]: "请先解决全部 Git 冲突，再运行 AI。",
   [ERROR_CODES.WORKTREE_LOCAL_CHANGES_TOO_LARGE]:
-    "本地未跟踪文件超过安全隔离上限，请减少文件数量或总体积。",
+    "未跟踪文件超过安全数量或体积上限，请先精简。",
   [ERROR_CODES.WORKTREE_UNTRACKED_UNSUPPORTED]:
-    "某个未跟踪项已丢失、是符号链接或不是普通文件，无法安全隔离。",
-  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]:
-    "本地修改存在冲突、不支持的文件，或超过安全基线限制。",
+    "未跟踪项已丢失、是符号链接或不是普通文件。",
+  [ERROR_CODES.WORKTREE_LOCAL_CHANGES_UNSUPPORTED]: "当前本地修改无法安全隔离。",
   [ERROR_CODES.TOOL_DENIED]: "模型工具请求违反本地安全策略。",
-  [ERROR_CODES.TOOL_INPUT_INVALID]:
-    "模型发送了无效工具参数，或不一致地复用了工具调用 ID。",
-  [ERROR_CODES.TOOL_PATH_DENIED]: "模型尝试访问受保护、非文本、符号链接或项目外路径。",
+  [ERROR_CODES.TOOL_INPUT_INVALID]: "模型发送了无效工具参数，或复用了工具调用 ID。",
+  [ERROR_CODES.TOOL_PATH_DENIED]: "模型请求了受保护、非文本、符号链接或项目外路径。",
   [ERROR_CODES.PATCH_REJECTED]: "建议补丁未通过本地策略检查。",
   [ERROR_CODES.VALIDATION_FAILED]: "项目必需检查失败，不能应用本次变更。",
   [ERROR_CODES.APPLY_CONFLICT]: "Agent 建立基线后项目文件已变化，未执行覆盖。",

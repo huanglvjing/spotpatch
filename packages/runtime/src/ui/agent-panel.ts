@@ -107,7 +107,7 @@ export const AGENT_PANEL_STYLES = `
     font-weight: 560;
     line-height: 1.35;
     outline: none;
-    transition: border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease;
+    transition: 160ms ease;
   }
   .spotpatch-agent select:hover { border-color: rgb(148 163 184 / 38%); background-color: rgb(255 255 255 / 5%); }
   .spotpatch-agent select:focus-visible { border-color: rgb(139 124 247 / 76%); box-shadow: 0 0 0 3px rgb(109 93 246 / 18%); }
@@ -118,7 +118,7 @@ export const AGENT_PANEL_STYLES = `
     .spotpatch-agent select { padding: 10px 13px; }
     .spotpatch-agent select::picker-icon {
       color: #9da6b5;
-      transition: rotate 180ms cubic-bezier(.2, .8, .2, 1), color 160ms ease;
+      transition: rotate 180ms cubic-bezier(.2, .8, .2, 1);
     }
     .spotpatch-agent select:open::picker-icon { rotate: 180deg; color: #c4b5fd; }
     .spotpatch-agent select::picker(select) {
@@ -131,12 +131,10 @@ export const AGENT_PANEL_STYLES = `
       border: 1px solid rgb(139 124 247 / 28%);
       border-radius: 12px;
       padding: 6px;
-      color: #e8ebf2;
       background: #10151e;
-      box-shadow: 0 18px 50px rgb(0 0 0 / 38%), 0 0 0 1px rgb(255 255 255 / 3%);
+      box-shadow: 0 18px 50px rgb(0 0 0 / 38%);
       opacity: 0;
       transform: translateY(-5px) scale(.985);
-      transform-origin: top center;
       transition: opacity 150ms ease, transform 180ms cubic-bezier(.2, .8, .2, 1), overlay 180ms allow-discrete, display 180ms allow-discrete;
     }
     ::picker(select):popover-open { opacity: 1; transform: translateY(0) scale(1); }
@@ -150,7 +148,6 @@ export const AGENT_PANEL_STYLES = `
       color: #dfe4ee;
       background: transparent;
       cursor: pointer;
-      transition: color 120ms ease, background-color 120ms ease;
     }
     .spotpatch-agent select option:hover,
     .spotpatch-agent select option:focus { color: #fff; background: rgb(109 93 246 / 16%); }

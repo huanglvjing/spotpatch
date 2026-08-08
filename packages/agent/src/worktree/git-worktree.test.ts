@@ -12,6 +12,7 @@ import {
 } from "@spotpatch/shared";
 
 import { createTestGitRepository } from "../test-utils/git-repository.js";
+import { GIT_PROCESS_INTEGRATION_TIMEOUT_MS } from "../test-utils/test-timeouts.js";
 import { applyAgentPatch, collectAgentChangeSet } from "./change-set.js";
 import { runGitCommand } from "./git-command.js";
 import { assertCleanGitBaseline, createIsolatedGitWorktree } from "./git-worktree.js";
@@ -23,9 +24,7 @@ import {
 } from "./prepared-change.js";
 import { inspectAgentWorkspace } from "./workspace-health.js";
 
-const GIT_WORKTREE_INTEGRATION_TIMEOUT_MS = 15_000;
-
-vi.setConfig({ testTimeout: GIT_WORKTREE_INTEGRATION_TIMEOUT_MS });
+vi.setConfig({ testTimeout: GIT_PROCESS_INTEGRATION_TIMEOUT_MS });
 
 const updatePatch = `diff --git a/src/App.tsx b/src/App.tsx
 --- a/src/App.tsx

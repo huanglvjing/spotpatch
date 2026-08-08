@@ -1,6 +1,6 @@
 {
   "name": "@spotpatch/shared",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Shared immutable models and protocol definitions for SpotPatch.",
   "license": "MIT",
   "repository": {

@@ -3,6 +3,21 @@
   "version": "0.0.0",
   "description": "Shared immutable models and protocol definitions for SpotPatch.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huanglvjing/spotpatch.git",
+    "directory": "packages/shared"
+  },
+  "homepage": "https://github.com/huanglvjing/spotpatch#readme",
+  "bugs": {
+    "url": "https://github.com/huanglvjing/spotpatch/issues"
+  },
+  "keywords": [
+    "spotpatch",
+    "developer-tools",
+    "protocol",
+    "typescript"
+  ],
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -35,6 +50,7 @@
     "zod": "4.4.3"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

@@ -1,0 +1,29 @@
+name: Setup SpotPatch workspace
+description: Install the declared pnpm version, configure Node.js caching, and restore dependencies.
+
+inputs:
+  node-version:
+    description: Node.js version used by the job.
+    required: true
+  registry-url:
+    description: Optional package registry used by release jobs.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Install declared pnpm version
+      uses: pnpm/action-setup@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: pnpm
+        cache-dependency-path: pnpm-lock.yaml
+        registry-url: ${{ inputs.registry-url }}
+
+    - name: Install frozen workspace dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

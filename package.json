@@ -5,6 +5,14 @@
   "type": "module",
   "description": "Local-first React page feedback with source-aware AI context.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huanglvjing/spotpatch.git"
+  },
+  "homepage": "https://github.com/huanglvjing/spotpatch#readme",
+  "bugs": {
+    "url": "https://github.com/huanglvjing/spotpatch/issues"
+  },
   "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=20.19.0"

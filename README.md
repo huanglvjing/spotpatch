@@ -20,10 +20,11 @@ worktree 中执行受控 Agent 工具，并经 Diff 与检查审阅后修改本�
 
 ## 安装与接入
 
-发布到 npm 后，用户只需安装入口包：
+当前仓库已具备 npm 发布流水线，但首次版本尚未发布。发布完成后，用户只需安装入口包：
 
 ```bash
-pnpm add -D @spotpatch/vite
+npm install --save-dev @spotpatch/vite
+# 或：pnpm add -D @spotpatch/vite
 ```
 
 SpotPatch 必须放在 React/SWC 插件之前：
@@ -127,6 +128,25 @@ pnpm package:validate
 (见 doc-id:12-testing-acceptance)。`@spotpatch/runtime`、
 `@spotpatch/react-adapter` 和 `@spotpatch/shared` 是随入口包安装的内部依赖，应用
 不应直接配置它们。
+
+## npm 发布
+
+仓库使用 Changesets 管理五个公共包的统一首发。用户只安装 `@spotpatch/vite`，但
+`@spotpatch/shared`、`@spotpatch/react-adapter`、`@spotpatch/runtime` 和
+`@spotpatch/agent` 必须同时发布，才能形成可安装的依赖图。
+
+首次发布需要维护者完成以下外部配置：
+
+1. 在 npm 创建或确认拥有 `@spotpatch` scope 的发布权限。
+2. 在 GitHub 仓库 Secret 中配置最小权限的 `NPM_TOKEN`。
+3. 在仓库 Actions 设置中启用 workflow 读写权限，并允许 Actions 创建 Pull Request。
+4. 推送带 Changeset 的变更；Release workflow 会先创建 Version Packages PR。
+5. 审阅并合并版本 PR；合并后的 Release workflow 才会发布 npm 包。
+
+发布工作流会在发布前运行格式、Lint、类型、单测和包验证，并为公开仓库产物生成
+provenance。首次发布成功后，应在 npm 为五个包分别配置 GitHub Actions trusted
+publisher，再通过后续变更移除长期 `NPM_TOKEN`。不得把 npm token、AI Key 或其他
+凭据写入仓库、Changeset、workflow 参数或 `VITE_` 环境变量。
 
 ## 安全原则
 

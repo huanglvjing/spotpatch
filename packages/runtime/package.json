@@ -3,6 +3,21 @@
   "version": "0.0.0",
   "description": "Browser runtime, collectors, and Shadow DOM UI for SpotPatch.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huanglvjing/spotpatch.git",
+    "directory": "packages/runtime"
+  },
+  "homepage": "https://github.com/huanglvjing/spotpatch#readme",
+  "bugs": {
+    "url": "https://github.com/huanglvjing/spotpatch/issues"
+  },
+  "keywords": [
+    "spotpatch",
+    "react",
+    "dom-inspector",
+    "developer-tools"
+  ],
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -36,6 +51,7 @@
     "@spotpatch/shared": "workspace:^"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

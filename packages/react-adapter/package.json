@@ -3,6 +3,21 @@
   "version": "0.0.0",
   "description": "Isolated React compatibility adapter for SpotPatch.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huanglvjing/spotpatch.git",
+    "directory": "packages/react-adapter"
+  },
+  "homepage": "https://github.com/huanglvjing/spotpatch#readme",
+  "bugs": {
+    "url": "https://github.com/huanglvjing/spotpatch/issues"
+  },
+  "keywords": [
+    "spotpatch",
+    "react",
+    "source-mapping",
+    "developer-tools"
+  ],
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -44,6 +59,7 @@
     }
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   }
 }

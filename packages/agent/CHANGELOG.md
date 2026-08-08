@@ -1,5 +1,18 @@
 # @spotpatch/agent
 
+## 1.2.0
+
+### Minor Changes
+
+- 41b5f3f: Add explicit local-workspace health checks and an opt-in isolated baseline for staged, unstaged, and untracked changes. Applying or reverting now preserves pre-existing edits and the Git index while rejecting conflicts on Agent-touched files with more precise diagnostics.
+
+  Improve the provider and model controls with an accessible customizable native picker in supported Chromium versions, including a natural below-field transition and a native fallback.
+
+### Patch Changes
+
+- Updated dependencies [41b5f3f]
+  - @spotpatch/shared@1.3.0
+
 ## 1.1.0
 
 ### Minor Changes

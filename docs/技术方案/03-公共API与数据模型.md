@@ -2,9 +2,9 @@
 doc-id: "03-public-api-models"
 title: "公共 API 与数据模型"
 status: "active"
-version: "1.5.0"
+version: "1.6.0"
 last-updated: "2026-08-08"
-source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言；v1.4 约定式与简洁 AI 配置；v1.5 编辑器偏好与仓库标识"
+source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言；v1.4 约定式与简洁 AI 配置；v1.5 编辑器偏好与仓库标识；v1.6 实际编辑器响应"
 参考文献/依赖:
   - "04-vite-plugin"
   - "08-code-prompt"
@@ -217,7 +217,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
 
 `locale` 只接受 `auto | en-US | zh-CN`。`auto` 先读取宿主 `<html lang>`，没有可用值时读取 `navigator.languages`，最后回退 `en-US`；该设置只决定初始界面和 Prompt 语言，用户仍可在工作台内显式切换。Runtime 不依赖宿主项目的 i18n 库，也不读取宿主业务语言状态；显示和交互规则见 UI 规范 (见 doc-id:10-ui-diagnostics)。
 
-`editor` 只接受 `auto | vscode | cursor`。`auto` 把探测交给服务端 `launch-editor` 适配器；显式值只映射到固定的 `code` 或 `cursor` 命令。浏览器不能传入编辑器名、命令或参数，服务端成功响应返回实际采用的受控偏好。官方仓库 URL 只由 `SPOTPATCH_REPOSITORY_URL` 定义，UI 不复制字面量；协议和外链行为分别见安全与 UI 规范 (见 doc-id:09-local-protocol-security)、(见 doc-id:10-ui-diagnostics)。
+`editor` 只接受 `auto | vscode | cursor`。`auto` 的解析顺序和 CLI 参数只由 Vite 插件实现定义 (见 doc-id:04-vite-plugin)；公共模型不维护第二份探测逻辑。浏览器不能传入编辑器名、命令或参数，服务端成功响应返回实际采用的受控偏好：识别成功时为 `vscode` 或 `cursor`，仅后备探测无法进一步判定时为 `auto`。官方仓库 URL 只由 `SPOTPATCH_REPOSITORY_URL` 定义，UI 不复制字面量；协议和外链行为分别见安全与 UI 规范 (见 doc-id:09-local-protocol-security)、(见 doc-id:10-ui-diagnostics)。
 
 预算的裁剪行为由源码与 Prompt 规范定义 (见 doc-id:08-code-prompt)；`redact` 和 `allowLan` 的强制安全边界由本地协议与安全规范定义 (见 doc-id:09-local-protocol-security)。
 

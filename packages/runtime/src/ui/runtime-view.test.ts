@@ -324,8 +324,21 @@ describe("runtime view", () => {
       providerProfileId: "relay",
       modelProfileId: "coder",
     });
-    expect(view.agentProviderSelect.textContent).toBe("Trusted Relay");
-    expect(view.agentModelSelect.textContent).toBe("Coding Model");
+    expect(view.agentProviderSelect.tagName).toBe("SELECT");
+    expect(view.agentProviderSelect.value).toBe("relay");
+    expect(view.agentProviderSelect.selectedOptions[0]?.textContent).toBe(
+      "Trusted Relay",
+    );
+    expect(view.agentModelSelect.tagName).toBe("SELECT");
+    expect(view.agentModelSelect.value).toBe("coder");
+    expect(view.agentModelSelect.selectedOptions[0]?.textContent).toBe("Coding Model");
+    expect(view.agentProviderSelect.getAttribute("aria-label")).toBe("AI provider");
+    expect(view.agentModelSelect.getAttribute("aria-label")).toBe("AI model");
+    const styles = Array.from(view.host.shadowRoot?.querySelectorAll("style") ?? [])
+      .map((style) => style.textContent)
+      .join("\n");
+    expect(styles).toContain("color-scheme: dark");
+    expect(styles).toContain(".spotpatch-agent select option");
     expect(view.agentRunButton.disabled).toBe(true);
     expect(view.agentRunButton.textContent).toBe("Verify & run");
     expect(view.previewButton.classList.contains("spotpatch-primary")).toBe(true);

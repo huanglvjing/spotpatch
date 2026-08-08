@@ -186,7 +186,8 @@ async function handleOpenEditor(
   const editorLauncher = options.editorLauncher ?? launchConfiguredEditor;
 
   try {
-    await editorLauncher(target, options.options.editor);
+    const editor = await editorLauncher(target, options.options.editor);
+    return Object.freeze({ editor });
   } catch (error: unknown) {
     options.logger?.warn(
       `[spotpatch:server] ${options.options.editor === "auto" ? "The detected editor" : options.options.editor} rejected an editor request.`,
@@ -195,8 +196,6 @@ async function handleOpenEditor(
       cause: error,
     });
   }
-
-  return Object.freeze({ editor: options.options.editor });
 }
 
 export function createSpotPatchMiddleware(

@@ -93,10 +93,12 @@ export const AGENT_PANEL_STYLES = `
     border-radius: 10px;
     padding: 8px 30px 8px 10px;
     color: #e8ebf2;
+    color-scheme: dark;
     background: var(--spotpatch-bg-raised);
     font-size: 15px;
     outline: none;
   }
+  .spotpatch-agent select option { color: #e8ebf2; background: #10151e; }
   .spotpatch-agent select:focus-visible,
   .spotpatch-consent input:focus-visible {
     outline: 2px solid #8b7cf7;
@@ -356,8 +358,7 @@ export function createAgentPanel(
     }
   };
 
-  populateModels();
-  providerSelect.addEventListener("change", () => {
+  function handleProviderChange(): void {
     populateModels();
     consentCheckbox.checked = false;
     capability.dataset.state = "idle";
@@ -367,8 +368,8 @@ export function createAgentPanel(
     latestCapabilityErrorCode = undefined;
     capabilityReady = false;
     refreshActions();
-  });
-  modelSelect.addEventListener("change", () => {
+  }
+  function handleModelChange(): void {
     capability.dataset.state = "idle";
     capability.textContent = messages.agent.connectionNotTested;
     latestCapabilityState = "idle";
@@ -376,7 +377,10 @@ export function createAgentPanel(
     latestCapabilityErrorCode = undefined;
     capabilityReady = false;
     refreshActions();
-  });
+  }
+  populateModels();
+  providerSelect.addEventListener("change", handleProviderChange);
+  modelSelect.addEventListener("change", handleModelChange);
   consentCheckbox.addEventListener("change", refreshActions);
   function renderCurrentJob(): void {
     if (latestSnapshot === undefined) {
@@ -601,6 +605,9 @@ export function createAgentPanel(
 
     dispose() {
       unsubscribeLocale();
+      providerSelect.removeEventListener("change", handleProviderChange);
+      modelSelect.removeEventListener("change", handleModelChange);
+      consentCheckbox.removeEventListener("change", refreshActions);
     },
   });
 }

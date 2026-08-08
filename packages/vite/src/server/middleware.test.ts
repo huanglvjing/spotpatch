@@ -289,7 +289,7 @@ describe("SpotPatch server middleware", () => {
     }
 
     await stopServer(testServer.server);
-    const launcher = vi.fn<EditorLauncher>().mockResolvedValue(undefined);
+    const launcher = vi.fn<EditorLauncher>().mockResolvedValue("cursor");
     testServer = await startServer(launcher);
 
     const response = await post(SPOTPATCH_ENDPOINTS.openEditor, {
@@ -306,7 +306,7 @@ describe("SpotPatch server middleware", () => {
     expect(launcher.mock.calls[0]?.[1]).toBe("auto");
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      data: { editor: "auto" },
+      data: { editor: "cursor" },
     });
 
     const injectedArguments = await post(SPOTPATCH_ENDPOINTS.openEditor, {

@@ -2,9 +2,9 @@
 doc-id: "04-vite-plugin"
 title: "Vite 插件实现"
 status: "active"
-version: "1.3.0"
+version: "1.4.0"
 last-updated: "2026-08-08"
-source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界；v1.2 约定式环境解析生命周期；v1.3 编辑器适配器"
+source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界；v1.2 约定式环境解析生命周期；v1.3 编辑器适配器；v1.4 编辑器工作区路由"
 参考文献/依赖:
   - "02-architecture-stack"
   - "03-public-api-models"
@@ -172,9 +172,11 @@ return {
 
 ## 编辑器适配器
 
-打开源码由 Vite Node 端的窄适配器完成。插件把解析后的公共 `editor` 偏好注入 Runtime 仅用于标签与反馈；浏览器请求仍只发送 source ID 和行列，不能覆盖服务端编辑器配置。适配器只执行以下固定映射：`vscode -> code`、`cursor -> cursor`、`auto -> launch-editor 自动识别`。不得把任意字符串转为命令或参数。
+打开源码由 Vite Node 端的窄适配器完成。插件把解析后的公共 `editor` 偏好注入 Runtime 仅用于标签与反馈；浏览器请求仍只发送 source ID 和行列，不能覆盖服务端编辑器配置。适配器只执行固定映射 `vscode -> code`、`cursor -> cursor`，并为两者固定传入 `--goto <normalized-absolute-file>:<line>:<column>`；不得把任意字符串转为命令或参数，也不得启用 shell。
 
-适配器必须把规范化的绝对文件、行、列交给 `launch-editor`，等待短暂启动确认窗口；在窗口内收到启动错误时拒绝请求并由协议层返回脱敏错误。只有未出现即时启动错误时才返回成功，避免客户端在命令不存在时显示虚假成功。完整请求、响应和错误边界 (见 doc-id:09-local-protocol-security)，公共枚举 (见 doc-id:03-public-api-models)。
+`auto` 依次检查启动当前 Vite 进程的受控集成环境信号：`TERM_PROGRAM`、`VSCODE_GIT_ASKPASS_NODE`、`VSCODE_GIT_ASKPASS_MAIN`、`GIT_ASKPASS`。出现 Cursor 路径时优先判定 Cursor，避免其通用 `TERM_PROGRAM=vscode` 被误判；其次识别 VS Code/Code Insiders。识别成功后执行上述固定 CLI；无法识别时才调用 `launch-editor` 后备探测。此顺序是编辑器探测的唯一事实来源。
+
+Cursor/VS Code CLI 不附加 `--reuse-window`：该参数会把文件强制送入最后活跃窗口，在多个项目窗口同时打开时可能落入错误工作区。也不附加 `--new-window`；只提交绝对源码坐标，由编辑器按文件归属复用匹配工作区并打开文件标签。适配器等待短暂启动确认窗口；在窗口内收到命令不存在、非零退出或启动信号错误时拒绝请求并由协议层返回脱敏错误。只有未出现即时启动错误时才返回成功，且返回实际识别的受控编辑器偏好。完整请求、响应和错误边界 (见 doc-id:09-local-protocol-security)，公共枚举 (见 doc-id:03-public-api-models)。
 
 ## 错误策略
 

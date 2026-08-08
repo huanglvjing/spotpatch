@@ -3,13 +3,13 @@ import path from "node:path";
 import type { Plugin, ResolvedConfig } from "vite";
 
 import { createAgentJobManager, type AgentJobManager } from "../agent/job-manager.js";
-import type { ResolvedSpotPatchOptions } from "../options.js";
+import type { SpotPatchPluginContext } from "../plugin-context.js";
 import type { SourceRegistry } from "../registry/source-registry.js";
 import type { SpotPatchSession } from "../session/session.js";
 import { createSpotPatchMiddleware } from "./middleware.js";
 
 interface ServerPluginInput {
-  readonly options: ResolvedSpotPatchOptions;
+  readonly context: SpotPatchPluginContext;
   readonly registry: SourceRegistry;
   readonly session: SpotPatchSession;
 }
@@ -39,15 +39,20 @@ export function createServerPlugin(input: ServerPluginInput): Plugin {
       }
 
       const root = path.resolve(config.root);
+      const options = input.context.getOptions();
       agentManager =
-        input.options.ai === false
+        options.ai === false
           ? undefined
-          : createAgentJobManager({ ai: input.options.ai, root });
+          : createAgentJobManager({
+              ai: options.ai,
+              environment: input.context.getCredentialEnvironment(),
+              root,
+            });
 
       server.middlewares.use(
         createSpotPatchMiddleware({
           ...(agentManager === undefined ? {} : { agentManager }),
-          options: input.options,
+          options,
           registry: input.registry,
           root,
           session: input.session,
@@ -60,7 +65,7 @@ export function createServerPlugin(input: ServerPluginInput): Plugin {
       });
 
       config.logger.info(
-        `[spotpatch:vite] Ready. Toggle picker with ${input.options.shortcut}.`,
+        `[spotpatch:vite] Ready. Toggle picker with ${options.shortcut}.`,
       );
     },
 

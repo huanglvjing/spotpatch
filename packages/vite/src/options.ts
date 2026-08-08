@@ -3,7 +3,10 @@ import {
   MAX_ANNOTATION_TARGETS,
   SPOTPATCH_LOCALE_PREFERENCES,
   type AgentLimits,
+  type AiExecutionOptions,
   type AiOptions,
+  type AiProviderAuthentication,
+  type AiProviderProtocol,
   type ContextBudget,
   type ResolvedAgentCheckDefinition,
   type ResolvedAiModelProfile,
@@ -21,11 +24,25 @@ export type {
   AiExecutionOptions,
   AiModelProfile,
   AiOptions,
+  AiProviderAuthentication,
   AiProviderProtocol,
   OpenAICompatibleProviderOptions,
 } from "@spotpatch/shared";
 
 export type FilterEntry = string | RegExp;
+
+export interface SimpleAiOptions {
+  readonly baseURL: string;
+  readonly model: string;
+  readonly apiKeyEnv?: string;
+  readonly protocol?: AiProviderProtocol;
+  readonly authentication?: AiProviderAuthentication;
+  readonly providerLabel?: string;
+  readonly modelLabel?: string;
+  readonly execution?: AiExecutionOptions;
+}
+
+export type SpotPatchAiOptions = false | SimpleAiOptions | AiOptions;
 
 export interface SpotPatchOptions {
   readonly enabled?: boolean;
@@ -39,7 +56,7 @@ export interface SpotPatchOptions {
   readonly debug?: boolean;
   readonly locale?: SpotPatchLocalePreference;
   readonly maxTargets?: number;
-  readonly ai?: false | AiOptions;
+  readonly ai?: SpotPatchAiOptions;
 }
 
 export interface ResolvedSpotPatchOptions {
@@ -132,6 +149,7 @@ const aiOptionsSchema = z.strictObject({
       type: z.literal("openai-compatible"),
       label: z.string(),
       protocol: z.enum(["responses", "chat-completions"]),
+      authentication: z.enum(["bearer", "x-api-key"]).optional(),
       baseURL: z.string(),
       apiKeyEnv: z.string(),
       models: z.record(
@@ -151,6 +169,19 @@ const aiOptionsSchema = z.strictObject({
     })
     .optional(),
 });
+
+const simpleAiOptionsSchema = z.strictObject({
+  baseURL: z.string(),
+  model: z.string(),
+  apiKeyEnv: z.string().optional(),
+  protocol: z.enum(["responses", "chat-completions"]).optional(),
+  authentication: z.enum(["bearer", "x-api-key"]).optional(),
+  providerLabel: z.string().optional(),
+  modelLabel: z.string().optional(),
+  execution: aiOptionsSchema.shape.execution,
+});
+
+type ParsedAiOptions = z.infer<typeof aiOptionsSchema>;
 
 function assertIdentifier(value: string, label: string): void {
   if (!PROFILE_ID_PATTERN.test(value)) {
@@ -231,7 +262,7 @@ function resolveLimits(limits: ParsedAgentLimits | undefined): Readonly<AgentLim
 }
 
 function resolveModels(
-  models: AiOptions["providers"][string]["models"],
+  models: ParsedAiOptions["providers"][string]["models"],
 ): Readonly<Record<string, ResolvedAiModelProfile>> {
   const entries = Object.entries(models);
 
@@ -257,7 +288,7 @@ function resolveModels(
 }
 
 function resolveProviders(
-  providers: AiOptions["providers"],
+  providers: ParsedAiOptions["providers"],
 ): Readonly<Record<string, ResolvedOpenAICompatibleProviderOptions>> {
   const entries = Object.entries(providers);
 
@@ -294,6 +325,7 @@ function resolveProviders(
             type: provider.type,
             label: nonEmpty(provider.label, "provider label", 100),
             protocol: provider.protocol,
+            authentication: provider.authentication ?? "bearer",
             baseURL: normalizeProviderBaseURL(provider.baseURL),
             apiKeyEnv: provider.apiKeyEnv,
             models,
@@ -342,13 +374,50 @@ function resolveChecks(
 }
 
 function resolveAiOptions(
-  options: false | AiOptions | undefined,
+  options: SpotPatchAiOptions | undefined,
 ): false | ResolvedAiOptions {
   if (options === undefined || options === false) {
     return false;
   }
 
-  const parsed = aiOptionsSchema.safeParse(options);
+  const expanded =
+    "providers" in options
+      ? options
+      : (() => {
+          const simple = simpleAiOptionsSchema.safeParse(options);
+
+          if (!simple.success) {
+            throw new RangeError("SpotPatch AI configuration is invalid.");
+          }
+
+          const providerId = "default";
+          const modelId = "default";
+
+          return {
+            providers: {
+              [providerId]: {
+                type: "openai-compatible",
+                label: simple.data.providerLabel ?? "AI provider",
+                protocol: simple.data.protocol ?? "chat-completions",
+                authentication: simple.data.authentication ?? "bearer",
+                baseURL: simple.data.baseURL,
+                apiKeyEnv: simple.data.apiKeyEnv ?? "SPOTPATCH_AI_API_KEY",
+                models: {
+                  [modelId]: {
+                    label: simple.data.modelLabel ?? "AI model",
+                    model: simple.data.model,
+                  },
+                },
+                defaultModel: modelId,
+              },
+            },
+            defaultProvider: providerId,
+            ...(simple.data.execution === undefined
+              ? {}
+              : { execution: simple.data.execution }),
+          };
+        })();
+  const parsed = aiOptionsSchema.safeParse(expanded);
 
   if (!parsed.success) {
     throw new RangeError("SpotPatch AI configuration is invalid.");
@@ -422,6 +491,7 @@ function assertPositiveBudget(budget: Readonly<ContextBudget>): void {
 
 export function resolveOptions(
   options: SpotPatchOptions = {},
+  environmentAi?: false | SimpleAiOptions,
 ): ResolvedSpotPatchOptions {
   const budget = Object.freeze({
     ...DEFAULT_OPTIONS.budget,
@@ -459,7 +529,7 @@ export function resolveOptions(
     debug: options.debug ?? DEFAULT_OPTIONS.debug,
     locale,
     maxTargets,
-    ai: resolveAiOptions(options.ai),
+    ai: resolveAiOptions(options.ai ?? environmentAi),
   } satisfies ResolvedSpotPatchOptions;
 
   if (resolved.shortcut.trim().length === 0) {

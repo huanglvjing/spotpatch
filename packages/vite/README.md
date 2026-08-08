@@ -22,22 +22,39 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [
-    spotPatch({
-      editor: "vscode",
-      redact: true,
-      allowLan: false,
-      locale: "auto",
-      maxTargets: 8,
-    }),
-    react(),
-  ],
+  plugins: [spotPatch(), react()],
 });
 ```
 
 SpotPatch injects no runtime, source markers, or local API endpoints into a
-production build. AI execution is disabled unless a trusted Node-side provider
-profile is explicitly configured; API keys must never use a `VITE_` prefix.
+production build. AI stays disabled when no AI environment exists. To enable the
+single-provider setup without changing `vite.config.ts`, add the three required
+values to a Git-ignored `.env.local`:
+
+```dotenv
+SPOTPATCH_AI_BASE_URL=https://relay.example.com/v1
+SPOTPATCH_AI_MODEL=provider-model-name
+SPOTPATCH_AI_API_KEY=<your-key>
+```
+
+`SPOTPATCH_AI_PROTOCOL` optionally selects `chat-completions` (the default) or
+`responses`. `SPOTPATCH_AI_AUTHENTICATION` optionally selects `bearer` (the
+default) or `x-api-key`. Partial environment configuration fails fast without
+printing credential values. API keys must never use a `VITE_` prefix.
+
+Non-secret URL and model values can instead use the concise API:
+
+```ts
+spotPatch({
+  ai: {
+    baseURL: "https://relay.example.com/v1",
+    model: "provider-model-name",
+  },
+});
+```
+
+The full provider map remains available for multiple providers, multiple models,
+custom labels, checks, and limits.
 
 See the [repository README](https://github.com/huanglvjing/spotpatch#readme) for
 the complete setup and security model.

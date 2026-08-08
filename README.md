@@ -2,7 +2,7 @@
 
 SpotPatch 是一个仅在本地开发期运行的 React 页面反馈工具。它把选中的 DOM
 元素追溯到源码位置，为多个目标分别保存修改要求，采集经过脱敏和预算裁剪的上下文，
-并生成可复制给编程助手的结构化 Prompt。工作台内置中英文并可即时切换。AI 默认关闭；v1.1 可选接入 OpenAI-compatible API，在隔离 Git
+并生成可复制给编程助手的结构化 Prompt。工作台内置中英文并可即时切换。没有完整 AI 配置时 AI 默认关闭；v1.1 可选接入 OpenAI-compatible API，在隔离 Git
 worktree 中执行受控 Agent 工具，并经 Diff 与检查审阅后修改本地代码。
 
 规范入口：[docs/技术方案/00-索引与导航.md](./docs/技术方案/00-索引与导航.md)。
@@ -20,7 +20,7 @@ worktree 中执行受控 Agent 工具，并经 Diff 与检查审阅后修改本�
 
 ## 安装与接入
 
-当前仓库已具备 npm 发布流水线，但首次版本尚未发布。发布完成后，用户只需安装入口包：
+入口包已发布到 npm，用户只需安装：
 
 ```bash
 npm install --save-dev @spotpatch/vite
@@ -35,16 +35,7 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [
-    spotPatch({
-      editor: "vscode",
-      redact: true,
-      allowLan: false,
-      locale: "auto",
-      maxTargets: 8,
-    }),
-    react(),
-  ],
+  plugins: [spotPatch(), react()],
 });
 ```
 
@@ -57,8 +48,33 @@ export default defineConfig({
 
 ## AI Agent（可选）
 
-AI 模式不要求 Codex CLI。URL、协议和真实模型名写在 Vite 的可信配置中，Key
-只通过启动 Vite 的 Node 环境变量提供。以下是非规范性接入示例；完整字段和约束以
+AI 模式不要求 Codex CLI。最简接入无需修改上面的 `spotPatch()`：在被 Git 忽略的
+`.env.local` 中提供 URL、模型和 Key，插件会在 Vite Node 端自动发现，任何必要值缺失都会明确失败：
+
+```dotenv
+SPOTPATCH_AI_BASE_URL=https://relay.example.com/v1
+SPOTPATCH_AI_MODEL=provider-model-name
+SPOTPATCH_AI_API_KEY=<your-key>
+
+# 可选，默认 chat-completions 与 bearer
+SPOTPATCH_AI_PROTOCOL=chat-completions
+SPOTPATCH_AI_AUTHENTICATION=bearer
+```
+
+Key 不得使用 `VITE_` 前缀，也不得提交到 Git。中转站使用 `x-api-key` 时，把认证变量设为 `x-api-key`，无需在源码中加入 Header 或 Key。
+
+只希望在 Vite 配置指定非秘密的 URL 和模型时，可以使用简洁 API：
+
+```ts
+spotPatch({
+  ai: {
+    baseURL: "https://relay.example.com/v1",
+    model: "provider-model-name",
+  },
+});
+```
+
+完整多 Provider、多模型和项目检查仍使用高级配置。以下是非规范性示例；完整字段和约束以
 [公共 API](./docs/技术方案/03-公共API与数据模型.md)、
 [Provider 与凭据](./docs/技术方案/17-模型提供商与凭据配置.md)及
 [Agent 执行规范](./docs/技术方案/16-AIAgent执行与变更审阅.md)为准。
@@ -73,6 +89,7 @@ spotPatch({
         type: "openai-compatible",
         label: "Team relay",
         protocol: "responses",
+        authentication: "bearer",
         baseURL: "https://relay.example.com/v1",
         apiKeyEnv: "SPOTPATCH_AI_API_KEY",
         models: {
@@ -94,13 +111,6 @@ spotPatch({
     },
   },
 });
-```
-
-Key 不得使用 `VITE_` 前缀，也不得提交到 Git：
-
-```bash
-export SPOTPATCH_AI_API_KEY='<your-key>'
-pnpm dev
 ```
 
 使用顺序是“选择一个或多个元素 → 为每个目标分别输入要求 → 确认远程传输 → Verify & run → 审阅完整

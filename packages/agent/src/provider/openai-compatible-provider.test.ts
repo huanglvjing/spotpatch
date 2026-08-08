@@ -17,6 +17,7 @@ const TEST_KEY = "synthetic-provider-credential-do-not-use";
 
 interface CapturedRequest {
   readonly authorization: string | null;
+  readonly apiKey: string | null;
   readonly body: Readonly<Record<string, unknown>>;
   readonly redirect: RequestRedirect | undefined;
   readonly url: string;
@@ -61,6 +62,7 @@ function createFetchQueue(responses: readonly Response[]) {
     requests.push(
       Object.freeze({
         authorization: new Headers(init?.headers).get("authorization"),
+        apiKey: new Headers(init?.headers).get("x-api-key"),
         body: parseRequestBody(init?.body),
         redirect: init?.redirect,
         url: requestUrl(input),
@@ -202,12 +204,14 @@ function chatTextTurn(text: string): Response {
 
 function provider(
   protocol: AiProviderProtocol,
+  authentication: "bearer" | "x-api-key" = "bearer",
 ): ResolvedOpenAICompatibleProviderOptions {
   return Object.freeze({
     id: "relay",
     type: "openai-compatible",
     label: "Test relay",
     protocol,
+    authentication,
     baseURL: "https://relay.example.test/v1",
     apiKeyEnv: "SPOTPATCH_TEST_API_KEY",
     models: Object.freeze({
@@ -370,6 +374,28 @@ describe("OpenAI-compatible provider", () => {
         content: '{"content":"source"}',
       },
     ]);
+  });
+
+  it("uses x-api-key authentication without also sending a Bearer credential", async () => {
+    const source = provider("chat-completions", "x-api-key");
+    const { fetch, requests } = createFetchQueue([chatTextTurn("Ready.")]);
+    const session = createOpenAICompatibleProviderSession({
+      provider: source,
+      model: model(source),
+      credential: createProviderCredential(TEST_KEY),
+      instructions: "Use only the declared tools.",
+      userPrompt: "Update the selected element.",
+      tools: [toolDefinition()],
+      limits: DEFAULT_AGENT_LIMITS,
+      fetch,
+    });
+
+    await session.next(undefined, new AbortController().signal);
+
+    expect(requests[0]).toMatchObject({
+      apiKey: TEST_KEY,
+      authorization: null,
+    });
   });
 
   it.each(["responses", "chat-completions"] as const)(

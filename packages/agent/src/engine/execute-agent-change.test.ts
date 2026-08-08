@@ -91,6 +91,7 @@ function provider(): ResolvedOpenAICompatibleProviderOptions {
     type: "openai-compatible",
     label: "Test relay",
     protocol: "chat-completions",
+    authentication: "bearer",
     baseURL: "https://relay.example.test/v1",
     apiKeyEnv: "SPOTPATCH_TEST_KEY",
     models: Object.freeze({

@@ -223,6 +223,7 @@ export function createChatCompletionsSession(
 
       const parsed = parseChatEvents(
         await postProviderStream({
+          authentication: options.provider.authentication,
           body: {
             model: options.model.model,
             messages,

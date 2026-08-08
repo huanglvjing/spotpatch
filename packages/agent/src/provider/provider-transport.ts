@@ -1,4 +1,9 @@
-import { ERROR_CODES, SpotPatchError, type AgentLimits } from "@spotpatch/shared";
+import {
+  ERROR_CODES,
+  SpotPatchError,
+  type AgentLimits,
+  type AiProviderAuthentication,
+} from "@spotpatch/shared";
 
 import {
   readProviderCredential,
@@ -7,12 +12,32 @@ import {
 import { readSseEvents, type SseEvent } from "./sse-parser.js";
 
 interface PostProviderStreamOptions {
+  readonly authentication: AiProviderAuthentication;
   readonly body: Readonly<Record<string, unknown>>;
   readonly credential: ProviderCredential;
   readonly fetch: typeof globalThis.fetch;
   readonly limits: Readonly<AgentLimits>;
   readonly signal: AbortSignal;
   readonly url: string;
+}
+
+function createProviderHeaders(
+  authentication: AiProviderAuthentication,
+  credential: ProviderCredential,
+): Headers {
+  const headers = new Headers({
+    Accept: "text/event-stream",
+    "Content-Type": "application/json",
+  });
+  const value = readProviderCredential(credential);
+
+  if (authentication === "x-api-key") {
+    headers.set("x-api-key", value);
+  } else {
+    headers.set("Authorization", `Bearer ${value}`);
+  }
+
+  return headers;
 }
 
 function mapStatus(status: number): SpotPatchError {
@@ -66,11 +91,7 @@ export async function postProviderStream(
     try {
       response = await options.fetch(options.url, {
         method: "POST",
-        headers: {
-          Accept: "text/event-stream",
-          Authorization: `Bearer ${readProviderCredential(options.credential)}`,
-          "Content-Type": "application/json",
-        },
+        headers: createProviderHeaders(options.authentication, options.credential),
         body: JSON.stringify(options.body),
         redirect: "error",
         signal: requestController.signal,

@@ -2,9 +2,9 @@
 doc-id: "04-vite-plugin"
 title: "Vite 插件实现"
 status: "active"
-version: "1.1.0"
-last-updated: "2026-08-07"
-source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界"
+version: "1.2.0"
+last-updated: "2026-08-08"
+source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界；v1.2 约定式环境解析生命周期"
 参考文献/依赖:
   - "02-architecture-stack"
   - "03-public-api-models"
@@ -29,25 +29,38 @@ import type { Plugin } from "vite";
 export function spotPatch(
   userOptions: SpotPatchOptions = {},
 ): Plugin[] {
-  const options = resolveOptions(userOptions);
+  let options = resolveOptions(userOptions);
   const registry = createSourceRegistry();
   const session = createSession();
+  const context = createPluginContext(() => options);
 
   if (!options.enabled) {
     return [];
   }
 
   return [
-    createTransformPlugin({ options, registry }),
-    createRuntimeInjectionPlugin({ options, session }),
-    createServerPlugin({ options, registry, session }),
+    createTransformPlugin({
+      configure(config, environment) {
+        options = resolveOptionsAfterEnvironment(
+          userOptions,
+          config,
+          environment,
+        );
+      },
+      context,
+      registry,
+    }),
+    createRuntimeInjectionPlugin({ context, session }),
+    createServerPlugin({ context, registry, session }),
   ];
 }
 ```
 
+上例只表达生命周期和依赖方向，不重复公共默认值或环境变量名。`config` hook 是唯一环境解析入口：它按 Vite `root`、`envDir` 和 `mode` 加载本地环境，应用“显式配置 > 约定式环境 > 关闭”的优先级，生成最终不可变选项与仅含所需 Key 的凭据映射。后续插件通过只读 context 取最终快照；不得持有初始 options 的过期副本、再次读取 env、修改全局 `process.env` 或把凭据放入 Runtime config。环境规则由 Provider 规范定义 (见 doc-id:17-model-provider-credentials)。
+
 每个插件都设置 `apply: "serve"`。不能只依赖 `import.meta.env.DEV`，因为生产零残留必须在构建层就阻断。
 
-`createServerPlugin` 只负责把经过解析的配置、registry、会话与项目 root 交给窄接口 handler。`options.ai === false` 时不得加载 provider adapter、创建 Agent Engine、注册 Agent endpoint、解析 Key 或调用 Git；启用后的本地执行职责仍属于 Agent 模块 (见 doc-id:16-ai-agent-execution)，provider 连接职责属于模型提供商模块 (见 doc-id:17-model-provider-credentials)。AST transform、source marker 和 source map 链路不得因为 AI 开关产生行为差异。
+`createServerPlugin` 只负责把经过解析的配置、所需凭据映射、registry、会话与项目 root 交给窄接口 handler。`options.ai === false` 时不得创建 Agent Engine、注册 Agent endpoint、解析 Key 或调用 Git；启用后的本地执行职责仍属于 Agent 模块 (见 doc-id:16-ai-agent-execution)，provider 连接职责属于模型提供商模块 (见 doc-id:17-model-provider-credentials)。AST transform、source marker 和 source map 链路不得因为 AI 开关产生行为差异。
 
 ## Transform 过滤
 

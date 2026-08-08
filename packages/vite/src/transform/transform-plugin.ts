@@ -1,15 +1,16 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-import type { Plugin, ResolvedConfig } from "vite";
+import type { ConfigEnv, Plugin, ResolvedConfig, UserConfig } from "vite";
 
-import type { ResolvedSpotPatchOptions } from "../options.js";
+import type { SpotPatchPluginContext } from "../plugin-context.js";
 import type { SourceRegistry } from "../registry/source-registry.js";
 import { injectSourceMarkers } from "./inject-source-markers.js";
 import { createTransformFilter, stripViteQuery } from "./transform-filter.js";
 
 interface TransformPluginInput {
-  readonly options: ResolvedSpotPatchOptions;
+  readonly configure?: (config: UserConfig, environment: ConfigEnv) => void;
+  readonly context: SpotPatchPluginContext;
   readonly registry: SourceRegistry;
 }
 
@@ -30,7 +31,7 @@ function getDisplayPath(root: string, id: string): string {
 
 export function createTransformPlugin(input: TransformPluginInput): Plugin {
   let root = process.cwd();
-  let filter = createTransformFilter(root, input.options);
+  let filter = createTransformFilter(root, input.context.getOptions());
   let logger: ResolvedConfig["logger"] | undefined;
   const warnedFiles = new Set<string>();
   const cache = new Map<string, ViteTransformOutput | null>();
@@ -40,9 +41,13 @@ export function createTransformPlugin(input: TransformPluginInput): Plugin {
     apply: "serve",
     enforce: "pre",
 
+    config(config, environment) {
+      input.configure?.(config, environment);
+    },
+
     configResolved(config) {
       root = path.resolve(config.root);
-      filter = createTransformFilter(root, input.options);
+      filter = createTransformFilter(root, input.context.getOptions());
       logger = config.logger;
     },
 
@@ -59,6 +64,7 @@ export function createTransformPlugin(input: TransformPluginInput): Plugin {
       }
 
       const startedAt = performance.now();
+      const options = input.context.getOptions();
 
       try {
         const result = injectSourceMarkers({
@@ -82,7 +88,7 @@ export function createTransformPlugin(input: TransformPluginInput): Plugin {
               });
         cache.set(cacheKey, output);
 
-        if (input.options.debug) {
+        if (options.debug) {
           const elapsed = performance.now() - startedAt;
           logger?.info(
             `[spotpatch:transform] ${getDisplayPath(root, id)} ${elapsed.toFixed(2)}ms`,
@@ -94,7 +100,7 @@ export function createTransformPlugin(input: TransformPluginInput): Plugin {
         if (!warnedFiles.has(cleanId)) {
           warnedFiles.add(cleanId);
           const detail =
-            input.options.debug && error instanceof Error ? `: ${error.message}` : "";
+            options.debug && error instanceof Error ? `: ${error.message}` : "";
           logger?.warn(
             `[spotpatch:transform] Failed to transform ${getDisplayPath(root, id)}; using original module${detail}`,
           );

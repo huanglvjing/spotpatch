@@ -12,6 +12,16 @@ const viteEntry = requireFromProject.resolve("vite");
 const viteModule = await import(pathToFileURL(viteEntry).href);
 const createServer = viteModule.createServer ?? viteModule.default?.createServer;
 assert.equal(typeof createServer, "function");
+const syntheticCredential = "synthetic-compatibility-credential";
+const environmentOverrides = {
+  SPOTPATCH_AI_API_KEY: syntheticCredential,
+  SPOTPATCH_AI_BASE_URL: "https://relay.example.test/v1",
+  SPOTPATCH_AI_MODEL: "provider/compatibility-model",
+};
+const previousEnvironment = Object.fromEntries(
+  Object.keys(environmentOverrides).map((name) => [name, process.env[name]]),
+);
+Object.assign(process.env, environmentOverrides);
 const server = await createServer({
   root: projectRoot,
   logLevel: "silent",
@@ -55,6 +65,10 @@ try {
   const runtimeResponse = await fetch(new URL(clientPath, origin));
   assert.equal(runtimeResponse.status, 200);
   const runtimeSource = await runtimeResponse.text();
+  assert.match(runtimeSource, /"ai":\{"enabled":true/u);
+  assert.doesNotMatch(runtimeSource, new RegExp(syntheticCredential, "u"));
+  assert.doesNotMatch(runtimeSource, /relay\.example\.test/u);
+  assert.doesNotMatch(runtimeSource, /provider\/compatibility-model/u);
   const expectedViteVersion = packageManifest.dependencies.vite;
   assert.match(
     runtimeSource,
@@ -84,4 +98,12 @@ try {
   assert.equal(context.data.relativePath, "src/main.jsx");
 } finally {
   await server.close();
+
+  for (const [name, value] of Object.entries(previousEnvironment)) {
+    if (value === undefined) {
+      Reflect.deleteProperty(process.env, name);
+    } else {
+      process.env[name] = value;
+    }
+  }
 }

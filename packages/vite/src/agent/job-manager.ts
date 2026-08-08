@@ -172,6 +172,8 @@ function capabilityCacheKey(
     .update(provider.baseURL)
     .update("\0")
     .update(provider.protocol)
+    .update("\0")
+    .update(provider.authentication)
     .digest("hex");
 
   return `${provider.id}:${model.id}:${configurationDigest}`;

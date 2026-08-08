@@ -232,6 +232,7 @@ export function createResponsesSession(
 
       const parsed = parseResponsesEvents(
         await postProviderStream({
+          authentication: options.provider.authentication,
           body,
           credential: options.credential,
           fetch,

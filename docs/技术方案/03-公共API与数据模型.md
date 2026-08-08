@@ -2,9 +2,9 @@
 doc-id: "03-public-api-models"
 title: "公共 API 与数据模型"
 status: "active"
-version: "1.3.0"
-last-updated: "2026-08-07"
-source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言"
+version: "1.4.0"
+last-updated: "2026-08-08"
+source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言；v1.4 约定式与简洁 AI 配置"
 参考文献/依赖:
   - "04-vite-plugin"
   - "08-code-prompt"
@@ -55,8 +55,8 @@ export interface SpotPatchOptions {
   /** 同一次修改任务可选择的元素数；默认 8，最大值见 MAX_ANNOTATION_TARGETS。 */
   maxTargets?: number;
 
-  /** 默认 false；显式配置后才注册 AI Agent 能力。 */
-  ai?: false | AiOptions;
+  /** 未提供时尝试约定式本地环境；false 显式关闭。 */
+  ai?: false | SimpleAiOptions | AiOptions;
 }
 
 export interface ContextBudget {
@@ -69,6 +69,7 @@ export interface ContextBudget {
 }
 
 export type AiProviderProtocol = "responses" | "chat-completions";
+export type AiProviderAuthentication = "bearer" | "x-api-key";
 export type AgentApplyMode = "review" | "auto";
 export type SpotPatchLocale = "en-US" | "zh-CN";
 export type SpotPatchLocalePreference = "auto" | SpotPatchLocale;
@@ -85,11 +86,32 @@ export interface OpenAICompatibleProviderOptions {
   /** UI 中展示的非敏感 provider 名称。 */
   readonly label: string;
   readonly protocol: AiProviderProtocol;
+  /** 默认 bearer；只允许固定认证类型，不接受任意 Header。 */
+  readonly authentication?: AiProviderAuthentication;
   readonly baseURL: string;
   /** API Key 所在的服务端环境变量名，不是 Key 值。 */
   readonly apiKeyEnv: string;
   readonly models: Readonly<Record<string, AiModelProfile>>;
   readonly defaultModel: string;
+}
+
+export interface SimpleAiOptions {
+  /** 必填；规则与完整 provider 的 baseURL 相同。 */
+  readonly baseURL: string;
+  /** 必填；provider 的真实模型名。 */
+  readonly model: string;
+  /** 默认 SPOTPATCH_AI_API_KEY；只保存变量名。 */
+  readonly apiKeyEnv?: string;
+  /** 默认 chat-completions。 */
+  readonly protocol?: AiProviderProtocol;
+  /** 默认 bearer。 */
+  readonly authentication?: AiProviderAuthentication;
+  /** 默认 AI provider。 */
+  readonly providerLabel?: string;
+  /** 默认 AI model；避免把真实模型名注入浏览器。 */
+  readonly modelLabel?: string;
+  /** 与完整配置共用执行默认值和校验。 */
+  readonly execution?: AiExecutionOptions;
 }
 
 export interface AgentCheckDefinition {
@@ -183,13 +205,15 @@ export const DEFAULT_OPTIONS = Object.freeze({
 } satisfies Required<SpotPatchOptions>);
 ```
 
-配置解析只执行一次，之后向内部模块传递 `Readonly<ResolvedSpotPatchOptions>`，不得让各模块重复处理默认值。`maxTargets` 必须是从 1 到 `MAX_ANNOTATION_TARGETS` 的安全整数；Runtime 使用已解析值限制交互，协议使用硬上限限制不可信请求，服务端再次使用已解析值授权，三层都不得只依赖 UI。
+普通选项先做无环境解析；Vite `config` 阶段加载本地环境后完成一次最终解析，之后通过只读上下文向内部模块提供 `Readonly<ResolvedSpotPatchOptions>`，不得让各模块重复处理默认值。`maxTargets` 必须是从 1 到 `MAX_ANNOTATION_TARGETS` 的安全整数；Runtime 使用已解析值限制交互，协议使用硬上限限制不可信请求，服务端再次使用已解析值授权，三层都不得只依赖 UI。
 
 `locale` 只接受 `auto | en-US | zh-CN`。`auto` 先读取宿主 `<html lang>`，没有可用值时读取 `navigator.languages`，最后回退 `en-US`；该设置只决定初始界面和 Prompt 语言，用户仍可在工作台内显式切换。Runtime 不依赖宿主项目的 i18n 库，也不读取宿主业务语言状态；显示和交互规则见 UI 规范 (见 doc-id:10-ui-diagnostics)。
 
 预算的裁剪行为由源码与 Prompt 规范定义 (见 doc-id:08-code-prompt)；`redact` 和 `allowLan` 的强制安全边界由本地协议与安全规范定义 (见 doc-id:09-local-protocol-security)。
 
-AI 配置解析必须满足：provider 和 model profile ID 非空且唯一；`defaultProvider` 与每个 `defaultModel` 都引用已登记 ID；`apiKeyEnv` 是不以 `VITE_` 开头的大写环境变量名；`baseURL`、协议和凭据规则通过 provider 校验；check ID 只含安全标识字符，命令非空，超时和 limits 为有限正整数。`applyMode: "auto"` 至少配置一个 required check。任何失败都使 AI 整体禁用，不得回退到宽松默认值。执行语义见 Agent 规范 (见 doc-id:16-ai-agent-execution)，provider 与凭据语义见模型提供商规范 (见 doc-id:17-model-provider-credentials)。
+AI 有三层入口，优先级为“显式 `ai: false` 或显式对象 > 约定式本地环境 > 关闭”。完整 `AiOptions` 服务多 Provider/多模型；`SimpleAiOptions` 固定生成 `default` provider/model profile；未传 `ai` 时，仅在 URL、模型和 Key 三个必要环境值完整存在时生成同一简洁配置。简洁配置默认 `chat-completions`、`bearer`、`SPOTPATCH_AI_API_KEY`、`review`、`git-worktree`、空 checks 和公共 limits；所有默认均允许由相应字段覆盖。不得猜测项目的包管理器或脚本，因而 `lint/build` 不属于跨项目默认 checks。
+
+AI 配置解析必须满足：URL、模型和运行时 Key 均存在；provider 和 model profile ID 非空且唯一；`defaultProvider` 与每个 `defaultModel` 都引用已登记 ID；`apiKeyEnv` 是不以 `VITE_` 开头的大写环境变量名；`authentication` 只接受 `bearer | x-api-key`；`baseURL`、协议和凭据规则通过 provider 校验；check ID 只含安全标识字符，命令非空，超时和 limits 为有限正整数。`applyMode: "auto"` 至少配置一个 required check。缺少必要值或存在部分约定式配置时，开发服务器启动失败并只报告缺少的变量名，不回显值，也不得静默降级为似乎可运行的 AI。执行语义见 Agent 规范 (见 doc-id:16-ai-agent-execution)，环境变量名、provider 与凭据语义见模型提供商规范 (见 doc-id:17-model-provider-credentials)。
 
 ### 用户接入方式
 
@@ -210,7 +234,20 @@ SpotPatch 必须位于 React SWC 插件之前，并设置 `enforce: "pre"`，确
 
 插件实现细节见 Vite 插件规范 (见 doc-id:04-vite-plugin)。
 
-### AI 接入示例
+### AI 简洁接入示例
+
+```tsx
+spotPatch({
+  ai: {
+    baseURL: "https://relay.example.com/v1",
+    model: "provider-model-name",
+  },
+});
+```
+
+此时 Key 使用默认环境变量；中转站要求 `x-api-key` 时只增加 `authentication: "x-api-key"`。若 URL、模型和 Key 全部使用约定式本地环境，则 Vite 配置仍为 `spotPatch()`。环境变量的唯一名称和读取边界见模型提供商规范 (见 doc-id:17-model-provider-credentials)。
+
+### AI 高级接入示例
 
 ```tsx
 spotPatch({

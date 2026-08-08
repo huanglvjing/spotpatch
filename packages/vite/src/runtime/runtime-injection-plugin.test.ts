@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { version as VITE_VERSION } from "vite";
 
 import packageMetadata from "../../package.json" with { type: "json" };
-import { resolveOptions } from "../options.js";
+import { resolveOptions, type ResolvedSpotPatchOptions } from "../options.js";
+import type { SpotPatchPluginContext } from "../plugin-context.js";
 import type { SpotPatchSession } from "../session/session.js";
 import {
   createRuntimeInjectionPlugin,
@@ -22,10 +23,17 @@ const clientBundle = [
 ].join("\n");
 const reactAdapterBundle = "export function createReact18Adapter() {}";
 
+function createContext(options: ResolvedSpotPatchOptions): SpotPatchPluginContext {
+  return Object.freeze({
+    getCredentialEnvironment: () => Object.freeze({}),
+    getOptions: () => options,
+  });
+}
+
 describe("runtime injection plugin", () => {
   it("injects the development virtual client module", () => {
     const plugin = createRuntimeInjectionPlugin({
-      options: resolveOptions(),
+      context: createContext(resolveOptions()),
       session,
       clientBundle,
       reactAdapterBundle,
@@ -52,7 +60,7 @@ describe("runtime injection plugin", () => {
 
   it("keeps absolute paths and editor commands out of browser configuration", () => {
     const plugin = createRuntimeInjectionPlugin({
-      options: resolveOptions({ shortcut: "Alt+S" }),
+      context: createContext(resolveOptions({ shortcut: "Alt+S" })),
       session,
       clientBundle,
       reactAdapterBundle,
@@ -81,7 +89,7 @@ describe("runtime injection plugin", () => {
 
   it("injects an explicit locale without relying on the consumer app runtime", () => {
     const plugin = createRuntimeInjectionPlugin({
-      options: resolveOptions({ locale: "zh-CN" }),
+      context: createContext(resolveOptions({ locale: "zh-CN" })),
       session,
       clientBundle,
       reactAdapterBundle,
@@ -98,29 +106,31 @@ describe("runtime injection plugin", () => {
 
   it("injects only allowlisted AI profile labels and ids", () => {
     const plugin = createRuntimeInjectionPlugin({
-      options: resolveOptions({
-        ai: {
-          providers: {
-            relay: {
-              type: "openai-compatible",
-              label: "Team relay",
-              protocol: "chat-completions",
-              baseURL: "https://private-relay.example/v1",
-              apiKeyEnv: "SPOTPATCH_AI_API_KEY",
-              models: {
-                coding: { label: "Coding model", model: "secret-model-name" },
+      context: createContext(
+        resolveOptions({
+          ai: {
+            providers: {
+              relay: {
+                type: "openai-compatible",
+                label: "Team relay",
+                protocol: "chat-completions",
+                baseURL: "https://private-relay.example/v1",
+                apiKeyEnv: "SPOTPATCH_AI_API_KEY",
+                models: {
+                  coding: { label: "Coding model", model: "secret-model-name" },
+                },
+                defaultModel: "coding",
               },
-              defaultModel: "coding",
+            },
+            defaultProvider: "relay",
+            execution: {
+              checks: {
+                lint: { label: "Lint", command: "pnpm", args: ["lint"] },
+              },
             },
           },
-          defaultProvider: "relay",
-          execution: {
-            checks: {
-              lint: { label: "Lint", command: "pnpm", args: ["lint"] },
-            },
-          },
-        },
-      }),
+        }),
+      ),
       session,
       clientBundle,
       reactAdapterBundle,
@@ -144,7 +154,7 @@ describe("runtime injection plugin", () => {
 
   it("resolves only its exact public virtual id", () => {
     const plugin = createRuntimeInjectionPlugin({
-      options: resolveOptions(),
+      context: createContext(resolveOptions()),
       session,
       clientBundle,
       reactAdapterBundle,
@@ -180,7 +190,7 @@ describe("runtime injection plugin", () => {
 
   it("serves the isolated React adapter bundle only through its private id", () => {
     const plugin = createRuntimeInjectionPlugin({
-      options: resolveOptions(),
+      context: createContext(resolveOptions()),
       session,
       clientBundle,
       reactAdapterBundle,

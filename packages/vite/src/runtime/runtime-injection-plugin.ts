@@ -5,7 +5,8 @@ import path from "node:path";
 import packageMetadata from "../../package.json" with { type: "json" };
 import { version as VITE_VERSION, type Plugin } from "vite";
 
-import { createRuntimeAiConfig, type ResolvedSpotPatchOptions } from "../options.js";
+import { createRuntimeAiConfig } from "../options.js";
+import type { SpotPatchPluginContext } from "../plugin-context.js";
 import type { SpotPatchSession } from "../session/session.js";
 
 export const SPOTPATCH_CLIENT_MODULE_ID = "virtual:spotpatch/client";
@@ -15,7 +16,7 @@ export const RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID = `\0${SPOTPATCH_REACT_A
 
 interface RuntimeInjectionPluginInput {
   readonly clientBundle?: string;
-  readonly options: ResolvedSpotPatchOptions;
+  readonly context: SpotPatchPluginContext;
   readonly reactAdapterBundle?: string;
   readonly session: SpotPatchSession;
 }
@@ -53,15 +54,16 @@ function createClientModule(
   clientBundle: string,
   viteVersion: string,
 ): string {
+  const options = input.context.getOptions();
   const runtimeConfig = {
-    ai: createRuntimeAiConfig(input.options.ai),
-    budget: input.options.budget,
-    debug: input.options.debug,
-    locale: input.options.locale,
-    maxTargets: input.options.maxTargets,
-    redact: input.options.redact,
+    ai: createRuntimeAiConfig(options.ai),
+    budget: options.budget,
+    debug: options.debug,
+    locale: options.locale,
+    maxTargets: options.maxTargets,
+    redact: options.redact,
     sessionToken: input.session.token,
-    shortcut: input.options.shortcut,
+    shortcut: options.shortcut,
     spotPatchVersion: packageMetadata.version,
     viteVersion,
   };

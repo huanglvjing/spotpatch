@@ -3,6 +3,8 @@ export {
   DEFAULT_OPTIONS,
   resolveOptions,
   type ResolvedSpotPatchOptions,
+  type SimpleAiOptions,
+  type SpotPatchAiOptions,
   type SpotPatchOptions,
 } from "./options.js";
 export {
@@ -13,6 +15,7 @@ export {
   type AiExecutionOptions,
   type AiModelProfile,
   type AiOptions,
+  type AiProviderAuthentication,
   type AiProviderProtocol,
   type ContextBudget,
   type OpenAICompatibleProviderOptions,

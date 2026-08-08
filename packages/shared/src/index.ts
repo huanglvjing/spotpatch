@@ -41,6 +41,7 @@ export {
   type AiExecutionOptions,
   type AiModelProfile,
   type AiOptions,
+  type AiProviderAuthentication,
   type AiProviderProtocol,
   type OpenAICompatibleProviderOptions,
   type ResolvedAgentCheckDefinition,

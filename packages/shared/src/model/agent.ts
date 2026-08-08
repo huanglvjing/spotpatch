@@ -1,6 +1,7 @@
 import type { ErrorCode } from "../errors/error-code.js";
 
 export type AiProviderProtocol = "responses" | "chat-completions";
+export type AiProviderAuthentication = "bearer" | "x-api-key";
 export type AgentApplyMode = "review" | "auto";
 
 export interface AiModelProfile {
@@ -12,6 +13,7 @@ export interface OpenAICompatibleProviderOptions {
   readonly type: "openai-compatible";
   readonly label: string;
   readonly protocol: AiProviderProtocol;
+  readonly authentication?: AiProviderAuthentication;
   readonly baseURL: string;
   readonly apiKeyEnv: string;
   readonly models: Readonly<Record<string, AiModelProfile>>;
@@ -78,6 +80,7 @@ export interface ResolvedOpenAICompatibleProviderOptions {
   readonly type: "openai-compatible";
   readonly label: string;
   readonly protocol: AiProviderProtocol;
+  readonly authentication: AiProviderAuthentication;
   readonly baseURL: string;
   readonly apiKeyEnv: string;
   readonly models: Readonly<Record<string, ResolvedAiModelProfile>>;

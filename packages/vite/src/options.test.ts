@@ -92,6 +92,7 @@ describe("resolveOptions", () => {
     expect(resolved.ai.providers.relay).toMatchObject({
       id: "relay",
       label: "Team relay",
+      authentication: "bearer",
       baseURL: "https://relay.example.com/v1",
       apiKeyEnv: "SPOTPATCH_AI_API_KEY",
       defaultModel: "coding",
@@ -109,6 +110,54 @@ describe("resolveOptions", () => {
     expect(Object.isFrozen(resolved.ai.providers)).toBe(true);
     expect(Object.isFrozen(resolved.ai.providers.relay?.models)).toBe(true);
     expect(Object.isFrozen(resolved.ai.execution.checks.lint?.args)).toBe(true);
+  });
+
+  it("expands a minimal single-provider AI configuration with safe defaults", () => {
+    const resolved = resolveOptions({
+      ai: {
+        baseURL: "https://relay.example.test/v1",
+        model: "provider/model",
+      },
+    });
+
+    if (resolved.ai === false) {
+      throw new Error("Expected resolved AI configuration.");
+    }
+
+    expect(resolved.ai).toMatchObject({
+      defaultProvider: "default",
+      providers: {
+        default: {
+          authentication: "bearer",
+          protocol: "chat-completions",
+          apiKeyEnv: "SPOTPATCH_AI_API_KEY",
+          defaultModel: "default",
+          models: {
+            default: {
+              label: "AI model",
+              model: "provider/model",
+            },
+          },
+        },
+      },
+      execution: {
+        isolation: "git-worktree",
+        applyMode: "review",
+        checks: {},
+      },
+    });
+  });
+
+  it("lets explicit AI disablement override environment discovery", () => {
+    expect(
+      resolveOptions(
+        { ai: false },
+        {
+          baseURL: "https://relay.example.test/v1",
+          model: "provider/model",
+        },
+      ).ai,
+    ).toBe(false);
   });
 
   it("creates a browser configuration without provider secrets or commands", () => {

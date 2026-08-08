@@ -9,10 +9,11 @@ scope: "Gate N1 Loader compilation-chain evidence only"
 
 ## Current conclusion
 
-The local macOS matrix and the required Ubuntu/Node 22 CI matrix pass, but this POC remains
-`blocked` as a Gate N1 decision because explicit multi-worker stress evidence has not yet been
-collected. This status does not authorize `@spotpatch/next`, public exports, npm publication, or a
-Next.js support claim.
+The expanded local macOS matrix passes deterministic high-module and cache-restart stress. The
+earlier Ubuntu/Node 22 baseline also passed, but the updated stress suite has not yet completed on
+Ubuntu CI. The POC therefore remains `blocked` until that exact revision passes required CI. This
+status does not authorize `@spotpatch/next`, public exports, npm publication, or a Next.js support
+claim.
 
 ## Reproduced local evidence
 
@@ -23,11 +24,18 @@ Next.js support claim.
   Turbopack/default and `--webpack`.
 - Production builds: Next 15 webpack/default; Next 16 Turbopack/default.
 - Command: `pnpm test:next-poc`.
-- Result: 6/6 cases passed. The generated result and sanitized logs are under
+- Result: 6/6 cases passed. Every development case transforms 503 rendered elements, including
+  500 generated TSX modules, serves eight concurrent cold requests, and verifies a new probe epoch
+  after a warm `.next` cache restart. The generated result and sanitized logs are under
   `.artifacts/loader-poc/` and conform to `evidence/result.schema.json`.
 - Ubuntu evidence: GitHub Actions run
   [`31271056046`](https://github.com/huanglvjing/spotpatch/actions/runs/31271056046), Node 22,
-  `Next Loader POC (Ubuntu, Node 22)` succeeded with its evidence artifact.
+  `Next Loader POC (Ubuntu, Node 22)` succeeded with the earlier baseline artifact; the expanded
+  stress revision is pending CI.
+- Supplemental real-host evidence: private project `my-marketing-site` revision `fd0b4e825df8`,
+  Next 16.3.0, React 19.2.8 and TypeScript 5.9.3 passed 3/3 Turbopack/webpack/production cases via
+  `pnpm test:next-real-host`. The production build reported seven page-data workers. Sanitized
+  machine evidence is under `.artifacts/real-host-poc/`; the source repository remained unchanged.
 
 ## Proven facts
 
@@ -47,11 +55,20 @@ Next.js support claim.
    succeed, and no active development probe marker appears in `.next` output.
 7. Every case removes its disposable fixture work directory after logs are sanitized and records
    the cleanup as a machine-readable assertion.
+8. A generated 500-module route remains deterministic under eight concurrent cold requests in all
+   four development combinations; no worker identity or Loader side effect is written into output.
+9. A warm process restart with the same `.next` directory uses the new probe epoch in all four
+   combinations. Next 16 webpack initially reused stale Loader output when only Loader options
+   changed; including the epoch in webpack filesystem cache `version` is therefore required in
+   addition to Loader options. Clearing the whole host cache is not an acceptable implementation.
+10. The private Next 16 App Router host preserves its original routes and controlled Client
+    Component hydration under both bundlers; production output contains neither an active marker
+    nor the Loader POC environment-key name.
 
 ## Remaining blockers
 
-- Add a deterministic high-module-count fixture and establish concurrency/cache behavior without
-  writing worker identity into DOM or using unsupported Loader side effects.
+- Run the expanded 500-module/concurrent/warm-restart suite on Ubuntu/Node 22 CI and retain its
+  machine-readable artifact; the earlier CI run does not cover these new assertions.
 - Validate cache restart/epoch behavior in the separate source-registration POC.
 - Complete the other Gate N1 POCs before changing ADR-025 from Proposed or creating public code.
 

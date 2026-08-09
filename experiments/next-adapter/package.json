@@ -4,11 +4,17 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:runtime-poc": "tsup --config tsup.runtime-poc.config.ts",
     "test:loader": "vitest run --config vitest.config.ts src/loader-poc.test.ts",
     "test:real-host": "vitest run --config vitest.config.ts src/real-host-poc.test.ts",
+    "test:runtime-real-host": "pnpm build:runtime-poc && vitest run --config vitest.config.ts src/runtime-real-host-poc.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@spotpatch/runtime": "workspace:*",
+    "@spotpatch/dev-server": "workspace:*",
+    "@spotpatch/shared": "workspace:*",
+    "bippy": "0.6.1",
     "magic-string": "1.1.0"
   },
   "devDependencies": {
@@ -16,6 +22,7 @@
     "@types/node": "20.19.33",
     "ajv": "8.17.1",
     "ajv-formats": "3.0.1",
+    "tsup": "8.5.1",
     "typescript": "5.9.3",
     "vitest": "3.2.7"
   }

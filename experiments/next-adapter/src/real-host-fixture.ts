@@ -168,12 +168,19 @@ export async function inspectRealHost(projectRoot: string): Promise<RealHostSnap
   });
 }
 
-function createWrapperConfigSource(): string {
+function hasSpotPatchAdapterImport(source: string): boolean {
+  return /\bfrom\s*["']@spotpatch\/next["']/u.test(source);
+}
+
+function createWrapperConfigSource(disableHostSpotPatch: boolean): string {
   return `import { realpathSync } from "node:fs";
 import path from "node:path";
 
 import type { NextConfig } from "next";
-import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
+import {
+  PHASE_DEVELOPMENT_SERVER,
+  PHASE_PRODUCTION_BUILD,
+} from "next/constants";
 
 import originalConfig from "./.spotpatch-original-next-config";
 
@@ -199,8 +206,16 @@ async function resolveOriginalConfig(
   phase: string,
   context: NextConfigContext,
 ): Promise<NextConfig> {
+  // The historical Loader POC must not start the host's installed SpotPatch
+  // adapter or Sidecar. Resolve that wrapper through its production/noop path
+  // while preserving the host configuration beneath it.
+  const originalPhase =
+    ${disableHostSpotPatch ? "true" : "false"} && phase === PHASE_DEVELOPMENT_SERVER
+      ? PHASE_PRODUCTION_BUILD
+      : phase;
+
   return typeof configExport === "function"
-    ? await configExport(phase, context)
+    ? await configExport(originalPhase, context)
     : configExport;
 }
 
@@ -212,6 +227,11 @@ function readRequiredEnvironment(name: string): string {
   }
 
   return value;
+}
+
+function readOptionalEnvironment(name: string): string | undefined {
+  const value = process.env[name];
+  return typeof value === "string" && value !== "" ? value : undefined;
 }
 
 function isWithinRoot(root: string, candidate: string): boolean {
@@ -248,7 +268,7 @@ function findCommonFilesystemRoot(paths: readonly string[]): string {
 
 function scopeWebpackFilesystemCache(
   config: WebpackConfig,
-  probeId: string,
+  cacheIdentity: string,
 ): void {
   const { cache } = config;
 
@@ -259,7 +279,7 @@ function scopeWebpackFilesystemCache(
   ) {
     const existingVersion =
       typeof cache.version === "string" ? cache.version : "";
-    cache.version = [existingVersion, \`spotpatch:\${probeId}\`]
+    cache.version = [existingVersion, \`spotpatch:\${cacheIdentity}\`]
       .filter(Boolean)
       .join("|");
   }
@@ -310,6 +330,28 @@ export default async function createNextConfig(
   const webpackSourceMapMode = readRequiredEnvironment(
     "SPOTPATCH_POC_WEBPACK_SOURCE_MAP_MODE",
   );
+  const registryEpoch = readOptionalEnvironment("SPOTPATCH_POC_REGISTRY_EPOCH");
+  const sourceMarkerAttribute = readOptionalEnvironment(
+    "SPOTPATCH_POC_SOURCE_MARKER_ATTRIBUTE",
+  );
+  const hasRegistrationOptions =
+    registryEpoch !== undefined && sourceMarkerAttribute !== undefined;
+
+  if (
+    (registryEpoch === undefined) !== (sourceMarkerAttribute === undefined)
+  ) {
+    throw new Error(
+      "The real-host POC registration Loader options must be configured together.",
+    );
+  }
+
+  const createLoaderOptions = (sourceMapMode: string) => ({
+    probeId,
+    sourceMapMode,
+    ...(hasRegistrationOptions
+      ? { registryEpoch, sourceMarkerAttribute }
+      : {}),
+  });
   const existingRules = resolved.turbopack?.rules ?? {};
   const existingSpotPatchRule = existingRules[SPOTPATCH_RULE_KEY];
 
@@ -326,17 +368,95 @@ export default async function createNextConfig(
     loaders: [
       {
         loader,
-        options: {
-          probeId,
-          sourceMapMode: turbopackSourceMapMode,
-        },
+        options: createLoaderOptions(turbopackSourceMapMode),
       },
     ],
   };
   const originalWebpack = resolved.webpack;
+  const runtimeClientModule = readOptionalEnvironment(
+    "SPOTPATCH_POC_RUNTIME_CLIENT_MODULE",
+  );
+  const sidecarOriginValue = readOptionalEnvironment("SPOTPATCH_POC_SIDECAR_ORIGIN");
+  const runtimeEnabled =
+    runtimeClientModule !== undefined && sidecarOriginValue !== undefined;
+
+  if (
+    (runtimeClientModule === undefined) !== (sidecarOriginValue === undefined)
+  ) {
+    throw new Error(
+      "The real-host POC Runtime client and Sidecar origin must be configured together.",
+    );
+  }
+
+  let runtimeConfig: Pick<
+    NextConfig,
+    "instrumentationClientInject" | "rewrites"
+  > = {};
+
+  if (runtimeEnabled) {
+    if (
+      !runtimeClientModule.startsWith("./") ||
+      runtimeClientModule.includes("..") ||
+      runtimeClientModule.includes("\\0")
+    ) {
+      throw new Error("The real-host POC Runtime client path is invalid.");
+    }
+
+    const sidecarOrigin = new URL(sidecarOriginValue);
+
+    if (
+      sidecarOrigin.protocol !== "http:" ||
+      sidecarOrigin.hostname !== "127.0.0.1" ||
+      sidecarOrigin.username !== "" ||
+      sidecarOrigin.password !== "" ||
+      sidecarOrigin.pathname !== "/" ||
+      sidecarOrigin.search !== "" ||
+      sidecarOrigin.hash !== ""
+    ) {
+      throw new Error("The real-host POC Sidecar origin must be a loopback HTTP origin.");
+    }
+
+    const runtimeRewrite = {
+      source: "/__spotpatch/v1/:path*",
+      destination: \`\${sidecarOrigin.origin}/__spotpatch/v1/:path*\`,
+      basePath: false,
+    } as const;
+    runtimeConfig = {
+      instrumentationClientInject: [
+        ...(resolved.instrumentationClientInject ?? []),
+        runtimeClientModule,
+      ],
+      async rewrites() {
+        const original = await resolved.rewrites?.();
+
+        if (original === undefined) {
+          return {
+            beforeFiles: [runtimeRewrite],
+            afterFiles: [],
+            fallback: [],
+          };
+        }
+
+        if (Array.isArray(original)) {
+          return {
+            beforeFiles: [runtimeRewrite],
+            afterFiles: original,
+            fallback: [],
+          };
+        }
+
+        return {
+          beforeFiles: [runtimeRewrite, ...(original.beforeFiles ?? [])],
+          afterFiles: original.afterFiles ?? [],
+          fallback: original.fallback ?? [],
+        };
+      },
+    };
+  }
 
   return {
     ...resolved,
+    ...runtimeConfig,
     turbopack: {
       ...resolved.turbopack,
       root: turbopackRoot,
@@ -352,7 +472,7 @@ export default async function createNextConfig(
         return configured;
       }
 
-      scopeWebpackFilesystemCache(configured, probeId);
+      scopeWebpackFilesystemCache(configured, registryEpoch ?? probeId);
       configured.module.rules.push({
         enforce: "pre",
         include: path.resolve(process.cwd(), "app"),
@@ -360,10 +480,7 @@ export default async function createNextConfig(
         use: [
           {
             loader,
-            options: {
-              probeId,
-              sourceMapMode: webpackSourceMapMode,
-            },
+            options: createLoaderOptions(webpackSourceMapMode),
           },
         ],
       });
@@ -392,7 +509,9 @@ export async function prepareRealHostWorkDirectory(
 
   const configPath = path.join(workDirectory, REQUIRED_CONFIG_FILENAME);
   const originalConfigSource = await readFile(configPath, "utf8");
-  const wrapperConfigSource = createWrapperConfigSource();
+  const wrapperConfigSource = createWrapperConfigSource(
+    hasSpotPatchAdapterImport(originalConfigSource),
+  );
   await rename(configPath, path.join(workDirectory, ORIGINAL_CONFIG_FILENAME));
   await writeFile(configPath, wrapperConfigSource, "utf8");
   await generateStressFixture(workDirectory);

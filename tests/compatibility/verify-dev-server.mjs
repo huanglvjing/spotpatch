@@ -72,8 +72,12 @@ try {
   const expectedViteVersion = packageManifest.dependencies.vite;
   assert.match(
     runtimeSource,
-    new RegExp(`"viteVersion":"${expectedViteVersion.replaceAll(".", "\\.")}"`, "u"),
+    new RegExp(
+      `"frameworkVersion":"${expectedViteVersion.replaceAll(".", "\\.")}"`,
+      "u",
+    ),
   );
+  assert.match(runtimeSource, /"framework":"vite"/u);
   const sessionToken = runtimeSource.match(/"sessionToken":"([^"]+)"/u)?.[1];
   assert.notEqual(sessionToken, undefined);
 

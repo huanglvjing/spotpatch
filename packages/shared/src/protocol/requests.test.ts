@@ -9,6 +9,7 @@ import {
   agentCapabilityRequestSchema,
   agentJobCreateRequestSchema,
   openEditorRequestSchema,
+  runtimeBootstrapRequestSchema,
   sourceContextRequestSchema,
 } from "./requests.js";
 
@@ -61,6 +62,13 @@ const annotation = Object.freeze({
 });
 
 describe("protocol request schemas", () => {
+  it("accepts only an empty bootstrap request", () => {
+    expect(runtimeBootstrapRequestSchema.safeParse({}).success).toBe(true);
+    expect(
+      runtimeBootstrapRequestSchema.safeParse({ root: "/private/project" }).success,
+    ).toBe(false);
+  });
+
   it("accepts source identifiers and positive coordinates", () => {
     expect(
       sourceContextRequestSchema.safeParse({

@@ -20,6 +20,14 @@ export {
 } from "./model/annotation.js";
 export type { CodeContext, ContextBudget } from "./model/code-context.js";
 export {
+  runtimeConfigSchema,
+  SPOTPATCH_NEXT_BUNDLERS,
+  SPOTPATCH_NEXT_ROUTER_KINDS,
+  type SpotPatchNextBundler,
+  type SpotPatchNextRouterKind,
+  type SpotPatchRuntimeConfig,
+} from "./model/runtime-config.js";
+export {
   SPOTPATCH_EDITOR_PREFERENCES,
   type EditorOpenResult,
   type SpotPatchEditorPreference,
@@ -90,12 +98,14 @@ export {
   agentJobActionRequestSchema,
   agentJobCreateRequestSchema,
   openEditorRequestSchema,
+  runtimeBootstrapRequestSchema,
   sourceContextRequestSchema,
   spotAnnotationRequestSchema,
   spotTargetContextRequestSchema,
   type AgentCapabilityRequest,
   type AgentJobCreateRequest,
   type OpenEditorRequest,
+  type RuntimeBootstrapRequest,
   type SourceContextRequest,
 } from "./protocol/requests.js";
 export type { AgentJobEvent } from "./protocol/agent-events.js";

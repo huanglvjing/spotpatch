@@ -8,6 +8,7 @@ import {
 
 describe("protocol endpoints", () => {
   it("derives every Agent endpoint from the private API base", () => {
+    expect(SPOTPATCH_ENDPOINTS.bootstrap).toBe(`${SPOTPATCH_API_BASE}/bootstrap`);
     expect(SPOTPATCH_ENDPOINTS.agentCapability).toBe(
       `${SPOTPATCH_API_BASE}/agent/capability`,
     );

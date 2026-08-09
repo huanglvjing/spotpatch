@@ -9,6 +9,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@spotpatch/agent": fromRoot("./packages/agent/src/index.ts"),
+      "@spotpatch/compiler": fromRoot("./packages/compiler/src/index.ts"),
+      "@spotpatch/dev-server": fromRoot("./packages/dev-server/src/index.ts"),
+      "@spotpatch/next": fromRoot("./packages/next/src/index.ts"),
       "@spotpatch/shared": fromRoot("./packages/shared/src/index.ts"),
       "@spotpatch/react-adapter": fromRoot("./packages/react-adapter/src/index.ts"),
       "@spotpatch/runtime": fromRoot("./packages/runtime/src/index.ts"),

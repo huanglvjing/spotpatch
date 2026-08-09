@@ -1,12 +1,15 @@
 import path from "node:path";
 
+import {
+  createAgentJobManager,
+  createSpotPatchMiddleware,
+  type AgentJobManager,
+  type SourceRegistry,
+  type SpotPatchSession,
+} from "@spotpatch/dev-server";
 import type { Plugin, ResolvedConfig } from "vite";
 
-import { createAgentJobManager, type AgentJobManager } from "../agent/job-manager.js";
 import type { SpotPatchPluginContext } from "../plugin-context.js";
-import type { SourceRegistry } from "../registry/source-registry.js";
-import type { SpotPatchSession } from "../session/session.js";
-import { createSpotPatchMiddleware } from "./middleware.js";
 
 interface ServerPluginInput {
   readonly context: SpotPatchPluginContext;

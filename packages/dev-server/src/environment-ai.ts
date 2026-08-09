@@ -1,4 +1,4 @@
-import type { SimpleAiOptions } from "./options.js";
+import type { ResolvedSpotPatchOptions, SimpleAiOptions } from "./options.js";
 
 const AI_ENVIRONMENT_NAMES = Object.freeze({
   authentication: "SPOTPATCH_AI_AUTHENTICATION",
@@ -10,6 +10,43 @@ const AI_ENVIRONMENT_NAMES = Object.freeze({
 
 export interface EnvironmentAiConfiguration {
   readonly ai: false | SimpleAiOptions;
+}
+
+export function resolveCredentialEnvironment(
+  options: ResolvedSpotPatchOptions,
+  environment: Readonly<Record<string, string | undefined>>,
+): Readonly<Record<string, string>> {
+  if (options.ai === false) {
+    return Object.freeze({});
+  }
+
+  const names = new Set(
+    Object.values(options.ai.providers).map((provider) => provider.apiKeyEnv),
+  );
+  const missing = [...names].filter((name) => {
+    const value = environment[name];
+    return value === undefined || value.trim().length === 0;
+  });
+
+  if (missing.length > 0) {
+    throw new RangeError(
+      `SpotPatch AI credential environment is missing ${missing.join(", ")}.`,
+    );
+  }
+
+  return Object.freeze(
+    Object.fromEntries(
+      [...names].map((name) => {
+        const value = environment[name];
+
+        if (value === undefined) {
+          throw new RangeError("SpotPatch AI credential resolution failed.");
+        }
+
+        return [name, value];
+      }),
+    ),
+  );
 }
 
 function normalizedValue(

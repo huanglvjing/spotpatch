@@ -254,8 +254,9 @@ export function createController(
             ...(target.styles === undefined ? {} : { styles: target.styles }),
             apiStatus: target.apiStatus,
             collectionStatus: target.collectionStatus,
+            framework: config.framework,
+            frameworkVersion: config.frameworkVersion,
             spotPatchVersion: config.spotPatchVersion,
-            viteVersion: config.viteVersion,
           },
           messages,
         );

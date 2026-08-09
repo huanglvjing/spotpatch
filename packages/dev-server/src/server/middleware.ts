@@ -12,6 +12,7 @@ import {
   type CodeContext,
   type EditorOpenResult,
   type ErrorCode,
+  type SpotPatchRuntimeConfig,
 } from "@spotpatch/shared";
 
 import type { ResolvedSpotPatchOptions } from "../options.js";
@@ -22,6 +23,11 @@ import { handleAgentRequest, matchAgentRequestPath } from "./agent-http.js";
 import { type EditorLauncher, launchConfiguredEditor } from "./editor.js";
 import { readJsonRequestBody } from "./request-body.js";
 import { assertRequestAuthorized } from "./request-security.js";
+import {
+  readRuntimeBootstrap,
+  resolveRuntimeBootstrapOptions,
+  type RuntimeBootstrapOptions,
+} from "./runtime-bootstrap.js";
 import { readSourceContext } from "./source-context.js";
 import { resolveSourceFile } from "./source-file.js";
 
@@ -38,6 +44,7 @@ export interface SpotPatchServerLogger {
 
 export interface CreateMiddlewareOptions {
   readonly agentManager?: AgentJobManager;
+  readonly bootstrap?: RuntimeBootstrapOptions;
   readonly editorLauncher?: EditorLauncher;
   readonly logger?: SpotPatchServerLogger;
   readonly options: ResolvedSpotPatchOptions;
@@ -227,6 +234,11 @@ async function handleOpenEditor(
 export function createSpotPatchMiddleware(
   options: CreateMiddlewareOptions,
 ): SpotPatchMiddleware {
+  const bootstrap =
+    options.bootstrap === undefined
+      ? undefined
+      : resolveRuntimeBootstrapOptions(options.bootstrap);
+
   return (request, response, next) => {
     const path = requestPath(request);
     const agentRoute = matchAgentRequestPath(path);
@@ -242,6 +254,15 @@ export function createSpotPatchMiddleware(
     }
 
     const handle = async (): Promise<void> => {
+      if (path === SPOTPATCH_ENDPOINTS.bootstrap && bootstrap !== undefined) {
+        const data: SpotPatchRuntimeConfig = await readRuntimeBootstrap(
+          request,
+          bootstrap,
+        );
+        writeJson(response, 200, { ok: true, data });
+        return;
+      }
+
       assertRequestAuthorized(request, {
         allowLan: options.options.allowLan,
         sessionToken: options.session.token,

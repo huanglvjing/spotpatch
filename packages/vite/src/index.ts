@@ -6,6 +6,7 @@ export {
   type SimpleAiOptions,
   type SpotPatchAiOptions,
   type SpotPatchOptions,
+  type ViteSpotPatchOptions,
 } from "./options.js";
 export {
   DEFAULT_AGENT_LIMITS,

@@ -1,8 +1,8 @@
 import path from "node:path";
 
+import { resolveOptions } from "@spotpatch/dev-server";
 import { describe, expect, it } from "vitest";
 
-import { resolveOptions } from "../options.js";
 import {
   createTransformFilter,
   isInsideRoot,

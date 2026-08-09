@@ -22,6 +22,9 @@
     "baseUrl": ".",
     "paths": {
       "@spotpatch/agent": ["packages/agent/src/index.ts"],
+      "@spotpatch/compiler": ["packages/compiler/src/index.ts"],
+      "@spotpatch/dev-server": ["packages/dev-server/src/index.ts"],
+      "@spotpatch/next": ["packages/next/src/index.ts"],
       "@spotpatch/shared": ["packages/shared/src/index.ts"],
       "@spotpatch/react-adapter": ["packages/react-adapter/src/index.ts"],
       "@spotpatch/runtime": ["packages/runtime/src/index.ts"],

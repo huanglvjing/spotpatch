@@ -8,6 +8,8 @@ import {
   type SpotAnnotation,
 } from "../model/annotation.js";
 
+export const runtimeBootstrapRequestSchema = z.strictObject({});
+
 const sourceCoordinatesSchema = z.strictObject({
   fileId: z.string().min(1).max(128),
   line: z.number().int().positive(),
@@ -137,6 +139,7 @@ export const agentJobCreateRequestSchema = z.strictObject({
 export const agentJobActionRequestSchema = z.strictObject({});
 
 export type SourceContextRequest = z.infer<typeof sourceContextRequestSchema>;
+export type RuntimeBootstrapRequest = z.infer<typeof runtimeBootstrapRequestSchema>;
 export type OpenEditorRequest = z.infer<typeof openEditorRequestSchema>;
 export type AgentCapabilityRequest = z.infer<typeof agentCapabilityRequestSchema>;
 export interface AgentJobCreateRequest {

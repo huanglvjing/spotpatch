@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": [
+    "loader.d.cts",
+    "src",
+    "tsup.cli.config.ts",
+    "tsup.client.config.ts",
+    "tsup.loader.config.ts"
+  ]
+}

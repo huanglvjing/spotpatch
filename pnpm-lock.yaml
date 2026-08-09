@@ -65,6 +65,18 @@ importers:
 
   experiments/next-adapter:
     dependencies:
+      '@spotpatch/dev-server':
+        specifier: workspace:*
+        version: link:../../packages/dev-server
+      '@spotpatch/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@spotpatch/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      bippy:
+        specifier: 0.6.1
+        version: 0.6.1(react@19.2.8)
       magic-string:
         specifier: 1.1.0
         version: 1.1.0
@@ -81,6 +93,9 @@ importers:
       ajv-formats:
         specifier: 3.0.1
         version: 3.0.1(ajv@8.17.1)
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(@swc/core@1.15.47)(jiti@1.21.7)(postcss@8.5.23)(typescript@5.9.3)
       typescript:
         specifier: 5.9.3
         version: 5.9.3
@@ -141,6 +156,76 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
 
+  packages/compiler:
+    dependencies:
+      '@rollup/pluginutils':
+        specifier: 5.4.0
+        version: 5.4.0(rollup@4.62.4)
+      '@spotpatch/shared':
+        specifier: workspace:^
+        version: link:../shared
+      magic-string:
+        specifier: 1.1.0
+        version: 1.1.0
+      oxc-parser:
+        specifier: 0.143.0
+        version: 0.143.0
+
+  packages/dev-server:
+    dependencies:
+      '@spotpatch/agent':
+        specifier: workspace:^
+        version: link:../agent
+      '@spotpatch/compiler':
+        specifier: workspace:^
+        version: link:../compiler
+      '@spotpatch/shared':
+        specifier: workspace:^
+        version: link:../shared
+      launch-editor:
+        specifier: 2.14.1
+        version: 2.14.1
+      oxc-parser:
+        specifier: 0.143.0
+        version: 0.143.0
+      zod:
+        specifier: 4.4.3
+        version: 4.4.3
+
+  packages/next:
+    dependencies:
+      '@spotpatch/compiler':
+        specifier: workspace:^
+        version: link:../compiler
+      '@spotpatch/dev-server':
+        specifier: workspace:^
+        version: link:../dev-server
+      '@spotpatch/runtime':
+        specifier: workspace:^
+        version: link:../runtime
+      '@spotpatch/shared':
+        specifier: workspace:^
+        version: link:../shared
+      bippy:
+        specifier: 0.6.1
+        version: 0.6.1(react@19.2.8)
+      magic-string:
+        specifier: 1.1.0
+        version: 1.1.0
+      oxc-parser:
+        specifier: 0.143.0
+        version: 0.143.0
+    devDependencies:
+      next:
+        specifier: 16.3.0
+        version: 16.3.0(@playwright/test@1.62.1)(@types/node@20.19.33)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react:
+        specifier: 19.2.8
+        version: 19.2.8
+      react-dom:
+        specifier: 19.2.8
+        version: 19.2.8(react@19.2.8)
+
   packages/react-adapter:
     dependencies:
       '@spotpatch/shared':
@@ -148,7 +233,7 @@ importers:
         version: link:../shared
       bippy:
         specifier: 0.6.1
-        version: 0.6.1(react@18.3.1)
+        version: 0.6.1(react@19.2.8)
 
   packages/runtime:
     dependencies:
@@ -167,12 +252,12 @@ importers:
 
   packages/vite:
     dependencies:
-      '@rollup/pluginutils':
-        specifier: 5.4.0
-        version: 5.4.0(rollup@4.62.4)
-      '@spotpatch/agent':
+      '@spotpatch/compiler':
         specifier: workspace:^
-        version: link:../agent
+        version: link:../compiler
+      '@spotpatch/dev-server':
+        specifier: workspace:^
+        version: link:../dev-server
       '@spotpatch/react-adapter':
         specifier: workspace:^
         version: link:../react-adapter
@@ -182,18 +267,6 @@ importers:
       '@spotpatch/shared':
         specifier: workspace:^
         version: link:../shared
-      launch-editor:
-        specifier: 2.14.1
-        version: 2.14.1
-      magic-string:
-        specifier: 1.1.0
-        version: 1.1.0
-      oxc-parser:
-        specifier: 0.143.0
-        version: 0.143.0
-      zod:
-        specifier: 4.4.3
-        version: 4.4.3
 
   playgrounds/compat-vite5-react18.2:
     dependencies:
@@ -5633,9 +5706,9 @@ snapshots:
 
   binary-extensions@2.3.0: {}
 
-  bippy@0.6.1(react@18.3.1):
+  bippy@0.6.1(react@19.2.8):
     dependencies:
-      react: 18.3.1
+      react: 19.2.8
 
   brace-expansion@1.1.18:
     dependencies:

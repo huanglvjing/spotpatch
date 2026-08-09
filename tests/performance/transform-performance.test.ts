@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { injectSourceMarkers } from "../../packages/vite/src/transform/inject-source-markers.js";
+import { injectSourceMarkers } from "@spotpatch/compiler";
 
 const SAMPLE_COUNT = 160;
 const WARMUP_COUNT = 20;

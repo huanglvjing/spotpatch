@@ -9,10 +9,11 @@ export interface SelectionSummaryInput {
   readonly apiStatus: ApiConnectionStatus;
   readonly code?: CodeContext;
   readonly collectionStatus: CollectionStatus;
+  readonly framework: "next" | "vite";
+  readonly frameworkVersion: string;
   readonly resolution: ElementSourceResolution;
   readonly spotPatchVersion: string;
   readonly styles?: StyleContext;
-  readonly viteVersion: string;
 }
 
 export interface SelectionSummaryMessages {
@@ -69,7 +70,7 @@ export function createSelectionSummary(
 ): string {
   const lines = [
     `SpotPatch: ${input.spotPatchVersion}`,
-    `Vite: ${input.viteVersion}`,
+    `${input.framework === "next" ? "Next.js" : "Vite"}: ${input.frameworkVersion}`,
     `${messages.source}: ${sourceLocation(input.resolution, input.code, messages)}`,
     `${messages.confidence}: ${input.resolution.source.confidence} (${messages.confidenceLabels[input.resolution.source.confidence]})`,
     `${messages.origin}: ${input.resolution.source.origin}`,

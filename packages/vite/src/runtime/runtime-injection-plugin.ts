@@ -2,12 +2,11 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { createRuntimeAiConfig, type SpotPatchSession } from "@spotpatch/dev-server";
 import packageMetadata from "../../package.json" with { type: "json" };
 import { version as VITE_VERSION, type Plugin } from "vite";
 
-import { createRuntimeAiConfig } from "../options.js";
 import type { SpotPatchPluginContext } from "../plugin-context.js";
-import type { SpotPatchSession } from "../session/session.js";
 
 export const SPOTPATCH_CLIENT_MODULE_ID = "virtual:spotpatch/client";
 export const RESOLVED_SPOTPATCH_CLIENT_MODULE_ID = `\0${SPOTPATCH_CLIENT_MODULE_ID}`;
@@ -60,13 +59,14 @@ function createClientModule(
     budget: options.budget,
     debug: options.debug,
     editor: options.editor,
+    framework: "vite" as const,
+    frameworkVersion: viteVersion,
     locale: options.locale,
     maxTargets: options.maxTargets,
     redact: options.redact,
     sessionToken: input.session.token,
     shortcut: options.shortcut,
     spotPatchVersion: packageMetadata.version,
-    viteVersion,
   };
 
   return [

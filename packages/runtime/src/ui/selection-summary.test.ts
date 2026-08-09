@@ -8,7 +8,8 @@ describe("selection diagnostics summary", () => {
     const summary = createSelectionSummary(
       {
         spotPatchVersion: "1.0.0",
-        viteVersion: "7.3.6",
+        framework: "vite",
+        frameworkVersion: "7.3.6",
         apiStatus: "connected",
         collectionStatus: "ready",
         resolution: {
@@ -58,7 +59,8 @@ describe("selection diagnostics summary", () => {
     const summary = createSelectionSummary(
       {
         spotPatchVersion: "1.0.0",
-        viteVersion: "7.3.6",
+        framework: "next",
+        frameworkVersion: "16.3.0",
         apiStatus: "not-required",
         collectionStatus: "ready",
         resolution: {
@@ -78,6 +80,7 @@ describe("selection diagnostics summary", () => {
     );
 
     expect(summary).toContain("源码: 第 20 行，第 4 列");
+    expect(summary).toContain("Next.js: 16.3.0");
     expect(summary).toContain("置信度: exact (精确元素源码)");
     expect(summary).toContain("浏览器上下文: 已就绪");
   });

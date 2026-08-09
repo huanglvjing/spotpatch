@@ -1,11 +1,14 @@
 import { SPOTPATCH_API_BASE } from "@spotpatch/shared";
+import {
+  resolveOptions,
+  type ResolvedSpotPatchOptions,
+  type SpotPatchSession,
+} from "@spotpatch/dev-server";
 import { describe, expect, it } from "vitest";
 import { version as VITE_VERSION } from "vite";
 
 import packageMetadata from "../../package.json" with { type: "json" };
-import { resolveOptions, type ResolvedSpotPatchOptions } from "../options.js";
 import type { SpotPatchPluginContext } from "../plugin-context.js";
-import type { SpotPatchSession } from "../session/session.js";
 import {
   createRuntimeInjectionPlugin,
   RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID,
@@ -77,7 +80,8 @@ describe("runtime injection plugin", () => {
     expect(code).toContain("browser-session-token");
     expect(code).toContain("Alt+S");
     expect(code).toContain(`"spotPatchVersion":"${packageMetadata.version}"`);
-    expect(code).toContain(`"viteVersion":"${VITE_VERSION}"`);
+    expect(code).toContain('"framework":"vite"');
+    expect(code).toContain(`"frameworkVersion":"${VITE_VERSION}"`);
     expect(code).toContain('"locale":"auto"');
     expect(code).toContain('"editor":"auto"');
     expect(code).toContain('"maxTargets":8');

@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 
 import type { ConfigEnv, Plugin, ResolvedConfig, UserConfig } from "vite";
+import { injectSourceMarkers } from "@spotpatch/compiler";
+import type { SourceRegistry } from "@spotpatch/dev-server";
 
 import type { SpotPatchPluginContext } from "../plugin-context.js";
-import type { SourceRegistry } from "../registry/source-registry.js";
-import { injectSourceMarkers } from "./inject-source-markers.js";
 import { createTransformFilter, stripViteQuery } from "./transform-filter.js";
 
 interface TransformPluginInput {

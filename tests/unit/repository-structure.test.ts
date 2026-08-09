@@ -9,12 +9,15 @@ const NPM_REGISTRY_URL = "https://registry.npmjs.org/";
 
 const workspacePackages = [
   { directory: "packages/shared", name: "@spotpatch/shared" },
+  { directory: "packages/compiler", name: "@spotpatch/compiler" },
   { directory: "packages/agent", name: "@spotpatch/agent" },
+  { directory: "packages/dev-server", name: "@spotpatch/dev-server" },
   {
     directory: "packages/react-adapter",
     name: "@spotpatch/react-adapter",
   },
   { directory: "packages/runtime", name: "@spotpatch/runtime" },
+  { directory: "packages/next", name: "@spotpatch/next" },
   { directory: "packages/vite", name: "@spotpatch/vite" },
 ] as const;
 

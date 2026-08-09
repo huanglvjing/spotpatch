@@ -27,13 +27,14 @@ const config = Object.freeze({
   budget,
   debug: false,
   editor: "auto",
+  framework: "vite",
+  frameworkVersion: "7.3.6",
   locale: "en-US",
   maxTargets: 8,
   redact: true,
   sessionToken: "runtime-session-token",
   shortcut: "Mod+Shift+S",
   spotPatchVersion: "0.0.0",
-  viteVersion: "7.3.6",
 }) satisfies RuntimeConfig;
 
 const context = Object.freeze({

@@ -184,7 +184,12 @@ export function minimalProcessEnvironment(): NodeJS.ProcessEnv {
     "LANG",
     "LC_ALL",
   ] as const;
-  const environment: NodeJS.ProcessEnv = { CI: "1", NO_COLOR: "1" };
+  // Next.js augments ProcessEnv with a required NODE_ENV even though Node permits it
+  // to be absent. This environment intentionally forwards only the allowlist below.
+  const environment = {
+    CI: "1",
+    NO_COLOR: "1",
+  } as unknown as NodeJS.ProcessEnv;
 
   for (const name of allowedNames) {
     const value = process.env[name];

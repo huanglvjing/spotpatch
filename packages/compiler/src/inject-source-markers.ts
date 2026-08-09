@@ -5,7 +5,7 @@ import {
   SOURCE_MARKER_ATTRIBUTE,
   type SourceMarker,
 } from "@spotpatch/shared";
-import MagicString from "magic-string";
+import { MagicString } from "magic-string";
 import { parseSync, Visitor, type JSXOpeningElement } from "oxc-parser";
 
 import {

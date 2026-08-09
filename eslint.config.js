@@ -30,10 +30,10 @@ export default tseslint.config(
   {
     files: [
       "*.ts",
-      "packages/**/*.{ts,tsx}",
-      "playgrounds/**/*.{ts,tsx}",
-      "experiments/next-adapter/**/*.{ts,tsx}",
-      "tests/**/*.ts",
+      "packages/**/*.{ts,tsx,cts,mts}",
+      "playgrounds/**/*.{ts,tsx,cts,mts}",
+      "experiments/next-adapter/**/*.{ts,tsx,cts,mts}",
+      "tests/**/*.{ts,cts,mts}",
     ],
     languageOptions: {
       globals: {

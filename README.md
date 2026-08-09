@@ -1,35 +1,50 @@
-# SpotPatch
+<p align="center">
+  <a href="https://github.com/huanglvjing/spotpatch">
+    <img src="./docs/assets/spotpatch-logo.svg" alt="SpotPatch" width="760" />
+  </a>
+</p>
 
-SpotPatch 是一个仅在本地开发期运行的 React 页面反馈工具。它把选中的 DOM
-元素追溯到源码位置，为多个目标分别保存修改要求，采集经过脱敏和预算裁剪的上下文，
-并生成可复制给编程助手的结构化 Prompt。工作台内置中英文并可即时切换。没有完整 AI 配置时 AI 默认关闭；v1.1 可选接入 OpenAI-compatible API，在隔离 Git
-worktree 中执行受控 Agent 工具，并经 Diff 与检查审阅后修改本地代码。
+<p align="center">
+  <strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a>
+</p>
 
-规范入口：[docs/技术方案/00-索引与导航.md](./docs/技术方案/00-索引与导航.md)。
-真实项目验收证据：
-[docs/验收/2026-08-06-spotpatch-web-v1验收报告.md](./docs/验收/2026-08-06-spotpatch-web-v1验收报告.md)。
+<p align="center">
+  <a href="https://www.npmjs.com/package/@spotpatch/vite"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fvite?logo=npm&label=%40spotpatch%2Fvite" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/@spotpatch/vite"><img src="https://img.shields.io/npm/dm/%40spotpatch%2Fvite?logo=npm&label=downloads" alt="npm downloads" /></a>
+  <a href="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml"><img src="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status" /></a>
+  <a href="./LICENSE"><img src="https://img.shields.io/github/license/huanglvjing/spotpatch" alt="MIT license" /></a>
+</p>
 
-## 支持范围
+SpotPatch is a local-first, development-only feedback workspace for React applications. Select rendered UI, trace it to the responsible JSX/TSX source, attach a separate instruction to each target, and either copy a structured prompt or run an optional review-gated AI coding workflow.
 
-- Node.js 20.19+ 或 22
-- Vite 5、6、7
-- React 18.2、18.3
-- Chromium 自动化验收
+> [!IMPORTANT]
+> `@spotpatch/vite` is the supported public integration. The Next.js adapter is a local preview and is not yet part of the public support matrix.
 
-正式支持边界以产品规范为准 (见 doc-id:01-product-boundary)。
+## Why SpotPatch
 
-## 安装与接入
+- **UI-to-source selection** — map a rendered element to an authorized source file, line, and column.
+- **Multi-target feedback** — keep independent instructions and context for up to eight targets by default.
+- **Useful without AI** — inspect context, open Cursor or VS Code, preview a structured prompt, and copy it to any coding assistant.
+- **Optional AI Agent** — use an explicitly configured OpenAI-compatible provider, bounded tools, an isolated Git worktree, project checks, Diff review, Apply, and conflict-safe Revert.
+- **Chinese and English UI** — switch locale without losing the current draft or review state.
+- **Development-only by construction** — production builds contain no SpotPatch Runtime, source markers, or local protocol endpoints.
 
-入口包已发布到 npm，用户只需安装：
+## Quick start: Vite
+
+### 1. Install
 
 ```bash
 npm install --save-dev @spotpatch/vite
-# 或：pnpm add -D @spotpatch/vite
+# or
+pnpm add -D @spotpatch/vite
 ```
 
-SpotPatch 必须放在 React/SWC 插件之前：
+### 2. Configure
+
+Place SpotPatch before the React plugin. This ordering lets SpotPatch add development source markers before the React transform runs.
 
 ```ts
+// vite.config.ts
 import { spotPatch } from "@spotpatch/vite";
 import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
@@ -39,35 +54,39 @@ export default defineConfig({
 });
 ```
 
-启动 Vite 开发服务器后，点击右下角 `Select element`，或使用
-`Mod+Shift+S`，即可完成“选择元素 → 为当前目标输入修改要求 → 按需追加并分别描述其他目标 → 预览 Prompt → 复制”。标题栏可在中文和英文之间切换，已有草稿不会丢失。生产构建
-不会注入 runtime、source marker 或本地协议端点。
+### 3. Use
 
-源码按钮默认自动识别当前可用的 Cursor 或 VS Code，并精确打开到所选元素的行、列；
-也可通过 `editor: "cursor"` 或 `editor: "vscode"` 固定选择。工作台标题栏提供
-[GitHub 仓库](https://github.com/huanglvjing/spotpatch)入口，方便查看文档、反馈问题和 Star 项目。
+Start the ordinary Vite development server, open the application, then select **Select element** in the bottom-right corner or press `Mod+Shift+S`.
 
-接入选项、默认值和安全边界分别见公共 API 与安全规范
-(见 doc-id:03-public-api-models) (见 doc-id:09-local-protocol-security)。
+```bash
+pnpm dev
+```
 
-## AI Agent（可选）
+The default workflow is:
 
-AI 模式不要求 Codex CLI。最简接入无需修改上面的 `spotPatch()`：在被 Git 忽略的
-`.env.local` 中提供 URL、模型和 Key，插件会在 Vite Node 端自动发现，任何必要值缺失都会明确失败：
+1. Select one or more UI elements.
+2. Write a separate change request for each target.
+3. Inspect the source, DOM, CSS, and bounded code context.
+4. Open the exact location in Cursor or VS Code, or copy the generated prompt.
+5. If AI is enabled, review the remote-transmission notice, run the task, inspect the Diff and checks, then explicitly apply or reject the change.
+
+## Optional AI setup
+
+AI is disabled unless a complete provider configuration is available. The smallest setup uses a Git-ignored `.env.local` file and requires no change to `spotPatch()`:
 
 ```dotenv
 SPOTPATCH_AI_BASE_URL=https://relay.example.com/v1
 SPOTPATCH_AI_MODEL=provider-model-name
 SPOTPATCH_AI_API_KEY=<your-key>
 
-# 可选，默认 chat-completions 与 bearer
-SPOTPATCH_AI_PROTOCOL=chat-completions
-SPOTPATCH_AI_AUTHENTICATION=bearer
+# Optional defaults:
+# SPOTPATCH_AI_PROTOCOL=chat-completions
+# SPOTPATCH_AI_AUTHENTICATION=bearer
 ```
 
-Key 不得使用 `VITE_` 前缀，也不得提交到 Git。中转站使用 `x-api-key` 时，把认证变量设为 `x-api-key`，无需在源码中加入 Header 或 Key。
+`SPOTPATCH_AI_PROTOCOL` supports `chat-completions` and `responses`. Authentication supports `bearer` and `x-api-key`. API keys stay in the Vite Node process and must never use a `VITE_` prefix or be committed to Git.
 
-只希望在 Vite 配置指定非秘密的 URL 和模型时，可以使用简洁 API：
+You can also declare non-secret provider information in `vite.config.ts`:
 
 ```ts
 spotPatch({
@@ -78,58 +97,81 @@ spotPatch({
 });
 ```
 
-完整多 Provider、多模型和项目检查仍使用高级配置。以下是非规范性示例；完整字段和约束以
-[公共 API](./docs/技术方案/03-公共API与数据模型.md)、
-[Provider 与凭据](./docs/技术方案/17-模型提供商与凭据配置.md)及
-[Agent 执行规范](./docs/技术方案/16-AIAgent执行与变更审阅.md)为准。
+SpotPatch does not expose arbitrary shell execution to the model. Agent edits are created in an isolated Git worktree, bounded by path and size policies, and shown for review before the default `review` apply mode changes the application workspace. See [AI Agent execution](./docs/技术方案/16-AIAgent执行与变更审阅.md) and [provider credentials](./docs/技术方案/17-模型提供商与凭据配置.md) for the normative rules.
 
-```ts
-spotPatch({
-  redact: true,
-  ai: {
-    providers: {
-      relay: {
-        type: "openai-compatible",
-        label: "Team relay",
-        protocol: "responses",
-        authentication: "bearer",
-        baseURL: "https://relay.example.com/v1",
-        apiKeyEnv: "SPOTPATCH_AI_API_KEY",
-        models: {
-          coding: {
-            label: "Coding model",
-            model: "provider-model-name",
-          },
-        },
-        defaultModel: "coding",
-      },
-    },
-    defaultProvider: "relay",
-    execution: {
-      applyMode: "review",
-      checks: {
-        lint: { label: "Lint", command: "pnpm", args: ["lint"] },
-        build: { label: "Build", command: "pnpm", args: ["build"] },
-      },
-    },
-  },
-});
-```
+## Supported scope
 
-使用顺序是“选择一个或多个元素 → 为每个目标分别输入要求 → 确认远程传输 → 检查运行环境 →
-Verify & run → 审阅完整 Diff/检查 → Apply changes”，应用后可在 Agent 触及文件未继续变化时安全
-Revert。工作区干净时可直接运行；存在 staged、unstaged 或有界普通 untracked 文件时，工作台会列出
-分类计数并要求一次明确的“纳入本地修改”同意。SpotPatch 把这些内容复制成隔离基线，不会自动
-stash、reset、commit 或改动暂存区；Apply/Revert 只处理 Agent 增量。冲突、进行中的 Git 操作、
-不支持的未跟踪项或超出安全快照上限时会显示具体阻断原因。能力探测未确认结构化工具调用、工具
-结果续传和流式协议时，SpotPatch 只保留本地 Prompt，不会从自然语言代码块自动改文件。
-兼容中转站在后续模型轮次复用 tool call ID；同一轮出现冲突 ID 时仍会拒绝且不产生源码副作用。
-工具参数不符合声明与调用 ID 冲突会显示不同诊断，便于区分模型参数问题和中转协议问题。
+| Area              | Supported public scope                | Notes                                                        |
+| ----------------- | ------------------------------------- | ------------------------------------------------------------ |
+| Framework         | React with Vite                       | `@spotpatch/vite` is the public entry point.                 |
+| Vite              | 5, 6, 7                               | Verified through versioned compatibility fixtures.           |
+| React             | 18.2–18.3                             | React 19 is not in the Vite v1 support promise.              |
+| Source            | `.jsx`, `.tsx` under `src` by default | Include and exclude filters are configurable.                |
+| Node.js           | 20.19 or newer                        | Node 20 and 22 are exercised in CI.                          |
+| Browsers          | Chromium                              | Automated interaction coverage runs through Playwright.      |
+| Editors           | Cursor, VS Code                       | Auto-detected by default; either can be selected explicitly. |
+| Operating systems | macOS, Windows, Linux                 | CI and editor launch behavior are platform-aware.            |
 
-## 本地开发
+Other combinations may work, but they are not part of the current public promise. The [product boundary](./docs/技术方案/01-产品定义与边界.md) is the source of truth.
+
+### Next.js status
+
+The repository contains an `@spotpatch/next` local preview with a CLI, Sidecar, Turbopack/webpack Loader paths, source registration, Runtime bootstrap, and production no-op isolation. It has passed the locked POC and one private Next 16 App Router host, but the complete Next/React/router/Node/OS/browser release matrix is still unfinished.
+
+Do not interpret the package peer range as a public support claim. Follow the [Next.js adapter plan](./docs/技术方案/Next适配/00-索引与架构摘要.md) and [remaining release gates](./docs/技术方案/Next适配/08-测试验收与实施计划.md) for the exact status.
+
+## Configuration
+
+The public Vite entry exports `spotPatch(options)`. Important defaults are:
+
+| Option       | Default                                        | Purpose                                           |
+| ------------ | ---------------------------------------------- | ------------------------------------------------- |
+| `enabled`    | `true`                                         | Disable the plugin explicitly when needed.        |
+| `include`    | JSX/TSX inside `src`                           | Source files eligible for marker injection.       |
+| `exclude`    | dependencies, tests, stories, generated output | Files that must not be transformed.               |
+| `editor`     | `"auto"`                                       | Auto-detect Cursor or VS Code.                    |
+| `redact`     | `true`                                         | Sanitize collected browser context.               |
+| `shortcut`   | `"Mod+Shift+S"`                                | Toggle the element picker.                        |
+| `allowLan`   | `false`                                        | Keep the local protocol loopback-only by default. |
+| `locale`     | `"auto"`                                       | Resolve `en-US` or `zh-CN`.                       |
+| `maxTargets` | `8`                                            | Maximum targets in one task by default.           |
+| `ai`         | `false` or detected complete environment       | Optional provider and Agent configuration.        |
+
+See [`@spotpatch/vite`](./packages/vite/README.md) and the [public API specification](./docs/技术方案/03-公共API与数据模型.md) for complete types and constraints.
+
+## Security and production isolation
+
+- The browser receives random file identifiers, never absolute source paths.
+- Source reads are limited to files registered by the active development session and kept inside the project root.
+- Passwords, tokens, cookies, authorization data, URL credentials, and inline data are sanitized.
+- Provider credentials stay on the Node side and are never injected into client code.
+- Loopback Host and Origin checks are the default. Enabling Vite LAN access explicitly expands the trust boundary.
+- Production builds are tested for zero Runtime, source markers, private API routes, and internal secrets.
+- SpotPatch never performs an implicit `stash`, `reset`, `commit`, `push`, publish, or deployment.
+
+Read the complete [local protocol and security specification](./docs/技术方案/09-本地协议与安全.md) before enabling LAN access or AI execution.
+
+## Packages
+
+Applications should normally install only a framework adapter.
+
+| Package                                                            | Role                                                          | Direct application use                  |
+| ------------------------------------------------------------------ | ------------------------------------------------------------- | --------------------------------------- |
+| [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | Supported Vite integration                                    | **Yes**                                 |
+| `@spotpatch/next`                                                  | Next.js local preview                                         | Not yet a supported public integration  |
+| `@spotpatch/compiler`                                              | Framework-neutral JSX/TSX marker compiler                     | Adapter infrastructure                  |
+| `@spotpatch/dev-server`                                            | Local sessions, source access, editor and Agent orchestration | Adapter infrastructure; Node only       |
+| `@spotpatch/runtime`                                               | Browser picker, collectors, workbench and prompt composer     | Installed through an adapter            |
+| `@spotpatch/react-adapter`                                         | Isolated React/Fiber compatibility boundary                   | Installed through an adapter            |
+| `@spotpatch/agent`                                                 | Provider, bounded tools, worktree and validation engine       | Installed through an adapter; Node only |
+| `@spotpatch/shared`                                                | Immutable models, protocol schemas and error codes            | Shared internal contract                |
+
+Packages that are publicly published to complete the dependency graph are not automatically separate user-facing integration surfaces.
+
+## Repository development
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm format:check
 pnpm lint
 pnpm typecheck
@@ -142,36 +184,18 @@ pnpm test:production-leakage
 pnpm package:validate
 ```
 
-质量门禁和性能预算的唯一规范见测试与验收文档
-(见 doc-id:12-testing-acceptance)。`@spotpatch/runtime`、
-`@spotpatch/react-adapter` 和 `@spotpatch/shared` 是随入口包安装的内部依赖，应用
-不应直接配置它们。
+The CI workflow also runs its quality matrix on Ubuntu, macOS, and Windows with the declared Node versions. Next.js experiments have separate POC and private real-host commands; passing them does not bypass the documented Next release gates.
 
-## npm 发布
+## Documentation
 
-仓库使用 Changesets 管理五个公共包的统一首发。用户只安装 `@spotpatch/vite`，但
-`@spotpatch/shared`、`@spotpatch/react-adapter`、`@spotpatch/runtime` 和
-`@spotpatch/agent` 必须同时发布，才能形成可安装的依赖图。
+- [Documentation index](./docs/技术方案/00-索引与导航.md)
+- [Product definition and support boundary](./docs/技术方案/01-产品定义与边界.md)
+- [Architecture and package ownership](./docs/技术方案/02-总体架构与技术栈.md)
+- [Public API and defaults](./docs/技术方案/03-公共API与数据模型.md)
+- [Security model](./docs/技术方案/09-本地协议与安全.md)
+- [Testing and acceptance](./docs/技术方案/12-测试与验收.md)
+- [Next.js adapter status](./docs/技术方案/Next适配/00-索引与架构摘要.md)
 
-首次发布需要维护者完成以下外部配置：
+## License
 
-1. 在 npm 创建或确认拥有 `@spotpatch` scope 的发布权限。
-2. 在 GitHub 仓库 Secret 中配置最小权限的 `NPM_TOKEN`。
-3. 在仓库 Actions 设置中启用 workflow 读写权限，并允许 Actions 创建 Pull Request。
-4. 推送带 Changeset 的变更；Release workflow 会先创建 Version Packages PR。
-5. 审阅并合并版本 PR；合并后的 Release workflow 才会发布 npm 包。
-
-发布工作流会在发布前运行格式、Lint、类型、单测和包验证，并为公开仓库产物生成
-provenance。首次发布成功后，应在 npm 为五个包分别配置 GitHub Actions trusted
-publisher，再通过后续变更移除长期 `NPM_TOKEN`。不得把 npm token、AI Key 或其他
-凭据写入仓库、Changeset、workflow 参数或 `VITE_` 环境变量。
-
-## 安全原则
-
-- 浏览器只持有随机 `fileId` 和会话令牌，不持有绝对源码路径。
-- 默认只接受 loopback Host/Origin；开启 LAN 必须显式配置。
-- 文件读取只能命中本次 Vite 会话已登记、项目 root 内的 JSX/TSX 文件。
-- 表单值、密码、token、Cookie、Authorization、URL 凭据和内联数据始终脱敏。
-- Shadow DOM UI 只通过 `textContent` 展示采集内容。
-
-完整规则及错误码只有安全规范一处定义 (见 doc-id:09-local-protocol-security)。
+[MIT](./LICENSE) © SpotPatch contributors.

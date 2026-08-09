@@ -2,10 +2,10 @@
 doc-id: "next-03-integration-lifecycle"
 title: "Next.js 接入 API 与生命周期"
 status: "active"
-version: "0.2.0"
+version: "0.4.0"
 last-updated: "2026-08-09"
-source-range: "Next.js next.config phase、instrumentation-client、CLI 与环境变量官方调研；SpotPatch 接入提案；编码前架构复核"
-implementation-status: "planned"
+source-range: "Next.js next.config phase、instrumentation-client、CLI 与环境变量；SpotPatch 本地预览接入实现"
+implementation-status: "local-preview"
 参考文献/依赖:
   - "03-public-api-models"
   - "09-local-protocol-security"
@@ -17,13 +17,13 @@ implementation-status: "planned"
 
 ## 用户入口
 
-Next 用户只显式安装一个包：
+正式发布后，Next 用户只需显式安装一个入口包：
 
 ```bash
 npm install --save-dev @spotpatch/next
 ```
 
-规划的配置入口为高阶配置包装器：
+当前仓库中的包仍是 `0.0.0` 且未发布，上述命令不是当前可用性声明；真实宿主营销站通过本地 pnpm workspace 注入源码包。当前配置入口为高阶配置包装器：
 
 ```ts
 import type { NextConfig } from "next";
@@ -33,17 +33,12 @@ const nextConfig: NextConfig = {
   // 宿主已有配置
 };
 
-export default withSpotPatch({
-  ai: {
-    baseURL: process.env.SPOTPATCH_AI_BASE_URL!,
-    model: process.env.SPOTPATCH_AI_MODEL!,
-  },
-})(nextConfig);
+export default withSpotPatch()(nextConfig);
 ```
 
-示例中的 AI 字段复用现有公共类型和凭据边界；真实 Key 仍只能由服务端环境变量提供，不能成为函数参数或 `NEXT_PUBLIC_*` 值 (见 doc-id:03-public-api-models)、(见 doc-id:17-model-provider-credentials)。实现文档不得为 Next 复制另一套 AI 配置。
+AI 选项复用现有公共类型和凭据边界；真实 Key 仍只能由服务端环境变量提供，不能成为函数参数或 `NEXT_PUBLIC_*` 值 (见 doc-id:03-public-api-models)、(见 doc-id:17-model-provider-credentials)。Next 不复制另一套 AI 配置。
 
-规划类型：
+当前导出类型：
 
 ```ts
 type NextConfigInput =
@@ -103,27 +98,27 @@ CLI 使用本项目安装的 Next binary，不下载或调用全局 Next，不�
 
 AI URL、模型与环境变量名定义在 `withSpotPatch(...)` 中，父 CLI 不能通过读取命令行直接取得；同时，CLI 不得自行再次求值 `next.config`，否则会重复执行用户配置副作用，也无法等价复用 Next 的 phase/context 与 `.env*` 加载顺序。因此采用单向受控握手：
 
-1. CLI 通过 `process.execPath` 启动解析到的本地 Next CLI，`shell: false`，并建立仅限父子进程的 Node IPC 通道。
+1. CLI 通过 `process.execPath` 启动解析到的本地 Next CLI，`shell: false`，并先绑定 `127.0.0.1` 随机端口上的 sealed Sidecar。
 2. Next 按官方流程加载 `.env*` 并求值 `next.config`。
 3. `withSpotPatch` 仅在 `PHASE_DEVELOPMENT_SERVER` 中验证并规范化可序列化选项；需要凭据时只按配置声明从当前服务端 `process.env` 解析值。
-4. 包装器通过私有 IPC 发送一次配置消息；消息可包含按环境引用解析出的 Provider Key，但不得包含浏览器 session/internal registration secret，也不得把 Key 写回 Next config、Loader options、日志或浏览器。
+4. 由于 Next 16 可能在 CLI 后代进程中求值配置，包装器通过同一 sealed listener 的独立内部配置路径发送一次认证消息，而不是假设存在直接父子 `process.send`；消息可包含按环境引用解析出的 Provider Key，但不得包含浏览器 session/internal registration secret，也不得把 Key 写回 Next config、Loader options、日志或浏览器。
 5. 父 CLI 完成 schema、root 和安全校验，初始化唯一 dev service，再返回 ack；包装器收到 ack 后才返回已组合配置。
 6. 完全相同的重复消息幂等返回同一 ack；同一启动中出现不一致配置立即失败，不能启动第二个 Session。
 
-IPC 消息须有协议版本、启动 nonce、最大消息尺寸、严格 schema、一次性状态机和超时；未知字段、重复 request id、子进程之外的 sender 或超时全部 fail-fast。具体消息字段和错误码在 POC 后进入公共 schema，本提案不提前写死。
+内部配置消息具有协议版本、启动 nonce、独立高熵配置 secret、最大消息尺寸、严格 schema、串行状态机和超时；未知字段、重复 request id、root 不一致或超时全部 fail-fast。listener 只绑定 loopback，配置路径不进入 Next rewrite；配置 secret 与 Loader registration secret 相互独立。
 
-直接执行 `next dev` 时没有父进程 IPC。`withSpotPatch` 在开发 phase 必须返回清晰错误和正确命令，不允许在配置求值中自行启动 Sidecar，也不允许静默变成只有 marker 或只有 UI 的半可用状态。
+直接执行 `next dev` 时没有 lifecycle owner、配置凭据和 sealed Sidecar。`withSpotPatch` 在开发 phase 返回清晰错误和正确命令，不在配置求值中自行启动 Sidecar，也不静默变成只有 marker 或只有 UI 的半可用状态。
 
 Next 会把非 `NEXT_PUBLIC_*` 环境变量留在服务端，但项目自身的可信服务端代码仍可访问它们；SpotPatch 不能防御已被恶意依赖或服务端代码控制的宿主项目。任何 Key 都禁止放入 `next.config.env`，因为该配置会把值固定进 JavaScript bundle。
 
 启动顺序：
 
 1. 校验 Node、接入文件、本地 Next binary 和 CLI 参数；此时不解析 AI Key。
-2. 解析并 realpath 应用/Git边界，生成本次启动 nonce、内部注册凭据与 epoch，绑定 sealed loopback listener 并建立私有父子 IPC。
+2. 解析并 realpath 应用/Git边界，生成本次启动 nonce、配置凭据、内部注册凭据与 epoch，绑定 sealed loopback listener。
 3. 以显式 loopback hostname 启动本地 `next dev` 子进程。
-4. Next 配置在 `PHASE_DEVELOPMENT_SERVER` 中完成选项解析和一次 IPC configure。
+4. Next 配置在 `PHASE_DEVELOPMENT_SERVER` 中完成选项解析，并通过认证内部配置请求完成 configure/ack。
 5. 父 CLI 收到并验证配置后生成 Session，把既有 sealed listener 原子配置为 Sidecar 并完成自检，随后 ack。
-6. 包装器只使用 ack 中的非敏感承载信息组合 Loader/rewrite/client alias；secret 不进入 NextConfig 返回值。
+6. 包装器只使用本次进程环境中已校验的非敏感 `registryEpoch`/Sidecar origin 组合 Loader 与 rewrite；secret 不进入 NextConfig 返回值或 Loader options。
 7. Next 就绪后输出单条脱敏状态；不打印 token、Sidecar secret、Key 或绝对临时路径。
 8. 收到终止信号、Sidecar 崩溃或 Next 退出时，停止接收新 Job，取消活动任务、释放 worktree/registry，关闭另一进程并透传确定退出码。
 
@@ -142,11 +137,11 @@ Next 会把非 `NEXT_PUBLIC_*` 环境变量留在服务端，但项目自身的�
 
 ### webpack
 
-调用宿主原有 `webpack(config, context)` 后，对其返回值追加 SpotPatch配置；如果宿主回调返回 `undefined`，按 Next 约定继续使用传入 config。开发 phase 追加 pre-loader 与真实 client alias；非开发 phase 只追加 noop alias。包装器不得覆盖宿主 alias、rules、plugins 或 devtool，且除该可审计 alias 外不得改变生产配置。
+调用宿主原有 `webpack(config, context)` 后，对其返回值追加 SpotPatch配置；如果宿主回调返回 `undefined`，按 Next 约定继续使用传入 config。开发 phase 追加 pre-loader；真实 client 由官方 `instrumentation-client` 静态 import 进入。非开发 phase 只为该 client module id 追加 noop alias。包装器不得覆盖宿主 alias、rules、plugins 或 devtool，且除该可审计 alias 外不得改变生产配置。
 
 ### Turbopack
 
-只合并 SpotPatch 拥有的 rule key 和 client/noop alias。用户已有相同 rule/alias 时，如果不能证明等价，启动失败并指出冲突位置；禁止后写覆盖。Loader options 只能包含可序列化、非敏感值，不能包含函数、`RegExp`、token、Key 或内部注册 secret。
+开发只合并 SpotPatch 拥有的 rule key；生产只合并 client/noop alias。用户已有相同 rule/alias 时，如果不能证明等价，启动失败并指出冲突位置；禁止后写覆盖。Loader options 只能包含可序列化、非敏感值，不能包含函数、`RegExp`、token、Key 或内部注册 secret。
 
 ### rewrites
 

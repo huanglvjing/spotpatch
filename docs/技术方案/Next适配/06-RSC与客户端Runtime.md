@@ -2,10 +2,10 @@
 doc-id: "next-06-rsc-runtime"
 title: "Next.js RSC 与客户端 Runtime"
 status: "active"
-version: "0.2.0"
+version: "0.3.0"
 last-updated: "2026-08-09"
-source-range: "Next.js Server/Client Components 与 instrumentation-client 官方调研；SpotPatch Runtime 适配提案；React Adapter 现状审计"
-implementation-status: "planned"
+source-range: "Next.js Server/Client Components 与 instrumentation-client；SpotPatch Runtime 本地预览；React Adapter 现状审计"
+implementation-status: "local-preview"
 参考文献/依赖:
   - "03-public-api-models"
   - "05-runtime-lifecycle"
@@ -20,7 +20,7 @@ implementation-status: "planned"
 
 ## 初始化顺序
 
-Next 官方 `instrumentation-client` 在 HTML 加载后、React hydration 前执行；Bippy 也明确建议 Next 15.3+ 在此入口先安装 React DevTools hook。规划的 client entry 必须把同步 hook 安装与异步 Runtime bootstrap 分开：
+Next 官方 `instrumentation-client` 在 HTML 加载后、React hydration 前执行；Bippy 也明确建议 Next 15.3+ 在此入口先安装 React DevTools hook。当前 client entry 把同步 hook 安装与异步 Runtime bootstrap 分开：
 
 ```text
 instrumentation-client import
@@ -31,7 +31,7 @@ instrumentation-client import
   → React hydration/commit events continue feeding installed hook
 ```
 
-同步入口只能静态导入最小 hook，不得读取配置、等待网络、动态 import、DOM ready 或创建 UI；Next 官方建议该入口初始化控制在 16 ms 内，因此 POC 必须单独测量同步路径。bootstrap 在下一异步阶段启动，失败只能禁用 SpotPatch并显示终端/浏览器开发诊断，不能抛出未捕获异常阻断业务 hydration。
+同步入口只静态导入最小 hook，不读取配置、等待网络、DOM ready 或创建 UI；随后以动态 import 启动 bootstrap。入口记录同步初始化耗时，bootstrap 的请求、响应大小、`no-store`、schema 和 mount 都 fail-closed 为稳定诊断码，失败不会抛出未捕获异常阻断业务 hydration。16 ms 性能预算仍需进入 required browser matrix。
 
 ## RSC 事实边界
 
@@ -44,7 +44,7 @@ App Router page/layout 默认是 Server Component。服务端组件渲染结果�
 
 ## 选择场景
 
-| 场景 | 计划主结果 | 允许降级 |
+| 场景 | 主结果 | 允许降级 |
 | --- | --- | --- |
 | Server Component 直接写 intrinsic DOM | marker exact | React stack 只显示可见客户端边界或不可用 |
 | Client Component 直接写 intrinsic DOM | marker exact + React 语义 | Fiber source 缺失时仍保留 marker |
@@ -67,7 +67,7 @@ Runtime 本身不依赖 `next/router`、`next/navigation` 或宿主 React Contex
 
 ## React 18/19
 
-- 当前 `@spotpatch/react-adapter` 的 package peer 范围允许 React 18/19，但实现中的版本门禁只识别 React 18.2/18.3；因此“包可安装”不等于 React 19 已支持。Gate N2/N3 必须先统一版本能力判断并补真实 React 19 单测/E2E，完成前 Next + React 19 保持 planned。
+- 当前 `@spotpatch/react-adapter` 的 package peer 范围允许 React 18/19，但实现中的 Fiber 语义版本门禁只识别 React 18.2/18.3；因此“包可安装”不等于 React 19 组件栈已支持。Next 16/React 19 本地宿主依靠 exact source marker、DOM/CSS 和 Runtime UI 工作，React Adapter 明确返回 `supported: false` 并降级，不得把这一结果描述为完整 React 19 语义支持。
 - 不要求宿主把 `jsxImportSource` 改为 Bippy；这会改变整个项目编译语义并与其他 JSX runtime 冲突。
 - React 19 不能提供 Fiber source 时，组件名/栈仍可在安全 adapter 支持范围内展示，源码坐标继续取 marker。
 - hook 或私有 Fiber API 不兼容时，Adapter 返回 `supported: false`，不得让 Runtime、marker、DOM/CSS 和 Prompt 失效。
@@ -104,3 +104,5 @@ DOM/CSS、源码片段和 Prompt 仍分别引用既有规则 (见 doc-id:07-dom-
 ## 完成判定
 
 不能用“面板能打开”作为 Runtime 适配成功。必须分别证明：预 hydration hook、Server host marker、Client Fiber 降级、RSC 导航、Fast Refresh、Portal/Suspense、双语多目标、打开编辑器、Agent review 和生产零残留 (见 doc-id:next-08-testing-delivery)。
+
+当前本地证据已覆盖 Server/Client host marker、bootstrap schema、Runtime singleton、英文/中文按钮 DOM与点击、Next 16 双 bundler、webpack Fast Refresh、source-context 读取和 webpack 生产零残留。本轮没有可用的产品内浏览器连接，因此没有新增目视点击证据；RSC 导航、Portal/Suspense、React 19 Fiber 语义、编辑器/Agent 全链路和正式浏览器矩阵仍未完成。

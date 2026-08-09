@@ -39,3 +39,26 @@ and Git status did not change. Results are written to `.artifacts/real-host-poc/
 The probe Loader only changes the fixture-specific `data-spotpatch-loader-probe` attribute. It
 does not implement the SpotPatch compiler and must not be copied into a published package.
 Current conclusions and remaining blockers are recorded in [CONCLUSION.md](./CONCLUSION.md).
+
+## Runtime and Sidecar real-host POC
+
+The separate Runtime POC reuses the same clean private host and runs the source-registration,
+rewrite, bootstrap, and browser Runtime chain under both Turbopack and webpack:
+
+```bash
+SPOTPATCH_NEXT_REAL_HOST_ROOT="/absolute/path/to/a/clean/next-host" \
+  pnpm test:next-runtime-real-host
+```
+
+If the host already imports `@spotpatch/next`, the disposable POC wrapper resolves that installed
+adapter through its production/noop branch. This prevents a second Sidecar or Loader from entering
+the historical experiment while leaving the original repository unchanged. Passing this POC is
+evidence for the locked Next 16 App Router host only; it is not the Gate N4 release matrix.
+
+## Relationship to the local preview
+
+The repository now also contains an unpublished `@spotpatch/next@0.0.0` local preview. It consumes
+`@spotpatch/compiler` and `@spotpatch/dev-server`; it does not import this experiment directory.
+Passing this historical POC remains evidence for the locked compilation chain only. It does not
+make the local preview publishable, and the local preview's unit/HTTP checks do not retroactively
+turn every independent Gate N1 or N4 browser fixture into a pass.

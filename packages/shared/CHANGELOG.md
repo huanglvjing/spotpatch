@@ -1,5 +1,12 @@
 # @spotpatch/shared
 
+## 1.5.0
+
+### Minor Changes
+
+- f3b04f9: Add the Next.js adapter, strict Runtime bootstrap protocol, framework
+  diagnostics, and development CLI lifecycle.
+
 ## 1.4.0
 
 ### Minor Changes

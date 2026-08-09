@@ -18,7 +18,9 @@
 SpotPatch 是一个本地优先、仅在开发期运行的 React 页面反馈工作台。你可以在真实页面中选择元素，追溯到对应 JSX/TSX 源码，为每个目标分别编写修改要求，然后复制结构化 Prompt，或运行一个默认需要审阅的可选 AI 编码流程。
 
 > [!IMPORTANT]
-> `@spotpatch/vite` 是当前正式支持的公共接入包。Next.js 适配器仍是本地预览，不在公共支持矩阵内。
+> `@spotpatch/vite` 是当前正式支持的公共接入包。[Next.js 适配器](./packages/next/README.md#简体中文)仍是本地预览，不在公共支持矩阵内。
+
+**接入指南：** [Vite 快速开始](#快速开始vite) · [Next.js 本地预览](#nextjs-本地预览用法)
 
 ## 为什么使用 SpotPatch
 
@@ -114,11 +116,26 @@ SpotPatch 不会向模型开放任意 Shell。Agent 修改创建在隔离 Git wo
 
 其他组合可能可以运行，但不属于当前公共承诺。唯一事实来源是[产品定义与边界](./docs/技术方案/01-产品定义与边界.md)。
 
-### Next.js 当前状态
+## Next.js 本地预览用法
+
+> [!WARNING]
+> 当前仓库中的 `@spotpatch/next` 仍是 `0.0.0`，尚未发布到 npm。现在不能把 `npm install @spotpatch/next` 或 `pnpm add @spotpatch/next` 写成已经可用的安装方式。
 
 仓库中已经存在 `@spotpatch/next` 本地预览，包含 CLI、Sidecar、Turbopack/webpack Loader、源码注册、Runtime bootstrap 和生产 no-op 隔离。它已经通过锁定范围 POC 和一个私有 Next 16 App Router 宿主，但完整的 Next/React/router/Node/OS/浏览器发布矩阵仍未完成。
 
-不能把 package peer 范围解释成正式支持声明。准确状态见 [Next.js 适配计划](./docs/技术方案/Next适配/00-索引与架构摘要.md)和[剩余发布门禁](./docs/技术方案/Next适配/08-测试验收与实施计划.md)。
+在已经通过当前 pnpm workspace 解析到 `@spotpatch/next` 及其内部依赖的受控测试宿主中，执行：
+
+```bash
+pnpm exec spotpatch-next init
+pnpm exec spotpatch-next check
+pnpm dev
+```
+
+`init` 会安全组合 `next.config`、在正确的 `instrumentation-client` 文件中增加 `@spotpatch/next/client`，并把简单的 `next dev` 脚本改为 `spotpatch-next dev`。`check` 只读检查这三个接入点。开发时必须通过 package script 启动；直接运行 `next dev` 不存在 SpotPatch Sidecar 生命周期所有者。
+
+启动成功后终端会打印一行以 `[spotpatch:next] ready` 开头的信息。打开其中的 loopback 地址，即可使用 **选择元素** / **Select element**。可选 AI 流程复用上文的服务端 `SPOTPATCH_AI_*` 变量，绝不能改成带 `NEXT_PUBLIC_` 前缀的变量。
+
+生成文件示例、生产命令、已知限制和证据边界见完整的 [`@spotpatch/next` 本地预览指南](./packages/next/README.md#简体中文)。不能把 package peer 范围解释成正式支持声明；发布状态以 [Next.js 适配计划](./docs/技术方案/Next适配/00-索引与架构摘要.md)和[剩余发布门禁](./docs/技术方案/Next适配/08-测试验收与实施计划.md)为准。
 
 ## 配置
 
@@ -158,7 +175,7 @@ Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 | 包                                                                 | 职责                                       | 业务应用是否直接使用    |
 | ------------------------------------------------------------------ | ------------------------------------------ | ----------------------- |
 | [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | 正式支持的 Vite 接入                       | **是**                  |
-| `@spotpatch/next`                                                  | Next.js 本地预览                           | 尚不是正式公共接入      |
+| [`@spotpatch/next`](./packages/next/README.md#简体中文)            | Next.js 本地预览                           | 尚不是正式公共接入      |
 | `@spotpatch/compiler`                                              | 框架无关 JSX/TSX 标记编译器                | 适配器基础设施          |
 | `@spotpatch/dev-server`                                            | 本地会话、源码访问、编辑器与 Agent 编排    | 适配器基础设施，仅 Node |
 | `@spotpatch/runtime`                                               | 浏览器选择器、采集器、工作台和 Prompt 生成 | 由适配器安装            |

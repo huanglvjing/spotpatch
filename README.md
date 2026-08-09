@@ -18,7 +18,9 @@
 SpotPatch is a local-first, development-only feedback workspace for React applications. Select rendered UI, trace it to the responsible JSX/TSX source, attach a separate instruction to each target, and either copy a structured prompt or run an optional review-gated AI coding workflow.
 
 > [!IMPORTANT]
-> `@spotpatch/vite` is the supported public integration. The Next.js adapter is a local preview and is not yet part of the public support matrix.
+> `@spotpatch/vite` is the supported public integration. The [Next.js adapter](./packages/next/README.md) is a local preview and is not yet part of the public support matrix.
+
+**Integration guides:** [Vite quick start](#quick-start-vite) · [Next.js local preview](#nextjs-local-preview)
 
 ## Why SpotPatch
 
@@ -114,11 +116,26 @@ SpotPatch does not expose arbitrary shell execution to the model. Agent edits ar
 
 Other combinations may work, but they are not part of the current public promise. The [product boundary](./docs/技术方案/01-产品定义与边界.md) is the source of truth.
 
-### Next.js status
+## Next.js local preview
+
+> [!WARNING]
+> `@spotpatch/next` is still version `0.0.0` in this repository and is not published on npm. Do not present `npm install @spotpatch/next` or `pnpm add @spotpatch/next` as a currently available installation path.
 
 The repository contains an `@spotpatch/next` local preview with a CLI, Sidecar, Turbopack/webpack Loader paths, source registration, Runtime bootstrap, and production no-op isolation. It has passed the locked POC and one private Next 16 App Router host, but the complete Next/React/router/Node/OS/browser release matrix is still unfinished.
 
-Do not interpret the package peer range as a public support claim. Follow the [Next.js adapter plan](./docs/技术方案/Next适配/00-索引与架构摘要.md) and [remaining release gates](./docs/技术方案/Next适配/08-测试验收与实施计划.md) for the exact status.
+In a controlled test host that already resolves `@spotpatch/next` and its internal packages from this pnpm workspace, run:
+
+```bash
+pnpm exec spotpatch-next init
+pnpm exec spotpatch-next check
+pnpm dev
+```
+
+`init` safely composes `next.config`, adds the `@spotpatch/next/client` import to the correct `instrumentation-client` file, and changes a simple `next dev` script to `spotpatch-next dev`. `check` verifies those integration points without writing files. Always start development through the package script; a direct `next dev` has no SpotPatch Sidecar lifecycle owner.
+
+A successful startup prints a line beginning with `[spotpatch:next] ready`. Open the printed loopback URL and use **Select element** / **选择元素**. The optional AI workflow uses the same server-only `SPOTPATCH_AI_*` variables described above; never rename them with a `NEXT_PUBLIC_` prefix.
+
+See the complete [`@spotpatch/next` local-preview guide](./packages/next/README.md) for generated file examples, production commands, known restrictions, and the exact evidence boundary. Do not interpret the package peer range as a public support claim. Follow the [Next.js adapter plan](./docs/技术方案/Next适配/00-索引与架构摘要.md) and [remaining release gates](./docs/技术方案/Next适配/08-测试验收与实施计划.md) for the release status.
 
 ## Configuration
 
@@ -158,7 +175,7 @@ Applications should normally install only a framework adapter.
 | Package                                                            | Role                                                          | Direct application use                  |
 | ------------------------------------------------------------------ | ------------------------------------------------------------- | --------------------------------------- |
 | [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | Supported Vite integration                                    | **Yes**                                 |
-| `@spotpatch/next`                                                  | Next.js local preview                                         | Not yet a supported public integration  |
+| [`@spotpatch/next`](./packages/next/README.md)                     | Next.js local preview                                         | Not yet a supported public integration  |
 | `@spotpatch/compiler`                                              | Framework-neutral JSX/TSX marker compiler                     | Adapter infrastructure                  |
 | `@spotpatch/dev-server`                                            | Local sessions, source access, editor and Agent orchestration | Adapter infrastructure; Node only       |
 | `@spotpatch/runtime`                                               | Browser picker, collectors, workbench and prompt composer     | Installed through an adapter            |

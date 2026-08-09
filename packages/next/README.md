@@ -36,7 +36,7 @@ The preview connects SpotPatch's element picker, source-aware context, bilingual
 
 ### Local preview integration
 
-First make this workspace package available to a clean test host. The initializer deliberately requires `@spotpatch/next` to be present in the host's dependencies before it edits files.
+The current private host receives this adapter and all required internal packages through explicit pnpm workspace wiring. Installing only the local `packages/next` directory into an unrelated application is not a supported substitute: its internal workspace dependencies must resolve together. Once a controlled test host already resolves `@spotpatch/next`, the initializer deliberately verifies that dependency before it edits files.
 
 ```bash
 pnpm exec spotpatch-next init
@@ -90,11 +90,11 @@ Read the [implementation status](https://github.com/huanglvjing/spotpatch/blob/m
 
 ### Declared peer range
 
-| Dependency        | Package range      | What it means                                                    |
-| ----------------- | ------------------ | ---------------------------------------------------------------- |
-| Node.js           | `>=20.19.0`        | Package engine requirement.                                      |
-| Next.js           | `>=15.3.0 <17.0.0` | Candidate range for the preview matrix, not a support guarantee. |
-| React / React DOM | `^18.2.0           |                                                                  | ^19.0.0` | Installable candidate range; React 19 Fiber semantics still degrade in controlled cases. |
+| Dependency        | Package range          | What it means                                                                            |
+| ----------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
+| Node.js           | `>=20.19.0`            | Package engine requirement.                                                              |
+| Next.js           | `>=15.3.0 <17.0.0`     | Candidate range for the preview matrix, not a support guarantee.                         |
+| React / React DOM | `^18.2.0` or `^19.0.0` | Installable candidate range; React 19 Fiber semantics still degrade in controlled cases. |
 
 The first preview accepts only loopback development hosts and rejects `allowLan: true`. Complex CommonJS `next.config` files, mixed root/`src` routers, conflicting Loader rules, and conflicting private-prefix rewrites fail closed or require manual integration.
 
@@ -135,7 +135,7 @@ If React reports only a removed body attribute such as `cz-shortcut-listen="true
 
 ### 本地预览接入
 
-先把当前 workspace 包提供给一个干净的测试宿主。初始化器会先确认宿主依赖中已经存在 `@spotpatch/next`，然后才允许修改文件。
+当前私有宿主通过显式 pnpm workspace 配置同时注入此适配器和所需内部包。只把本地 `packages/next` 目录安装到无关项目中不是受支持的替代方案，因为它的内部 workspace 依赖必须一起解析。在受控测试宿主已经能够解析 `@spotpatch/next` 后，初始化器仍会先验证该依赖，然后才允许修改文件。
 
 ```bash
 pnpm exec spotpatch-next init
@@ -189,11 +189,11 @@ import "@spotpatch/next/client";
 
 ### 声明的 peer 范围
 
-| 依赖              | Package 范围       | 准确含义                             |
-| ----------------- | ------------------ | ------------------------------------ |
-| Node.js           | `>=20.19.0`        | 包的 engine 要求。                   |
-| Next.js           | `>=15.3.0 <17.0.0` | 预览兼容矩阵候选范围，不是支持保证。 |
-| React / React DOM | `^18.2.0           |                                      | ^19.0.0` | 可安装候选范围；React 19 Fiber 语义仍可能受控降级。 |
+| 依赖              | Package 范围           | 准确含义                                            |
+| ----------------- | ---------------------- | --------------------------------------------------- |
+| Node.js           | `>=20.19.0`            | 包的 engine 要求。                                  |
+| Next.js           | `>=15.3.0 <17.0.0`     | 预览兼容矩阵候选范围，不是支持保证。                |
+| React / React DOM | `^18.2.0` 或 `^19.0.0` | 可安装候选范围；React 19 Fiber 语义仍可能受控降级。 |
 
 首版预览只接受 loopback 开发主机并拒绝 `allowLan: true`。复杂 CommonJS `next.config`、混合 root/`src` Router、冲突 Loader rule 和占用私有前缀的 rewrite 会安全失败或要求手动接入。
 

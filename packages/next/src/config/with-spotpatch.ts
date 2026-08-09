@@ -153,8 +153,8 @@ function findLogicalAdapterRoot(
 function resolveAdapterModulePaths(appRoot: string): AdapterModulePaths {
   const resolveFromApplication = createRequire(path.join(appRoot, "package.json"));
   const loader = resolveFromApplication.resolve("@spotpatch/next/loader");
-  const noop = resolveFromApplication.resolve("@spotpatch/next/noop");
-  const resolvedAdapterRoot = path.dirname(path.dirname(noop));
+  const resolvedAdapterRoot = path.dirname(loader);
+  const noop = path.join(resolvedAdapterRoot, "dist", "noop.cjs");
   const logicalAdapterRoot = findLogicalAdapterRoot(appRoot, resolvedAdapterRoot);
   const logicalNoop =
     logicalAdapterRoot === undefined

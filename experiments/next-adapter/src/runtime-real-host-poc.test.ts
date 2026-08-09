@@ -12,7 +12,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import probeContract from "../loader/probe-contract.json";
-import { fileTreeContains } from "./artifact-scan.js";
+import { findFilesContaining } from "./artifact-scan.js";
 import { experimentRoot } from "./fixture-matrix.js";
 import { getNextEntry, waitForNextServer } from "./next-process.js";
 import {
@@ -436,18 +436,23 @@ async function executeRuntimeCase(command: (typeof commands)[number]): Promise<v
     running = undefined;
     expect(logs).not.toContain(internalSecret);
     expect(logs).not.toContain(sidecar.runtimeConfig.sessionToken);
+    const outputRoot = path.join(workDirectory, ".next");
+    const internalSecretArtifacts = await findFilesContaining(
+      outputRoot,
+      Buffer.from(internalSecret, "utf8"),
+    );
     expect(
-      await fileTreeContains(
-        path.join(workDirectory, ".next"),
-        Buffer.from(internalSecret, "utf8"),
-      ),
-    ).toBe(false);
+      internalSecretArtifacts,
+      `The internal registration secret persisted in: ${internalSecretArtifacts.join(", ")}`,
+    ).toEqual([]);
+    const sessionTokenArtifacts = await findFilesContaining(
+      outputRoot,
+      Buffer.from(sidecar.runtimeConfig.sessionToken, "utf8"),
+    );
     expect(
-      await fileTreeContains(
-        path.join(workDirectory, ".next"),
-        Buffer.from(sidecar.runtimeConfig.sessionToken, "utf8"),
-      ),
-    ).toBe(false);
+      sessionTokenArtifacts,
+      `The browser session token persisted in: ${sessionTokenArtifacts.join(", ")}`,
+    ).toEqual([]);
   } catch (error: unknown) {
     const logs = running?.getLogs() ?? "Next dev was not running.";
     const message = error instanceof Error ? error.message : String(error);

@@ -38,25 +38,47 @@ export async function fileTreeContains(
   directory: string,
   needle: Buffer,
 ): Promise<boolean> {
-  const entries = await readDirectoryIfPresent(directory);
+  return (await findFilesContaining(directory, needle, 1)).length > 0;
+}
 
-  for (const entry of entries) {
-    const absolutePath = path.join(directory, entry.name);
+export async function findFilesContaining(
+  directory: string,
+  needle: Buffer,
+  limit = 32,
+): Promise<readonly string[]> {
+  if (!Number.isSafeInteger(limit) || limit < 1) {
+    throw new RangeError("The artifact match limit must be a positive integer.");
+  }
 
-    if (entry.isDirectory()) {
-      if (await fileTreeContains(absolutePath, needle)) {
-        return true;
+  const root = path.resolve(directory);
+  const matches: string[] = [];
+
+  async function visit(currentDirectory: string): Promise<void> {
+    const entries = [...(await readDirectoryIfPresent(currentDirectory))].sort(
+      (left, right) => left.name.localeCompare(right.name),
+    );
+
+    for (const entry of entries) {
+      if (matches.length >= limit) {
+        return;
       }
-    } else if (entry.isFile()) {
-      const content = await readFileIfPresent(absolutePath);
 
-      if (content?.includes(needle) === true) {
-        return true;
+      const absolutePath = path.join(currentDirectory, entry.name);
+
+      if (entry.isDirectory()) {
+        await visit(absolutePath);
+      } else if (entry.isFile()) {
+        const content = await readFileIfPresent(absolutePath);
+
+        if (content?.includes(needle) === true) {
+          matches.push(path.relative(root, absolutePath));
+        }
       }
     }
   }
 
-  return false;
+  await visit(root);
+  return Object.freeze(matches);
 }
 
 function sourceMapMatches(

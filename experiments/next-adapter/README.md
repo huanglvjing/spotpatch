@@ -55,10 +55,10 @@ adapter through its production/noop branch. This prevents a second Sidecar or Lo
 the historical experiment while leaving the original repository unchanged. Passing this POC is
 evidence for the locked Next 16 App Router host only; it is not the Gate N4 release matrix.
 
-## Relationship to the local preview
+## Relationship to the public preview
 
-The repository now also contains an unpublished `@spotpatch/next@0.0.0` local preview. It consumes
+The repository now also contains an installable `@spotpatch/next@0.1.0` public preview. It consumes
 `@spotpatch/compiler` and `@spotpatch/dev-server`; it does not import this experiment directory.
 Passing this historical POC remains evidence for the locked compilation chain only. It does not
-make the local preview publishable, and the local preview's unit/HTTP checks do not retroactively
+establish formal Next.js support, and the preview's unit/HTTP checks do not retroactively
 turn every independent Gate N1 or N4 browser fixture into a pass.

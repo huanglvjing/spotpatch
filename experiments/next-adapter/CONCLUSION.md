@@ -12,9 +12,8 @@ scope: "Gate N1 Loader compilation-chain evidence only"
 The Loader compilation-chain POC is `pass` for its locked matrix. The expanded local macOS matrix
 and required Ubuntu/Node 22 CI both pass deterministic high-module, concurrent cold-request and
 warm cache-restart stress. This scoped result did not by itself authorize a release. The repository
-now contains an unpublished `@spotpatch/next@0.0.0` local preview, but this historical evidence
-still does not complete Gate N1/N4, authorize npm publication, or establish a Next.js support
-claim.
+now contains an installable `@spotpatch/next@0.1.0` public preview, but this historical evidence
+still does not complete Gate N1/N4 or establish a formal Next.js support claim.
 
 ## Reproduced local evidence
 
@@ -71,9 +70,10 @@ claim.
 
 - Complete the independent rewrite, pre-hydration, RSC and production-strip fixtures that are not
   proven by this Loader POC.
-- Run the unpublished adapter through the full Next/React/Router/Node/OS matrix and fresh browser
-  interaction tests; local-preview code and HTTP checks are not substitutes.
-- Keep ADR-025 Proposed and the product support matrix unchanged until all release gates pass.
+- Run the public-preview adapter through the full Next/React/Router/Node/OS matrix and fresh browser
+  interaction tests; public-preview code and HTTP checks are not substitutes.
+- Keep ADR-025 scoped to the locked public-preview evidence and the product support matrix unchanged
+  until all formal-support gates pass.
 
 ## Security boundary
 

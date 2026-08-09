@@ -9,7 +9,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/status-local_preview-F59E0B" alt="Local preview" />
+  <a href="https://www.npmjs.com/package/@spotpatch/next"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fnext?logo=npm&label=npm" alt="npm version" /></a>
+  <img src="https://img.shields.io/badge/status-public_preview-F59E0B" alt="Public preview" />
   <a href="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml"><img src="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status" /></a>
   <a href="https://github.com/huanglvjing/spotpatch/blob/main/LICENSE"><img src="https://img.shields.io/github/license/huanglvjing/spotpatch" alt="MIT license" /></a>
 </p>
@@ -19,7 +20,7 @@
 ## English
 
 > [!WARNING]
-> This package is a **local preview**, not a supported public Next.js integration. It is not currently available as a public npm installation, and its peer dependency range must not be interpreted as a completed compatibility claim.
+> This package is a **0.x public preview**, not a formally supported Next.js integration. Its peer dependency range must not be interpreted as a completed compatibility or production-support claim.
 
 The preview connects SpotPatch's element picker, source-aware context, bilingual multi-target requests, and optional review-gated AI Agent to a Next.js development server.
 
@@ -34,11 +35,12 @@ The preview connects SpotPatch's element picker, source-aware context, bilingual
 - `spotpatch-next init` previews and applies supported integration edits with rollback on failure.
 - `spotpatch-next check` diagnoses the package graph and generated integration without starting development.
 
-### Local preview integration
+### Public preview integration
 
-The current private host receives this adapter and all required internal packages through explicit pnpm workspace wiring. Installing only the local `packages/next` directory into an unrelated application is not a supported substitute: its internal workspace dependencies must resolve together. Once a controlled test host already resolves `@spotpatch/next`, the initializer deliberately verifies that dependency before it edits files.
+Install the single framework entry package. Its required SpotPatch internal packages are resolved automatically; do not install them individually.
 
 ```bash
+pnpm add --save-dev @spotpatch/next
 pnpm exec spotpatch-next init
 pnpm exec spotpatch-next check
 pnpm dev
@@ -74,17 +76,18 @@ Start development through the package script, not a direct `next dev` command. A
 
 ### Current evidence and remaining gates
 
-The local preview has passed:
+The public preview has passed:
 
 - package build, type publication, Publint, and Are The Types Wrong checks;
 - formal unit and HTTP boundary tests;
 - a locked Loader POC covering selected Next 15/React 18 and Next 16/React 19 combinations;
 - one private Next 16 App Router host with Turbopack and webpack development startup;
 - authenticated Runtime bootstrap, source registration, source-context lookup, and Runtime singleton checks in that host;
-- webpack Fast Refresh and production isolation in the private host;
-- a separate historical production Loader POC for the locked host.
+- Turbopack and webpack Fast Refresh in the private Runtime POC;
+- webpack production isolation in the private host;
+- a separate historical Turbopack production Loader POC for the locked host.
 
-Publication and public support are still blocked on the complete required Next/React/router/Node/OS matrix, Pages and hybrid router coverage, broader RSC navigation cases, fresh browser interaction evidence, complex rewrite/base path fixtures, and a Turbopack production rerun outside the restricted agent environment.
+Formal public support remains blocked on the complete required Next/React/router/Node/OS matrix, Pages and hybrid router coverage, broader RSC navigation cases, fresh browser interaction evidence, complex rewrite/base path fixtures, and a full Turbopack production zero-residual fixture.
 
 Read the [implementation status](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E6%9E%B6%E6%9E%84%E6%91%98%E8%A6%81.md) and [required release matrix](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/08-%E6%B5%8B%E8%AF%95%E9%AA%8C%E6%94%B6%E4%B8%8E%E5%AE%9E%E6%96%BD%E8%AE%A1%E5%88%92.md) before drawing compatibility conclusions.
 
@@ -107,7 +110,7 @@ pnpm exec next build
 pnpm exec next start
 ```
 
-`spotpatch-next` intentionally proxies only `dev`. A release candidate must prove that production output contains no `data-spotpatch-source`, `spotpatch-root`, Runtime bootstrap state, private API prefix, or internal configuration and registration secrets.
+`spotpatch-next` intentionally proxies only `dev`. Production use is not supported by the 0.x preview; validation must continue proving that production output contains no `data-spotpatch-source`, `spotpatch-root`, Runtime bootstrap state, private API prefix, or internal configuration and registration secrets.
 
 ### Hydration warning from browser extensions
 
@@ -118,7 +121,7 @@ If React reports only a removed body attribute such as `cz-shortcut-listen="true
 ## 简体中文
 
 > [!WARNING]
-> 本包仍是 **本地预览**，不是正式支持的公共 Next.js 接入。目前不能从公共 npm 正式安装，peer dependency 范围也不能解释成兼容矩阵已经完成。
+> 本包是 **0.x 公共预览版**，不是正式支持的 Next.js 接入。peer dependency 范围不能解释成兼容矩阵或生产支持已经完成。
 
 当前预览把 SpotPatch 的元素选择、源码上下文、中英文多目标修改要求和可选审阅式 AI Agent 接入 Next.js 开发服务器。
 
@@ -133,11 +136,12 @@ If React reports only a removed body attribute such as `cz-shortcut-listen="true
 - `spotpatch-next init` 预览并应用受支持的接入修改，失败时执行回滚。
 - `spotpatch-next check` 在不启动开发服务器的情况下诊断包依赖和接入文件。
 
-### 本地预览接入
+### 公共预览接入
 
-当前私有宿主通过显式 pnpm workspace 配置同时注入此适配器和所需内部包。只把本地 `packages/next` 目录安装到无关项目中不是受支持的替代方案，因为它的内部 workspace 依赖必须一起解析。在受控测试宿主已经能够解析 `@spotpatch/next` 后，初始化器仍会先验证该依赖，然后才允许修改文件。
+只需安装一个框架入口包，所需 SpotPatch 内部包会自动解析，不要逐个手工安装。
 
 ```bash
+pnpm add --save-dev @spotpatch/next
 pnpm exec spotpatch-next init
 pnpm exec spotpatch-next check
 pnpm dev
@@ -173,17 +177,18 @@ import "@spotpatch/next/client";
 
 ### 当前证据与剩余门禁
 
-本地预览已经通过：
+公共预览已经通过：
 
 - 包构建、类型发布、Publint 与 Are The Types Wrong；
 - 正式单元测试与 HTTP 边界测试；
 - 锁定范围的 Loader POC，覆盖选定的 Next 15/React 18 和 Next 16/React 19 组合；
 - 一个私有 Next 16 App Router 宿主的 Turbopack 与 webpack 开发启动；
 - 该宿主中的认证 Runtime bootstrap、源码注册、源码上下文读取和 Runtime 单例检查；
-- 私有宿主的 webpack Fast Refresh 与生产隔离；
-- 锁定宿主独立的历史生产 Loader POC。
+- 私有 Runtime POC 的 Turbopack 与 webpack Fast Refresh；
+- 私有宿主的 webpack 生产隔离；
+- 锁定宿主独立的历史 Turbopack 生产 Loader POC。
 
-正式发布和公共支持仍被以下项目阻断：完整 Next/React/router/Node/OS required matrix、Pages 与 hybrid Router、更广泛的 RSC 导航、全新浏览器交互证据、复杂 rewrite/basePath fixture，以及在受限 Agent 环境之外重新运行 Turbopack 生产构建。
+正式公共支持仍被以下项目阻断：完整 Next/React/router/Node/OS required matrix、Pages 与 hybrid Router、更广泛的 RSC 导航、全新浏览器交互证据、复杂 rewrite/basePath fixture，以及完整的 Turbopack 生产零残留 fixture。
 
 判断兼容性前必须阅读[实现状态](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E6%9E%B6%E6%9E%84%E6%91%98%E8%A6%81.md)与[发布 required matrix](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/08-%E6%B5%8B%E8%AF%95%E9%AA%8C%E6%94%B6%E4%B8%8E%E5%AE%9E%E6%96%BD%E8%AE%A1%E5%88%92.md)。
 
@@ -206,7 +211,7 @@ pnpm exec next build
 pnpm exec next start
 ```
 
-`spotpatch-next` 只代理 `dev`。任何发布候选都必须证明生产产物中不存在 `data-spotpatch-source`、`spotpatch-root`、Runtime bootstrap 状态、私有 API 前缀和内部配置/注册秘密。
+`spotpatch-next` 只代理 `dev`。0.x 预览版不支持生产使用；验证必须继续证明生产产物中不存在 `data-spotpatch-source`、`spotpatch-root`、Runtime bootstrap 状态、私有 API 前缀和内部配置/注册秘密。
 
 ### 浏览器扩展造成的 Hydration 警告
 

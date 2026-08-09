@@ -2,10 +2,10 @@
 doc-id: "next-05-sidecar-protocol"
 title: "Next.js Sidecar 与本地协议承载"
 status: "active"
-version: "0.3.0"
+version: "0.4.0"
 last-updated: "2026-08-09"
-source-range: "Next.js rewrites/phase、CLI 与 Custom Server 官方约束；SpotPatch Sidecar 本地预览与信任复核"
-implementation-status: "local-preview"
+source-range: "Next.js rewrites/phase、CLI 与 Custom Server 官方约束；SpotPatch Sidecar 公共预览与信任复核"
+implementation-status: "public-preview"
 参考文献/依赖:
   - "09-local-protocol-security"
   - "16-ai-agent-execution"
@@ -59,13 +59,13 @@ terminal
 - 每次请求重新验证 root、普通文件、扩展名和规范化路径；拒绝 browser-like Origin 和缺失内部认证。
 - 内部 endpoint、凭据与 epoch 通过 CLI 创建的子进程私有环境交给 Next/Loader worker；凭据只存在进程环境/内存，不写 `.next`、日志、source map、Loader options 或浏览器 bundle。epoch 可进入 Loader cache key，但它不具备认证能力。
 
-当前真实宿主已证明 Loader worker 能取得私有环境，且 Loader options 只含非敏感 epoch；生产扫描未发现内部 secret 名称。完整版本/OS cache 泄漏矩阵仍是发布门禁；若后续出现落盘，必须重新设计为受控本地 socket/IPC broker，禁止把 secret 降级放入 `turbopack.rules` options。
+当前真实宿主已证明 Loader worker 能取得私有环境，且 Loader options 只含非敏感 epoch；生产扫描未发现内部 secret 名称。完整版本/OS cache 泄漏矩阵仍是正式支持门禁；若后续出现落盘，必须重新设计为受控本地 socket/IPC broker，禁止把 secret 降级放入 `turbopack.rules` options。
 
 两个通道使用不同凭据、不同路径和不同 schema，避免“浏览器 token 可以注册任意绝对路径”或“Loader secret 可以创建 Agent Job”。
 
 ## Runtime Bootstrap
 
-Next 无 Vite 虚拟模块可安全内联每次会话配置。当前本地预览使用同源 bootstrap 交换：
+Next 无 Vite 虚拟模块可安全内联每次会话配置。当前公共预览使用同源 bootstrap 交换：
 
 1. `@spotpatch/next/client` 同步安装最小 React hook。
 2. 客户端以 JSON POST 请求 bootstrap。

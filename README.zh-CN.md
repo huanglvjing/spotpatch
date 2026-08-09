@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@spotpatch/vite"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fvite?logo=npm&label=%40spotpatch%2Fvite" alt="npm 版本" /></a>
+  <a href="https://www.npmjs.com/package/@spotpatch/next"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fnext?logo=npm&label=%40spotpatch%2Fnext" alt="Next.js 预览版本" /></a>
   <a href="https://www.npmjs.com/package/@spotpatch/vite"><img src="https://img.shields.io/npm/dm/%40spotpatch%2Fvite?logo=npm&label=downloads" alt="npm 下载量" /></a>
   <a href="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml"><img src="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI 状态" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/huanglvjing/spotpatch" alt="MIT 许可证" /></a>
@@ -18,9 +19,9 @@
 SpotPatch 是一个本地优先、仅在开发期运行的 React 页面反馈工作台。你可以在真实页面中选择元素，追溯到对应 JSX/TSX 源码，为每个目标分别编写修改要求，然后复制结构化 Prompt，或运行一个默认需要审阅的可选 AI 编码流程。
 
 > [!IMPORTANT]
-> `@spotpatch/vite` 是当前正式支持的公共接入包。[Next.js 适配器](./packages/next/README.md#简体中文)仍是本地预览，不在公共支持矩阵内。
+> `@spotpatch/vite` 是当前正式支持的公共接入包。可安装的 [Next.js 适配器](./packages/next/README.md#简体中文)是 **0.x 公共预览版**，尚未进入公共支持矩阵。
 
-**接入指南：** [Vite 快速开始](#快速开始vite) · [Next.js 本地预览](#nextjs-本地预览用法)
+**接入指南：** [Vite 快速开始](#快速开始vite) · [Next.js 公共预览](#nextjs-公共预览用法)
 
 ## 为什么使用 SpotPatch
 
@@ -116,16 +117,17 @@ SpotPatch 不会向模型开放任意 Shell。Agent 修改创建在隔离 Git wo
 
 其他组合可能可以运行，但不属于当前公共承诺。唯一事实来源是[产品定义与边界](./docs/技术方案/01-产品定义与边界.md)。
 
-## Next.js 本地预览用法
+## Next.js 公共预览用法
 
 > [!WARNING]
-> 当前仓库中的 `@spotpatch/next` 仍是 `0.0.0`，尚未发布到 npm。现在不能把 `npm install @spotpatch/next` 或 `pnpm add @spotpatch/next` 写成已经可用的安装方式。
+> `@spotpatch/next@0.1.0` 是首个公共预览版，可以从 npm 安装；但 peer 范围只是候选测试范围，不能解释成完整兼容或生产支持声明。
 
-仓库中已经存在 `@spotpatch/next` 本地预览，包含 CLI、Sidecar、Turbopack/webpack Loader、源码注册、Runtime bootstrap 和生产 no-op 隔离。它已经通过锁定范围 POC 和一个私有 Next 16 App Router 宿主，但完整的 Next/React/router/Node/OS/浏览器发布矩阵仍未完成。
+该预览包含 CLI、Sidecar、Turbopack/webpack Loader、源码注册、Runtime bootstrap 和生产 no-op 隔离。它已经通过锁定范围 POC 和一个私有 Next 16 App Router 宿主，但完整的 Next/React/router/Node/OS/浏览器支持矩阵仍未完成。
 
-在已经通过当前 pnpm workspace 解析到 `@spotpatch/next` 及其内部依赖的受控测试宿主中，执行：
+安装唯一的框架入口包，初始化并检查接入，然后启动开发环境：
 
 ```bash
+pnpm add -D @spotpatch/next
 pnpm exec spotpatch-next init
 pnpm exec spotpatch-next check
 pnpm dev
@@ -135,7 +137,7 @@ pnpm dev
 
 启动成功后终端会打印一行以 `[spotpatch:next] ready` 开头的信息。打开其中的 loopback 地址，即可使用 **选择元素** / **Select element**。可选 AI 流程复用上文的服务端 `SPOTPATCH_AI_*` 变量，绝不能改成带 `NEXT_PUBLIC_` 前缀的变量。
 
-生成文件示例、生产命令、已知限制和证据边界见完整的 [`@spotpatch/next` 本地预览指南](./packages/next/README.md#简体中文)。不能把 package peer 范围解释成正式支持声明；发布状态以 [Next.js 适配计划](./docs/技术方案/Next适配/00-索引与架构摘要.md)和[剩余发布门禁](./docs/技术方案/Next适配/08-测试验收与实施计划.md)为准。
+生成文件示例、生产命令、已知限制和证据边界见完整的 [`@spotpatch/next` 公共预览指南](./packages/next/README.md#简体中文)。作出兼容性声明前，必须核对 [Next.js 适配计划](./docs/技术方案/Next适配/00-索引与架构摘要.md)和[剩余支持门禁](./docs/技术方案/Next适配/08-测试验收与实施计划.md)。
 
 ## 配置
 
@@ -175,7 +177,7 @@ Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 | 包                                                                 | 职责                                       | 业务应用是否直接使用    |
 | ------------------------------------------------------------------ | ------------------------------------------ | ----------------------- |
 | [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | 正式支持的 Vite 接入                       | **是**                  |
-| [`@spotpatch/next`](./packages/next/README.md#简体中文)            | Next.js 本地预览                           | 尚不是正式公共接入      |
+| [`@spotpatch/next`](./packages/next/README.md#简体中文)            | 可安装的 Next.js 0.x 公共预览              | 仅供预览，尚未正式支持  |
 | `@spotpatch/compiler`                                              | 框架无关 JSX/TSX 标记编译器                | 适配器基础设施          |
 | `@spotpatch/dev-server`                                            | 本地会话、源码访问、编辑器与 Agent 编排    | 适配器基础设施，仅 Node |
 | `@spotpatch/runtime`                                               | 浏览器选择器、采集器、工作台和 Prompt 生成 | 由适配器安装            |
@@ -201,7 +203,7 @@ pnpm test:production-leakage
 pnpm package:validate
 ```
 
-CI 质量矩阵还会在 Ubuntu、macOS、Windows 和声明的 Node 版本上运行。Next.js 实验具有独立的 POC 与私有真实宿主命令；这些局部通过结果不能绕过文档中的 Next 发布门禁。
+CI 质量矩阵还会在 Ubuntu、macOS、Windows 和声明的 Node 版本上运行。Next.js 实验具有独立的 POC 与私有真实宿主命令；这些局部通过结果不能绕过文档中的 Next 正式支持门禁。
 
 ## 文档
 

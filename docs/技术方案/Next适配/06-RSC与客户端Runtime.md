@@ -2,10 +2,10 @@
 doc-id: "next-06-rsc-runtime"
 title: "Next.js RSC 与客户端 Runtime"
 status: "active"
-version: "0.3.0"
+version: "0.4.0"
 last-updated: "2026-08-09"
-source-range: "Next.js Server/Client Components 与 instrumentation-client；SpotPatch Runtime 本地预览；React Adapter 现状审计"
-implementation-status: "local-preview"
+source-range: "Next.js Server/Client Components 与 instrumentation-client；SpotPatch Runtime 公共预览；React Adapter 现状审计"
+implementation-status: "public-preview"
 参考文献/依赖:
   - "03-public-api-models"
   - "05-runtime-lifecycle"

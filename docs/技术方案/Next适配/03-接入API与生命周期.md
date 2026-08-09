@@ -2,10 +2,10 @@
 doc-id: "next-03-integration-lifecycle"
 title: "Next.js 接入 API 与生命周期"
 status: "active"
-version: "0.4.0"
+version: "0.5.0"
 last-updated: "2026-08-09"
-source-range: "Next.js next.config phase、instrumentation-client、CLI 与环境变量；SpotPatch 本地预览接入实现"
-implementation-status: "local-preview"
+source-range: "Next.js next.config phase、instrumentation-client、CLI 与环境变量；SpotPatch 公共预览接入实现"
+implementation-status: "public-preview"
 参考文献/依赖:
   - "03-public-api-models"
   - "09-local-protocol-security"
@@ -17,13 +17,13 @@ implementation-status: "local-preview"
 
 ## 用户入口
 
-正式发布后，Next 用户只需显式安装一个入口包：
+公共预览用户只需显式安装一个入口包：
 
 ```bash
 npm install --save-dev @spotpatch/next
 ```
 
-当前仓库中的包仍是 `0.0.0` 且未发布，上述命令不是当前可用性声明；真实宿主营销站通过本地 pnpm workspace 注入源码包。当前配置入口为高阶配置包装器：
+`@spotpatch/next@0.1.0` 是可从 npm 安装的 0.x 公共预览；安装成功不代表完整兼容矩阵或生产支持已经完成。发布前真实宿主营销站通过本地 pnpm workspace 注入源码包完成了锁定范围验证。当前配置入口为高阶配置包装器：
 
 ```ts
 import type { NextConfig } from "next";

@@ -1,5 +1,18 @@
 # @spotpatch/vite
 
+## 1.4.1
+
+### Patch Changes
+
+- f3b04f9: Extract the framework-neutral source compiler and Node development service so
+  the Vite and Next adapters consume one implementation of shared behavior.
+- Updated dependencies [f3b04f9]
+- Updated dependencies [f3b04f9]
+  - @spotpatch/compiler@0.1.0
+  - @spotpatch/dev-server@0.1.0
+  - @spotpatch/runtime@1.4.0
+  - @spotpatch/shared@1.5.0
+
 ## 1.4.0
 
 ### Minor Changes

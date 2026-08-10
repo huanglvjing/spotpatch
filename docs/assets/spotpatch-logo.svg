@@ -1,77 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <svg
   xmlns="http://www.w3.org/2000/svg"
-  width="960"
-  height="240"
-  viewBox="0 0 960 240"
+  width="512"
+  height="512"
+  viewBox="0 0 512 512"
+  fill="none"
   role="img"
-  aria-labelledby="spotpatch-logo-title spotpatch-logo-description"
+  aria-labelledby="spotpatch-title spotpatch-description"
 >
-  <title id="spotpatch-logo-title">SpotPatch</title>
-  <desc id="spotpatch-logo-description">
-    Select the interface, trace the source, and review the patch.
+  <title id="spotpatch-title">SpotPatch logo mark</title>
+  <desc id="spotpatch-description">
+    A gradient source-code locator containing angle brackets and a lightning bolt.
   </desc>
+
   <defs>
-    <linearGradient id="spotpatch-logo-background" x1="42" y1="18" x2="918" y2="222" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#0F172A" />
-      <stop offset="0.55" stop-color="#17123B" />
-      <stop offset="1" stop-color="#2E1065" />
+    <linearGradient id="locator-gradient" x1="76" y1="92" x2="436" y2="374" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B61CFF" />
+      <stop offset="0.38" stop-color="#6D35FF" />
+      <stop offset="0.72" stop-color="#168EFF" />
+      <stop offset="1" stop-color="#00D9E9" />
     </linearGradient>
-    <linearGradient id="spotpatch-logo-icon" x1="58" y1="50" x2="190" y2="190" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#2563EB" />
-      <stop offset="0.52" stop-color="#6D28D9" />
-      <stop offset="1" stop-color="#A21CAF" />
+
+    <linearGradient id="left-code-gradient" x1="165" y1="166" x2="236" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A51EFF" />
+      <stop offset="1" stop-color="#653BFF" />
     </linearGradient>
-    <linearGradient id="spotpatch-logo-code" x1="98" y1="95" x2="153" y2="150" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#E0F2FE" />
-      <stop offset="1" stop-color="#A5F3FC" />
+
+    <linearGradient id="right-code-gradient" x1="276" y1="166" x2="347" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#158DFF" />
+      <stop offset="1" stop-color="#00D8E9" />
     </linearGradient>
-    <linearGradient id="spotpatch-logo-accent" x1="247" y1="178" x2="760" y2="178" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#38BDF8" />
-      <stop offset="0.5" stop-color="#8B5CF6" />
-      <stop offset="1" stop-color="#F472B6" />
+
+    <linearGradient id="bolt-gradient" x1="270" y1="111" x2="252" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6840FF" />
+      <stop offset="0.48" stop-color="#257BFF" />
+      <stop offset="1" stop-color="#00CBEF" />
     </linearGradient>
   </defs>
-  <rect width="960" height="240" rx="36" fill="url(#spotpatch-logo-background)" />
-  <path d="M0 62h960M0 120h960M0 178h960M240 0v240M480 0v240M720 0v240" stroke="#FFFFFF" stroke-opacity="0.035" />
-  <circle cx="866" cy="28" r="112" fill="#7C3AED" fill-opacity="0.09" />
-  <circle cx="790" cy="242" r="150" fill="#2563EB" fill-opacity="0.08" />
-  <rect x="52" y="44" width="152" height="152" rx="38" fill="url(#spotpatch-logo-icon)" />
-  <path d="M52 119.5h152M127.5 44v152" stroke="#FFFFFF" stroke-opacity="0.08" />
-  <circle cx="128" cy="120" r="41" fill="#111827" fill-opacity="0.28" />
+
+  <!-- Locator body. The inner path is subtracted to keep the logo transparent. -->
   <path
-    d="M99 76H87a4 4 0 0 0-4 4v12M157 76h12a4 4 0 0 1 4 4v12M99 164H87a4 4 0 0 1-4-4v-12M157 164h12a4 4 0 0 0 4-4v-12"
-    fill="none"
-    stroke="#FFFFFF"
-    stroke-width="7"
-    stroke-linecap="round"
+    fill="url(#locator-gradient)"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M256 52C345.47 52 418 124.53 418 214C418 267.55 391.98 316.24 354.04 348.02L256 468L157.96 348.02C120.02 316.24 94 267.55 94 214C94 124.53 166.53 52 256 52ZM256 88C186.41 88 130 144.41 130 214C130 258.2 152.76 297.08 187.2 319.57L256 403.8L324.8 319.57C359.24 297.08 382 258.2 382 214C382 144.41 325.59 88 256 88Z"
+  />
+
+  <!-- Cardinal locator ticks. -->
+  <rect x="238" y="20" width="36" height="84" rx="4" fill="url(#locator-gradient)" />
+  <rect x="62" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+  <rect x="366" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+
+  <!-- Source-code angle brackets. -->
+  <path
+    d="M213.5 160L158 211.5L213.5 263L238 236.5L211 211.5L238 186.5L213.5 160Z"
+    fill="url(#left-code-gradient)"
   />
   <path
-    d="m116 99-17 21 17 21M140 99l17 21-17 21M135 92l-13 56"
-    fill="none"
-    stroke="url(#spotpatch-logo-code)"
-    stroke-width="7"
-    stroke-linecap="round"
-    stroke-linejoin="round"
+    d="M298.5 160L354 211.5L298.5 263L274 236.5L301 211.5L274 186.5L298.5 160Z"
+    fill="url(#right-code-gradient)"
   />
-  <circle cx="173" cy="76" r="10" fill="#FB7185" />
-  <circle cx="173" cy="76" r="4" fill="#FFF1F2" />
-  <text
-    x="248"
-    y="115"
-    fill="#FFFFFF"
-    font-family="Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-    font-size="72"
-    font-weight="760"
-    letter-spacing="-2"
-  >SpotPatch</text>
-  <text
-    x="251"
-    y="157"
-    fill="#CBD5E1"
-    font-family="Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
-    font-size="23"
-    font-weight="500"
-    letter-spacing="0.25"
-  >Select the UI. Trace the source. Review the patch.</text>
-  <rect x="250" y="177" width="510" height="4" rx="2" fill="url(#spotpatch-logo-accent)" />
+
+  <!-- Central patch/lightning seam. -->
+  <path
+    d="M283 108L232 212L266 253L238 369L302 237L267 198L283 108Z"
+    fill="url(#bolt-gradient)"
+  />
 </svg>

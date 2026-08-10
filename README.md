@@ -1,8 +1,10 @@
 <p align="center">
   <a href="https://github.com/huanglvjing/spotpatch">
-    <img src="./docs/assets/spotpatch-logo.svg" alt="SpotPatch" width="760" />
+    <img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch logo mark" width="160" />
   </a>
 </p>
+
+<h1 align="center">SpotPatch</h1>
 
 <p align="center">
   <strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a>

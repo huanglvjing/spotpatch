@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://github.com/huanglvjing/spotpatch"><img src="https://raw.githubusercontent.com/huanglvjing/spotpatch/main/docs/assets/spotpatch-logo.svg" alt="SpotPatch" width="560" /></a>
+  <a href="https://github.com/huanglvjing/spotpatch"><img src="https://raw.githubusercontent.com/huanglvjing/spotpatch/main/docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch logo mark" width="144" /></a>
 </p>
 
 # `@spotpatch/compiler`

@@ -2,6 +2,9 @@ import { defineConfig } from "tsup";
 
 export default defineConfig({
   clean: false,
+  define: {
+    __SPOTPATCH_INLINE_BRAND_MARK__: "false",
+  },
   dts: true,
   entry: ["src/runtime-client.ts"],
   esbuildOptions(options) {

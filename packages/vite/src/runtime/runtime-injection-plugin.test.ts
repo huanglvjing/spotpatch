@@ -15,6 +15,7 @@ import {
   RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
   SPOTPATCH_CLIENT_MODULE_ID,
 } from "./runtime-injection-plugin.js";
+import { BRAND_MARK_CONTENT } from "./brand-mark-content.js";
 
 const session = Object.freeze({
   token: "browser-session-token",
@@ -86,6 +87,8 @@ describe("runtime injection plugin", () => {
     expect(code).toContain('"editor":"auto"');
     expect(code).toContain('"maxTargets":8');
     expect(code).toContain("SPOTPATCH_API_BASE");
+    expect(code).toContain("__SPOTPATCH_BRAND_MARK_CONTENT__");
+    expect(code).toContain(JSON.stringify(BRAND_MARK_CONTENT));
     expect(code).not.toContain(SPOTPATCH_API_BASE);
     expect(code).not.toContain(process.cwd());
     expect(code).not.toContain('"root"');

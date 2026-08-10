@@ -7,6 +7,7 @@ import packageMetadata from "../../package.json" with { type: "json" };
 import { version as VITE_VERSION, type Plugin } from "vite";
 
 import type { SpotPatchPluginContext } from "../plugin-context.js";
+import { BRAND_MARK_CONTENT } from "./brand-mark-content.js";
 
 export const SPOTPATCH_CLIENT_MODULE_ID = "virtual:spotpatch/client";
 export const RESOLVED_SPOTPATCH_CLIENT_MODULE_ID = `\0${SPOTPATCH_CLIENT_MODULE_ID}`;
@@ -70,6 +71,7 @@ function createClientModule(
   };
 
   return [
+    `const __SPOTPATCH_BRAND_MARK_CONTENT__ = ${JSON.stringify(BRAND_MARK_CONTENT)};`,
     `const __SPOTPATCH_RUNTIME_CONFIG__ = ${JSON.stringify(runtimeConfig)};`,
     clientBundle,
   ].join("\n");

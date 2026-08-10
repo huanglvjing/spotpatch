@@ -18,6 +18,9 @@ export default defineConfig({
       "@spotpatch/vite": fromRoot("./packages/vite/src/index.ts"),
     },
   },
+  define: {
+    __SPOTPATCH_INLINE_BRAND_MARK__: true,
+  },
   test: {
     coverage: {
       reporter: ["text", "json", "html"],

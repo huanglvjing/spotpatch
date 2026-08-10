@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { BRAND_MARK_CONTENT } from "./brand-mark-content.js";
 import { createBrandMark } from "./brand-mark.js";
 
 interface SvgSnapshot {
@@ -65,8 +66,10 @@ describe("SpotPatch brand mark", () => {
       "image/svg+xml",
     );
     const canonicalRoot = canonicalDocument.documentElement;
-    const runtimeRoot = createBrandMark(document);
+    const runtimeRoot = createBrandMark(document, BRAND_MARK_CONTENT);
+    const defaultRuntimeRoot = createBrandMark(document);
 
     expect(snapshot(runtimeRoot, true)).toEqual(snapshot(canonicalRoot, true));
+    expect(snapshot(defaultRuntimeRoot, true)).toEqual(snapshot(canonicalRoot, true));
   });
 });

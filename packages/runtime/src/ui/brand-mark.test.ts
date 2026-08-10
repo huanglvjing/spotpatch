@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -24,6 +24,14 @@ const ROOT_PRESENTATION_ATTRIBUTES = new Set([
   "role",
   "width",
 ]);
+const ASSET_RELATIVE_PATH = "docs/assets/spotpatch-logo-mark.svg";
+
+function repositoryRoot(): string {
+  const currentDirectory = process.cwd();
+  return existsSync(resolve(currentDirectory, ASSET_RELATIVE_PATH))
+    ? currentDirectory
+    : resolve(currentDirectory, "../..");
+}
 
 function snapshot(element: Element, root = false): SvgSnapshot {
   const attributes = Object.fromEntries(
@@ -45,14 +53,12 @@ function snapshot(element: Element, root = false): SvgSnapshot {
 
 describe("SpotPatch brand mark", () => {
   it("keeps the Shadow DOM vector in sync with the canonical SVG asset", () => {
-    const canonicalSvg = readFileSync(
-      resolve(process.cwd(), "docs/assets/spotpatch-logo-mark.svg"),
-      "utf8",
-    );
+    const root = repositoryRoot();
+    const canonicalSvg = readFileSync(resolve(root, ASSET_RELATIVE_PATH), "utf8");
     for (const legacyAsset of ["spotpatch-icon.svg", "spotpatch-logo.svg"]) {
-      expect(
-        readFileSync(resolve(process.cwd(), `docs/assets/${legacyAsset}`), "utf8"),
-      ).toBe(canonicalSvg);
+      expect(readFileSync(resolve(root, `docs/assets/${legacyAsset}`), "utf8")).toBe(
+        canonicalSvg,
+      );
     }
     const canonicalDocument = new DOMParser().parseFromString(
       canonicalSvg,

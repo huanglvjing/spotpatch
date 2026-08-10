@@ -5,6 +5,7 @@ import {
   SPOTPATCH_API_BASE,
   type CodeContext,
   type ContextBudget,
+  type SpotAnnotation,
 } from "@spotpatch/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,6 +33,7 @@ const config = Object.freeze({
   locale: "en-US",
   maxTargets: 8,
   redact: true,
+  sessionId: "runtime-session-id-0000",
   sessionToken: "runtime-session-token",
   shortcut: "Mod+Shift+S",
   spotPatchVersion: "0.0.0",
@@ -116,6 +118,8 @@ function findShadowButton(
 
 beforeEach(() => {
   document.body.textContent = "";
+  window.sessionStorage.clear();
+  window.history.replaceState(null, "", "/");
 });
 
 afterEach(() => {
@@ -856,7 +860,7 @@ describe("runtime controller", () => {
     controller.dispose();
   });
 
-  it("returns to inspecting when the selected element is removed", async () => {
+  it("preserves collected context when the selected element is removed", async () => {
     const target = document.createElement("div");
     target.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-id:1:1");
     document.body.append(target);
@@ -876,14 +880,170 @@ describe("runtime controller", () => {
         clientY: 1,
       }),
     );
-    expect(controller.getState().status).toBe("selected");
+    await vi.waitFor(() => {
+      expect(
+        document
+          .querySelector("spotpatch-root")
+          ?.shadowRoot?.querySelector(".spotpatch-target-item"),
+      ).not.toBeNull();
+    });
 
     target.remove();
 
     await vi.waitFor(() => {
-      expect(controller.getState().status).toBe("inspecting");
+      expect(controller.getState().status).toBe("selected");
+      expect(
+        document
+          .querySelector("spotpatch-root")
+          ?.shadowRoot?.querySelectorAll(".spotpatch-target-item"),
+      ).toHaveLength(1);
+      expect(
+        document
+          .querySelector("spotpatch-root")
+          ?.shadowRoot?.querySelector(".spotpatch-selection-highlight"),
+      ).toBeNull();
     });
     controller.dispose();
+  });
+
+  it("keeps a completed selection when the panel is closed and reopened", async () => {
+    const target = document.createElement("button");
+    target.textContent = "Persist me";
+    target.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-id:7:3");
+    document.body.append(target);
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue(visibleRect());
+    setHitTarget(target);
+    const controller = createController(config, { api: createApi() });
+    controller.mount();
+    const shadowRoot = document.querySelector("spotpatch-root")?.shadowRoot;
+
+    shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+    target.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 30,
+      }),
+    );
+    const instruction = shadowRoot?.querySelector<HTMLTextAreaElement>(
+      "textarea[data-target-instruction-id]",
+    );
+    if (instruction === null || instruction === undefined) {
+      throw new Error("Expected a target instruction.");
+    }
+    instruction.value = "Keep this instruction.";
+    instruction.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(findShadowButton(shadowRoot, "Preview prompt").disabled).toBe(false);
+    });
+
+    shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-close")?.click();
+    expect(controller.getState().status).toBe("idle");
+    expect(shadowRoot?.querySelector("[role='dialog']")?.hasAttribute("hidden")).toBe(
+      true,
+    );
+
+    shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+    expect(controller.getState().status).toBe("selected");
+    expect(
+      shadowRoot?.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id]",
+      )?.value,
+    ).toBe("Keep this instruction.");
+    controller.dispose();
+  });
+
+  it("restores targets across pages and composes one multi-page request", async () => {
+    window.history.replaceState(null, "", "/page-a");
+    document.title = "Page A";
+    const first = document.createElement("button");
+    first.textContent = "First page target";
+    first.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-a:10:2");
+    document.body.append(first);
+    vi.spyOn(first, "getBoundingClientRect").mockReturnValue(visibleRect());
+    setHitTarget(first);
+    const firstController = createController(config, { api: createApi() });
+    firstController.mount();
+    const firstShadowRoot = document.querySelector("spotpatch-root")?.shadowRoot;
+
+    firstShadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+    first.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 30,
+      }),
+    );
+    const firstInstruction = firstShadowRoot?.querySelector<HTMLTextAreaElement>(
+      "textarea[data-target-instruction-id]",
+    );
+    if (firstInstruction === null || firstInstruction === undefined) {
+      throw new Error("Expected the page A target instruction.");
+    }
+    firstInstruction.value = "Update the page A component.";
+    firstInstruction.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(findShadowButton(firstShadowRoot, "Preview prompt").disabled).toBe(false);
+    });
+    firstController.dispose();
+
+    first.remove();
+    window.history.replaceState(null, "", "/page-b");
+    document.title = "Page B";
+    const second = document.createElement("button");
+    second.textContent = "Second page target";
+    second.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-b:20:4");
+    document.body.append(second);
+    vi.spyOn(second, "getBoundingClientRect").mockReturnValue(visibleRect());
+    setHitTarget(second);
+    const compose = vi
+      .fn<(annotation: SpotAnnotation) => string>()
+      .mockReturnValue("multi-page prompt");
+    const secondController = createController(config, {
+      api: createApi(),
+      promptComposer: { compose },
+    });
+    secondController.mount();
+    const secondShadowRoot = document.querySelector("spotpatch-root")?.shadowRoot;
+
+    expect(secondController.getState().status).toBe("selected");
+    expect(
+      secondShadowRoot?.querySelector<HTMLTextAreaElement>(
+        "textarea[data-target-instruction-id='target-1']",
+      )?.value,
+    ).toBe("Update the page A component.");
+    findShadowButton(secondShadowRoot, "Add element").click();
+    second.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 30,
+      }),
+    );
+    const secondInstruction = secondShadowRoot?.querySelector<HTMLTextAreaElement>(
+      "textarea[data-target-instruction-id='target-2']",
+    );
+    if (secondInstruction === null || secondInstruction === undefined) {
+      throw new Error("Expected the page B target instruction.");
+    }
+    secondInstruction.value = "Update the page B component.";
+    secondInstruction.dispatchEvent(new Event("input", { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(findShadowButton(secondShadowRoot, "Preview prompt").disabled).toBe(false);
+    });
+    findShadowButton(secondShadowRoot, "Preview prompt").click();
+
+    expect(compose).toHaveBeenCalledOnce();
+    const annotation = compose.mock.calls[0]?.[0];
+    expect(annotation?.page.pathname).toBe("/page-b");
+    expect(annotation?.targets.map((target) => target.page?.pathname)).toEqual([
+      "/page-a",
+      "/page-b",
+    ]);
+    secondController.dispose();
   });
 
   it("closes deterministically on Escape", () => {
@@ -900,6 +1060,30 @@ describe("runtime controller", () => {
     );
 
     expect(controller.getState().status).toBe("idle");
+    controller.dispose();
+  });
+
+  it("ignores a malformed persisted selection", () => {
+    window.sessionStorage.setItem(
+      `spotpatch:selection:${config.sessionId}`,
+      JSON.stringify({
+        version: 1,
+        open: true,
+        sequence: 1,
+        targets: [{ id: "target-1" }],
+      }),
+    );
+    const controller = createController(config, { api: createApi() });
+
+    expect(() => {
+      controller.mount();
+    }).not.toThrow();
+    expect(controller.getState().status).toBe("idle");
+    document
+      .querySelector("spotpatch-root")
+      ?.shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-trigger")
+      ?.click();
+    expect(controller.getState().status).toBe("inspecting");
     controller.dispose();
   });
 });

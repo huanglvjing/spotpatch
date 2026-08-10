@@ -27,6 +27,7 @@ const config = Object.freeze({
   locale: "en-US",
   maxTargets: 8,
   redact: true,
+  sessionId: "runtime-session-id-0000",
   sessionToken: "session-token",
   shortcut: "Mod+Shift+S",
   spotPatchVersion: "0.0.0",

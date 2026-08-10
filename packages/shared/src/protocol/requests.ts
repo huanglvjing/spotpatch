@@ -53,9 +53,18 @@ const codeContextSchema = z.strictObject({
   excerpt: boundedString(16_000),
   boundary: z.enum(["component", "nearby-lines"]),
 });
+const pageContextSchema = z.strictObject({
+  url: boundedString(2_048),
+  pathname: boundedString(2_048),
+  title: boundedString(1_024),
+  viewportWidth: z.number().nonnegative(),
+  viewportHeight: z.number().nonnegative(),
+  devicePixelRatio: z.number().positive(),
+});
 
 export const spotTargetContextRequestSchema = z.strictObject({
   instruction: z.string().trim().min(1).max(MAX_TARGET_INSTRUCTION_CHARACTERS),
+  page: pageContextSchema.optional(),
   source: sourceRefSchema,
   react: z.strictObject({
     supported: z.boolean(),
@@ -93,14 +102,7 @@ export const spotAnnotationRequestSchema = z
     schemaVersion: z.literal(3),
     id: boundedString(128),
     locale: z.enum(SPOTPATCH_LOCALES),
-    page: z.strictObject({
-      url: boundedString(2_048),
-      pathname: boundedString(2_048),
-      title: boundedString(1_024),
-      viewportWidth: z.number().nonnegative(),
-      viewportHeight: z.number().nonnegative(),
-      devicePixelRatio: z.number().positive(),
-    }),
+    page: pageContextSchema,
     targets: z.array(spotTargetContextRequestSchema).min(1).max(MAX_ANNOTATION_TARGETS),
     createdAt: z.iso.datetime(),
   })

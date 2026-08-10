@@ -36,6 +36,7 @@ import { bootstrapSpotPatch } from "@spotpatch/runtime";
 
 bootstrapSpotPatch({
   apiBase: SPOTPATCH_API_BASE,
+  sessionId: "<server-generated-non-secret-id>",
   sessionToken: "<server-generated-token>",
   shortcut: resolvedOptions.shortcut,
   locale: resolvedOptions.locale,
@@ -79,7 +80,8 @@ export function bootstrapSpotPatch(config: RuntimeConfig): void {
 
 ```text
 idle
-  └─ ACTIVATE → inspecting
+  ├─ ACTIVATE → inspecting
+  └─ RESTORE → selected
 inspecting
   ├─ HOVER → inspecting
   ├─ SELECT → selected
@@ -89,7 +91,7 @@ selected
   ├─ PREVIEW → previewing
   ├─ RUN_AGENT → selected + AgentJob
   ├─ OPEN_EDITOR → selected
-  └─ CLOSE → idle
+  └─ CLOSE → idle（隐藏并保留草稿）
 previewing
   ├─ COPY_SUCCESS → selected
   ├─ COPY_FAILURE → previewing
@@ -101,6 +103,8 @@ previewing
 活动目标的修改说明输入框是 `selected` 状态的直接编辑面，不设独立 `annotating` 状态，也不要求用户执行“添加说明”或“保存说明”。每次输入只更新该目标的内存数据、字符预算和 Preview/Run 可用性，不触发文件写入；选中完成后活动目标输入框必须立即获得焦点。进入 `previewing` 后返回，应恢复 `selected` 状态并重新聚焦原活动目标的输入框。
 
 多目标不增加第二套状态机。`selected → RESELECT → inspecting` 有两种由 controller 明确区分的意图：`Reselect` 清空整个目标集及全部逐目标草稿，`Add element` 保留已有目标与各自草稿并临时隐藏工作台；新增目标、命中重复目标或达到上限后均通过 `SELECT` 回到 `selected`。在追加选择时按 Escape 或再次触发“停止选择”只取消本次追加并回到原目标集；没有已有目标时仍回到 `idle`。
+
+完成采集的目标以版本化、有界且不包含 DOM/Fiber 引用的草稿写入当前标签页 `sessionStorage`，键只使用开发服务生成的非敏感 `sessionId`，不得使用或派生鉴权 token。关闭工作台记录 `open: false` 并保留草稿，再次触发通过 `RESTORE` 回到 `selected`；整页同源导航或刷新按原 `open` 状态恢复。开发服务重启会生成新 `sessionId`，不得读取上一服务会话的旧 fileId。`Reselect`、移除最后一个目标和明确释放选择必须删除草稿。
 
 ## Agent Job 生命周期
 
@@ -159,6 +163,6 @@ elementsFromPoint(clientX, clientY)
 - 内联元素可使用 `getClientRects()`，高亮全部 line box 或取 union rect。
 - overlay 使用 `position: fixed`，rect 不额外叠加 scroll offset。
 - 页面滚动、viewport resize、目标 ResizeObserver 变化时重新计算。
-- 多目标中的某个目标被卸载时只移除该目标并提示；仅当最后一个目标被卸载时才回到 inspecting。滚动、resize 和 ResizeObserver 必须更新所有仍连接目标的固定定位高亮。
+- 多目标中的某个目标被卸载时必须解除 ResizeObserver 并清除 Element/几何引用，但保留已经清洗的页面、源码、DOM/CSS 上下文和说明；不得仅因 SPA 路由切换删除目标。滚动、resize 和 ResizeObserver 只更新仍连接目标的固定定位高亮，跨页面目标继续参与 Preview/Agent 请求。
 
 生命周期和性能要求的验收方式见测试与验收规范 (见 doc-id:12-testing-acceptance)。

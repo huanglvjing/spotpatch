@@ -28,6 +28,14 @@ const annotation = Object.freeze({
   targets: Object.freeze([
     Object.freeze({
       instruction: "Align the selected action.",
+      page: Object.freeze({
+        url: "http://localhost:5173/settings",
+        pathname: "/settings",
+        title: "Settings",
+        viewportWidth: 1_440,
+        viewportHeight: 900,
+        devicePixelRatio: 2,
+      }),
       source: Object.freeze({
         fileId: "file-id",
         relativePath: "src/App.tsx",
@@ -102,6 +110,22 @@ describe("protocol request schemas", () => {
         workingTreeMode: "include-local-changes",
       }).success,
     ).toBe(true);
+    expect(
+      agentJobCreateRequestSchema.safeParse({
+        annotation: {
+          ...annotation,
+          targets: [
+            {
+              ...annotation.targets[0],
+              page: { ...annotation.page, viewportWidth: -1 },
+            },
+          ],
+        },
+        providerProfileId: "relay",
+        modelProfileId: "coding-model",
+        providerDataConsent: true,
+      }).success,
+    ).toBe(false);
     expect(
       agentCapabilityRequestSchema.safeParse({
         providerProfileId: "relay",

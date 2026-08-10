@@ -26,6 +26,14 @@ describe("annotation factory", () => {
       targets: [
         {
           instruction: "Update this target.",
+          page: {
+            url: "http://localhost/settings",
+            pathname: "/settings",
+            title: "Settings",
+            viewportWidth: 100,
+            viewportHeight: 100,
+            devicePixelRatio: 1,
+          },
           source: {
             fileId: "file-id",
             line: 2,
@@ -67,6 +75,7 @@ describe("annotation factory", () => {
     expect(Object.isFrozen(annotation.page)).toBe(true);
     expect(Object.isFrozen(annotation.targets)).toBe(true);
     expect(Object.isFrozen(annotation.targets[0]?.react.componentStack)).toBe(true);
+    expect(Object.isFrozen(annotation.targets[0]?.page)).toBe(true);
     expect(Object.isFrozen(annotation.targets[0]?.element.rect)).toBe(true);
     expect(Object.isFrozen(annotation.targets[0]?.styles.computed)).toBe(true);
 

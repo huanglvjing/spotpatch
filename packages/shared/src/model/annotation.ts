@@ -44,6 +44,7 @@ export type SpotPatchLocalePreference = (typeof SPOTPATCH_LOCALE_PREFERENCES)[nu
 
 export interface SpotTargetContext {
   readonly instruction: string;
+  readonly page?: Readonly<PageContext>;
   readonly source: SourceRef;
   readonly react: ReactContext;
   readonly element: ElementContext;

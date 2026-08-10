@@ -26,6 +26,7 @@ interface RuntimeConfigBase {
   readonly locale: (typeof SPOTPATCH_LOCALE_PREFERENCES)[number];
   readonly maxTargets: number;
   readonly redact: boolean;
+  readonly sessionId: string;
   readonly sessionToken: string;
   readonly shortcut: string;
   readonly spotPatchVersion: string;
@@ -102,6 +103,11 @@ const runtimeConfigBaseShape = {
   locale: z.enum(SPOTPATCH_LOCALE_PREFERENCES),
   maxTargets: z.number().int().min(1).max(MAX_ANNOTATION_TARGETS),
   redact: z.boolean(),
+  sessionId: z
+    .string()
+    .min(22)
+    .max(128)
+    .regex(/^[A-Za-z0-9_-]+$/u),
   sessionToken: z
     .string()
     .min(22)

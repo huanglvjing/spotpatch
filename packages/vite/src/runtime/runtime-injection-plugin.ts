@@ -65,6 +65,7 @@ function createClientModule(
     locale: options.locale,
     maxTargets: options.maxTargets,
     redact: options.redact,
+    sessionId: input.session.id,
     sessionToken: input.session.token,
     shortcut: options.shortcut,
     spotPatchVersion: packageMetadata.version,

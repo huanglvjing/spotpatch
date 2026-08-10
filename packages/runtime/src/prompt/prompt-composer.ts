@@ -248,6 +248,12 @@ function renderTarget(
     `### ${messages.target(index + 1)}`,
     `#### ${messages.requestedChange}`,
     draft.instruction,
+    ...(target.page === undefined
+      ? []
+      : [
+          `#### ${messages.pageEnvironment}`,
+          `- ${messages.url}: <${sanitizeUrl(target.page.url, target.page.url)}>\n- ${messages.pathname}: ${redactSensitiveText(target.page.pathname)}\n- ${messages.title}: ${redactSensitiveText(target.page.title) || messages.unavailable}`,
+        ]),
     `#### ${messages.reactContext}`,
     reactLines.join("\n"),
     `#### ${messages.source}`,

@@ -32,6 +32,7 @@ function redactedJson(value: unknown): string {
 interface BoundedTarget {
   code?: Readonly<Record<string, unknown>>;
   element: Readonly<Record<string, unknown>>;
+  page?: SpotTargetContext["page"];
   react: Readonly<Record<string, unknown>>;
   source: SpotTargetContext["source"];
   styles?: Readonly<Record<string, unknown>>;
@@ -50,6 +51,14 @@ function createBoundedTarget(
 ): BoundedTarget {
   const detailBudget = Math.max(192, maximumCharacters - 420);
   const bounded: BoundedTarget = {
+    ...(target.page === undefined
+      ? {}
+      : {
+          page: Object.freeze({
+            ...target.page,
+            url: sanitizeUrl(target.page.url, "http://spotpatch.invalid"),
+          }),
+        }),
     source: target.source,
     react: Object.freeze({
       supported: target.react.supported,

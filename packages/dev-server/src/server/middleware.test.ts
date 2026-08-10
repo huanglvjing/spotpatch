@@ -23,6 +23,7 @@ import type { EditorLauncher } from "./editor.js";
 import { createSpotPatchMiddleware } from "./middleware.js";
 
 const session = Object.freeze({
+  id: "0123456789abcdef0123456789abcdef",
   token: "0123456789abcdef0123456789abcdef",
 }) satisfies SpotPatchSession;
 

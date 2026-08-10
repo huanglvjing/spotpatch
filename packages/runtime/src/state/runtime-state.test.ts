@@ -14,6 +14,7 @@ function transition(status: RuntimeStatus, type: RuntimeEvent["type"]): RuntimeS
 describe("runtime state reducer", () => {
   it.each([
     ["idle", "ACTIVATE", "inspecting"],
+    ["idle", "RESTORE", "selected"],
     ["inspecting", "HOVER", "inspecting"],
     ["inspecting", "SELECT", "selected"],
     ["inspecting", "CANCEL", "idle"],

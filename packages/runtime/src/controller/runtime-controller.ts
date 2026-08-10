@@ -3,6 +3,7 @@ import {
   MAX_ANNOTATION_INSTRUCTION_CHARACTERS,
   type CodeContext,
   type ElementContext,
+  type PageContext,
   type SourceMarker,
   type SpotAnnotation,
   type SpotTargetContext,
@@ -26,6 +27,11 @@ import {
   type RuntimeEvent,
   type RuntimeState,
 } from "../state/runtime-state.js";
+import {
+  createSelectionSession,
+  type SelectionSession,
+  type SelectionSnapshotTarget,
+} from "../state/selection-session.js";
 import {
   createSourceResolver,
   sourceRefToMarker,
@@ -67,6 +73,7 @@ export interface RuntimeControllerDependencies {
   readonly promptComposer?: PromptComposer;
   readonly reactAdapter?: ReactAdapter;
   readonly resizeObserver?: typeof ResizeObserver;
+  readonly selectionSession?: SelectionSession;
   readonly view?: RuntimeView;
   readonly window?: Window;
 }
@@ -86,6 +93,7 @@ interface SelectedTarget {
   elementContext: ElementContext | undefined;
   instruction: string;
   marker: SourceMarker | undefined;
+  page: PageContext;
   styles: StyleContext | undefined;
 }
 
@@ -171,6 +179,10 @@ export function createController(
   const createId =
     dependencies.createId ?? (() => createBrowserAnnotationId(browser.window));
   const now = dependencies.now ?? (() => new Date().toISOString());
+  const selectionSession =
+    dependencies.selectionSession ??
+    createSelectionSession(browser.window, config.sessionId, config.maxTargets);
+  const restoredSelection = selectionSession.load();
   const sourceResolver = createSourceResolver({
     adapter:
       dependencies.reactAdapter ??
@@ -191,9 +203,32 @@ export function createController(
   let mounted = false;
   let animationFrame: number | undefined;
   let lastPointer: PointerPosition | undefined;
-  let targets: SelectedTarget[] = [];
-  let activeTargetId: string | undefined;
-  let targetSequence = 0;
+  let targets: SelectedTarget[] =
+    restoredSelection?.targets.map((target) => {
+      const marker = sourceRefToMarker(target.source);
+      return {
+        id: target.id,
+        resolution: Object.freeze({ source: target.source, react: target.react }),
+        apiStatus:
+          marker === undefined
+            ? "not-required"
+            : target.code === undefined
+              ? "failed"
+              : "connected",
+        code: target.code,
+        collectionStatus: "ready",
+        element: undefined,
+        elementContext: target.element,
+        instruction: target.instruction,
+        marker,
+        page: target.page,
+        styles: target.styles,
+      };
+    }) ?? [];
+  let activeTargetId = restoredSelection?.activeTargetId;
+  let targetSequence = restoredSelection?.sequence ?? 0;
+  let selectionOpen = restoredSelection?.open ?? false;
+  let workflowSelectionActive = false;
   let sessionRevision = 0;
   let editorRequestRevision = 0;
   let addingTarget = false;
@@ -211,6 +246,45 @@ export function createController(
 
   function activeTarget(): SelectedTarget | undefined {
     return targets.find((target) => target.id === activeTargetId) ?? targets.at(-1);
+  }
+
+  function snapshotTarget(target: SelectedTarget): SelectionSnapshotTarget | undefined {
+    if (target.elementContext === undefined || target.styles === undefined) {
+      return undefined;
+    }
+
+    return {
+      id: target.id,
+      instruction: target.instruction,
+      page: target.page,
+      source: target.resolution.source,
+      react: target.resolution.react,
+      element: target.elementContext,
+      styles: target.styles,
+      ...(target.code === undefined ? {} : { code: target.code }),
+    };
+  }
+
+  function persistSelection(): void {
+    const persistedTargets = targets.flatMap((target) => {
+      const snapshot = snapshotTarget(target);
+      return snapshot === undefined ? [] : [snapshot];
+    });
+
+    if (persistedTargets.length === 0) {
+      selectionSession.clear();
+      return;
+    }
+
+    const persistedIds = new Set(persistedTargets.map(({ id }) => id));
+    selectionSession.save({
+      ...(activeTargetId !== undefined && persistedIds.has(activeTargetId)
+        ? { activeTargetId }
+        : {}),
+      open: selectionOpen,
+      sequence: targetSequence,
+      targets: persistedTargets,
+    });
   }
 
   function targetIsCurrent(target: SelectedTarget, revision: number): boolean {
@@ -234,7 +308,6 @@ export function createController(
       targets.every(
         (target) =>
           target.instruction.trim().length > 0 &&
-          target.element !== undefined &&
           target.elementContext !== undefined &&
           target.styles !== undefined &&
           target.apiStatus !== "loading",
@@ -342,6 +415,7 @@ export function createController(
 
       return {
         instruction: target.instruction.trim(),
+        page: target.page,
         source: target.resolution.source,
         react: target.resolution.react,
         element: target.elementContext,
@@ -388,10 +462,13 @@ export function createController(
     resizeObserver?.disconnect();
     targets = [];
     activeTargetId = undefined;
+    selectionOpen = false;
+    workflowSelectionActive = false;
     addingTarget = false;
     previewPrompt = "";
     view.hideSelection();
     view.hideSelectionHighlights();
+    selectionSession.clear();
     restoreFocus();
   }
 
@@ -405,7 +482,11 @@ export function createController(
       transition({ type: "CLOSE" });
     }
 
-    releaseSelection();
+    selectionOpen = false;
+    persistSelection();
+    view.hideSelection();
+    view.hideSelectionHighlights();
+    restoreFocus();
     view.hideHighlight();
   }
 
@@ -431,6 +512,19 @@ export function createController(
 
     if (state.status !== "idle") {
       close();
+      return;
+    }
+
+    if (targets.length > 0) {
+      selectionOpen = true;
+      transition({ type: "RESTORE" });
+      if (!workflowSelectionActive) {
+        agentWorkflow.beginSelection();
+        workflowSelectionActive = true;
+      }
+      refreshSelectionView(true);
+      view.focusTargetInstruction(activeTargetId);
+      persistSelection();
       return;
     }
 
@@ -481,6 +575,7 @@ export function createController(
     view.hideHighlight();
     view.hideSelectionHighlights();
     refreshSelectionView();
+    selectionSession.clear();
     view.announce(view.messages().announcements.appliedTargetsDetached);
   }
 
@@ -516,6 +611,7 @@ export function createController(
       if (targetIsCurrent(target, revision)) {
         target.code = context;
         target.apiStatus = "connected";
+        persistSelection();
         refreshSelectionView();
         view.announce(view.messages().announcements.sourceLoaded);
       }
@@ -523,6 +619,7 @@ export function createController(
       if (targetIsCurrent(target, revision)) {
         target.code = undefined;
         target.apiStatus = "failed";
+        persistSelection();
         refreshSelectionView();
         view.announce(view.messages().announcements.sourceFailed);
 
@@ -577,6 +674,7 @@ export function createController(
       }
 
       target.collectionStatus = failed ? "failed" : "ready";
+      persistSelection();
       refreshSelectionView();
       view.announce(
         failed
@@ -643,6 +741,7 @@ export function createController(
           : undefined;
       previewPrompt = "";
       agentWorkflow.beginSelection();
+      workflowSelectionActive = true;
     }
 
     targetSequence += 1;
@@ -651,6 +750,7 @@ export function createController(
       element,
       resolution,
       marker,
+      page: collectPageContext(browser.document, browser.window),
       code: undefined,
       elementContext: undefined,
       styles: undefined,
@@ -666,6 +766,7 @@ export function createController(
     view.hideHighlight();
     resizeObserver?.observe(element);
     refreshSelectionView(true);
+    selectionOpen = true;
     view.focusTargetInstruction(target.id);
     scheduleBrowserContextCollection(target, revision);
 
@@ -803,11 +904,13 @@ export function createController(
 
       view.hideSelectionTemporarily();
       view.hideSelectionHighlights();
+      selectionSession.clear();
       view.announce(view.messages().announcements.allTargetsRemoved);
       return;
     }
 
     refreshSelectionView();
+    persistSelection();
     view.announce(view.messages().announcements.targetRemoved);
   }
 
@@ -821,18 +924,15 @@ export function createController(
     );
 
     if (disconnected.length > 0) {
-      if (state.status === "previewing") {
-        transition({ type: "BACK" });
-      }
-
       for (const target of disconnected) {
-        removeTarget(target.id);
+        if (target.element !== undefined) {
+          resizeObserver?.unobserve(target.element);
+          target.element = undefined;
+        }
       }
-
-      if (targets.length > 0) {
-        view.announce(view.messages().announcements.detachedTargetRemoved);
-      }
-
+      refreshSelectionView();
+      persistSelection();
+      view.announce(view.messages().announcements.detachedTargetPreserved);
       return;
     }
 
@@ -907,6 +1007,7 @@ export function createController(
     target.instruction = event.target.value;
     view.updateTargetInstruction(target.id, target.instruction);
     view.setPreviewEnabled(canPreview());
+    persistSelection();
   }
 
   function handleOpenEditorButtonClick(): void {
@@ -1099,6 +1200,13 @@ export function createController(
       });
     }
 
+    if (selectionOpen && targets.length > 0) {
+      transition({ type: "RESTORE" });
+      agentWorkflow.beginSelection();
+      workflowSelectionActive = true;
+      refreshSelectionView(true);
+    }
+
     if (config.debug) {
       console.info(`[spotpatch:runtime] Mounted. Shortcut: ${config.shortcut}.`);
     }
@@ -1160,6 +1268,7 @@ export function createController(
     }
 
     clearCollectionTimers();
+    persistSelection();
     resizeObserver?.disconnect();
     mutationObserver?.disconnect();
     resizeObserver = undefined;

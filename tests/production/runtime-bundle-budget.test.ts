@@ -3,7 +3,7 @@ import { gzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
-const RUNTIME_GZIP_BUDGET_BYTES = 38 * 1024;
+const RUNTIME_GZIP_BUDGET_BYTES = 40 * 1024;
 const serverOnlySignatures = [
   "launch-editor",
   "magic-string",

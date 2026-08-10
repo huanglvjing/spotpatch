@@ -52,7 +52,7 @@ Start the application normally:
 pnpm dev
 ```
 
-Select **Select element** in the bottom-right corner or press `Mod+Shift+S`. SpotPatch can collect multiple targets, preserve a separate instruction for each one, open the exact source location in Cursor or VS Code, and generate a structured prompt without requiring AI configuration.
+Select **Select element** in the bottom-right corner or press `Mod+Shift+S`. SpotPatch can collect multiple targets across same-project pages, preserve them through navigation and workbench close/reopen cycles, keep a separate instruction for each one, open the exact source location in Cursor or VS Code, and generate a structured prompt without requiring AI configuration.
 
 ### Compatibility
 
@@ -188,7 +188,7 @@ export default defineConfig({
 pnpm dev
 ```
 
-点击右下角的 **选择元素** 或按下 `Mod+Shift+S`。SpotPatch 支持一次采集多个目标、为每个目标保留独立修改要求、在 Cursor 或 VS Code 中打开精确位置，并且在完全不配置 AI 的情况下生成结构化 Prompt。
+点击右下角的 **选择元素** 或按下 `Mod+Shift+S`。SpotPatch 支持跨同一项目的多个页面采集目标，在页面跳转及工作台关闭/重开后保留目标与独立修改要求，在 Cursor 或 VS Code 中打开精确位置，并且在完全不配置 AI 的情况下生成结构化 Prompt。
 
 ### 兼容范围
 

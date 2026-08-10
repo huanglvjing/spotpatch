@@ -228,6 +228,7 @@ export async function startRuntimePocSidecar(
     maxTargets: options.maxTargets,
     redact: options.redact,
     routerKind: input.routerKind,
+    sessionId: session.id,
     sessionToken: session.token,
     shortcut: options.shortcut,
     spotPatchVersion: "runtime-poc",

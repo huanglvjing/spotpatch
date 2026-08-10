@@ -25,9 +25,10 @@ const reselectFixture = async (
   page: Page,
   dialog: Locator,
   target: Locator,
+  position?: Readonly<{ x: number; y: number }>,
 ): Promise<Locator> => {
   await dialog.getByRole("button", { name: "Start over" }).click();
-  await target.click();
+  await target.click(position === undefined ? undefined : { position });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator(".spotpatch-summary")).toContainText(
     "Browser context: ready",
@@ -135,7 +136,9 @@ test("collects Tailwind and CSS Module runtime styles", async ({ page }) => {
     .getByRole("dialog", { name: "Review the request" })
     .getByRole("button", { name: "Close SpotPatch" })
     .click();
-  dialog = await selectFixture(page, page.getByTestId("css-module-card"), {
+  await page.getByRole("button", { name: "Select element" }).click();
+  await expect(dialog).toBeVisible();
+  dialog = await reselectFixture(page, dialog, page.getByTestId("css-module-card"), {
     x: 6,
     y: 6,
   });

@@ -130,7 +130,7 @@ export interface UiMessages {
     noSelectable: string;
     allTargetsRemoved: string;
     targetRemoved: string;
-    detachedTargetRemoved: string;
+    detachedTargetPreserved: string;
     contextWarning: string;
     contextCollected: string;
     editorOpening: string;
@@ -487,7 +487,8 @@ export const UI_MESSAGES = Object.freeze({
       noSelectable: "No selectable element was found.",
       allTargetsRemoved: "All targets were removed. Choose an element to continue.",
       targetRemoved: "Selected target removed.",
-      detachedTargetRemoved: "A removed page element was dropped from the selection.",
+      detachedTargetPreserved:
+        "The page element was unloaded; its collected context remains selected.",
       contextWarning: "Browser context collection completed with a warning.",
       contextCollected: "Browser context collected.",
       editorOpening: "Opening source…",
@@ -636,7 +637,7 @@ export const UI_MESSAGES = Object.freeze({
       noSelectable: "当前位置没有可选择的元素。",
       allTargetsRemoved: "已移除全部目标，请重新选择元素。",
       targetRemoved: "已移除选中目标。",
-      detachedTargetRemoved: "页面中的目标已卸载，已从当前选择中移除。",
+      detachedTargetPreserved: "页面元素已卸载，已采集的上下文仍保留在选择中。",
       contextWarning: "浏览器上下文采集完成，但存在警告。",
       contextCollected: "浏览器上下文采集完成。",
       editorOpening: "正在打开源码……",

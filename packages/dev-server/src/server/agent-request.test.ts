@@ -38,6 +38,14 @@ function request(overrides: Readonly<Record<string, unknown>> = {}) {
       targets: [
         {
           instruction: "Update this component.",
+          page: {
+            url: "http://localhost:5173/settings",
+            pathname: "/settings",
+            title: "Settings",
+            viewportWidth: 1_440,
+            viewportHeight: 900,
+            devicePixelRatio: 2,
+          },
           source: {
             fileId,
             relativePath: "src/App.tsx",
@@ -131,6 +139,8 @@ describe("Agent job request authorization", () => {
     });
 
     expect(authorized.annotation.targets[0]?.source.relativePath).toBe("src/App.tsx");
+    expect(authorized.annotation.targets[0]?.page?.pathname).toBe("/settings");
+    expect(Object.isFrozen(authorized.annotation.targets[0]?.page)).toBe(true);
     expect(authorized.annotation.targets[0]?.code?.excerpt).toContain(
       "<button>Save</button>",
     );

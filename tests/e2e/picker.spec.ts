@@ -261,6 +261,49 @@ test("preserves distinct instructions while collecting and removing multiple com
   );
 });
 
+test("restores a selection after closing and continues it on another page", async ({
+  page,
+}) => {
+  await page.goto("/?page=a");
+  await activatePicker(page);
+  await page.getByTestId("business-card-content").click();
+  const dialog = page.getByRole("dialog", { name: "Plan the change" });
+  const firstInstruction = dialog.locator(
+    "textarea[data-target-instruction-id='target-1']",
+  );
+  await firstInstruction.fill("Update the component selected on page A.");
+  await expect(dialog.getByRole("button", { name: "Preview prompt" })).toBeEnabled();
+
+  await dialog.getByRole("button", { name: "Close SpotPatch" }).click();
+  await expect(dialog).toBeHidden();
+  await page.getByRole("button", { name: "Select element" }).click();
+  await expect(firstInstruction).toHaveValue(
+    "Update the component selected on page A.",
+  );
+
+  await page.goto("/?page=b");
+  await expect(dialog).toBeVisible();
+  await expect(firstInstruction).toHaveValue(
+    "Update the component selected on page A.",
+  );
+  await dialog.getByRole("button", { name: "Add element" }).click();
+  await page.getByTestId("tailwind-button").click();
+  const secondInstruction = dialog.locator(
+    "textarea[data-target-instruction-id='target-2']",
+  );
+  await secondInstruction.fill("Update the component selected on page B.");
+  await expect(dialog.locator(".spotpatch-target-item")).toHaveCount(2);
+  await dialog.getByRole("button", { name: "Preview prompt" }).click();
+
+  const prompt = page
+    .getByRole("dialog", { name: "Review the request" })
+    .getByLabel("Generated prompt");
+  await expect(prompt).toContainText("Update the component selected on page A.");
+  await expect(prompt).toContainText("Update the component selected on page B.");
+  await expect(prompt).toContainText("?page=a");
+  await expect(prompt).toContainText("?page=b");
+});
+
 test("resolves an Ant Design Button to its probable business call site", async ({
   page,
 }) => {

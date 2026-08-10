@@ -60,6 +60,7 @@ function freezeStyles(styles: StyleContext): StyleContext {
 function freezeTarget(target: SpotTargetContext): SpotTargetContext {
   return Object.freeze({
     instruction: target.instruction.trim(),
+    ...(target.page === undefined ? {} : { page: Object.freeze({ ...target.page }) }),
     source: freezeSource(target.source, target.code),
     react: freezeReact(target.react),
     element: freezeElement(target.element),

@@ -18,6 +18,14 @@ const annotation = Object.freeze({
   targets: Object.freeze([
     Object.freeze({
       instruction: "头像与用户名没有垂直居中。",
+      page: Object.freeze({
+        url: "http://localhost:5173/settings?token=target-secret",
+        pathname: "/settings",
+        title: "Settings",
+        viewportWidth: 1280,
+        viewportHeight: 720,
+        devicePixelRatio: 2,
+      }),
       source: Object.freeze({
         fileId: "opaque-file-id",
         relativePath: "src/components/UserProfile.tsx",
@@ -96,6 +104,8 @@ describe("Prompt composer", () => {
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
     expect(prompt).toContain("头像与用户名没有垂直居中");
     expect(prompt).toContain("src/components/UserProfile.tsx:36:5");
+    expect(prompt).toContain("http://localhost:5173/settings?token=%5Bredacted%5D");
+    expect(prompt).toContain("- 路径: /settings");
     expect(prompt).toContain("- 置信度: exact");
     expect(prompt).toContain('<div class="user-info">');
     expect(prompt).toContain(".user-info {");

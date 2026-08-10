@@ -20,6 +20,7 @@ const base = Object.freeze({
   locale: "auto",
   maxTargets: 8,
   redact: true,
+  sessionId: "0123456789abcdef012345",
   sessionToken: "0123456789abcdef012345",
   shortcut: "Mod+Shift+S",
   spotPatchVersion: "0.1.0",
@@ -40,7 +41,7 @@ describe("runtime config schema", () => {
     ).toBe(true);
   });
 
-  it("rejects missing Next diagnostics, short tokens, and private fields", () => {
+  it("rejects missing Next diagnostics, short session values, and private fields", () => {
     expect(runtimeConfigSchema.safeParse({ ...base, framework: "next" }).success).toBe(
       false,
     );
@@ -49,6 +50,13 @@ describe("runtime config schema", () => {
         ...base,
         framework: "vite",
         sessionToken: "short",
+      }).success,
+    ).toBe(false);
+    expect(
+      runtimeConfigSchema.safeParse({
+        ...base,
+        framework: "vite",
+        sessionId: "short",
       }).success,
     ).toBe(false);
     expect(

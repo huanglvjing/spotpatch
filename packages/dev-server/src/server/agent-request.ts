@@ -157,6 +157,7 @@ async function authorizeTarget(
 
   return Object.freeze({
     instruction: target.instruction,
+    ...(target.page === undefined ? {} : { page: Object.freeze({ ...target.page }) }),
     source,
     react: Object.freeze({
       supported: target.react.supported,

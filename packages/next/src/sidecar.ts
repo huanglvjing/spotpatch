@@ -266,6 +266,7 @@ export async function createNextSidecar(
         locale: input.options.locale,
         maxTargets: input.options.maxTargets,
         redact: input.options.redact,
+        sessionId: session.id,
         routerKind: input.routerKind,
         sessionToken: session.token,
         shortcut: input.options.shortcut,

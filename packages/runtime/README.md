@@ -6,7 +6,7 @@
 
 ## English
 
-The browser Runtime used by SpotPatch framework adapters. It contains the element picker, bounded DOM and CSS collectors, source-context client, localized Shadow DOM workbench, multi-target state, prompt composer, and optional Agent review UI.
+The browser Runtime used by SpotPatch framework adapters. It contains the element picker, bounded DOM and CSS collectors, source-context client, localized Shadow DOM workbench, session-scoped multi-page target drafts, prompt composer, and optional Agent review UI.
 
 Applications should install and configure [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) rather than bootstrap this package directly. The adapter supplies authenticated development configuration and guarantees that the Runtime is absent from production output.
 
@@ -14,7 +14,7 @@ This package never owns provider credentials or unrestricted filesystem access.
 
 ## 简体中文
 
-这是 SpotPatch 框架适配器使用的浏览器 Runtime，包含元素选择器、有界 DOM/CSS 采集器、源码上下文客户端、本地化 Shadow DOM 工作台、多目标状态、Prompt 生成器和可选 Agent 审阅界面。
+这是 SpotPatch 框架适配器使用的浏览器 Runtime，包含元素选择器、有界 DOM/CSS 采集器、源码上下文客户端、本地化 Shadow DOM 工作台、会话级跨页面目标草稿、Prompt 生成器和可选 Agent 审阅界面。
 
 业务应用应安装并配置 [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite)，而不是直接启动本包。框架适配器负责提供经过认证的开发期配置，并保证生产产物不包含 Runtime。
 

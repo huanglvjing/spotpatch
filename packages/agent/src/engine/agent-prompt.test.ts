@@ -61,11 +61,13 @@ describe("Agent prompt", () => {
         {
           ...first,
           instruction: "Align the first action.",
+          page: { ...annotation.page, pathname: "/page-a" },
           source: { ...first.source, relativePath: "src/First.tsx" },
         },
         {
           ...first,
           instruction: "Rename the second action.",
+          page: { ...annotation.page, pathname: "/page-b" },
           source: { ...first.source, relativePath: "src/Second.tsx", line: 20 },
           element: { ...first.element, selector: "button.second" },
         },
@@ -79,10 +81,14 @@ describe("Agent prompt", () => {
     expect(serializedContext).toBeTypeOf("string");
     const parsed = JSON.parse(serializedContext ?? "null") as {
       readonly targetCount?: number;
-      readonly targets?: readonly unknown[];
+      readonly targets?: readonly { readonly page?: { readonly pathname?: string } }[];
     };
     expect(parsed.targetCount).toBe(2);
     expect(parsed.targets).toHaveLength(2);
+    expect(parsed.targets?.map((target) => target.page?.pathname)).toEqual([
+      "/page-a",
+      "/page-b",
+    ]);
     expect(multiPrompt).toContain("src/First.tsx");
     expect(multiPrompt).toContain("src/Second.tsx");
     expect(multiPrompt).toContain("Align the first action.");

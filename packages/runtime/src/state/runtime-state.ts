@@ -6,6 +6,7 @@ export interface RuntimeState {
 
 export type RuntimeEvent =
   | Readonly<{ type: "ACTIVATE" }>
+  | Readonly<{ type: "RESTORE" }>
   | Readonly<{ type: "HOVER" }>
   | Readonly<{ type: "SELECT" }>
   | Readonly<{ type: "CANCEL" }>
@@ -27,7 +28,11 @@ const STATES = Object.freeze({
 export const INITIAL_RUNTIME_STATE: RuntimeState = STATES.idle;
 
 function reduceIdle(event: RuntimeEvent): RuntimeState {
-  return event.type === "ACTIVATE" ? STATES.inspecting : STATES.idle;
+  if (event.type === "ACTIVATE") {
+    return STATES.inspecting;
+  }
+
+  return event.type === "RESTORE" ? STATES.selected : STATES.idle;
 }
 
 function reduceInspecting(event: RuntimeEvent): RuntimeState {

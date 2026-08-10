@@ -18,6 +18,7 @@ import {
 import { BRAND_MARK_CONTENT } from "./brand-mark-content.js";
 
 const session = Object.freeze({
+  id: "browser-session-id-0000",
   token: "browser-session-token",
 }) satisfies SpotPatchSession;
 
@@ -78,6 +79,7 @@ describe("runtime injection plugin", () => {
 
     const code = hook.call({} as never, RESOLVED_SPOTPATCH_CLIENT_MODULE_ID) as string;
 
+    expect(code).toContain('"sessionId":"browser-session-id-0000"');
     expect(code).toContain("browser-session-token");
     expect(code).toContain("Alt+S");
     expect(code).toContain(`"spotPatchVersion":"${packageMetadata.version}"`);

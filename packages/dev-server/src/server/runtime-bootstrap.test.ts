@@ -15,6 +15,7 @@ import { createSpotPatchMiddleware } from "./middleware.js";
 
 const publicOrigin = "http://127.0.0.1:3000";
 const session = Object.freeze({
+  id: "0123456789abcdef012345",
   token: "0123456789abcdef012345",
 }) satisfies SpotPatchSession;
 const runtimeConfig = Object.freeze({
@@ -30,6 +31,7 @@ const runtimeConfig = Object.freeze({
   maxTargets: 8,
   redact: true,
   routerKind: "app",
+  sessionId: session.id,
   sessionToken: session.token,
   shortcut: "Mod+Shift+S",
   spotPatchVersion: "0.1.0",

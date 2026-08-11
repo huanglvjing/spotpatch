@@ -15,6 +15,13 @@ test("opens the customizable Agent selector below its field", async ({ page }) =
   await expect
     .poll(() => provider.evaluate((element) => element.matches(":open")))
     .toBe(true);
+  await expect
+    .poll(() =>
+      provider.evaluate(
+        (element) => getComputedStyle(element, "::picker(select)").opacity,
+      ),
+    )
+    .toBe("1");
   const option = dialog.getByRole("option", { name: "E2E Relay" });
   const [fieldBox, optionBox] = await Promise.all([
     provider.boundingBox(),

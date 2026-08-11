@@ -131,19 +131,21 @@ export const AGENT_PANEL_STYLES = `
       width: anchor-size(width);
       max-height: min(280px, 40vh);
       margin: 0;
-      overflow: hidden;
+      overflow: auto;
       border: 1px solid rgb(139 124 247 / 28%);
       border-radius: 12px;
       padding: 6px;
       background: #10151e;
       box-shadow: 0 18px 50px rgb(0 0 0 / 38%);
-      opacity: 0;
-      transform: translateY(-5px) scale(.985);
+      opacity: 1;
+      transform: translateY(0) scale(1);
       transition: opacity 150ms ease, transform 180ms cubic-bezier(.2, .8, .2, 1), overlay 180ms allow-discrete, display 180ms allow-discrete;
     }
-    ::picker(select):popover-open { opacity: 1; transform: translateY(0) scale(1); }
     @starting-style {
-      ::picker(select):popover-open { opacity: 0; transform: translateY(-5px) scale(.985); }
+      .spotpatch-agent select::picker(select):popover-open {
+        opacity: 0;
+        transform: translateY(-5px) scale(.985);
+      }
     }
     .spotpatch-agent select option {
       min-height: 42px;

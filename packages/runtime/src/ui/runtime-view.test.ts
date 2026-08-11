@@ -383,7 +383,8 @@ describe("runtime view", () => {
     expect(styles).toContain("color-scheme: dark");
     expect(styles).toContain(".spotpatch-agent select option");
     expect(styles).toContain("appearance: base-select");
-    expect(styles).toContain("::picker(select):popover-open");
+    expect(styles).toContain(".spotpatch-agent select::picker(select):popover-open");
+    expect(styles).toMatch(/select::picker\(select\)[^{]*\{[^}]*opacity: 1;/u);
     expect(styles).toContain("@starting-style");
     expect(view.agentRunButton.disabled).toBe(true);
     expect(view.agentRunButton.textContent).toBe("Run AI");

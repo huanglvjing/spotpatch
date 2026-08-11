@@ -300,6 +300,34 @@ describe("Agent tool executor", () => {
     expect(executor.touchedPaths()).toEqual(new Set());
   });
 
+  it("returns a bounded retryable result when a read path is unavailable", async () => {
+    const executor = createAgentToolExecutor({
+      checks: {},
+      limits: DEFAULT_AGENT_LIMITS,
+      worktreeRoot: worktree.root,
+    });
+    const signal = new AbortController().signal;
+
+    for (const [index, deniedPath] of [".env.local", "src/Missing.ts"].entries()) {
+      const result = await executor.execute(
+        call(`denied-read-${String(index)}`, "read_file", { path: deniedPath }),
+        turn(index + 1),
+        signal,
+      );
+      const serialized = JSON.stringify(result.output);
+
+      expect(result.output).toMatchObject({
+        errorCode: ERROR_CODES.TOOL_PATH_DENIED,
+        retryable: true,
+        reason: "PATH_UNAVAILABLE",
+      });
+      expect(serialized).not.toContain(deniedPath);
+      expect(serialized).not.toContain("SECRET=hidden");
+    }
+
+    expect(executor.touchedPaths()).toEqual(new Set());
+  });
+
   it("reports arguments that do not match a declared tool contract", async () => {
     const executor = createAgentToolExecutor({
       checks: {},

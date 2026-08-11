@@ -184,6 +184,16 @@ function retryableArgumentsRejection(): Readonly<Record<string, unknown>> {
   });
 }
 
+function retryableReadRejection(): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    errorCode: ERROR_CODES.TOOL_PATH_DENIED,
+    retryable: true,
+    reason: "PATH_UNAVAILABLE",
+    guidance:
+      "No file was read or changed. Do not retry the same path. Use list_files or search_text, then read only an allowed path returned by that tool. Protected, external, missing, symlinked, directory, binary, and non-UTF-8 paths are unavailable.",
+  });
+}
+
 export function createAgentToolExecutor(
   options: AgentToolExecutorOptions,
 ): AgentToolExecutor {
@@ -316,7 +326,21 @@ export function createAgentToolExecutor(
       }
       case AGENT_TOOL_NAMES.readFile: {
         const input = parseArguments(readFileSchema, call.arguments);
-        const file = await readTextFile(input.path);
+        let file: ReadTextFileResult;
+
+        try {
+          file = await readTextFile(input.path);
+        } catch (error: unknown) {
+          if (
+            error instanceof SpotPatchError &&
+            error.code === ERROR_CODES.TOOL_PATH_DENIED
+          ) {
+            return retryableReadRejection();
+          }
+
+          throw error;
+        }
+
         const lines = file.content.split(/\r?\n/u);
         const startLine = input.startLine ?? 1;
         const endLine = input.endLine ?? Math.min(lines.length, startLine + 199);

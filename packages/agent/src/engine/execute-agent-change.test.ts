@@ -639,6 +639,63 @@ describe("Agent execution", { timeout: GIT_PROCESS_INTEGRATION_TIMEOUT_MS }, () 
     }
   });
 
+  it("lets the model recover from an unavailable read path without weakening writes", async () => {
+    const repository = await createTestGitRepository({
+      "src/App.tsx": "export const App = () => <button>Before</button>;\n",
+      ".env.local": "SECRET=hidden\n",
+    });
+    const source = provider();
+    const fetch = queuedFetch([
+      toolResponse("read-denied", "read_file", { path: ".env.local" }),
+      toolResponse("read-allowed", "read_file", { path: "src/App.tsx" }),
+      toolResponse("replace-allowed", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "<button>Before</button>",
+        newText: "<button>After</button>",
+      }),
+      finalResponse("Changed only the selected button label."),
+    ]);
+    const toolStates: string[] = [];
+
+    try {
+      const prepared = await executeAgentChange({
+        annotation,
+        credential: createProviderCredential("synthetic-test-credential"),
+        execution: execution("process.exit(0)"),
+        fetch,
+        jobId: "job-read-path-retry",
+        model: codingModel(source),
+        provider: source,
+        root: repository.root,
+        signal: new AbortController().signal,
+        callbacks: {
+          onTool(event) {
+            toolStates.push(`${event.toolName}:${event.state}`);
+          },
+        },
+      });
+
+      expect(prepared.validationPassed).toBe(true);
+      expect(prepared.result.files).toMatchObject([
+        { relativePath: "src/App.tsx", kind: "modified" },
+      ]);
+      expect(toolStates).toEqual([
+        "read_file:started",
+        "read_file:failed",
+        "read_file:started",
+        "read_file:succeeded",
+        "replace_text:started",
+        "replace_text:succeeded",
+      ]);
+      expect(JSON.stringify(fetch.mock.calls)).toContain(ERROR_CODES.TOOL_PATH_DENIED);
+      expect(JSON.stringify(fetch.mock.calls)).not.toContain("SECRET=hidden");
+      expect(await repository.read(".env.local")).toBe("SECRET=hidden\n");
+      expect(await repository.read("src/App.tsx")).toContain("Before");
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
   it("fails closed on an escaped patch path", async () => {
     const repository = await createTestGitRepository();
     const source = provider();

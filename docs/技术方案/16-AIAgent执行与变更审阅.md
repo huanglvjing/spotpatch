@@ -2,9 +2,9 @@
 doc-id: "16-ai-agent-execution"
 title: "AI Agent 执行与变更审阅"
 status: "active"
-version: "1.7.0"
+version: "1.7.1"
 last-updated: "2026-08-11"
-source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅；v1.2 多目标原子执行；v1.3 逐目标说明执行语义；v1.5 显式同意的本地修改隔离、健康检查与 Agent 增量撤销；v1.6 跨轮工具 ID 兼容与轮次作用域幂等；v1.7 内联能力证明、项目规范上下文与执行去重"
+source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅；v1.2 多目标原子执行；v1.3 逐目标说明执行语义；v1.5 显式同意的本地修改隔离、健康检查与 Agent 增量撤销；v1.6 跨轮工具 ID 兼容与轮次作用域幂等；v1.7 内联能力证明、项目规范上下文与执行去重；v1.7.1 只读路径拒绝恢复"
 参考文献/依赖:
   - "01-product-boundary"
   - "02-architecture-stack"
@@ -92,13 +92,13 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 | `apply_patch` | 单个结构化 patch | 在 worktree 中创建、更新或删除允许文件 | 有 |
 | `run_check` | 服务端登记的 `checkId` | 执行一个预配置验证命令 | 有限进程副作用 |
 
-所有工具使用严格 JSON Schema；对象必须设置 `additionalProperties: false`。字段缺失、未知字段或类型错误在执行任何副作用前返回 `TOOL_ARGUMENTS_INVALID`、`retryable: true` 和固定脱敏指引，模型只允许用新调用 ID 修正一次；重复失败仍受轮次/调用上限约束。无法解析成 JSON 对象、超限输入、路径或权限错误是终止性失败，不能通过参数重试降级。模型提供商是否能可靠返回严格工具调用由显式能力探测或真实任务中的首次工具调用与结果续接确认 (见 doc-id:17-model-provider-credentials)。
+所有工具使用严格 JSON Schema；对象必须设置 `additionalProperties: false`。字段缺失、未知字段或类型错误在执行任何副作用前返回 `TOOL_ARGUMENTS_INVALID`、`retryable: true` 和固定脱敏指引，模型只允许用新调用 ID 修正一次；重复失败仍受轮次/调用上限约束。`read_file` 的路径拒绝在确认零读取、零修改后返回统一脱敏的 `TOOL_PATH_DENIED` 可恢复结果，引导模型通过枚举或搜索选择其他允许路径；不区分缺失、受保护、项目外、目录、符号链接或非文本原因。无法解析成 JSON 对象、超限输入、写路径/权限错误仍是终止性失败，不能通过参数重试降级。模型提供商是否能可靠返回严格工具调用由显式能力探测或真实任务中的首次工具调用与结果续接确认 (见 doc-id:17-model-provider-credentials)。
 
 ### 只读工具
 
 - `list_files` 只返回相对 worktree root 的 POSIX 风格路径，并受结果数量和字符预算限制。
 - `search_text` 按文件和行号返回有界结果；不得把搜索结果中的绝对路径发送给模型。
-- `read_file` 只读取通过授权的普通文本文件；默认返回有界行范围，模型必须按需继续读取。
+- `read_file` 只读取通过授权的普通文本文件；默认返回有界行范围，模型必须按需继续读取。路径不可用时不得终止整个 Job，也不得回显或细分拒绝原因；该次活动记为失败，模型必须停止重试相同路径并改用 `list_files` / `search_text` 返回的路径，后续执行仍受既有轮次和调用上限约束。
 - 只读工具可以在同一模型轮次内并发执行，但总调用数仍受公共限制约束 (见 doc-id:03-public-api-models)。
 - 文件目录与文本读取结果只在当前隔离 worktree 的同一变更版本内缓存；创建/删除/修改文件后必须使相关缓存失效，不能为了性能返回过期路径或内容。
 

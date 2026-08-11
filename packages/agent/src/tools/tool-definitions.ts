@@ -71,7 +71,7 @@ export const AGENT_TOOL_DEFINITIONS = Object.freeze([
   Object.freeze({
     name: AGENT_TOOL_NAMES.readFile,
     description:
-      "Read a bounded inclusive line range from one allowed UTF-8 text file.",
+      "Read a bounded inclusive line range from one allowed UTF-8 text file. Choose paths returned by list_files or search_text. A retryable TOOL_PATH_DENIED result means no file was read or changed: do not retry that path; discover an allowed path instead.",
     parameters: Object.freeze({
       type: "object",
       properties: Object.freeze({

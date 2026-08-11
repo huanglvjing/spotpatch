@@ -78,7 +78,8 @@ function isRetryableToolFailure(result: ProviderToolResult): boolean {
   return (
     candidate.retryable === true &&
     (candidate.errorCode === ERROR_CODES.PATCH_REJECTED ||
-      candidate.errorCode === ERROR_CODES.TOOL_ARGUMENTS_INVALID)
+      candidate.errorCode === ERROR_CODES.TOOL_ARGUMENTS_INVALID ||
+      candidate.errorCode === ERROR_CODES.TOOL_PATH_DENIED)
   );
 }
 

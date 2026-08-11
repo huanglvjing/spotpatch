@@ -31,6 +31,7 @@ Follow these rules exactly:
 - Every patch must begin with 'diff --git a/<path> b/<path>', include matching '--- a/<path>' and '+++ b/<path>' headers and valid '@@' hunks. Send only the raw diff: no Markdown fences, prose, shell commands, or '*** Begin Patch' markers.
 - If a write tool returns a retryable PATCH_REJECTED result, no file changed. Follow its guidance, re-read the current file, and retry once with a new tool call ID.
 - If any tool returns a retryable TOOL_ARGUMENTS_INVALID result, no file changed. Retry once with a new tool call ID using only the declared fields and value types.
+- If read_file returns a retryable TOOL_PATH_DENIED result, no file was read or changed. Do not retry that path. Use list_files or search_text and choose an allowed path returned by the tool; never probe protected, external, generated, credential, environment, or lock files.
 - Never modify credentials, environment files, lockfiles, generated output, Git metadata, or dependencies.
 - Run each relevant configured check after the final write so failures can be corrected. Do not rerun an unchanged check, and do not claim a check passed unless run_check returned a passed status.
 - Finish with a concise factual summary after all needed tool calls. Do not include secrets or absolute paths.`;

@@ -11,6 +11,7 @@ Security boundaries:
 - no model-controlled arbitrary shell;
 - no browser-side API keys;
 - bounded paths, reads, writes, Diff sizes, turns, and tool calls;
+- rejected read paths stay unread and unmodified while the bounded Agent loop can recover through allowed discovery results;
 - no implicit stash, reset, commit, push, publish, or deployment;
 - review is the default apply mode.
 
@@ -22,7 +23,7 @@ Requires Node.js `>=20.19.0`.
 
 业务应用应通过 [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) 等框架适配器启用该能力。本包公开发布是为了形成可安装、可版本化的依赖图，不是独立 UI 接入入口。
 
-安全边界包括：不向模型开放任意 Shell、不把 API Key 放入浏览器、限制路径/读写/Diff/轮次/工具调用，并且不隐式执行 stash、reset、commit、push、发包或部署。默认应用模式必须经过审阅。
+安全边界包括：不向模型开放任意 Shell、不把 API Key 放入浏览器、限制路径/读写/Diff/轮次/工具调用；只读路径被拒绝时保持零读取、零修改，并允许 Agent 在既有边界内改用合法发现结果继续执行；不隐式执行 stash、reset、commit、push、发包或部署。默认应用模式必须经过审阅。
 
 要求 Node.js `>=20.19.0`。
 

@@ -1185,7 +1185,10 @@ export function createController(
       "change",
       agentWorkflow.providerOrModelChanged,
     );
-    view.agentModeSelect.addEventListener("change", agentWorkflow.modeChanged);
+    view.agentModeSelect.addEventListener(
+      "change",
+      agentWorkflow.providerOrModelChanged,
+    );
     view.agentConsentCheckbox.addEventListener("change", agentWorkflow.consentChanged);
     view.agentTestButton.addEventListener("click", agentWorkflow.testCapability);
     view.agentRunButton.addEventListener("click", agentWorkflow.run);
@@ -1258,7 +1261,10 @@ export function createController(
       "change",
       agentWorkflow.providerOrModelChanged,
     );
-    view.agentModeSelect.removeEventListener("change", agentWorkflow.modeChanged);
+    view.agentModeSelect.removeEventListener(
+      "change",
+      agentWorkflow.providerOrModelChanged,
+    );
     view.agentConsentCheckbox.removeEventListener(
       "change",
       agentWorkflow.consentChanged,

@@ -240,29 +240,6 @@ function wrappedFactoryCall(
     : undefined;
 }
 
-function hasTrustedFastMode(call: CallExpression): boolean {
-  const argument = call.arguments[0];
-
-  if (
-    call.arguments.length !== 1 ||
-    argument === undefined ||
-    argument.type === "SpreadElement" ||
-    argument.type !== "ObjectExpression"
-  ) {
-    return false;
-  }
-
-  return argument.properties.some(
-    (property) =>
-      property.type === "Property" &&
-      !property.computed &&
-      property.key.type === "Identifier" &&
-      property.key.name === "trustedFastMode" &&
-      property.value.type === "Literal" &&
-      property.value.value === true,
-  );
-}
-
 function transformNextConfig(
   absolutePath: string,
   source: string,
@@ -297,11 +274,7 @@ function transformNextConfig(
       : wrappedFactoryCall(defaultExport.declaration, existingWrapperName);
 
   if (existingFactory !== undefined) {
-    if (
-      trustedFastModeAvailable &&
-      existingFactory.arguments.length === 0 &&
-      !hasTrustedFastMode(existingFactory)
-    ) {
+    if (trustedFastModeAvailable && existingFactory.arguments.length === 0) {
       magicString.overwrite(
         existingFactory.start,
         existingFactory.end,

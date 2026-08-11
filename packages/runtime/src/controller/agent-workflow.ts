@@ -23,7 +23,6 @@ export interface AgentWorkflow {
   readonly cancel: () => void;
   readonly consentChanged: () => void;
   readonly disposeSelection: () => void;
-  readonly modeChanged: () => void;
   readonly providerOrModelChanged: () => void;
   readonly reset: () => void;
   readonly revert: () => void;
@@ -389,13 +388,6 @@ export function createAgentWorkflow(
       if (cancellableJobId !== undefined) {
         void options.api.cancelAgentJob(cancellableJobId).catch(() => undefined);
       }
-    },
-
-    modeChanged(): void {
-      revision += 1;
-      restoreProviderState();
-      const workflowRevision = revision;
-      void refreshWorkspaceHealth(workflowRevision).catch(() => undefined);
     },
 
     providerOrModelChanged(): void {

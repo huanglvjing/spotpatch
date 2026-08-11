@@ -924,7 +924,7 @@ describe("runtime controller", () => {
       "textarea[data-target-instruction-id]",
     );
     const modeSelect = shadowRoot?.querySelector<HTMLSelectElement>(
-      'select[aria-label="AI execution mode"]',
+      ".spotpatch-agent-mode select",
     );
 
     if (modeSelect === null || modeSelect === undefined) {

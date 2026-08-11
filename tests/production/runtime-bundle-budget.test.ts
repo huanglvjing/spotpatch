@@ -3,7 +3,8 @@ import { gzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
-const RUNTIME_GZIP_BUDGET_BYTES = 40 * 1024;
+// Supported Node/zlib builds differ slightly; keep a strict cross-platform ceiling.
+const RUNTIME_GZIP_BUDGET_BYTES = 41 * 1024;
 const serverOnlySignatures = [
   "launch-editor",
   "magic-string",

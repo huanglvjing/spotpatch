@@ -289,11 +289,12 @@ function addOption(
   select: HTMLSelectElement,
   value: string,
   label: string,
-): void {
+): HTMLOptionElement {
   const option = document.createElement("option");
   option.value = value;
   option.textContent = label;
   select.append(option);
+  return option;
 }
 
 export function createAgentPanel(
@@ -429,27 +430,31 @@ export function createAgentPanel(
     providerSelect.value = ai.defaultProvider;
   }
 
-  addOption(document, modeSelect, "review", messages.agent.review);
+  let reviewOption: HTMLOptionElement | undefined;
+  let trustedOption: HTMLOptionElement | undefined;
+  let autoOption: HTMLOptionElement | undefined;
 
-  if (trustedFastModeAvailable) {
-    addOption(document, modeSelect, "trusted-auto", messages.agent.trustedFast);
-  } else if (configuredApplyMode === "auto") {
-    modeSelect.replaceChildren();
-    addOption(document, modeSelect, "auto", messages.agent.autoGated);
+  if (configuredApplyMode === "auto") {
+    autoOption = addOption(document, modeSelect, "auto", messages.agent.autoGated);
+  } else {
+    reviewOption = addOption(document, modeSelect, "review", messages.agent.review);
+
+    if (trustedFastModeAvailable) {
+      trustedOption = addOption(
+        document,
+        modeSelect,
+        "trusted-auto",
+        messages.agent.trustedFast,
+      );
+    }
   }
 
-  modeSelect.value =
-    trustedFastModeAvailable || configuredApplyMode === "review"
-      ? "review"
-      : configuredApplyMode;
+  const defaultApplyMode = trustedFastModeAvailable ? "review" : configuredApplyMode;
+  modeSelect.value = defaultApplyMode;
   modeLabel.hidden = !trustedFastModeAvailable;
 
   const selectedApplyMode = (): AgentApplyMode =>
-    modeSelect.value === "trusted-auto"
-      ? "trusted-auto"
-      : configuredApplyMode === "auto"
-        ? "auto"
-        : "review";
+    modeSelect.value === "trusted-auto" ? "trusted-auto" : defaultApplyMode;
   const trustedFastMode = (): boolean => selectedApplyMode() === "trusted-auto";
 
   const selectedProvider = (): RuntimeAiProviderProfile | undefined =>
@@ -644,16 +649,6 @@ export function createAgentPanel(
     messages = localizer.messages();
     title.textContent = messages.agent.title;
     modeText.textContent = messages.agent.mode;
-    modeSelect.setAttribute("aria-label", messages.agent.modeAriaLabel);
-    const reviewOption = [...modeSelect.options].find(
-      (option) => option.value === "review",
-    );
-    const trustedOption = [...modeSelect.options].find(
-      (option) => option.value === "trusted-auto",
-    );
-    const autoOption = [...modeSelect.options].find(
-      (option) => option.value === "auto",
-    );
 
     if (reviewOption !== undefined) reviewOption.textContent = messages.agent.review;
     if (trustedOption !== undefined)

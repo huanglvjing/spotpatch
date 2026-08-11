@@ -1,5 +1,14 @@
 # @spotpatch/shared
 
+## 1.7.0
+
+### Minor Changes
+
+- 14c3a48: Add the explicitly configured `trusted-auto` Agent mode. One session-scoped
+  consent covers provider transmission, bounded local changes, and direct apply
+  after required checks, while project boundaries, protected paths, conflict
+  checks, isolated execution, and Revert remain enforced.
+
 ## 1.6.0
 
 ### Minor Changes

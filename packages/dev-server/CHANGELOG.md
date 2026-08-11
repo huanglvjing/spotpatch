@@ -1,5 +1,20 @@
 # @spotpatch/dev-server
 
+## 0.4.0
+
+### Minor Changes
+
+- df52b66: Make the explicitly consented trusted mode a direct, low-latency path. It now
+  starts from SpotPatch's exact source location, omits the `run_check` tool,
+  skips host project checks, and applies the isolated Diff immediately while
+  retaining project boundaries, atomic patching, conflict detection, and Revert.
+  Review and gated auto modes continue to run configured checks.
+
+### Patch Changes
+
+- Updated dependencies [df52b66]
+  - @spotpatch/agent@1.3.0
+
 ## 0.3.0
 
 ### Minor Changes

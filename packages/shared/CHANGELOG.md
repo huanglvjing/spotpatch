@@ -1,5 +1,20 @@
 # @spotpatch/shared
 
+## 1.6.0
+
+### Minor Changes
+
+- 0218aa7: Preserve completed element selections and their individual page context across
+  same-project navigation, reloads, and workbench close/reopen cycles. Detached DOM
+  nodes are released while sanitized target context remains available, and a
+  non-secret development session identity prevents stale drafts from crossing
+  server restarts.
+
+### Patch Changes
+
+- 2bbdafc: Replace oversized npm README logos with a compact icon-and-package-name heading
+  that remains consistently sized when npm sanitizes image attributes.
+
 ## 1.5.0
 
 ### Minor Changes

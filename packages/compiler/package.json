@@ -1,6 +1,6 @@
 {
   "name": "@spotpatch/compiler",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Framework-neutral JSX source marker compiler for SpotPatch adapters.",
   "license": "MIT",
   "repository": {

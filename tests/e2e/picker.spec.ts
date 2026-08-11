@@ -286,8 +286,28 @@ test("restores a selection after closing and continues it on another page", asyn
   await expect(firstInstruction).toHaveValue(
     "Update the component selected on page A.",
   );
+  await expect(dialog).toHaveAttribute("data-placement", "viewport");
+  const restoredDialogBox = await dialog.boundingBox();
+  const viewport = page.viewportSize();
+  expect(restoredDialogBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+
+  if (restoredDialogBox === null || viewport === null) {
+    throw new Error("Expected the restored workbench and viewport geometry.");
+  }
+
+  expect(restoredDialogBox.width).toBeLessThanOrEqual(460);
+  expect(restoredDialogBox.height).toBeLessThanOrEqual(620);
+  expect(
+    Math.abs(restoredDialogBox.x + restoredDialogBox.width / 2 - viewport.width / 2),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(restoredDialogBox.y + restoredDialogBox.height / 2 - viewport.height / 2),
+  ).toBeLessThanOrEqual(1);
+
   await dialog.getByRole("button", { name: "Add element" }).click();
   await page.getByTestId("tailwind-button").click();
+  await expect(dialog).not.toHaveAttribute("data-placement", "viewport");
   const secondInstruction = dialog.locator(
     "textarea[data-target-instruction-id='target-2']",
   );

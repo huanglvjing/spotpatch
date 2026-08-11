@@ -888,6 +888,22 @@ describe("runtime controller", () => {
       ).not.toBeNull();
     });
 
+    target.style.display = "none";
+    window.dispatchEvent(new Event("resize"));
+
+    await vi.waitFor(() => {
+      expect(
+        document
+          .querySelector("spotpatch-root")
+          ?.shadowRoot?.querySelector(".spotpatch-selection-highlight"),
+      ).toBeNull();
+      expect(
+        document
+          .querySelector("spotpatch-root")
+          ?.shadowRoot?.querySelectorAll(".spotpatch-target-item"),
+      ).toHaveLength(1);
+    });
+
     target.remove();
 
     await vi.waitFor(() => {

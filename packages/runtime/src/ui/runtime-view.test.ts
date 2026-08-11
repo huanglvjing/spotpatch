@@ -142,6 +142,12 @@ describe("runtime view", () => {
         '.spotpatch-selection-highlight[data-active="true"]',
       )?.textContent,
     ).toContain("2 · SecondAction");
+    const progress = view.host.shadowRoot?.querySelector<HTMLElement>(
+      ".spotpatch-target-progress-fill",
+    );
+    expect(progress?.style.width).toBe("50%");
+    view.updateTargetInstruction("target-2", "Align the second target.");
+    expect(progress?.style.width).toBe("100%");
 
     view.showSelection("Summary", true, false);
     view.setAgentEditingEnabled(false);
@@ -150,6 +156,7 @@ describe("runtime view", () => {
         ?.disabled,
     ).toBe(true);
     expect(view.addTargetButton.disabled).toBe(true);
+    expect(view.addTargetButton.classList.contains("spotpatch-icon-action")).toBe(true);
     expect(view.openEditorButton.disabled).toBe(false);
     expect(openButtons[0]?.disabled).toBe(false);
     expect(openButtons[1]?.disabled).toBe(true);
@@ -313,6 +320,35 @@ describe("runtime view", () => {
 
     expect(dialog.dataset.placement).toBe("viewport");
     expect(dialog.style.top).toBe("85px");
+  });
+
+  it("clears stale target placement when the active element is on another page", () => {
+    const view = createRuntimeView(document, "Mod+Shift+S");
+    const dialog =
+      view.host.shadowRoot?.querySelector<HTMLElement>(".spotpatch-dialog");
+
+    if (dialog === null || dialog === undefined) {
+      throw new Error("Expected the contextual workbench.");
+    }
+
+    vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(measuredRect(460, 500));
+    view.renderStatus("selected");
+    view.showSelectionHighlights([
+      {
+        id: "target-1",
+        label: "Page A target",
+        rect: { x: 20, y: 20, width: 120, height: 40 },
+        active: true,
+      },
+    ]);
+    view.showSelection("Source: src/page-a.tsx:1:1", true, false);
+    expect(dialog.dataset.placement).not.toBe("viewport");
+
+    view.hideSelectionHighlights();
+
+    expect(dialog.dataset.placement).toBe("viewport");
+    expect(dialog.style.left).toBe("282px");
+    expect(dialog.style.top).toBe("134px");
   });
 
   it("gates Agent execution on context, capability, and explicit provider consent", () => {

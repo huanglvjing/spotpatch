@@ -14,7 +14,7 @@ export interface DialogPlacement {
 export interface DialogPlacementInput {
   readonly dialogHeight: number;
   readonly dialogWidth: number;
-  readonly target: ElementRect;
+  readonly target?: ElementRect;
   readonly viewportHeight: number;
   readonly viewportWidth: number;
 }
@@ -37,6 +37,27 @@ export function calculateDialogPlacement({
 }: DialogPlacementInput): DialogPlacement {
   const maxLeft = viewportWidth - dialogWidth - VIEWPORT_MARGIN;
   const maxTop = viewportHeight - dialogHeight - VIEWPORT_MARGIN;
+  const viewportLeft = clamp(
+    (viewportWidth - dialogWidth) / 2,
+    VIEWPORT_MARGIN,
+    maxLeft,
+  );
+  const viewportTop = clamp(
+    (viewportHeight - dialogHeight) / 2,
+    VIEWPORT_MARGIN,
+    maxTop,
+  );
+
+  if (target === undefined) {
+    return Object.freeze({
+      anchorX: clamp(dialogWidth / 2, ANCHOR_INSET, dialogWidth - ANCHOR_INSET),
+      anchorY: clamp(dialogHeight / 2, ANCHOR_INSET, dialogHeight - ANCHOR_INSET),
+      left: viewportLeft,
+      mode: "viewport",
+      top: viewportTop,
+    });
+  }
+
   const targetCenterX = target.x + target.width / 2;
   const targetCenterY = target.y + target.height / 2;
   const centeredLeft = clamp(targetCenterX - dialogWidth / 2, VIEWPORT_MARGIN, maxLeft);

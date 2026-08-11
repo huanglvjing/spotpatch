@@ -15,7 +15,7 @@ import { createRuntimeApi, type RuntimeApi } from "../api/runtime-api.js";
 import { collectStyleContext } from "../collectors/css-collector.js";
 import { collectElementContext } from "../collectors/dom-collector.js";
 import { isTextEntryTarget, matchesShortcut } from "../keyboard/shortcut.js";
-import { getElementRect } from "../picker/geometry.js";
+import { getElementRect, getVisibleElementRect } from "../picker/geometry.js";
 import { isSpotPatchUIEventTarget, pickElementAt } from "../picker/hit-test.js";
 import {
   createPromptComposer,
@@ -344,11 +344,17 @@ export function createController(
         return [];
       }
 
+      const rect = getVisibleElementRect(target.element, browser.window);
+
+      if (rect === undefined) {
+        return [];
+      }
+
       return [
         {
           id: target.id,
           label: elementLabel(target.element),
-          rect: getElementRect(target.element, browser.window),
+          rect,
           active: target.id === activeTargetId,
         },
       ];

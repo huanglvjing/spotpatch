@@ -132,10 +132,11 @@ export interface RuntimeView {
   ) => void;
 }
 
-const DIALOG_FALLBACK_WIDTH = 560;
+const DIALOG_MAX_WIDTH = 460;
+const DIALOG_MAX_HEIGHT = 620;
 const DIALOG_FALLBACK_HEIGHT = Object.freeze({
-  previewing: 640,
-  selected: 720,
+  previewing: 560,
+  selected: DIALOG_MAX_HEIGHT,
 }) satisfies Readonly<Record<"previewing" | "selected", number>>;
 
 function createStyles(document: Document): HTMLStyleElement {
@@ -143,23 +144,25 @@ function createStyles(document: Document): HTMLStyleElement {
   style.textContent = `
     :host {
       all: initial;
-      --spotpatch-bg: #11141a;
-      --spotpatch-bg-raised: #191d25;
-      --spotpatch-bg-input: #0c0f14;
-      --spotpatch-border: #303641;
-      --spotpatch-border-subtle: #262c35;
-      --spotpatch-text: #f4f6fb;
-      --spotpatch-text-secondary: #a4adbd;
-      --spotpatch-text-muted: #7f899a;
-      --spotpatch-accent: #7060ee;
-      --spotpatch-accent-strong: #604ee8;
-      --spotpatch-accent-cyan: #27b8cf;
+      --spotpatch-bg: #0e0e12;
+      --spotpatch-bg-raised: #17171c;
+      --spotpatch-bg-active: #1c1c22;
+      --spotpatch-bg-input: #0b0b0f;
+      --spotpatch-border: #2a2a32;
+      --spotpatch-border-subtle: #232329;
+      --spotpatch-text: #f2f2f5;
+      --spotpatch-text-secondary: #96969f;
+      --spotpatch-text-muted: #686872;
+      --spotpatch-accent: #8b7bff;
+      --spotpatch-accent-strong: #6a5ce8;
+      --spotpatch-accent-cyan: #52a8ff;
       --spotpatch-danger: #fb7185;
       --spotpatch-success: #34d399;
       --spotpatch-warning: #f59e0b;
-      --spotpatch-radius-panel: 24px;
-      --spotpatch-radius-card: 15px;
-      --spotpatch-shadow-panel: 0 28px 72px rgb(0 0 0 / 38%);
+      --spotpatch-text-on-accent: #0b0b12;
+      --spotpatch-radius-panel: 16px;
+      --spotpatch-radius-card: 10px;
+      --spotpatch-shadow-panel: 0 30px 60px -20px rgb(0 0 0 / 70%);
       color-scheme: dark;
       color: var(--spotpatch-text);
       font-family: Inter, "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -279,7 +282,7 @@ function createStyles(document: Document): HTMLStyleElement {
       left: 16px;
       z-index: ${String(UI_Z_INDEX.controls)};
       box-sizing: border-box;
-      width: min(560px, calc(100vw - 32px));
+      width: min(${String(DIALOG_MAX_WIDTH)}px, calc(100vw - 32px));
       color: #edf0f7;
       outline: none;
       filter: drop-shadow(var(--spotpatch-shadow-panel));
@@ -323,78 +326,92 @@ function createStyles(document: Document): HTMLStyleElement {
       position: relative;
       z-index: 1;
       display: flex;
-      max-height: min(720px, calc(100vh - 32px));
+      box-sizing: border-box;
+      max-height: min(${String(DIALOG_MAX_HEIGHT)}px, calc(100vh - 32px));
       overflow: hidden;
       flex-direction: column;
       border: 1px solid var(--spotpatch-border);
       border-radius: var(--spotpatch-radius-panel);
       background: var(--spotpatch-bg);
-      box-shadow: inset 0 1px rgb(255 255 255 / 7%), inset 0 0 0 1px rgb(2 6 23 / 40%);
+      box-shadow: inset 0 1px rgb(255 255 255 / 5%), 0 0 60px -32px rgb(139 123 255 / 20%);
+    }
+    .spotpatch-shell::before {
+      position: absolute;
+      z-index: 2;
+      top: 0;
+      right: 20%;
+      left: 20%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--spotpatch-accent), var(--spotpatch-accent-cyan), transparent);
+      content: "";
+      opacity: .65;
+      pointer-events: none;
     }
     .spotpatch-header {
       position: relative;
-      padding: 20px 22px 18px;
-      border-bottom: 1px solid rgb(255 255 255 / 8%);
+      padding: 0 18px 14px;
     }
     .spotpatch-brand-row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 18px;
+      gap: 12px;
+      margin: 0 -18px 18px;
+      padding: 14px 18px 13px;
+      border-bottom: 1px solid var(--spotpatch-border-subtle);
     }
     .spotpatch-brand {
       display: inline-flex;
       align-items: center;
-      gap: 11px;
+      gap: 10px;
       min-width: 0;
       color: #f8fafc;
     }
     .spotpatch-brand-mark {
-      width: 34px;
-      height: 34px;
+      width: 30px;
+      height: 30px;
       flex: none;
       filter: drop-shadow(0 6px 12px rgb(76 29 149 / 22%));
     }
     .spotpatch-brand-copy { display: grid; min-width: 0; gap: 1px; }
     .spotpatch-brand-name {
       color: #fff;
-      font-size: 15px;
-      font-weight: 720;
+      font-size: 13.5px;
+      font-weight: 680;
       letter-spacing: -.01em;
     }
     .spotpatch-brand-context {
       color: #8e98aa;
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 560;
       letter-spacing: .02em;
     }
     .spotpatch-header-controls {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       flex: none;
     }
     .spotpatch-repository,
     .spotpatch-locale,
     .spotpatch-close {
-      height: 30px;
+      height: 27px;
       border: 1px solid rgb(255 255 255 / 11%);
-      border-radius: 9px;
-      background: rgb(255 255 255 / 4%);
+      border-radius: 7px;
+      background: transparent;
     }
     .spotpatch-repository {
       display: inline-flex;
       align-items: center;
-      padding: 0 10px;
-      color: #bcecf2;
+      padding: 0 9px;
+      color: var(--spotpatch-text-secondary);
       font-size: 11px;
       font-weight: 680;
       text-decoration: none;
     }
     .spotpatch-locale {
-      min-width: 38px;
-      padding: 0 9px;
+      min-width: 34px;
+      padding: 0 8px;
       color: #c5cad5;
       cursor: pointer;
       font-size: 12px;
@@ -402,12 +419,12 @@ function createStyles(document: Document): HTMLStyleElement {
     }
     .spotpatch-close {
       display: inline-grid;
-      width: 30px;
+      width: 27px;
       padding: 0;
       place-items: center;
       color: #9da5b4;
       cursor: pointer;
-      font-size: 17px;
+      font-size: 15px;
       line-height: 1;
       transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
     }
@@ -417,30 +434,30 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-title {
       margin: 0;
       color: #fff;
-      font-size: 24px;
-      font-weight: 730;
-      letter-spacing: -.025em;
+      font-size: 18px;
+      font-weight: 680;
+      letter-spacing: -.015em;
     }
     .spotpatch-subtitle {
-      max-width: 470px;
-      margin: 6px 0 0;
-      color: #9ca5b5;
-      font-size: 15px;
-      line-height: 1.55;
+      max-width: 390px;
+      margin: 4px 0 0;
+      color: var(--spotpatch-text-secondary);
+      font-size: 12.5px;
+      line-height: 1.5;
     }
     .spotpatch-target-row {
       display: flex;
       align-items: center;
       gap: 8px;
       min-width: 0;
-      margin-top: 16px;
+      margin-top: 14px;
     }
     .spotpatch-target-label {
       min-width: 0;
       overflow: hidden;
       border: 1px solid rgb(129 112 247 / 24%);
       border-radius: 999px;
-      padding: 6px 10px;
+      padding: 4px 10px;
       color: #cdd2ff;
       background: rgb(109 93 246 / 10%);
       font: 600 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -453,7 +470,7 @@ function createStyles(document: Document): HTMLStyleElement {
       gap: 6px;
       flex: none;
       color: #a5adba;
-      font-size: 12px;
+      font-size: 11px;
       white-space: nowrap;
     }
     .spotpatch-context-state::before {
@@ -474,7 +491,7 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-body {
       min-height: 0;
       overflow: auto;
-      padding: 20px 22px 22px;
+      padding: 0 18px 14px;
       scrollbar-color: rgb(100 116 139 / 50%) transparent;
       scrollbar-width: thin;
     }
@@ -485,36 +502,54 @@ function createStyles(document: Document): HTMLStyleElement {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 7px;
-      color: #eef0f5;
-      font-size: 14px;
-      font-weight: 680;
+      gap: 10px;
+      margin-bottom: 8px;
+      color: var(--spotpatch-text-secondary);
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: .04em;
+      text-transform: uppercase;
     }
     .spotpatch-targets-meta {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: 8px;
+      min-width: 0;
+      letter-spacing: 0;
+      text-transform: none;
     }
-    .spotpatch-target-complete { color: var(--spotpatch-text-secondary); font-size: 12px; font-weight: 560; }
+    .spotpatch-target-complete { color: var(--spotpatch-text-muted); font-size: 11px; font-weight: 560; }
     .spotpatch-target-budget {
       color: var(--spotpatch-text-muted);
-      font: 550 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+      font: 550 10.5px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
     }
+    .spotpatch-target-budget[data-state="ready"] { display: none; }
     .spotpatch-target-budget[data-state="over"] { color: #fda4af; }
     .spotpatch-target-count {
+      margin-left: auto;
       border-radius: 999px;
       padding: 3px 8px;
-      color: #b8bffd;
-      background: rgb(109 93 246 / 11%);
-      font: 650 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: var(--spotpatch-text-muted);
+      font: 600 10.5px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .spotpatch-target-progress {
+      height: 3px;
+      margin-bottom: 13px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: var(--spotpatch-border-subtle);
+    }
+    .spotpatch-target-progress-fill {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--spotpatch-accent), var(--spotpatch-accent-cyan));
+      transition: width 180ms ease;
     }
     .spotpatch-target-list {
       display: grid;
-      gap: 12px;
-      max-height: min(390px, 48vh);
+      gap: 8px;
+      max-height: min(340px, 48vh);
       overflow: auto;
       padding-right: 2px;
     }
@@ -522,30 +557,30 @@ function createStyles(document: Document): HTMLStyleElement {
       overflow: hidden;
       border: 1px solid var(--spotpatch-border-subtle);
       border-radius: var(--spotpatch-radius-card);
-      background: rgb(255 255 255 / 2.7%);
+      background: var(--spotpatch-bg-raised);
       transition: border-color 150ms ease, background 150ms ease;
     }
     .spotpatch-target-item[data-active="true"] {
-      border-color: rgb(125 106 248 / 42%);
-      background: rgb(109 93 246 / 6%);
-      box-shadow: inset 3px 0 var(--spotpatch-accent-strong);
+      border-color: rgb(139 123 255 / 34%);
+      background: var(--spotpatch-bg-active);
+      box-shadow: 0 0 0 3px rgb(139 123 255 / 10%);
     }
     .spotpatch-target-summary {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 34px 34px;
+      grid-template-columns: minmax(0, 1fr) 28px 28px;
       align-items: stretch;
-      gap: 4px;
-      padding: 5px;
+      gap: 2px;
+      padding: 4px;
     }
     .spotpatch-target-select {
       display: grid;
-      grid-template-columns: 34px minmax(0, 1fr) auto;
+      grid-template-columns: 24px minmax(0, 1fr) auto;
       align-items: center;
-      gap: 11px;
+      gap: 9px;
       min-width: 0;
       border: 0;
-      border-radius: 11px;
-      padding: 10px 11px;
+      border-radius: 8px;
+      padding: 8px;
       color: inherit;
       background: transparent;
       cursor: pointer;
@@ -554,14 +589,14 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-target-select:hover { background: rgb(255 255 255 / 3.5%); }
     .spotpatch-target-index {
       display: inline-grid;
-      width: 30px;
-      height: 30px;
+      width: 22px;
+      height: 22px;
       place-items: center;
       border: 1px solid rgb(68 202 224 / 25%);
-      border-radius: 9px;
-      color: #9ce7f0;
-      background: rgb(8 145 178 / 10%);
-      font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      border-radius: 6px;
+      color: var(--spotpatch-text-secondary);
+      background: var(--spotpatch-bg);
+      font: 650 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
     }
     .spotpatch-target-copy { min-width: 0; }
     .spotpatch-target-name,
@@ -571,14 +606,14 @@ function createStyles(document: Document): HTMLStyleElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .spotpatch-target-name { color: #f2f4f8; font-size: 16px; font-weight: 680; }
-    .spotpatch-target-source { margin-top: 5px; color: var(--spotpatch-text-muted); font: 500 13px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .spotpatch-target-name { color: #f2f2f5; font-size: 13px; font-weight: 650; }
+    .spotpatch-target-source { margin-top: 1px; color: var(--spotpatch-text-muted); font: 500 10.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
     .spotpatch-target-state {
       border-radius: 999px;
-      padding: 4px 8px;
+      padding: 3px 8px;
       color: #a7f3d0;
       background: rgb(16 185 129 / 9%);
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 650;
       white-space: nowrap;
     }
@@ -586,13 +621,13 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-target-open,
     .spotpatch-target-remove {
       display: inline-grid;
-      width: 34px;
+      width: 28px;
       height: 100%;
-      min-height: 40px;
+      min-height: 34px;
       padding: 0;
       place-items: center;
       border: 1px solid transparent;
-      border-radius: 10px;
+      border-radius: 7px;
       color: #7f899a;
       background: transparent;
       cursor: pointer;
@@ -601,31 +636,30 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-target-open:hover:not(:disabled) { border-color: rgb(68 202 224 / 30%); color: #c8f7ff; background: rgb(8 145 178 / 11%); }
     .spotpatch-target-remove:hover:not(:disabled) { border-color: rgb(251 113 133 / 24%); color: #fda4af; background: rgb(127 29 29 / 12%); }
     .spotpatch-target-editor {
-      border-top: 1px solid rgb(255 255 255 / 7%);
-      padding: 18px;
+      padding: 0 12px 12px;
     }
     .spotpatch-target-editor-head {
       display: flex;
       align-items: baseline;
       justify-content: space-between;
       gap: 12px;
-      margin-bottom: 9px;
+      margin-bottom: 6px;
     }
-    .spotpatch-target-editor-label { color: #dfe3ea; font-size: 15px; font-weight: 650; }
-    .spotpatch-target-editor-count { color: var(--spotpatch-text-muted); font: 500 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .spotpatch-target-editor-label { color: var(--spotpatch-text-secondary); font-size: 11px; font-weight: 650; }
+    .spotpatch-target-editor-count { color: var(--spotpatch-text-muted); font: 500 10.5px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
     .spotpatch-target-editor textarea {
       box-sizing: border-box;
       width: 100%;
-      min-height: 126px;
+      min-height: 74px;
       resize: vertical;
       border: 1px solid var(--spotpatch-border);
-      border-radius: 12px;
-      padding: 14px 15px;
+      border-radius: 7px;
+      padding: 9px 10px;
       color: #f8fafc;
       caret-color: #8b7cf7;
       background: var(--spotpatch-bg-input);
-      font-size: 15px;
-      line-height: 1.65;
+      font-size: 12.5px;
+      line-height: 1.55;
       outline: none;
       transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
     }
@@ -634,23 +668,23 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-target-editor textarea:focus {
       border-color: rgb(139 124 247 / 68%);
       background: rgb(3 7 18 / 65%);
-      box-shadow: 0 0 0 3px rgb(109 93 246 / 10%);
+      box-shadow: 0 0 0 2px rgb(109 93 246 / 10%);
     }
     .spotpatch-diagnostics {
-      margin-top: 14px;
+      margin-top: 10px;
       overflow: hidden;
       border: 1px solid rgb(255 255 255 / 8%);
-      border-radius: 13px;
+      border-radius: 9px;
       background: rgb(255 255 255 / 2.5%);
     }
     .spotpatch-diagnostics > summary {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 11px 13px;
+      padding: 9px 11px;
       color: #bfc5d0;
       cursor: pointer;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 650;
       list-style: none;
       user-select: none;
@@ -679,9 +713,9 @@ function createStyles(document: Document): HTMLStyleElement {
       margin: 0;
       overflow: auto;
       border-top: 1px solid rgb(255 255 255 / 7%);
-      padding: 12px 13px 13px;
+      padding: 10px 11px 11px;
       color: #9ca5b5;
-      font: 11.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+      font: 10.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
       overflow-wrap: anywhere;
       white-space: pre-wrap;
       user-select: text;
@@ -691,39 +725,44 @@ function createStyles(document: Document): HTMLStyleElement {
       margin: 0;
       overflow: auto;
       border: 1px solid rgb(255 255 255 / 9%);
-      border-radius: 14px;
-      padding: 13px;
+      border-radius: 9px;
+      padding: 11px;
       color: #d8ddeb;
       background: rgb(3 7 18 / 55%);
-      font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, monospace;
+      font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
       overflow-wrap: anywhere;
       white-space: pre-wrap;
       user-select: text;
     }
     .spotpatch-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 9px;
-      padding: 14px 22px 18px;
+      display: grid;
+      gap: 8px;
+      padding: 10px 18px 14px;
       border-top: 1px solid rgb(255 255 255 / 8%);
-      background: rgb(8 12 22 / 82%);
+      background: rgb(8 8 12 / 86%);
     }
     .spotpatch-editor-feedback {
-      flex-basis: 100%;
       white-space: normal;
     }
+    .spotpatch-secondary-actions,
+    .spotpatch-primary-actions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .spotpatch-secondary-actions { min-height: 30px; }
     .spotpatch-actions button {
       display: inline-flex;
-      min-height: 40px;
+      min-height: 34px;
       align-items: center;
       justify-content: center;
       border: 1px solid rgb(255 255 255 / 10%);
-      border-radius: 11px;
-      padding: 9px 13px;
-      color: #d8ddeb;
+      border-radius: 9px;
+      padding: 7px 11px;
+      color: var(--spotpatch-text-secondary);
       background: rgb(255 255 255 / 4%);
       cursor: pointer;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 650;
       transition: border-color 150ms ease, box-shadow 150ms ease, color 150ms ease, transform 150ms ease;
     }
@@ -733,14 +772,36 @@ function createStyles(document: Document): HTMLStyleElement {
       transform: translateY(-1px);
     }
     .spotpatch-actions .spotpatch-primary {
-      min-width: 154px;
+      min-width: 138px;
       flex: 1;
-      border-color: rgb(139 124 247 / 58%);
-      color: #fff;
-      background: var(--spotpatch-accent-strong);
-      box-shadow: 0 9px 24px rgb(55 48 163 / 20%), inset 0 1px rgb(255 255 255 / 14%);
+      border-color: transparent;
+      color: var(--spotpatch-text-on-accent);
+      background: linear-gradient(135deg, var(--spotpatch-accent), var(--spotpatch-accent-strong));
+      box-shadow: 0 8px 20px -8px rgb(139 123 255 / 55%);
     }
+    .spotpatch-actions .spotpatch-primary:hover:not(:disabled) { color: var(--spotpatch-text-on-accent); filter: brightness(1.08); }
     .spotpatch-actions .spotpatch-primary::after { margin-left: 8px; content: "↗"; font-size: 12px; }
+    .spotpatch-actions .spotpatch-secondary-action {
+      min-height: 30px;
+      border-style: dashed;
+      padding: 5px 10px;
+      color: var(--spotpatch-text-muted);
+      background: transparent;
+      font-size: 11px;
+    }
+    .spotpatch-actions .spotpatch-icon-action {
+      width: 34px;
+      min-width: 34px;
+      padding: 0;
+      font-size: 0;
+    }
+    .spotpatch-actions .spotpatch-icon-action::before {
+      color: var(--spotpatch-text-secondary);
+      content: attr(data-compact-icon);
+      font-size: 18px;
+      font-weight: 400;
+      line-height: 1;
+    }
     .spotpatch-actions button:disabled { cursor: not-allowed; opacity: .4; transform: none; }
     .spotpatch-actions button:focus-visible,
     .spotpatch-repository:focus-visible,
@@ -772,11 +833,13 @@ function createStyles(document: Document): HTMLStyleElement {
     }
     @media (max-width: 520px) {
       .spotpatch-dialog { top: 8px; left: 8px; width: calc(100vw - 16px); }
-      .spotpatch-shell { max-height: calc(100vh - 16px); border-radius: 18px; }
-      .spotpatch-header, .spotpatch-body { padding-left: 16px; padding-right: 16px; }
-      .spotpatch-actions { padding-left: 16px; padding-right: 16px; }
-      .spotpatch-target-select { grid-template-columns: 32px minmax(0, 1fr); }
+      .spotpatch-shell { max-height: calc(100vh - 16px); border-radius: 14px; }
+      .spotpatch-header, .spotpatch-body { padding-left: 14px; padding-right: 14px; }
+      .spotpatch-brand-row { margin-right: -14px; margin-left: -14px; padding-right: 14px; padding-left: 14px; }
+      .spotpatch-actions { padding-right: 14px; padding-left: 14px; }
+      .spotpatch-target-select { grid-template-columns: 24px minmax(0, 1fr); }
       .spotpatch-target-state { display: none; }
+      .spotpatch-repository { display: none; }
     }
     ${AGENT_PANEL_STYLES}
   `;
@@ -892,10 +955,17 @@ export function createRuntimeView(
   const targetCount = createMarkedElement(document, "span");
   targetCount.className = "spotpatch-target-count";
   targetsMeta.append(targetComplete, targetBudget);
-  targetsHeading.append(targetsTitle, targetCount);
+  targetRow.append(targetCount);
+  targetsHeading.append(targetsTitle, targetsMeta);
+  const targetProgress = createMarkedElement(document, "div");
+  targetProgress.className = "spotpatch-target-progress";
+  targetProgress.setAttribute("aria-hidden", "true");
+  const targetProgressFill = createMarkedElement(document, "div");
+  targetProgressFill.className = "spotpatch-target-progress-fill";
+  targetProgress.append(targetProgressFill);
   const targetList = createMarkedElement(document, "div");
   targetList.className = "spotpatch-target-list";
-  targetsPanel.append(targetsHeading, targetsMeta, targetList);
+  targetsPanel.append(targetsHeading, targetProgress, targetList);
   const diagnostics = createMarkedElement(document, "details");
   diagnostics.className = "spotpatch-diagnostics";
   const diagnosticsLabel = createMarkedElement(document, "summary");
@@ -938,21 +1008,30 @@ export function createRuntimeView(
   );
   const copyButton = createButton(document, messages.actions.copy, "spotpatch-primary");
   const backButton = createButton(document, messages.actions.back);
-  actions.append(
-    editorFeedback,
+  const secondaryActions = createMarkedElement(document, "div");
+  secondaryActions.className = "spotpatch-secondary-actions";
+  const primaryActions = createMarkedElement(document, "div");
+  primaryActions.className = "spotpatch-primary-actions";
+  addTargetButton.classList.add("spotpatch-icon-action");
+  addTargetButton.dataset.compactIcon = "+";
+  agentPanel.testButton.classList.add("spotpatch-icon-action");
+  agentPanel.testButton.dataset.compactIcon = "✓";
+  openEditorButton.classList.add("spotpatch-secondary-action");
+  reselectButton.classList.add("spotpatch-secondary-action");
+  secondaryActions.append(openEditorButton, reselectButton);
+  primaryActions.append(
+    agentPanel.testButton,
+    addTargetButton,
     agentPanel.runButton,
     previewButton,
-    agentPanel.testButton,
     agentPanel.cancelButton,
     agentPanel.applyButton,
     agentPanel.revertButton,
     agentPanel.resetButton,
-    addTargetButton,
-    openEditorButton,
-    reselectButton,
     copyButton,
     backButton,
   );
+  actions.append(editorFeedback, secondaryActions, primaryActions);
   shell.append(header, body, actions);
   dialog.append(anchor, shell);
 
@@ -1007,6 +1086,11 @@ export function createRuntimeView(
       : messages.targets.statusCollecting;
   }
 
+  function renderTargetProgress(complete: number, total: number): void {
+    const ratio = total === 0 ? 0 : complete / total;
+    targetProgressFill.style.width = `${String(ratio * 100)}%`;
+  }
+
   function instructionInput(targetId?: string): HTMLTextAreaElement | undefined {
     const inputs = targetList.querySelectorAll<HTMLTextAreaElement>(
       "textarea[data-target-instruction-id]",
@@ -1037,6 +1121,7 @@ export function createRuntimeView(
       (total, target) => total + target.instruction.trim().length,
       0,
     );
+    renderTargetProgress(completeCount, targets.length);
     targetCount.textContent = messages.targets.count(targets.length, maximum);
     targetComplete.textContent = messages.targets.complete(
       completeCount,
@@ -1182,10 +1267,14 @@ export function createRuntimeView(
       );
     }
 
+    const completeCount = currentTargets.filter(
+      (target) => target.instruction.trim().length > 0,
+    ).length;
     targetComplete.textContent = messages.targets.complete(
-      currentTargets.filter((target) => target.instruction.trim().length > 0).length,
+      completeCount,
       currentTargets.length,
     );
+    renderTargetProgress(completeCount, currentTargets.length);
     const instructionCharacters = currentTargets.reduce(
       (total, target) => total + target.instruction.trim().length,
       0,
@@ -1227,7 +1316,7 @@ export function createRuntimeView(
   }
 
   function placeDialog(): void {
-    if (dialog.hidden || currentRect === undefined) {
+    if (dialog.hidden) {
       return;
     }
 
@@ -1239,17 +1328,17 @@ export function createRuntimeView(
     const dialogWidth =
       measured.width > 0
         ? measured.width
-        : Math.min(DIALOG_FALLBACK_WIDTH, viewportWidth - 32);
+        : Math.min(DIALOG_MAX_WIDTH, viewportWidth - 32);
     const dialogHeight =
       measured.height > 0
         ? measured.height
         : Math.min(DIALOG_FALLBACK_HEIGHT[status], viewportHeight - 32);
     const placement = calculateDialogPlacement({
-      target: currentRect,
       dialogWidth,
       dialogHeight,
       viewportWidth,
       viewportHeight,
+      ...(currentRect === undefined ? {} : { target: currentRect }),
     });
 
     dialog.style.left = `${String(placement.left)}px`;
@@ -1314,6 +1403,7 @@ export function createRuntimeView(
     addTargetButton.hidden = !selected;
     openEditorButton.hidden = !selected;
     previewButton.hidden = !selected;
+    secondaryActions.hidden = !selected;
     agentPanel.setSelectionVisible(selected);
     copyButton.hidden = !previewing;
     backButton.hidden = !previewing;
@@ -1359,6 +1449,7 @@ export function createRuntimeView(
     } else {
       targetCount.textContent = messages.targets.count(0, currentMaximum);
       targetComplete.textContent = messages.targets.complete(0, 0);
+      renderTargetProgress(0, 0);
       targetBudget.dataset.state = "ready";
       targetBudget.textContent = messages.targets.instructionBudget(
         0,
@@ -1438,6 +1529,7 @@ export function createRuntimeView(
       selectionHighlights.replaceChildren();
       activeSelectionRect = undefined;
       currentRect = undefined;
+      placeDialog();
     },
 
     showSelection(
@@ -1473,6 +1565,7 @@ export function createRuntimeView(
       renderEditorStatus("idle");
       targetCount.textContent = messages.targets.count(0, 0);
       targetComplete.textContent = messages.targets.complete(0, 0);
+      renderTargetProgress(0, 0);
       targetLabel.textContent = messages.context.selectedElement;
       summary.textContent = "";
       promptOutput.textContent = "";

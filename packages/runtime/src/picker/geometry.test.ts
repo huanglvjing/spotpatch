@@ -2,7 +2,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { getElementRect } from "./geometry.js";
+import { getElementRect, getVisibleElementRect } from "./geometry.js";
 
 function rect(left: number, top: number, width: number, height: number): DOMRect {
   return {
@@ -46,5 +46,17 @@ describe("element geometry", () => {
       width: 80,
       height: 26,
     });
+  });
+
+  it("does not expose hidden or zero-area elements as live anchors", () => {
+    const hidden = document.createElement("div");
+    hidden.style.display = "none";
+    document.body.append(hidden);
+    expect(getVisibleElementRect(hidden, window)).toBeUndefined();
+
+    const zeroArea = document.createElement("button");
+    document.body.append(zeroArea);
+    vi.spyOn(zeroArea, "getBoundingClientRect").mockReturnValue(rect(0, 0, 0, 0));
+    expect(getVisibleElementRect(zeroArea, window)).toBeUndefined();
   });
 });

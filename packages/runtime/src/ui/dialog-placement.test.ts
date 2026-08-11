@@ -3,6 +3,23 @@ import { describe, expect, it } from "vitest";
 import { calculateDialogPlacement } from "./dialog-placement.js";
 
 describe("dialog placement", () => {
+  it("centers the workbench in the viewport when no live target is available", () => {
+    expect(
+      calculateDialogPlacement({
+        dialogWidth: 460,
+        dialogHeight: 560,
+        viewportWidth: 1_200,
+        viewportHeight: 800,
+      }),
+    ).toEqual({
+      anchorX: 230,
+      anchorY: 280,
+      left: 370,
+      mode: "viewport",
+      top: 120,
+    });
+  });
+
   it("centers the workbench inside a sufficiently large selection", () => {
     expect(
       calculateDialogPlacement({

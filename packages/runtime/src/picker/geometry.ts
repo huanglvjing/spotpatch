@@ -42,9 +42,7 @@ function unionRects(rects: readonly DOMRect[]): ElementRect | undefined {
   });
 }
 
-export function getElementRect(element: Element, view: Window): ElementRect {
-  const display = view.getComputedStyle(element).display;
-
+function measureElementRect(element: Element, display: string): ElementRect {
   if (display.startsWith("inline")) {
     const lineBoxRect = unionRects(Array.from(element.getClientRects()));
 
@@ -54,4 +52,22 @@ export function getElementRect(element: Element, view: Window): ElementRect {
   }
 
   return toElementRect(element.getBoundingClientRect());
+}
+
+export function getElementRect(element: Element, view: Window): ElementRect {
+  return measureElementRect(element, view.getComputedStyle(element).display);
+}
+
+export function getVisibleElementRect(
+  element: Element,
+  view: Window,
+): ElementRect | undefined {
+  const style = view.getComputedStyle(element);
+
+  if (style.display === "none" || style.visibility === "hidden") {
+    return undefined;
+  }
+
+  const rect = measureElementRect(element, style.display);
+  return rect.width > 0 && rect.height > 0 ? rect : undefined;
 }

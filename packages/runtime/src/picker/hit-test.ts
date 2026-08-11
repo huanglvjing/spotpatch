@@ -1,4 +1,5 @@
 import { UI_MARKER_ATTRIBUTE } from "../ui/ui-constants.js";
+import { getVisibleElementRect } from "./geometry.js";
 
 function isInsideSpotPatchUI(element: Element): boolean {
   if (element.closest(`[${UI_MARKER_ATTRIBUTE}]`) !== null) {
@@ -10,14 +11,7 @@ function isInsideSpotPatchUI(element: Element): boolean {
 }
 
 function hasVisibleArea(element: Element, view: Window): boolean {
-  const style = view.getComputedStyle(element);
-
-  if (style.display === "none" || style.visibility === "hidden") {
-    return false;
-  }
-
-  const rect = element.getBoundingClientRect();
-  return rect.width > 0 && rect.height > 0;
+  return getVisibleElementRect(element, view) !== undefined;
 }
 
 function isDocumentRoot(element: Element): boolean {

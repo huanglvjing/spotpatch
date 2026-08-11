@@ -1,5 +1,18 @@
 # @spotpatch/next
 
+## 0.1.3
+
+### Patch Changes
+
+- 1a7628b: Start real Agent jobs without a redundant two-request capability preflight,
+  parallelize independent reads, cache worktree discovery and file content with
+  write-aware invalidation, and reuse current host-run validation results. Supply
+  bounded nearby project configuration and sibling-code evidence so generated
+  changes follow the target repository's existing style and file organization.
+- Updated dependencies [1a7628b]
+  - @spotpatch/dev-server@0.1.2
+  - @spotpatch/runtime@1.5.2
+
 ## 0.1.2
 
 ### Patch Changes

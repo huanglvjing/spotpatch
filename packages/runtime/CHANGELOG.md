@@ -1,5 +1,12 @@
 # @spotpatch/runtime
 
+## 1.5.1
+
+### Patch Changes
+
+- 6cd7726: Recenter restored cross-page selections when their original DOM anchor is no
+  longer available, and refresh the workbench with a compact, responsive layout.
+
 ## 1.5.0
 
 ### Minor Changes

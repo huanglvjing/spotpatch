@@ -94,4 +94,80 @@ describe("Agent prompt", () => {
     expect(multiPrompt).toContain("Align the first action.");
     expect(multiPrompt).toContain("Rename the second action.");
   });
+
+  it("includes bounded project conventions and public check metadata", () => {
+    const baseTarget = {
+      instruction: "Match the existing component style.",
+      source: {
+        relativePath: "src/App.tsx",
+        origin: "jsx-host" as const,
+        confidence: "exact" as const,
+        line: 1,
+        column: 1,
+      },
+      react: { supported: true, componentStack: [] },
+      element: {
+        tagName: "button",
+        selector: "button",
+        sanitizedHtml: "<button>Save</button>",
+        rect: { x: 0, y: 0, width: 100, height: 40 },
+      },
+      styles: {
+        classNames: [],
+        matchedRules: [],
+        computed: {},
+        warnings: [],
+      },
+      warnings: [],
+    };
+    const annotation = {
+      schemaVersion: 3,
+      id: "annotation-style",
+      locale: "en-US",
+      page: {
+        url: "http://localhost:5173/",
+        pathname: "/",
+        title: "Fixture",
+        viewportWidth: 1_440,
+        viewportHeight: 900,
+        devicePixelRatio: 2,
+      },
+      targets: [baseTarget],
+      createdAt: "2026-08-11T00:00:00.000Z",
+    } satisfies SpotAnnotation;
+    const prompt = composeAgentUserPrompt(annotation, 8_000, {
+      checks: {
+        typecheck: {
+          id: "typecheck",
+          label: "Typecheck",
+          command: "private-command",
+          args: ["private-argument"],
+          required: true,
+          timeoutMs: 1_000,
+        },
+      },
+      projectConventions: {
+        files: [
+          {
+            path: ".editorconfig",
+            kind: "config",
+            content: "indent_size = 2\n",
+          },
+          {
+            path: "src/Button.tsx",
+            kind: "example",
+            content: "export function Button() { return <button />; }\n",
+          },
+        ],
+      },
+    });
+
+    expect(prompt.length).toBeLessThanOrEqual(8_000);
+    expect(prompt).toContain("<project_conventions>");
+    expect(prompt).toContain(".editorconfig");
+    expect(prompt).toContain("src/Button.tsx");
+    expect(prompt).toContain("typecheck");
+    expect(prompt).not.toContain("private-command");
+    expect(prompt).not.toContain("private-argument");
+  });
 });

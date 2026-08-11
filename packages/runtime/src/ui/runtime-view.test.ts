@@ -380,7 +380,7 @@ describe("runtime view", () => {
     expect(styles).toContain("::picker(select):popover-open");
     expect(styles).toContain("@starting-style");
     expect(view.agentRunButton.disabled).toBe(true);
-    expect(view.agentRunButton.textContent).toBe("Verify & run");
+    expect(view.agentRunButton.textContent).toBe("Run AI");
     expect(view.previewButton.classList.contains("spotpatch-primary")).toBe(true);
     expect(view.host.shadowRoot?.textContent).toContain(
       "selected context and allowed source may be sent to Trusted Relay",

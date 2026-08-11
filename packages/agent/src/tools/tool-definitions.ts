@@ -9,6 +9,16 @@ export const AGENT_TOOL_NAMES = Object.freeze({
   runCheck: "run_check",
 } as const);
 
+const READ_ONLY_AGENT_TOOLS = new Set<string>([
+  AGENT_TOOL_NAMES.listFiles,
+  AGENT_TOOL_NAMES.searchText,
+  AGENT_TOOL_NAMES.readFile,
+]);
+
+export function isReadOnlyAgentTool(toolName: string): boolean {
+  return READ_ONLY_AGENT_TOOLS.has(toolName);
+}
+
 const pathProperty = Object.freeze({
   type: "string",
   minLength: 1,

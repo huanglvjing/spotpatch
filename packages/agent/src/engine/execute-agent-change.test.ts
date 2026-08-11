@@ -295,7 +295,7 @@ describe("Agent execution", { timeout: GIT_PROCESS_INTEGRATION_TIMEOUT_MS }, () 
         "run_check:started",
         "run_check:succeeded",
       ]);
-      expect(checkStatuses).toEqual(["passed", "passed"]);
+      expect(checkStatuses).toEqual(["passed"]);
       expect(await readdir(temporaryBase)).toEqual([]);
 
       await applyPreparedAgentChange(prepared);
@@ -334,6 +334,84 @@ describe("Agent execution", { timeout: GIT_PROCESS_INTEGRATION_TIMEOUT_MS }, () 
       expect(prepared.result.checks).toMatchObject([{ status: "failed" }]);
       await expect(applyPreparedAgentChange(prepared)).rejects.toMatchObject({
         code: ERROR_CODES.VALIDATION_FAILED,
+      });
+      expect(await repository.read("src/App.tsx")).toContain("Before");
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
+  it("executes independent reads concurrently within one provider turn", async () => {
+    const repository = await createTestGitRepository();
+    const source = provider();
+    const fetch = queuedFetch([
+      toolCallsResponse([
+        {
+          id: "read-a",
+          name: "read_file",
+          arguments: { path: "src/App.tsx", startLine: 1, endLine: 1 },
+        },
+        {
+          id: "read-b",
+          name: "read_file",
+          arguments: { path: "src/App.tsx", startLine: 1, endLine: 1 },
+        },
+      ]),
+      toolResponse("replace-1", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "<button>Before</button>",
+        newText: "<button>After</button>",
+      }),
+      finalResponse("Changed the selected button label."),
+    ]);
+    const toolStates: string[] = [];
+
+    try {
+      const prepared = await executeAgentChange({
+        annotation,
+        credential: createProviderCredential("synthetic-test-credential"),
+        execution: execution("process.exit(0)"),
+        fetch,
+        jobId: "job-parallel-reads",
+        model: codingModel(source),
+        provider: source,
+        root: repository.root,
+        signal: new AbortController().signal,
+        callbacks: {
+          onTool(event) {
+            toolStates.push(`${event.toolCallId}:${event.state}`);
+          },
+        },
+      });
+
+      expect(prepared.validationPassed).toBe(true);
+      expect(toolStates.slice(0, 2)).toEqual(["read-a:started", "read-b:started"]);
+      expect(toolStates).toContain("read-a:succeeded");
+      expect(toolStates).toContain("read-b:succeeded");
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
+  it("rejects a first response that never proves tool calling", async () => {
+    const repository = await createTestGitRepository();
+    const source = provider();
+
+    try {
+      await expect(
+        executeAgentChange({
+          annotation,
+          credential: createProviderCredential("synthetic-test-credential"),
+          execution: execution("process.exit(0)"),
+          fetch: queuedFetch([finalResponse("I cannot inspect the project.")]),
+          jobId: "job-without-tools",
+          model: codingModel(source),
+          provider: source,
+          root: repository.root,
+          signal: new AbortController().signal,
+        }),
+      ).rejects.toMatchObject({
+        code: ERROR_CODES.MODEL_TOOL_CALL_UNSUPPORTED,
       });
       expect(await repository.read("src/App.tsx")).toContain("Before");
     } finally {

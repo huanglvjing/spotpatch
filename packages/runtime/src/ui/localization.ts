@@ -102,7 +102,6 @@ export interface UiMessages {
     consentRequired: string;
     toolsReady: string;
     testConnection: string;
-    verifyAndRun: string;
     verifying: string;
     run: string;
     cancel: string;
@@ -194,7 +193,7 @@ const ERROR_MESSAGES_EN = Object.freeze({
     "The relay does not match the configured OpenAI-compatible protocol.",
   [ERROR_CODES.MODEL_NOT_ALLOWED]: "The selected model profile is not allowed.",
   [ERROR_CODES.MODEL_TOOL_CALL_UNSUPPORTED]:
-    "The selected model did not complete the required tool-call probe.",
+    "The selected model did not start or continue the required tool call.",
   [ERROR_CODES.PROVIDER_RATE_LIMITED]:
     "The provider is rate limited. Wait and try again.",
   [ERROR_CODES.AGENT_BUSY]: "Another write Agent job is still active.",
@@ -239,7 +238,7 @@ const ERROR_MESSAGES_ZH = Object.freeze({
   [ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED]:
     "中转服务与配置的 OpenAI 兼容协议不一致。",
   [ERROR_CODES.MODEL_NOT_ALLOWED]: "当前模型配置未获授权。",
-  [ERROR_CODES.MODEL_TOOL_CALL_UNSUPPORTED]: "当前模型未通过必要的工具调用能力探测。",
+  [ERROR_CODES.MODEL_TOOL_CALL_UNSUPPORTED]: "当前模型未完成必要的工具调用或结果续接。",
   [ERROR_CODES.PROVIDER_RATE_LIMITED]: "模型服务正在限流，请稍后重试。",
   [ERROR_CODES.AGENT_BUSY]: "当前项目已有一个写入任务正在运行。",
   [ERROR_CODES.AGENT_LIMIT_EXCEEDED]: "Agent 达到时间、轮次、输出或变更规模限制。",
@@ -436,7 +435,7 @@ export const UI_MESSAGES = Object.freeze({
       providerUnavailable: "Provider configuration is unavailable.",
       consent: (provider: string) =>
         `I understand selected context and allowed source may be sent to ${provider}; its data policy is my responsibility.`,
-      connectionNotTested: "Connection not tested",
+      connectionNotTested: "Optional connection check not run",
       workspaceNotChecked: "Local workspace not checked",
       checkingWorkspace: "Checking Git workspace and isolated execution…",
       workspaceReady: "Local workspace is ready for isolated execution",
@@ -456,7 +455,6 @@ export const UI_MESSAGES = Object.freeze({
       consentRequired: "Confirm remote provider data transmission before running AI.",
       toolsReady: "tools and streaming ready",
       testConnection: "Check environment",
-      verifyAndRun: "Verify & run",
       verifying: "Verifying…",
       run: "Run AI",
       cancel: "Cancel agent",
@@ -588,7 +586,7 @@ export const UI_MESSAGES = Object.freeze({
       providerUnavailable: "模型服务配置不可用。",
       consent: (provider: string) =>
         `我了解选中上下文与获准源码可能发送到 ${provider}，并自行负责其数据策略。`,
-      connectionNotTested: "尚未测试连接",
+      connectionNotTested: "尚未执行可选连接检查",
       workspaceNotChecked: "尚未检查本地工作区",
       checkingWorkspace: "正在检查 Git 工作区与隔离执行环境……",
       workspaceReady: "本地工作区已满足隔离执行条件",
@@ -607,7 +605,6 @@ export const UI_MESSAGES = Object.freeze({
       consentRequired: "运行 AI 前，请先确认允许向远程模型服务传输数据。",
       toolsReady: "工具调用与流式响应已就绪",
       testConnection: "检查运行环境",
-      verifyAndRun: "验证并运行",
       verifying: "验证中……",
       run: "运行 AI",
       cancel: "取消 Agent",

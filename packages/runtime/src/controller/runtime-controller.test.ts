@@ -770,7 +770,7 @@ describe("runtime controller", () => {
     const workspaceConsent = shadowRoot?.querySelector<HTMLInputElement>(
       ".spotpatch-workspace-consent input",
     );
-    let runButton = findShadowButton(shadowRoot, "Verify & run");
+    const runButton = findShadowButton(shadowRoot, "Run AI");
 
     if (
       instructionInput === null ||
@@ -788,15 +788,6 @@ describe("runtime controller", () => {
     await vi.waitFor(() => {
       expect(runButton.disabled).toBe(true);
     });
-    findShadowButton(shadowRoot, "Check environment").click();
-    await vi.waitFor(() => {
-      expect(api.agentCapability).toHaveBeenCalledWith({
-        providerProfileId: "relay",
-        modelProfileId: "coder",
-      });
-      expect(findShadowButton(shadowRoot, "Run AI")).toBeDefined();
-    });
-    runButton = findShadowButton(shadowRoot, "Run AI");
     consent.checked = true;
     consent.dispatchEvent(new Event("change", { bubbles: true }));
     workspaceConsent.checked = true;
@@ -819,7 +810,7 @@ describe("runtime controller", () => {
         "Save changes",
       );
     });
-    expect(api.agentCapability).toHaveBeenCalledOnce();
+    expect(api.agentCapability).not.toHaveBeenCalled();
     expect(shadowRoot?.textContent).toContain("Typecheck: passed");
     expect(shadowRoot?.textContent).toContain("read_file · succeeded");
     expect(shadowRoot?.textContent).toContain("replace_text · succeeded");

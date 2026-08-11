@@ -373,11 +373,7 @@ export function createAgentPanel(
   root.append(header, setup, job);
 
   const testButton = createButton(document, messages.agent.testConnection);
-  const runButton = createButton(
-    document,
-    messages.agent.verifyAndRun,
-    "spotpatch-run",
-  );
+  const runButton = createButton(document, messages.agent.run, "spotpatch-run");
   const cancelButton = createButton(document, messages.agent.cancel);
   const applyButton = createButton(document, messages.agent.apply, "spotpatch-primary");
   const revertButton = createButton(document, messages.agent.revert);
@@ -435,9 +431,7 @@ export function createAgentPanel(
     const setupVisible = ai.enabled && selectionVisible && !jobPresented;
     runButton.textContent = capabilityProbing
       ? messages.agent.verifying
-      : capabilityReady
-        ? messages.agent.run
-        : messages.agent.verifyAndRun;
+      : messages.agent.run;
     runButton.classList.toggle("spotpatch-primary", capabilityReady);
     testButton.hidden = !setupVisible;
     runButton.hidden = !setupVisible;

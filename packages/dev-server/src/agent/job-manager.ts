@@ -199,7 +199,6 @@ export function createAgentJobManager(
   });
   const jobs = new Map<string, InternalAgentJob>();
   const capabilityCache = new Map<string, AgentCapabilitySnapshot>();
-  const providerConsents = new Set<string>();
   let closed = false;
 
   const resolveSelection = (
@@ -374,15 +373,7 @@ export function createAgentJobManager(
 
   const runJob = async (job: InternalAgentJob): Promise<void> => {
     try {
-      transition(job, "preparing", "Verifying provider and model capabilities.");
-      await probeResolved(
-        Object.freeze({
-          credential: job.credential,
-          model: job.model,
-          provider: job.provider,
-        }),
-        job.controller.signal,
-      );
+      transition(job, "preparing", "Preparing isolated Agent execution.");
 
       const callbacks: NonNullable<ExecuteAgentChangeOptions["callbacks"]> = {
         onCheck(result) {
@@ -546,7 +537,6 @@ export function createAgentJobManager(
           .filter((promise): promise is Promise<void> => promise !== undefined),
       );
       capabilityCache.clear();
-      providerConsents.clear();
       jobs.clear();
     },
 
@@ -569,7 +559,6 @@ export function createAgentJobManager(
         request.providerProfileId,
         request.modelProfileId,
       );
-      providerConsents.add(selection.provider.id);
       const id = dependencies.createJobId();
 
       if (!JOB_ID_PATTERN.test(id) || jobs.has(id)) {

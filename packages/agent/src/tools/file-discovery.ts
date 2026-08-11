@@ -10,6 +10,16 @@ import {
 
 const MAX_DISCOVERED_FILES = 20_000;
 const TEXT_SAMPLE_BYTES = 8_192;
+const TEXT_CLASSIFICATION_CONCURRENCY = 16;
+
+export interface AgentFileCatalog {
+  readonly invalidate: () => void;
+  readonly list: (
+    glob: string,
+    maximumResults: number,
+    signal?: AbortSignal,
+  ) => Promise<readonly string[]>;
+}
 
 function compileGlob(glob: string): RegExp {
   if (
@@ -129,35 +139,75 @@ async function isTextFile(root: string, relativePath: string): Promise<boolean> 
   }
 }
 
-export async function listAgentFiles(
-  root: string,
-  glob: string,
-  maximumResults: number,
-  signal?: AbortSignal,
-): Promise<readonly string[]> {
-  const matcher = compileGlob(glob);
-  const discovered: string[] = [];
-  await discoverFiles(root, "", discovered, signal);
-  discovered.sort((left, right) => left.localeCompare(right, "en"));
-  const results: string[] = [];
+export function createAgentFileCatalog(root: string): AgentFileCatalog {
+  let discoveredFiles: Promise<readonly string[]> | undefined;
+  const textFiles = new Map<string, Promise<boolean>>();
 
-  for (const relativePath of discovered) {
-    if (signal?.aborted === true) {
-      throw new SpotPatchError(ERROR_CODES.AGENT_CANCELLED);
+  const discover = (signal?: AbortSignal): Promise<readonly string[]> => {
+    discoveredFiles ??= (async () => {
+      const files: string[] = [];
+      await discoverFiles(root, "", files, signal);
+      files.sort((left, right) => left.localeCompare(right, "en"));
+      return Object.freeze(files);
+    })();
+    return discoveredFiles;
+  };
+
+  const classify = (relativePath: string): Promise<boolean> => {
+    const cached = textFiles.get(relativePath);
+
+    if (cached !== undefined) {
+      return cached;
     }
 
-    if (!matcher.test(relativePath)) {
-      continue;
-    }
+    const pending = isTextFile(root, relativePath);
+    textFiles.set(relativePath, pending);
+    return pending;
+  };
 
-    if (await isTextFile(root, relativePath)) {
-      results.push(relativePath);
-    }
+  return Object.freeze({
+    invalidate(): void {
+      discoveredFiles = undefined;
+      textFiles.clear();
+    },
+    async list(
+      glob: string,
+      maximumResults: number,
+      signal?: AbortSignal,
+    ): Promise<readonly string[]> {
+      const matcher = compileGlob(glob);
+      const candidates = (await discover(signal)).filter((relativePath) =>
+        matcher.test(relativePath),
+      );
+      const results: string[] = [];
 
-    if (results.length >= maximumResults) {
-      break;
-    }
-  }
+      for (
+        let offset = 0;
+        offset < candidates.length;
+        offset += TEXT_CLASSIFICATION_CONCURRENCY
+      ) {
+        if (signal?.aborted === true) {
+          throw new SpotPatchError(ERROR_CODES.AGENT_CANCELLED);
+        }
 
-  return Object.freeze(results);
+        const batch = candidates.slice(
+          offset,
+          offset + TEXT_CLASSIFICATION_CONCURRENCY,
+        );
+        const classifications = await Promise.all(batch.map(classify));
+
+        for (const [index, relativePath] of batch.entries()) {
+          if (classifications[index] === true) {
+            results.push(relativePath);
+          }
+
+          if (results.length >= maximumResults) {
+            return Object.freeze(results);
+          }
+        }
+      }
+
+      return Object.freeze(results);
+    },
+  });
 }

@@ -225,8 +225,9 @@ describe("Agent job manager", () => {
     await manager.close();
   });
 
-  it("runs a review job through capability, events, result, Apply, and Revert", async () => {
+  it("runs a review job directly through events, result, Apply, and Revert", async () => {
     const applyChange = vi.fn(() => Promise.resolve());
+    const probeCapability = vi.fn(() => Promise.resolve(capabilitySnapshot()));
     const revertChange = vi.fn(() => Promise.resolve());
     const manager = createAgentJobManager({
       ai: resolveAi(),
@@ -245,7 +246,7 @@ describe("Agent job manager", () => {
             }),
           ),
         now: monotonicClock(),
-        probeCapability: () => Promise.resolve(capabilitySnapshot()),
+        probeCapability,
         revertChange,
       },
     });
@@ -256,6 +257,7 @@ describe("Agent job manager", () => {
     const beforeApply = manager.result(created.jobId);
     const events = manager.events(created.jobId);
     expect(beforeApply.snapshot.canApply).toBe(true);
+    expect(probeCapability).not.toHaveBeenCalled();
     expect(beforeApply.result?.files[0]?.relativePath).toBe("src/App.tsx");
     expect(events.map((event) => event.sequence)).toEqual(
       events.map((_, index) => index + 1),
@@ -462,16 +464,16 @@ describe("Agent job manager", () => {
     await revertConflictManager.close();
   });
 
-  it("maps unexpected provider failures to a stable public error", async () => {
+  it("maps unexpected execution failures to a stable public error", async () => {
     const manager = createAgentJobManager({
       ai: resolveAi(),
       root: "/project",
       environment: TEST_ENVIRONMENT,
       dependencies: {
         createJobId: () => "0123456789abcdefghijklmn",
-        probeCapability: () =>
+        executeChange: () =>
           Promise.reject(
-            new Error(`provider ${TEST_ENVIRONMENT.SPOTPATCH_TEST_API_KEY} failed`),
+            new Error(`execution ${TEST_ENVIRONMENT.SPOTPATCH_TEST_API_KEY} failed`),
           ),
       },
     });

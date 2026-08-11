@@ -2,9 +2,9 @@
 doc-id: "16-ai-agent-execution"
 title: "AI Agent 执行与变更审阅"
 status: "active"
-version: "1.6.0"
-last-updated: "2026-08-08"
-source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅；v1.2 多目标原子执行；v1.3 逐目标说明执行语义；v1.5 显式同意的本地修改隔离、健康检查与 Agent 增量撤销；v1.6 跨轮工具 ID 兼容与轮次作用域幂等"
+version: "1.7.0"
+last-updated: "2026-08-11"
+source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git 隔离、验证与变更审阅；v1.2 多目标原子执行；v1.3 逐目标说明执行语义；v1.5 显式同意的本地修改隔离、健康检查与 Agent 增量撤销；v1.6 跨轮工具 ID 兼容与轮次作用域幂等；v1.7 内联能力证明、项目规范上下文与执行去重"
 参考文献/依赖:
   - "01-product-boundary"
   - "02-architecture-stack"
@@ -22,7 +22,7 @@ source-range: "v1.1 新增规范：AI Agent 工具循环、本地执行、Git �
 
 本文件是 AI Agent 工具循环、本地工具集合、Git 隔离、变更验证、审阅、应用和撤销行为的唯一事实来源。URL、凭据、协议和模型兼容性由模型提供商规范定义 (见 doc-id:17-model-provider-credentials)，公共配置、限制值和跨模块数据结构由公共 API 文档定义 (见 doc-id:03-public-api-models)，浏览器到 Vite Node 的 endpoint 与错误码由本地协议定义 (见 doc-id:09-local-protocol-security)。
 
-AI 扩展是显式启用的开发期能力；未配置或未通过能力探测时，SpotPatch 必须完整保留 v1 的 Prompt 预览、复制和打开编辑器能力 (见 doc-id:01-product-boundary)。
+AI 扩展是显式启用的开发期能力；未配置，或模型无法通过显式探测/真实任务内联工具证明时，SpotPatch 必须完整保留 v1 的 Prompt 预览、复制和打开编辑器能力 (见 doc-id:01-product-boundary)。
 
 ## 责任边界
 
@@ -49,10 +49,10 @@ Agent Engine 不负责：
 ```text
 SpotAnnotation(targets[]) + modelProfileId
   → 服务端授权和 Schema 校验
-  → Provider 能力状态检查
+  → 可选的已缓存 Provider 能力状态
   → 创建 AgentJob 与临时 Git worktree
-  → 组合系统约束和结构化上下文
-  → 模型响应 / 工具调用循环
+  → 组合系统约束、项目规范证据和结构化目标上下文
+  → 模型响应 / 工具调用循环（首次真实工具往返同时形成内联能力证明）
   → 变更路径、规模和策略校验
   → 预配置检查
   → 生成 Diff、摘要和检查结果
@@ -92,7 +92,7 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 | `apply_patch` | 单个结构化 patch | 在 worktree 中创建、更新或删除允许文件 | 有 |
 | `run_check` | 服务端登记的 `checkId` | 执行一个预配置验证命令 | 有限进程副作用 |
 
-所有工具使用严格 JSON Schema；对象必须设置 `additionalProperties: false`。字段缺失、未知字段或类型错误在执行任何副作用前返回 `TOOL_ARGUMENTS_INVALID`、`retryable: true` 和固定脱敏指引，模型只允许用新调用 ID 修正一次；重复失败仍受轮次/调用上限约束。无法解析成 JSON 对象、超限输入、路径或权限错误是终止性失败，不能通过参数重试降级。模型提供商是否能可靠返回严格工具调用由能力探测确认 (见 doc-id:17-model-provider-credentials)。
+所有工具使用严格 JSON Schema；对象必须设置 `additionalProperties: false`。字段缺失、未知字段或类型错误在执行任何副作用前返回 `TOOL_ARGUMENTS_INVALID`、`retryable: true` 和固定脱敏指引，模型只允许用新调用 ID 修正一次；重复失败仍受轮次/调用上限约束。无法解析成 JSON 对象、超限输入、路径或权限错误是终止性失败，不能通过参数重试降级。模型提供商是否能可靠返回严格工具调用由显式能力探测或真实任务中的首次工具调用与结果续接确认 (见 doc-id:17-model-provider-credentials)。
 
 ### 只读工具
 
@@ -100,6 +100,7 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 - `search_text` 按文件和行号返回有界结果；不得把搜索结果中的绝对路径发送给模型。
 - `read_file` 只读取通过授权的普通文本文件；默认返回有界行范围，模型必须按需继续读取。
 - 只读工具可以在同一模型轮次内并发执行，但总调用数仍受公共限制约束 (见 doc-id:03-public-api-models)。
+- 文件目录与文本读取结果只在当前隔离 worktree 的同一变更版本内缓存；创建/删除/修改文件后必须使相关缓存失效，不能为了性能返回过期路径或内容。
 
 ### 写入工具
 
@@ -132,7 +133,7 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 1. 向 provider 发送当前对话状态、允许工具和剩余预算。
 2. 解析并 Schema 校验 provider 事件。
 3. 为当前响应分配从 1 开始、严格递增的内部 `turn`；同一轮内冲突的重复 `toolCallId` 立即失败，跨轮复用保持合法。
-4. 若返回最终消息，进入变更校验；若返回工具调用，继续下一步。
+4. 首轮真实任务必须至少返回一个受控工具调用；未调用工具就直接返回文本时以 `MODEL_TOOL_CALL_UNSUPPORTED` 失败。已有工具往返后返回最终消息，才进入变更校验。
 5. 对每个工具调用执行名称、参数、预算、授权和 `turn + toolCallId` 幂等校验。
 6. 执行允许的工具，把结构化结果关联到当前轮原始 `toolCallId`。
 7. 将工具结果加入下一轮输入，直至完成、取消、失败或达到限制。
@@ -190,14 +191,14 @@ Agent 没有 Git 命令工具。宿主只允许通过固定 argv 调用创建、
 
 ## 验证
 
-Agent 可以在运行中请求 `run_check` 获取反馈；在生成最终结果后，宿主仍必须独立执行配置中的 required checks，不能复用模型声称的成功结果。
+Agent 可以在运行中请求 `run_check` 获取反馈。`run_check` 由宿主使用可信配置执行，不是模型声称的结果；只要此后没有任何文件变更，宿主可以把同一变更版本的实际结果作为最终 required check 结果。任一写入都会使缓存失效。模型未运行、结果过期或不存在的 required check 仍由宿主在生成最终结果后独立执行。
 
 验证顺序固定为：
 
 1. 变更集安全校验。
 2. 变更文件的静态格式和语法检查（若已配置）。
-3. required checks，按可信配置顺序串行执行。
-4. 重新读取 Git Diff，确认检查过程没有产生未授权文件变化。
+3. 复用当前变更版本中已由宿主实际执行的 check；其余 required checks 按可信配置顺序串行执行。
+4. 若最终阶段执行了 check，统一重新读取 Git Diff，确认整个检查过程没有产生未授权文件变化。
 
 required check 失败时：
 
@@ -226,7 +227,7 @@ required check 失败时：
 
 `auto` 只有在可信配置显式开启时可用，并且必须同时满足：
 
-- provider 能力探测通过。
+- provider 显式能力探测已通过，或当前真实任务已经完成至少一次合法工具调用与结果续接。
 - worktree 基线、业务 HEAD 和 Agent 触及路径基线未变化。
 - 所有安全与规模门禁通过。
 - 所有 required checks 成功。
@@ -259,10 +260,11 @@ Apply/Revert 都不执行 `git commit`、`git push`、`git reset` 或分支操�
 ```text
 packages/agent/src/
 ├── engine/          # Job coordinator 与模型/工具循环
-├── tools/           # 五个受控工具及 Schema
+├── context/         # 有界项目规范与同目录实现样例
+├── tools/           # 六个受控工具、Schema 与任务级读取缓存
 ├── worktree/        # Git 隔离、Diff、Apply/Revert
 ├── validation/      # check registry 与子进程控制
-└── events/          # 有序、可脱敏的 Job 事件
+└── provider/        # Provider 会话、显式探测与协议校验
 ```
 
 provider adapter 不进入 `tools/` 或 `worktree/`，文件工具也不得直接访问 provider 凭据。所有实现继续遵守严格 TypeScript、窄接口注入和副作用边界 (见 doc-id:11-coding-standards)。
@@ -272,6 +274,9 @@ provider adapter 不进入 `tools/` 或 `worktree/`，文件工具也不得直�
 本能力只有在以下证据同时成立时才算完成：
 
 - fake provider 可完整驱动读、搜、改、检查和最终响应。
+- 首次直接运行不额外消耗独立探测的两个模型往返；真实会话未产生工具调用时必须失败且不留下变更。
+- 同轮只读工具并发、文件目录/内容缓存失效和同一变更版本 check 去重都有确定性测试。
+- Agent 输入包含有界、脱敏、就近优先的格式/语言/项目配置和同目录代码样例，并且不发送 check 命令与参数。
 - Responses 与 Chat Completions adapter 产生相同的内部工具事件语义。
 - 两种 adapter 均允许中转站跨轮复用 provider `toolCallId`，同时拒绝同轮冲突；Runtime 中不同轮的活动不能相互覆盖。
 - provider 返回任意恶意路径、重复调用和畸形参数都不能逃离 worktree。

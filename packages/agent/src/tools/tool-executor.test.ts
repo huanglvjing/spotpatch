@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   DEFAULT_AGENT_LIMITS,
@@ -27,6 +27,14 @@ const updatePatch = `diff --git a/src/App.tsx b/src/App.tsx
 @@ -1 +1 @@
 -export const App = () => <button>Before</button>;
 +export const App = () => <button>After</button>;
+`;
+
+const addFilePatch = `diff --git a/src/New.ts b/src/New.ts
+new file mode 100644
+--- /dev/null
++++ b/src/New.ts
+@@ -0,0 +1 @@
++export const newValue = true;
 `;
 
 function call(
@@ -92,6 +100,37 @@ describe("Agent tool executor", () => {
     });
     expect(read.output).toMatchObject({ path: "src/App.tsx" });
     expect(JSON.stringify(read.output)).toContain("Before");
+  });
+
+  it("refreshes the cached file catalog after a structural change", async () => {
+    const executor = createAgentToolExecutor({
+      checks: {},
+      limits: DEFAULT_AGENT_LIMITS,
+      worktreeRoot: worktree.root,
+    });
+    const signal = new AbortController().signal;
+    const before = await executor.execute(
+      call("list-before", "list_files", { glob: "src/**/*.ts", maxResults: 100 }),
+      turn(1),
+      signal,
+    );
+
+    expect(JSON.stringify(before.output)).not.toContain("src/New.ts");
+    await executor.execute(
+      call("add", "apply_patch", { patch: addFilePatch }),
+      turn(2),
+      signal,
+    );
+    const after = await executor.execute(
+      call("list-after", "list_files", { glob: "src/**/*.ts", maxResults: 100 }),
+      turn(3),
+      signal,
+    );
+
+    expect(after.output).toMatchObject({
+      files: ["src/New.ts", "src/other.ts"],
+      truncated: false,
+    });
   });
 
   it("scopes idempotency to one turn and permits a provider ID in a later turn", async () => {
@@ -312,6 +351,49 @@ describe("Agent tool executor", () => {
         new AbortController().signal,
       ),
     ).rejects.toMatchObject({ code: ERROR_CODES.VALIDATION_FAILED });
+  });
+
+  it("reuses only a check result from the current change revision", async () => {
+    const verifyCheck = Object.freeze({
+      id: "verify",
+      label: "Verify",
+      command: process.execPath,
+      args: Object.freeze(["--version"]),
+      required: true,
+      timeoutMs: 2_000,
+    } satisfies ResolvedAgentCheckDefinition);
+    const onCheck = vi.fn();
+    const executor = createAgentToolExecutor({
+      checks: { verify: verifyCheck },
+      limits: DEFAULT_AGENT_LIMITS,
+      worktreeRoot: worktree.root,
+      onCheck,
+    });
+    const signal = new AbortController().signal;
+    const checked = await executor.execute(
+      call("check", "run_check", { checkId: "verify" }),
+      turn(1),
+      signal,
+    );
+
+    expect(executor.latestCheckResult("verify")).toEqual(checked.output);
+    const repeated = await executor.execute(
+      call("check-again", "run_check", { checkId: "verify" }),
+      turn(2),
+      signal,
+    );
+    expect(repeated.output).toEqual(checked.output);
+    expect(onCheck).toHaveBeenCalledOnce();
+    await executor.execute(
+      call("replace", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "<button>Before</button>",
+        newText: "<button>After</button>",
+      }),
+      turn(3),
+      signal,
+    );
+    expect(executor.latestCheckResult("verify")).toBeUndefined();
   });
 
   async function worktreeFile(): Promise<string> {

@@ -16,6 +16,7 @@ import type {
 import {
   readAgentTextFile,
   writeAgentTextFileIfContentMatches,
+  type ReadTextFileResult,
 } from "../security/text-file.js";
 import {
   requireConfiguredCheck,
@@ -23,8 +24,10 @@ import {
 } from "../validation/check-runner.js";
 import { applyAgentPatch } from "../worktree/change-set.js";
 import { runGitCommand } from "../worktree/git-command.js";
-import { listAgentFiles } from "./file-discovery.js";
+import { createAgentFileCatalog } from "./file-discovery.js";
 import { AGENT_TOOL_NAMES } from "./tool-definitions.js";
+
+const SEARCH_READ_CONCURRENCY = 8;
 
 const listFilesSchema = z.strictObject({
   glob: z.string().min(1).max(256),
@@ -67,6 +70,7 @@ export interface AgentToolExecutor {
     scope: AgentToolExecutionScope,
     signal: AbortSignal,
   ) => Promise<ProviderToolResult>;
+  readonly latestCheckResult: (checkId: string) => AgentCheckResult | undefined;
   readonly touchedPaths: () => ReadonlySet<string>;
 }
 
@@ -77,6 +81,11 @@ export interface AgentToolExecutionScope {
 interface CachedToolResult {
   readonly signature: string;
   readonly result: ProviderToolResult;
+}
+
+interface VersionedCheckResult {
+  readonly changeRevision: number;
+  readonly result: AgentCheckResult;
 }
 
 function invalidTool(): never {
@@ -179,7 +188,37 @@ export function createAgentToolExecutor(
   options: AgentToolExecutorOptions,
 ): AgentToolExecutor {
   const cacheByTurn = new Map<number, Map<string, CachedToolResult>>();
+  const fileCatalog = createAgentFileCatalog(options.worktreeRoot);
+  const fileContents = new Map<string, Promise<ReadTextFileResult>>();
+  const latestChecks = new Map<string, VersionedCheckResult>();
   const touchedPaths = new Set<string>();
+  let changeRevision = 0;
+
+  const readTextFile = (relativePath: string): Promise<ReadTextFileResult> => {
+    const cached = fileContents.get(relativePath);
+
+    if (cached !== undefined) {
+      return cached;
+    }
+
+    const pending = readAgentTextFile(
+      options.worktreeRoot,
+      relativePath,
+      options.limits.maxReadBytesPerFile,
+    );
+    fileContents.set(relativePath, pending);
+    return pending;
+  };
+
+  const recordMutation = (relativePaths: readonly string[]): void => {
+    changeRevision += 1;
+    fileCatalog.invalidate();
+
+    for (const relativePath of relativePaths) {
+      fileContents.delete(relativePath);
+      touchedPaths.add(relativePath);
+    }
+  };
 
   const executeUncached = async (
     call: ProviderToolCall,
@@ -188,12 +227,7 @@ export function createAgentToolExecutor(
     switch (call.name) {
       case AGENT_TOOL_NAMES.listFiles: {
         const input = parseArguments(listFilesSchema, call.arguments);
-        const files = await listAgentFiles(
-          options.worktreeRoot,
-          input.glob,
-          input.maxResults,
-          signal,
-        );
+        const files = await fileCatalog.list(input.glob, input.maxResults, signal);
         const boundedFiles: string[] = [];
         let characters = 0;
 
@@ -216,62 +250,65 @@ export function createAgentToolExecutor(
       }
       case AGENT_TOOL_NAMES.searchText: {
         const input = parseArguments(searchTextSchema, call.arguments);
-        const files = await listAgentFiles(
-          options.worktreeRoot,
-          input.glob,
-          2_000,
-          signal,
-        );
+        const files = await fileCatalog.list(input.glob, 2_000, signal);
         const matches: Readonly<{ path: string; line: number; text: string }>[] = [];
         let characters = 0;
 
-        for (const relativePath of files) {
+        for (let offset = 0; offset < files.length; offset += SEARCH_READ_CONCURRENCY) {
           if (signal.aborted) {
             throw new SpotPatchError(ERROR_CODES.AGENT_CANCELLED);
           }
 
-          let content: string;
+          const batch = files.slice(offset, offset + SEARCH_READ_CONCURRENCY);
+          const contents = await Promise.all(
+            batch.map((relativePath) =>
+              readTextFile(relativePath).catch((error: unknown) => {
+                if (
+                  error instanceof SpotPatchError &&
+                  (error.code === ERROR_CODES.TOOL_PATH_DENIED ||
+                    error.code === ERROR_CODES.AGENT_LIMIT_EXCEEDED)
+                ) {
+                  return undefined;
+                }
 
-          try {
-            content = (
-              await readAgentTextFile(
-                options.worktreeRoot,
-                relativePath,
-                options.limits.maxReadBytesPerFile,
-              )
-            ).content;
-          } catch (error: unknown) {
-            if (error instanceof SpotPatchError) {
+                throw error;
+              }),
+            ),
+          );
+
+          for (const [fileIndex, file] of contents.entries()) {
+            if (file === undefined) {
               continue;
             }
 
-            throw error;
-          }
+            for (const [lineIndex, line] of file.content.split(/\r?\n/u).entries()) {
+              if (!line.includes(input.query)) {
+                continue;
+              }
 
-          const lines = content.split(/\r?\n/u);
+              const preview = truncate(line, 500).text;
+              const relativePath = batch[fileIndex] ?? file.relativePath;
+              const nextCharacters = relativePath.length + preview.length + 32;
 
-          for (const [index, line] of lines.entries()) {
-            if (!line.includes(input.query)) {
-              continue;
+              if (
+                matches.length >= input.maxResults ||
+                characters + nextCharacters > options.limits.maxToolOutputCharacters
+              ) {
+                return Object.freeze({
+                  matches: Object.freeze(matches),
+                  truncated: true,
+                });
+              }
+
+              matches.push(
+                Object.freeze({
+                  path: relativePath,
+                  line: lineIndex + 1,
+                  text: preview,
+                }),
+              );
+              characters += nextCharacters;
             }
-
-            const preview = truncate(line, 500).text;
-            const nextCharacters = relativePath.length + preview.length + 32;
-
-            if (
-              matches.length >= input.maxResults ||
-              characters + nextCharacters > options.limits.maxToolOutputCharacters
-            ) {
-              return Object.freeze({
-                matches: Object.freeze(matches),
-                truncated: true,
-              });
-            }
-
-            matches.push(
-              Object.freeze({ path: relativePath, line: index + 1, text: preview }),
-            );
-            characters += nextCharacters;
           }
         }
 
@@ -279,11 +316,7 @@ export function createAgentToolExecutor(
       }
       case AGENT_TOOL_NAMES.readFile: {
         const input = parseArguments(readFileSchema, call.arguments);
-        const file = await readAgentTextFile(
-          options.worktreeRoot,
-          input.path,
-          options.limits.maxReadBytesPerFile,
-        );
+        const file = await readTextFile(input.path);
         const lines = file.content.split(/\r?\n/u);
         const startLine = input.startLine ?? 1;
         const endLine = input.endLine ?? Math.min(lines.length, startLine + 199);
@@ -317,11 +350,7 @@ export function createAgentToolExecutor(
         }
 
         const before = await worktreeFingerprint(options.worktreeRoot, signal);
-        const file = await readAgentTextFile(
-          options.worktreeRoot,
-          input.path,
-          options.limits.maxReadBytesPerFile,
-        );
+        const file = await readTextFile(input.path);
         const occurrences = countOccurrences(file.content, input.oldText);
 
         if (
@@ -404,7 +433,7 @@ export function createAgentToolExecutor(
           );
         }
 
-        touchedPaths.add(file.relativePath);
+        recordMutation([file.relativePath]);
         return Object.freeze({
           paths: Object.freeze([file.relativePath]),
           replacements: 1,
@@ -442,15 +471,19 @@ export function createAgentToolExecutor(
           );
         }
 
-        for (const relativePath of paths) {
-          touchedPaths.add(relativePath);
-        }
+        recordMutation(paths);
 
         return Object.freeze({ paths });
       }
       case AGENT_TOOL_NAMES.runCheck: {
         const input = parseArguments(runCheckSchema, call.arguments);
         const check = requireConfiguredCheck(input.checkId, options.checks);
+        const cached = latestChecks.get(check.id);
+
+        if (cached?.changeRevision === changeRevision) {
+          return cached.result;
+        }
+
         const before = await worktreeFingerprint(options.worktreeRoot, signal);
         const result = await runConfiguredCheck({
           check,
@@ -464,6 +497,7 @@ export function createAgentToolExecutor(
           throw new SpotPatchError(ERROR_CODES.VALIDATION_FAILED);
         }
 
+        latestChecks.set(check.id, Object.freeze({ changeRevision, result }));
         options.onCheck?.(result);
         return result;
       }
@@ -514,6 +548,10 @@ export function createAgentToolExecutor(
       const result = Object.freeze({ toolCallId: call.id, output });
       turnCache.set(call.id, Object.freeze({ signature, result }));
       return result;
+    },
+    latestCheckResult(checkId: string) {
+      const cached = latestChecks.get(checkId);
+      return cached?.changeRevision === changeRevision ? cached.result : undefined;
     },
     touchedPaths() {
       return new Set(touchedPaths);

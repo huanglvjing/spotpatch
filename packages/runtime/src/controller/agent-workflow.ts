@@ -439,11 +439,8 @@ export function createAgentWorkflow(
       const workflowRevision = ++revision;
       options.view.setAgentEditingEnabled(false);
 
-      void Promise.all([
-        probe(workflowRevision),
-        refreshWorkspaceHealth(workflowRevision),
-      ])
-        .then(async ([, health]) => {
+      void refreshWorkspaceHealth(workflowRevision)
+        .then(async (health) => {
           if (workflowRevision !== revision) {
             return;
           }

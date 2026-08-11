@@ -2,7 +2,7 @@
 
 ## English
 
-The Node-only Agent engine used by SpotPatch framework adapters. It owns OpenAI-compatible provider sessions, capability probes, bounded file tools, isolated Git worktrees, validation checks, Diff review, Apply, and conflict-safe Revert.
+The Node-only Agent engine used by SpotPatch framework adapters. It owns OpenAI-compatible provider sessions, explicit and inline capability proof, bounded project-convention context and file tools, isolated Git worktrees, deduplicated validation checks, Diff review, Apply, and conflict-safe Revert.
 
 Applications should enable this capability through a framework adapter such as [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite). This package is public so the adapter dependency graph can be installed and versioned; it is not a standalone UI integration.
 
@@ -18,7 +18,7 @@ Requires Node.js `>=20.19.0`.
 
 ## 简体中文
 
-这是 SpotPatch 框架适配器使用的 Node-only Agent 引擎，负责 OpenAI-compatible Provider 会话、能力探测、有界文件工具、隔离 Git worktree、项目检查、Diff 审阅、Apply 和冲突安全的 Revert。
+这是 SpotPatch 框架适配器使用的 Node-only Agent 引擎，负责 OpenAI-compatible Provider 会话、显式/内联能力证明、有界项目规范上下文与文件工具、隔离 Git worktree、去重后的项目检查、Diff 审阅、Apply 和冲突安全的 Revert。
 
 业务应用应通过 [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) 等框架适配器启用该能力。本包公开发布是为了形成可安装、可版本化的依赖图，不是独立 UI 接入入口。
 

@@ -119,7 +119,7 @@ spotPatch({
 });
 ```
 
-The default Agent path is review-gated: it probes provider capabilities, works in an isolated Git worktree, exposes bounded file tools rather than an arbitrary shell, runs configured checks, and shows the complete Diff before Apply. SpotPatch does not commit, push, publish, or deploy application code.
+The default Agent path is review-gated: **Check environment** provides an optional source-free capability diagnostic, while Run starts the real isolated tool session directly and proves tool continuation inline. The Agent supplies bounded nearby project conventions, exposes file tools rather than an arbitrary shell, reuses current host-run checks, and shows the complete Diff before Apply. SpotPatch does not commit, push, publish, or deploy application code.
 
 ### Security and production behavior
 
@@ -255,7 +255,7 @@ spotPatch({
 });
 ```
 
-默认 Agent 路径必须经过审阅：先探测 Provider 能力，在隔离 Git worktree 中工作，只暴露有界文件工具而不是任意 Shell，执行已配置检查，并在 Apply 前展示完整 Diff。SpotPatch 不会替业务代码执行 commit、push、发包或部署。
+默认 Agent 路径必须经过审阅：“检查运行环境”提供不含源码的可选能力诊断；点击运行会直接进入真实隔离工具会话，并在会话内证明工具续接能力。Agent 会提供有界的就近项目规范，只暴露文件工具而不是任意 Shell，复用当前变更版本中由宿主实际执行的检查，并在 Apply 前展示完整 Diff。SpotPatch 不会替业务代码执行 commit、push、发包或部署。
 
 ### 安全与生产行为
 

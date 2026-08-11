@@ -12,10 +12,17 @@ import {
 import { createOpenAICompatibleProviderSession } from "../provider/openai-compatible-provider.js";
 import { assertUniqueToolCallIds } from "../provider/provider-parsing.js";
 import type { ProviderCredential } from "../provider/provider-credential.js";
-import type { ProviderToolResult } from "../provider/provider-types.js";
+import type {
+  ProviderToolCall,
+  ProviderToolResult,
+} from "../provider/provider-types.js";
+import { collectProjectConventions } from "../context/project-conventions.js";
 import { isRestartSensitivePath } from "../security/path-policy.js";
 import { createAgentToolExecutor } from "../tools/tool-executor.js";
-import { AGENT_TOOL_DEFINITIONS } from "../tools/tool-definitions.js";
+import {
+  AGENT_TOOL_DEFINITIONS,
+  isReadOnlyAgentTool,
+} from "../tools/tool-definitions.js";
 import { runConfiguredCheck } from "../validation/check-runner.js";
 import { collectAgentChangeSet } from "../worktree/change-set.js";
 import { createIsolatedGitWorktree } from "../worktree/git-worktree.js";
@@ -97,6 +104,68 @@ function linkSignal(source: AbortSignal, target: AbortController): () => void {
   };
 }
 
+async function executeToolCall(
+  call: ProviderToolCall,
+  turn: number,
+  executor: ReturnType<typeof createAgentToolExecutor>,
+  callbacks: AgentExecutionCallbacks | undefined,
+  signal: AbortSignal,
+): Promise<ProviderToolResult> {
+  callbacks?.onTool?.(
+    Object.freeze({
+      turn,
+      toolCallId: call.id,
+      toolName: call.name,
+      state: "started",
+    }),
+  );
+
+  try {
+    const result = await executor.execute(call, Object.freeze({ turn }), signal);
+    callbacks?.onTool?.(
+      Object.freeze({
+        turn,
+        toolCallId: call.id,
+        toolName: call.name,
+        state: isRetryableToolFailure(result) ? "failed" : "succeeded",
+      }),
+    );
+    return result;
+  } catch (error: unknown) {
+    callbacks?.onTool?.(
+      Object.freeze({
+        turn,
+        toolCallId: call.id,
+        toolName: call.name,
+        state: "failed",
+      }),
+    );
+    throw error;
+  }
+}
+
+async function executeToolCalls(
+  calls: readonly ProviderToolCall[],
+  turn: number,
+  executor: ReturnType<typeof createAgentToolExecutor>,
+  callbacks: AgentExecutionCallbacks | undefined,
+  signal: AbortSignal,
+): Promise<readonly ProviderToolResult[]> {
+  if (calls.every((call) => isReadOnlyAgentTool(call.name))) {
+    return Promise.all(
+      calls.map((call) => executeToolCall(call, turn, executor, callbacks, signal)),
+    );
+  }
+
+  const results: ProviderToolResult[] = [];
+
+  for (const call of calls) {
+    results.push(await executeToolCall(call, turn, executor, callbacks, signal));
+  }
+
+  return Object.freeze(results);
+}
+
 export async function executeAgentChange(
   options: ExecuteAgentChangeOptions,
 ): Promise<PreparedAgentChange> {
@@ -141,6 +210,11 @@ export async function executeAgentChange(
         options.callbacks?.onCheck?.(result);
       },
     });
+    const projectConventions = await collectProjectConventions({
+      root: worktree.root,
+      annotation: options.annotation,
+      maximumFileBytes: options.execution.limits.maxReadBytesPerFile,
+    });
     const session = createOpenAICompatibleProviderSession({
       provider: options.provider,
       model: options.model,
@@ -149,6 +223,10 @@ export async function executeAgentChange(
       userPrompt: composeAgentUserPrompt(
         options.annotation,
         options.promptMaxCharacters ?? 16_000,
+        Object.freeze({
+          checks: options.execution.checks,
+          projectConventions,
+        }),
       ),
       tools: AGENT_TOOL_DEFINITIONS,
       limits: options.execution.limits,
@@ -165,6 +243,10 @@ export async function executeAgentChange(
       assertUniqueToolCallIds(response.toolCalls);
 
       if (response.toolCalls.length === 0) {
+        if (toolCallCount === 0) {
+          throw new SpotPatchError(ERROR_CODES.MODEL_TOOL_CALL_UNSUPPORTED);
+        }
+
         summary = response.finalText
           .trim()
           .slice(0, options.execution.limits.maxToolOutputCharacters);
@@ -177,47 +259,13 @@ export async function executeAgentChange(
         throw new SpotPatchError(ERROR_CODES.AGENT_LIMIT_EXCEEDED);
       }
 
-      const results: ProviderToolResult[] = [];
-
-      for (const call of response.toolCalls) {
-        options.callbacks?.onTool?.(
-          Object.freeze({
-            turn: turnNumber,
-            toolCallId: call.id,
-            toolName: call.name,
-            state: "started",
-          }),
-        );
-
-        try {
-          const result = await executor.execute(
-            call,
-            Object.freeze({ turn: turnNumber }),
-            controller.signal,
-          );
-          results.push(result);
-          options.callbacks?.onTool?.(
-            Object.freeze({
-              turn: turnNumber,
-              toolCallId: call.id,
-              toolName: call.name,
-              state: isRetryableToolFailure(result) ? "failed" : "succeeded",
-            }),
-          );
-        } catch (error: unknown) {
-          options.callbacks?.onTool?.(
-            Object.freeze({
-              turn: turnNumber,
-              toolCallId: call.id,
-              toolName: call.name,
-              state: "failed",
-            }),
-          );
-          throw error;
-        }
-      }
-
-      pendingResults = Object.freeze(results);
+      pendingResults = await executeToolCalls(
+        response.toolCalls,
+        turnNumber,
+        executor,
+        options.callbacks,
+        controller.signal,
+      );
     }
 
     if (summary === undefined) {
@@ -241,25 +289,36 @@ export async function executeAgentChange(
         ? []
         : Object.values(options.execution.checks).filter((check) => check.required);
     const finalChecks: AgentCheckResult[] = [];
+    let ranFinalCheck = false;
 
     for (const check of requiredChecks) {
       throwIfCancelled(controller.signal);
-      const result = await runConfiguredCheck({
-        check,
-        maxOutputCharacters: options.execution.limits.maxToolOutputCharacters,
-        signal: controller.signal,
-        worktreeRoot: worktree.root,
-      });
+      const cached = executor.latestCheckResult(check.id);
+      const result =
+        cached ??
+        (await runConfiguredCheck({
+          check,
+          maxOutputCharacters: options.execution.limits.maxToolOutputCharacters,
+          signal: controller.signal,
+          worktreeRoot: worktree.root,
+        }));
       finalChecks.push(result);
-      options.callbacks?.onCheck?.(result);
-      const afterCheck = await collectAgentChangeSet(
+
+      if (cached === undefined) {
+        ranFinalCheck = true;
+        options.callbacks?.onCheck?.(result);
+      }
+    }
+
+    if (ranFinalCheck) {
+      const afterChecks = await collectAgentChangeSet(
         worktree.root,
         executor.touchedPaths(),
         options.execution.limits,
         controller.signal,
       );
 
-      if (afterCheck.diff !== initialChangeSet.diff) {
+      if (afterChecks.diff !== initialChangeSet.diff) {
         throw new SpotPatchError(ERROR_CODES.VALIDATION_FAILED);
       }
     }
@@ -278,14 +337,10 @@ export async function executeAgentChange(
       result.diff.length > 0 &&
       !initialChangeSet.hasDeletion &&
       !initialChangeSet.touchedPaths.some(isRestartSensitivePath);
-    const expectedHashes = await captureAgentFileHashes(
-      worktree.root,
-      initialChangeSet.touchedPaths,
-    );
-    const baselineHashes = await captureAgentFileHashes(
-      worktree.baseline.root,
-      initialChangeSet.touchedPaths,
-    );
+    const [expectedHashes, baselineHashes] = await Promise.all([
+      captureAgentFileHashes(worktree.root, initialChangeSet.touchedPaths),
+      captureAgentFileHashes(worktree.baseline.root, initialChangeSet.touchedPaths),
+    ]);
 
     return createPreparedAgentChange({
       autoApplyEligible,

@@ -1,5 +1,15 @@
 # @spotpatch/vite
 
+## 1.6.1
+
+### Patch Changes
+
+- f13bd87: Keep customizable Agent select popovers visible when opened. The picker now
+  uses a visible computed state as its resilient default, retains a progressive
+  opening transition, and scrolls when the option list exceeds its height.
+- Updated dependencies [f13bd87]
+  - @spotpatch/runtime@1.7.1
+
 ## 1.6.0
 
 ### Minor Changes

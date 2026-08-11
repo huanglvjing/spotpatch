@@ -1,5 +1,14 @@
 # @spotpatch/vite
 
+## 1.4.3
+
+### Patch Changes
+
+- 6cd7726: Recenter restored cross-page selections when their original DOM anchor is no
+  longer available, and refresh the workbench with a compact, responsive layout.
+- Updated dependencies [6cd7726]
+  - @spotpatch/runtime@1.5.1
+
 ## 1.4.2
 
 ### Patch Changes

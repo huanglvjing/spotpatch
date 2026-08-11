@@ -161,6 +161,7 @@ describe("protocol request schemas", () => {
     expect(
       agentJobCreateRequestSchema.safeParse({
         ...request,
+        applyMode: "trusted-auto",
         trustedFastModeConsent: true,
       }).success,
     ).toBe(true);
@@ -168,6 +169,12 @@ describe("protocol request schemas", () => {
       agentJobCreateRequestSchema.safeParse({
         ...request,
         trustedFastModeConsent: false,
+      }).success,
+    ).toBe(false);
+    expect(
+      agentJobCreateRequestSchema.safeParse({
+        ...request,
+        applyMode: "unbounded-auto",
       }).success,
     ).toBe(false);
   });

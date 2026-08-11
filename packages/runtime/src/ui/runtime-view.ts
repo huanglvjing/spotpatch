@@ -55,6 +55,7 @@ export interface RuntimeView {
   readonly agentCancelButton: HTMLButtonElement;
   readonly agentConsentCheckbox: HTMLInputElement;
   readonly agentModelSelect: HTMLSelectElement;
+  readonly agentModeSelect: HTMLSelectElement;
   readonly agentProviderSelect: HTMLSelectElement;
   readonly agentResetButton: HTMLButtonElement;
   readonly agentRevertButton: HTMLButtonElement;
@@ -1485,6 +1486,7 @@ export function createRuntimeView(
     closeButton,
     agentProviderSelect: agentPanel.providerSelect,
     agentModelSelect: agentPanel.modelSelect,
+    agentModeSelect: agentPanel.modeSelect,
     agentConsentCheckbox: agentPanel.consentCheckbox,
     agentWorkspaceConsentCheckbox: agentPanel.workspaceConsentCheckbox,
     agentTestButton: agentPanel.testButton,

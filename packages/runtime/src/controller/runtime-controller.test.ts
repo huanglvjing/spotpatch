@@ -923,6 +923,16 @@ describe("runtime controller", () => {
     const instructionInput = shadowRoot?.querySelector<HTMLTextAreaElement>(
       "textarea[data-target-instruction-id]",
     );
+    const modeSelect = shadowRoot?.querySelector<HTMLSelectElement>(
+      'select[aria-label="AI execution mode"]',
+    );
+
+    if (modeSelect === null || modeSelect === undefined) {
+      throw new Error("Expected the Agent execution mode selector.");
+    }
+
+    modeSelect.value = "trusted-auto";
+    modeSelect.dispatchEvent(new Event("change", { bubbles: true }));
     const trustedConsent = shadowRoot?.querySelector<HTMLInputElement>(
       ".spotpatch-trusted-consent input",
     );
@@ -955,6 +965,7 @@ describe("runtime controller", () => {
         expect.objectContaining({
           providerProfileId: "relay",
           modelProfileId: "coder",
+          applyMode: "trusted-auto",
           providerDataConsent: true,
           trustedFastModeConsent: true,
           workingTreeMode: "include-local-changes",

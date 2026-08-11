@@ -37,6 +37,14 @@ function verifyAdapterExports(appRoot: string): void {
   }
 }
 
+function writeTrustedModeStatus(available: boolean): void {
+  process.stdout.write(
+    available
+      ? "[spotpatch:next] trusted fast mode is available in the page selector.\n"
+      : "[spotpatch:next] review mode is ready; trusted fast mode needs a local TypeScript project check.\n",
+  );
+}
+
 async function runInit(arguments_: readonly string[]): Promise<number> {
   if (arguments_.length !== 0) {
     throw new Error("SpotPatch init does not accept positional arguments.");
@@ -48,6 +56,7 @@ async function runInit(arguments_: readonly string[]): Promise<number> {
 
   if (plan.changes.length === 0) {
     process.stdout.write("[spotpatch:next] integration is already up to date.\n");
+    writeTrustedModeStatus(plan.trustedFastModeAvailable);
     return 0;
   }
 
@@ -65,6 +74,7 @@ async function runInit(arguments_: readonly string[]): Promise<number> {
   process.stdout.write(
     `[spotpatch:next] updated ${String(plan.changes.length)} integration file(s).\n`,
   );
+  writeTrustedModeStatus(plan.trustedFastModeAvailable);
   return 0;
 }
 
@@ -85,8 +95,11 @@ async function runCheck(arguments_: readonly string[]): Promise<number> {
     return 1;
   }
 
+  const mode = result.trustedFastModeAvailable
+    ? "trusted fast mode available"
+    : "review mode";
   process.stdout.write(
-    `[spotpatch:next] integration verified for Next.js ${project.nextVersion}.\n`,
+    `[spotpatch:next] integration verified for Next.js ${project.nextVersion} · ${mode}.\n`,
   );
   return 0;
 }

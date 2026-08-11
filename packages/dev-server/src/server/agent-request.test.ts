@@ -156,6 +156,7 @@ describe("Agent job request authorization", () => {
   it("preserves only an explicit trusted fast-mode consent", async () => {
     const trustedRequest = agentJobCreateRequestSchema.parse({
       ...request(),
+      applyMode: "trusted-auto",
       trustedFastModeConsent: true,
     });
     const authorized = await authorizeAgentJobRequest({
@@ -166,6 +167,7 @@ describe("Agent job request authorization", () => {
     });
 
     expect(authorized.trustedFastModeConsent).toBe(true);
+    expect(authorized.applyMode).toBe("trusted-auto");
     expect(
       await authorizeAgentJobRequest({
         request: request(),

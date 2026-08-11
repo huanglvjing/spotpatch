@@ -222,6 +222,9 @@ export async function authorizeAgentJobRequest(
 
   return Object.freeze({
     annotation,
+    ...(input.request.applyMode === undefined
+      ? {}
+      : { applyMode: input.request.applyMode }),
     providerProfileId: input.request.providerProfileId,
     modelProfileId: input.request.modelProfileId,
     providerDataConsent: true,

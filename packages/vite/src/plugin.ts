@@ -6,6 +6,7 @@ import {
   resolveCredentialEnvironment,
   resolveEnvironmentAiConfiguration,
   resolveOptions,
+  resolveProjectOptions,
 } from "@spotpatch/dev-server";
 import { loadEnv, type ConfigEnv, type Plugin, type UserConfig } from "vite";
 
@@ -30,7 +31,10 @@ export function spotPatch(userOptions: ViteSpotPatchOptions = {}): Plugin[] {
     getCredentialEnvironment: () => credentialEnvironment,
     getOptions: () => options,
   } satisfies SpotPatchPluginContext);
-  const configure = (config: UserConfig, environment: ConfigEnv): void => {
+  const configure = async (
+    config: UserConfig,
+    environment: ConfigEnv,
+  ): Promise<void> => {
     const root = path.resolve(process.cwd(), config.root ?? ".");
     const loadedEnvironment =
       config.envDir === false
@@ -41,7 +45,11 @@ export function spotPatch(userOptions: ViteSpotPatchOptions = {}): Plugin[] {
         ? resolveEnvironmentAiConfiguration(loadedEnvironment).ai
         : false;
 
-    options = resolveOptions(userOptions, environmentAi);
+    options = await resolveProjectOptions({
+      appRoot: root,
+      environmentAi,
+      options: userOptions,
+    });
 
     credentialEnvironment = resolveCredentialEnvironment(options, loadedEnvironment);
   };

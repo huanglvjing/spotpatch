@@ -110,7 +110,7 @@ previewing
 
 AI Job 是与元素选择状态正交的服务端状态，不把 `running`、`validating` 等状态塞入上述选择 reducer；公共状态枚举只有一处定义 (见 doc-id:03-public-api-models)，完整转换和取消语义由 Agent 执行规范定义 (见 doc-id:16-ai-agent-execution)。
 
-- `RUN_AGENT` 必须冻结当前 `SpotAnnotation`、provider profile ID 和 model profile ID，再创建 Job；后续输入、选择或模型切换只影响新 Job。
+- `RUN_AGENT` 必须冻结当前 `SpotAnnotation`、provider profile ID、model profile ID 和页面选择的 apply mode，再创建 Job；后续输入、选择、模式或模型切换只影响新 Job。
 - 文本输入只更新本地草稿，不按键调用 provider；用户点击运行或按 `Mod+Enter` 才产生一次明确请求。
 - Runtime 通过带会话 token 的本地协议读取有序 Job 事件，并使用独立 `AbortController`；外部 provider URL 与 Key 永不进入 Runtime (见 doc-id:17-model-provider-credentials)。
 - 关闭面板不等于静默取消：运行中必须提供明确的“继续后台运行”或“取消任务”行为；v1.1 默认关闭面板时请求用户确认。
@@ -119,8 +119,9 @@ AI Job 是与元素选择状态正交的服务端状态，不把 `running`、`va
 - 多目标 Job Apply 后必须一次性释放全部目标的 Element、Observer 和几何引用；不能只释放最后一个活动目标后继续使用其余旧 DOM。
 - Runtime 只展示脱敏 Job 快照、Diff 和检查结果；不能依据模型自然语言自行判定“已修改”或“检查通过”。
 - AI 启用且进入选中态时，Runtime 必须读取本地工作区健康快照；provider/model 改变、环境检查、重置 Job 和真正运行前都必须重新检查，不能复用过期快照。健康状态与公共结构只在公共模型定义 (见 doc-id:03-public-api-models)。
-- `ready` 直接允许继续；review/auto 的 `consent-required` 必须展示 staged/unstaged/untracked 数量和独立的本地修改纳入同意，用户勾选前 Run 保持禁用；trusted-auto 使用包含远程传输、本地修改与直接应用后果的一次会话级同意，不重复显示第二个复选框。`blocked` 必须展示稳定错误码对应的具体原因，任何模式都不能用同意绕过。检查中的瞬时状态不得清空用户刚刚作出的同意，最终变为 `ready` 或 `blocked` 时必须清除不再适用的独立工作区同意。
-- 创建 Job 时只能根据本次最新健康快照生成 `workingTreeMode`：干净为 `require-clean`，存在且已同意的可隔离修改为 `include-local-changes`。trusted-auto 还必须显式发送 `trustedFastModeConsent: true`；其他模式不得发送，服务端配置不匹配时必须拒绝。两个字段都不是长期偏好，不写盘，也不能由 provider capability 同意代替。服务端仍重新检查，防止浏览器状态与磁盘状态之间的竞态。
+- 服务端声明 `trusted-auto` 能力时，Runtime 提供 `review | trusted-auto` 两个页面选项并默认 `review`；其他服务端策略不允许浏览器扩大 apply mode。模式切换必须清理不适用的会话同意并刷新运行门禁。
+- `ready` 直接允许继续；review/auto 的 `consent-required` 必须展示 staged/unstaged/untracked 数量和独立的本地修改纳入同意，用户勾选前 Run 保持禁用；页面选中 trusted-auto 时使用包含远程传输、本地修改与直接应用后果的一次会话级同意，不重复显示第二个复选框。`blocked` 必须展示稳定错误码对应的具体原因，任何模式都不能用同意绕过。检查中的瞬时状态不得清空用户刚刚作出的同意，最终变为 `ready` 或 `blocked` 时必须清除不再适用的独立工作区同意。
+- 创建 Job 时只能根据本次最新健康快照生成 `workingTreeMode`：干净为 `require-clean`，存在且已同意的可隔离修改为 `include-local-changes`。请求必须显式发送本次 `applyMode`；选择 trusted-auto 时还必须发送 `trustedFastModeConsent: true`，其他模式不得发送。服务端配置与请求不匹配时必须拒绝。三个字段都不是长期偏好，不写盘，也不能由 provider capability 同意代替。服务端仍重新检查，防止浏览器状态与磁盘状态之间的竞态。
 
 ## 元素选择器
 

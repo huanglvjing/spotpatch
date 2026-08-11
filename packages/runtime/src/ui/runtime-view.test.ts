@@ -363,6 +363,7 @@ describe("runtime view", () => {
     view.showSelection("Browser context: ready", true, true);
 
     expect(view.readAgentSelection()).toEqual({
+      applyMode: "review",
       providerProfileId: "relay",
       modelProfileId: "coder",
     });
@@ -483,6 +484,8 @@ describe("runtime view", () => {
 
     view.renderStatus("selected");
     view.showSelection("Browser context: ready", true, true);
+    view.agentModeSelect.value = "trusted-auto";
+    view.agentModeSelect.dispatchEvent(new Event("change", { bubbles: true }));
     view.renderAgentWorkspaceHealth("consent-required", {
       state: "consent-required",
       checkedAt: "2026-08-11T00:00:00.000Z",
@@ -498,6 +501,7 @@ describe("runtime view", () => {
 
     expect(view.host.shadowRoot?.textContent).toContain("可信快速模式");
     expect(view.host.shadowRoot?.textContent).toContain("包括删除文件与配置变更");
+    expect(view.readAgentSelection()?.applyMode).toBe("trusted-auto");
     expect(view.agentWorkspaceConsentCheckbox.closest("label")?.hidden).toBe(true);
     expect(view.agentWorkspaceConsentGranted()).toBe(false);
     expect(view.agentRunButton.disabled).toBe(true);

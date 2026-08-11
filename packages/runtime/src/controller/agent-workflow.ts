@@ -23,6 +23,7 @@ export interface AgentWorkflow {
   readonly cancel: () => void;
   readonly consentChanged: () => void;
   readonly disposeSelection: () => void;
+  readonly modeChanged: () => void;
   readonly providerOrModelChanged: () => void;
   readonly reset: () => void;
   readonly revert: () => void;
@@ -91,6 +92,8 @@ export function createAgentWorkflow(
   let actionPending = false;
 
   const selectedProfiles = () => options.view.readAgentSelection();
+  const consentKey = (selection: NonNullable<ReturnType<typeof selectedProfiles>>) =>
+    `${selection.providerProfileId}:${selection.applyMode}`;
 
   const refreshWorkspaceHealth = async (
     workflowRevision: number,
@@ -140,9 +143,7 @@ export function createAgentWorkflow(
       return;
     }
 
-    options.view.setAgentProviderConsent(
-      providerConsents.has(selection.providerProfileId),
-    );
+    options.view.setAgentProviderConsent(providerConsents.has(consentKey(selection)));
     const cached = capabilities.get(
       capabilityKey(selection.providerProfileId, selection.modelProfileId),
     );
@@ -367,9 +368,9 @@ export function createAgentWorkflow(
       }
 
       if (options.view.agentConsentGranted()) {
-        providerConsents.add(selection.providerProfileId);
+        providerConsents.add(consentKey(selection));
       } else {
-        providerConsents.delete(selection.providerProfileId);
+        providerConsents.delete(consentKey(selection));
       }
     },
 
@@ -388,6 +389,13 @@ export function createAgentWorkflow(
       if (cancellableJobId !== undefined) {
         void options.api.cancelAgentJob(cancellableJobId).catch(() => undefined);
       }
+    },
+
+    modeChanged(): void {
+      revision += 1;
+      restoreProviderState();
+      const workflowRevision = revision;
+      void refreshWorkspaceHealth(workflowRevision).catch(() => undefined);
     },
 
     providerOrModelChanged(): void {
@@ -420,7 +428,6 @@ export function createAgentWorkflow(
         return;
       }
 
-      const trustedFastMode = options.ai.applyMode === "trusted-auto";
       const selection = selectedProfiles();
       const annotation = options.getAnnotation();
 
@@ -436,7 +443,7 @@ export function createAgentWorkflow(
         return;
       }
 
-      providerConsents.add(selection.providerProfileId);
+      providerConsents.add(consentKey(selection));
       const workflowRevision = ++revision;
       options.view.setAgentEditingEnabled(false);
 
@@ -461,10 +468,13 @@ export function createAgentWorkflow(
 
           const created = await options.api.createAgentJob({
             annotation,
+            applyMode: selection.applyMode,
             providerProfileId: selection.providerProfileId,
             modelProfileId: selection.modelProfileId,
             providerDataConsent: true,
-            ...(trustedFastMode ? { trustedFastModeConsent: true as const } : {}),
+            ...(selection.applyMode === "trusted-auto"
+              ? { trustedFastModeConsent: true as const }
+              : {}),
             workingTreeMode:
               health.state === "consent-required"
                 ? "include-local-changes"

@@ -1,6 +1,8 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -11,14 +13,17 @@ import {
 } from "./initializer.js";
 
 const roots: string[] = [];
+const execFileAsync = promisify(execFile);
 
 async function fixture(input?: {
   readonly config?: string;
   readonly instrumentation?: string;
   readonly script?: string;
+  readonly trustedFastMode?: boolean;
 }): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-next-init-"));
   roots.push(root);
+  await execFileAsync("git", ["init", "--quiet"], { cwd: root });
   await mkdir(path.join(root, "src", "app"), { recursive: true });
   await writeFile(
     path.join(root, "package.json"),
@@ -27,7 +32,10 @@ async function fixture(input?: {
         name: "fixture",
         private: true,
         scripts: { dev: input?.script ?? "next dev" },
-        devDependencies: { "@spotpatch/next": "0.0.0" },
+        devDependencies: {
+          "@spotpatch/next": "0.0.0",
+          ...(input?.trustedFastMode ? { typescript: "0.0.0" } : {}),
+        },
       },
       undefined,
       2,
@@ -44,6 +52,17 @@ async function fixture(input?: {
       path.join(root, "src", "instrumentation-client.ts"),
       input.instrumentation,
     );
+  }
+
+  if (input?.trustedFastMode) {
+    const packageRoot = path.join(root, "node_modules", "typescript");
+    await mkdir(path.join(packageRoot, "bin"), { recursive: true });
+    await writeFile(path.join(root, "tsconfig.json"), "{}\n");
+    await writeFile(
+      path.join(packageRoot, "package.json"),
+      '{"name":"typescript","version":"0.0.0"}\n',
+    );
+    await writeFile(path.join(packageRoot, "bin", "tsc"), "process.exit(0);\n");
   }
 
   return root;
@@ -124,6 +143,21 @@ describe("Next integration initializer", () => {
     expect(instrumentation).toBe(
       'import type { ClientMarker } from "@spotpatch/next/client";\nimport "@spotpatch/next/client";\n\nexport type Marker = ClientMarker;\n',
     );
+  });
+
+  it("upgrades a zero-config wrapper to expose the page quick-mode selector", async () => {
+    const root = await fixture({
+      config:
+        'import { withSpotPatch } from "@spotpatch/next";\nconst config = {};\nexport default withSpotPatch()(config);\n',
+      trustedFastMode: true,
+    });
+    const plan = await planNextIntegration(root);
+    const config = plan.changes.find(
+      (change) => change.relativePath === "next.config.ts",
+    )?.nextContent;
+
+    expect(plan.trustedFastModeAvailable).toBe(true);
+    expect(config).toContain("withSpotPatch({ trustedFastMode: true })(config)");
   });
 
   it("fails closed before writes for unsupported config and shell scripts", async () => {

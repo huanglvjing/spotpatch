@@ -40,7 +40,7 @@ pnpm exec spotpatch-next check
 pnpm dev
 ```
 
-The supported initializer result has three parts:
+The supported initializer result has three parts. The TypeScript example below enables the in-page Review / Trusted fast selector by discovering the local TypeScript check; a JavaScript-only project remains on `withSpotPatch()` and review mode.
 
 ```ts
 // next.config.ts
@@ -49,7 +49,7 @@ import { withSpotPatch } from "@spotpatch/next";
 
 const nextConfig: NextConfig = {};
 
-export default withSpotPatch()(nextConfig);
+export default withSpotPatch({ trustedFastMode: true })(nextConfig);
 ```
 
 ```ts
@@ -141,7 +141,7 @@ pnpm exec spotpatch-next check
 pnpm dev
 ```
 
-受支持的初始化结果包含三部分：
+受支持的初始化结果包含三部分。下面的 TypeScript 示例会通过自动发现本地 TypeScript 校验来开放页面内“审阅 / 可信快速”选择；纯 JavaScript 项目保持 `withSpotPatch()` 和审阅模式。
 
 ```ts
 // next.config.ts
@@ -150,7 +150,7 @@ import { withSpotPatch } from "@spotpatch/next";
 
 const nextConfig: NextConfig = {};
 
-export default withSpotPatch()(nextConfig);
+export default withSpotPatch({ trustedFastMode: true })(nextConfig);
 ```
 
 ```ts

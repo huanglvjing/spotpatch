@@ -240,7 +240,9 @@ required check 失败时：
 
 ### trusted-auto 可信快速模式
 
-`trusted-auto` 只允许由项目的服务端配置显式开启，并且至少登记一个 required check。Runtime 必须在当前浏览器会话展示一次完整后果说明，由用户主动勾选后才可以创建 Job；请求必须携带字面量 `trustedFastModeConsent: true`，服务端配置与该字段任一不匹配都返回 `INVALID_REQUEST`。同意不写盘、不跨会话或 provider 继承。
+`trusted-auto` 只允许由项目的服务端策略显式开启，并且至少登记一个 required check。项目可以使用完整 `ai.execution` 配置，也可以使用 `trustedFastMode: true` 让 Vite/Next 适配器安全发现本地 TypeScript CLI 和根 `tsconfig.json` 后补全 required check；发现失败时不得猜测包管理器脚本或跳过验证。服务端公开该能力后，Runtime 必须默认 review，并只提供 `review | trusted-auto` 两个页面选项。
+
+用户主动选择 trusted-auto 后，Runtime 必须在当前浏览器会话展示一次完整后果说明，由用户勾选后才可以创建 Job；请求必须携带 `applyMode: "trusted-auto"` 和字面量 `trustedFastModeConsent: true`。review 请求则携带 `applyMode: "review"` 且不得携带可信同意。服务端策略、请求模式与该字段任一不匹配都返回 `INVALID_REQUEST`。同意不写盘、不跨模式、会话或 provider 继承。
 
 开启后，一次同意同时覆盖该 provider 的项目上下文传输、将健康检查发现的有界本地修改纳入隔离基线，以及 required checks 全部通过后的直接 Apply。与 `auto` 不同，`trusted-auto` 不因删除文件或需要重启 Vite 的配置路径退回等待审阅；UI 仍展示执行状态、结果与 Revert，不再要求单独点击 Apply。
 

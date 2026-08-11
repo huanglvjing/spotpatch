@@ -30,6 +30,9 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "spotpatch-vite": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": {
@@ -43,7 +46,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean && tsup --config tsup.runtime-client.config.ts && tsup --config tsup.runtime-react-adapter.config.ts",
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean && tsup --config tsup.cli.config.ts && tsup --config tsup.runtime-client.config.ts && tsup --config tsup.runtime-react-adapter.config.ts",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
@@ -52,7 +55,9 @@
     "@spotpatch/dev-server": "workspace:^",
     "@spotpatch/react-adapter": "workspace:^",
     "@spotpatch/runtime": "workspace:^",
-    "@spotpatch/shared": "workspace:^"
+    "@spotpatch/shared": "workspace:^",
+    "magic-string": "1.1.0",
+    "oxc-parser": "0.143.0"
   },
   "peerDependencies": {
     "vite": "^5.0.0 || ^6.0.0 || ^7.0.0"

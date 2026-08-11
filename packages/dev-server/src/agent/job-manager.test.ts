@@ -457,6 +457,33 @@ describe("Agent job manager", () => {
     await Promise.all([trustedManager.close(), reviewManager.close()]);
   });
 
+  it("allows the page to choose review mode under a trusted fast policy", async () => {
+    const manager = createAgentJobManager({
+      ai: resolveAi("trusted-auto"),
+      root: "/project",
+      environment: TEST_ENVIRONMENT,
+      dependencies: {
+        createJobId: () => "0123456789abcdefghijklmn",
+        executeChange: ({ jobId }) =>
+          Promise.resolve(
+            Object.freeze({
+              kind: "prepared-agent-change" as const,
+              result: resultFor(jobId),
+              validationPassed: true,
+              autoApplyEligible: false,
+            }),
+          ),
+      },
+    });
+    const created = manager.create(
+      Object.freeze({ ...jobRequest(), applyMode: "review" as const }),
+    );
+    await waitForStatus(manager, created.jobId, "awaiting-review");
+
+    expect(manager.result(created.jobId).snapshot.canApply).toBe(true);
+    await manager.close();
+  });
+
   it("surfaces Apply and Revert conflicts without claiming a successful write", async () => {
     const createReviewManager = (
       applyChange: () => Promise<void>,

@@ -44,6 +44,12 @@ function relayProvider(source: AiOptions): AiOptions["providers"][string] {
 }
 
 describe("resolveOptions", () => {
+  it("rejects a non-boolean trusted fast mode flag", () => {
+    expect(() =>
+      resolveOptions({ trustedFastMode: "yes" as unknown as boolean }),
+    ).toThrow(RangeError);
+  });
+
   it("merges nested budget values once without mutating defaults", () => {
     const resolved = resolveOptions({ budget: { maxCodeLines: 42 } });
 

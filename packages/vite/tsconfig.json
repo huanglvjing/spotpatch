@@ -5,6 +5,7 @@
   },
   "include": [
     "src",
+    "tsup.cli.config.ts",
     "tsup.runtime-client.config.ts",
     "tsup.runtime-react-adapter.config.ts"
   ]

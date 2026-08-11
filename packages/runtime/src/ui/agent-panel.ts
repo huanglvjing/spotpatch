@@ -3,6 +3,7 @@ import type {
   AgentJobResult,
   AgentJobSnapshot,
   AgentWorkspaceHealthSnapshot,
+  AgentApplyMode,
   ErrorCode,
   RuntimeAiConfig,
   RuntimeAiProviderProfile,
@@ -12,6 +13,7 @@ import { createButton, createMarkedElement } from "./dom.js";
 import type { UiLocalizer, UiMessages } from "./localization.js";
 
 export interface AgentSelectionValue {
+  readonly applyMode: AgentApplyMode;
   readonly modelProfileId: string;
   readonly providerProfileId: string;
 }
@@ -28,6 +30,7 @@ export interface AgentPanel {
   readonly consentCheckbox: HTMLInputElement;
   readonly workspaceConsentCheckbox: HTMLInputElement;
   readonly modelSelect: HTMLSelectElement;
+  readonly modeSelect: HTMLSelectElement;
   readonly providerSelect: HTMLSelectElement;
   readonly resetButton: HTMLButtonElement;
   readonly revertButton: HTMLButtonElement;
@@ -89,7 +92,8 @@ export const AGENT_PANEL_STYLES = `
     font-weight: 650;
   }
   .spotpatch-agent-setup { padding: 12px; }
-  .spotpatch-agent-selectors { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  .spotpatch-agent-selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .spotpatch-agent-mode { grid-column: 1 / -1; }
   .spotpatch-agent-selectors label { min-width: 0; color: var(--spotpatch-text-secondary); font-size: 11.5px; font-weight: 580; }
   .spotpatch-agent select {
     box-sizing: border-box;
@@ -274,6 +278,10 @@ export const AGENT_PANEL_STYLES = `
     white-space: pre;
     user-select: text;
   }
+  @media (max-width: 520px) {
+    .spotpatch-agent-selectors { grid-template-columns: 1fr; }
+    .spotpatch-agent-mode { grid-column: auto; }
+  }
 `;
 
 function addOption(
@@ -309,6 +317,11 @@ export function createAgentPanel(
   setup.className = "spotpatch-agent-setup";
   const selectors = createMarkedElement(document, "div");
   selectors.className = "spotpatch-agent-selectors";
+  const modeLabel = createMarkedElement(document, "label");
+  modeLabel.className = "spotpatch-agent-mode";
+  const modeText = createMarkedElement(document, "span");
+  const modeSelect = createMarkedElement(document, "select");
+  modeLabel.append(modeText, modeSelect);
   const providerLabel = createMarkedElement(document, "label");
   const providerText = createMarkedElement(document, "span");
   const providerSelect = createMarkedElement(document, "select");
@@ -317,7 +330,7 @@ export function createAgentPanel(
   const modelText = createMarkedElement(document, "span");
   const modelSelect = createMarkedElement(document, "select");
   modelLabel.append(modelText, modelSelect);
-  selectors.append(providerLabel, modelLabel);
+  selectors.append(modeLabel, providerLabel, modelLabel);
   const consent = createMarkedElement(document, "label");
   consent.className = "spotpatch-consent";
   const consentCheckbox = createMarkedElement(document, "input");
@@ -387,8 +400,8 @@ export function createAgentPanel(
   const resetButton = createButton(document, messages.agent.revise);
 
   const providers = ai.enabled ? ai.providers : [];
-  const trustedFastMode = ai.enabled && ai.applyMode === "trusted-auto";
-  consent.classList.toggle("spotpatch-trusted-consent", trustedFastMode);
+  const trustedFastModeAvailable = ai.enabled && ai.applyMode === "trusted-auto";
+  const configuredApplyMode = ai.enabled ? ai.applyMode : "review";
   const providerById = new Map(providers.map((provider) => [provider.id, provider]));
   let contextReady = false;
   let editingEnabled = true;
@@ -416,6 +429,29 @@ export function createAgentPanel(
     providerSelect.value = ai.defaultProvider;
   }
 
+  addOption(document, modeSelect, "review", messages.agent.review);
+
+  if (trustedFastModeAvailable) {
+    addOption(document, modeSelect, "trusted-auto", messages.agent.trustedFast);
+  } else if (configuredApplyMode === "auto") {
+    modeSelect.replaceChildren();
+    addOption(document, modeSelect, "auto", messages.agent.autoGated);
+  }
+
+  modeSelect.value =
+    trustedFastModeAvailable || configuredApplyMode === "review"
+      ? "review"
+      : configuredApplyMode;
+  modeLabel.hidden = !trustedFastModeAvailable;
+
+  const selectedApplyMode = (): AgentApplyMode =>
+    modeSelect.value === "trusted-auto"
+      ? "trusted-auto"
+      : configuredApplyMode === "auto"
+        ? "auto"
+        : "review";
+  const trustedFastMode = (): boolean => selectedApplyMode() === "trusted-auto";
+
   const selectedProvider = (): RuntimeAiProviderProfile | undefined =>
     providerById.get(providerSelect.value);
 
@@ -424,13 +460,25 @@ export function createAgentPanel(
       return messages.agent.providerUnavailable;
     }
 
-    return trustedFastMode
+    return trustedFastMode()
       ? messages.agent.trustedFastConsent(provider.label)
       : messages.agent.consent(provider.label);
   };
 
   const localChangesConsentGranted = (): boolean =>
-    trustedFastMode ? consentCheckbox.checked : workspaceConsentCheckbox.checked;
+    trustedFastMode() ? consentCheckbox.checked : workspaceConsentCheckbox.checked;
+
+  const renderMode = (): void => {
+    const trusted = trustedFastMode();
+    consent.classList.toggle("spotpatch-trusted-consent", trusted);
+    badge.textContent = trusted
+      ? messages.agent.trustedFast
+      : configuredApplyMode === "auto"
+        ? messages.agent.autoGated
+        : messages.agent.review;
+    consentText.textContent = consentMessage(selectedProvider());
+    workspaceConsent.hidden = trusted || latestWorkspaceState !== "consent-required";
+  };
 
   const populateModels = (): void => {
     const provider = selectedProvider();
@@ -521,7 +569,14 @@ export function createAgentPanel(
     capabilityReady = false;
     refreshActions();
   }
+  function handleModeChange(): void {
+    consentCheckbox.checked = false;
+    workspaceConsentCheckbox.checked = false;
+    renderMode();
+    refreshActions();
+  }
   populateModels();
+  modeSelect.addEventListener("change", handleModeChange);
   providerSelect.addEventListener("change", handleProviderChange);
   modelSelect.addEventListener("change", handleModelChange);
   consentCheckbox.addEventListener("change", refreshActions);
@@ -588,11 +643,22 @@ export function createAgentPanel(
   function applyMessages(): void {
     messages = localizer.messages();
     title.textContent = messages.agent.title;
-    badge.textContent = trustedFastMode
-      ? messages.agent.trustedFast
-      : ai.enabled && ai.applyMode === "auto"
-        ? messages.agent.autoGated
-        : messages.agent.review;
+    modeText.textContent = messages.agent.mode;
+    modeSelect.setAttribute("aria-label", messages.agent.modeAriaLabel);
+    const reviewOption = [...modeSelect.options].find(
+      (option) => option.value === "review",
+    );
+    const trustedOption = [...modeSelect.options].find(
+      (option) => option.value === "trusted-auto",
+    );
+    const autoOption = [...modeSelect.options].find(
+      (option) => option.value === "auto",
+    );
+
+    if (reviewOption !== undefined) reviewOption.textContent = messages.agent.review;
+    if (trustedOption !== undefined)
+      trustedOption.textContent = messages.agent.trustedFast;
+    if (autoOption !== undefined) autoOption.textContent = messages.agent.autoGated;
     providerText.textContent = messages.agent.provider;
     modelText.textContent = messages.agent.model;
     providerSelect.setAttribute("aria-label", messages.agent.providerAriaLabel);
@@ -604,8 +670,7 @@ export function createAgentPanel(
     applyButton.textContent = messages.agent.apply;
     revertButton.textContent = messages.agent.revert;
     resetButton.textContent = messages.agent.revise;
-    const provider = selectedProvider();
-    consentText.textContent = consentMessage(provider);
+    renderMode();
 
     if (latestCapabilityState === "idle") {
       capability.textContent = messages.agent.connectionNotTested;
@@ -631,6 +696,7 @@ export function createAgentPanel(
 
   return Object.freeze({
     root,
+    modeSelect,
     providerSelect,
     modelSelect,
     consentCheckbox,
@@ -659,6 +725,7 @@ export function createAgentPanel(
       return provider === undefined || model === undefined
         ? undefined
         : Object.freeze({
+            applyMode: selectedApplyMode(),
             providerProfileId: provider.id,
             modelProfileId: model.id,
           });
@@ -694,7 +761,7 @@ export function createAgentPanel(
       latestWorkspaceErrorCode = errorCode ?? snapshot?.errorCode;
       workspace.dataset.state = state;
       if (state !== "checking") {
-        workspaceConsent.hidden = trustedFastMode || state !== "consent-required";
+        workspaceConsent.hidden = trustedFastMode() || state !== "consent-required";
       }
 
       if (state === "idle" || state === "ready" || state === "blocked") {
@@ -716,6 +783,7 @@ export function createAgentPanel(
       job.hidden = false;
       providerSelect.disabled = true;
       modelSelect.disabled = true;
+      modeSelect.disabled = true;
       consentCheckbox.disabled = true;
       workspaceConsentCheckbox.disabled = true;
       latestSnapshot = snapshot;
@@ -735,6 +803,7 @@ export function createAgentPanel(
       job.hidden = true;
       providerSelect.disabled = false;
       modelSelect.disabled = false;
+      modeSelect.disabled = false;
       consentCheckbox.disabled = false;
       workspaceConsentCheckbox.disabled = false;
       activity.replaceChildren();
@@ -755,6 +824,7 @@ export function createAgentPanel(
       editingEnabled = enabled;
       providerSelect.disabled = !enabled || jobPresented;
       modelSelect.disabled = !enabled || jobPresented;
+      modeSelect.disabled = !enabled || jobPresented;
       consentCheckbox.disabled = !enabled || jobPresented;
       workspaceConsentCheckbox.disabled = !enabled || jobPresented;
       refreshActions();
@@ -781,6 +851,7 @@ export function createAgentPanel(
       unsubscribeLocale();
       providerSelect.removeEventListener("change", handleProviderChange);
       modelSelect.removeEventListener("change", handleModelChange);
+      modeSelect.removeEventListener("change", handleModeChange);
       consentCheckbox.removeEventListener("change", refreshActions);
       workspaceConsentCheckbox.removeEventListener("change", refreshActions);
     },

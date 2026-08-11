@@ -6,7 +6,7 @@ import path from "node:path";
 import {
   resolveCredentialEnvironment,
   resolveEnvironmentAiConfiguration,
-  resolveOptions,
+  resolveProjectOptions,
   type SpotPatchOptions,
 } from "@spotpatch/dev-server";
 import { SPOTPATCH_API_BASE } from "@spotpatch/shared";
@@ -495,13 +495,14 @@ export function withSpotPatch(
         userOptions.ai === undefined
           ? resolveEnvironmentAiConfiguration(process.env).ai
           : false;
-      const options = resolveOptions(
-        {
+      const options = await resolveProjectOptions({
+        appRoot,
+        environmentAi,
+        options: {
           ...userOptions,
           include: userOptions.include ?? NEXT_DEFAULT_INCLUDE,
         },
-        environmentAi,
-      );
+      });
 
       if (options.allowLan) {
         throw new RangeError(

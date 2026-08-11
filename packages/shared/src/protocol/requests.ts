@@ -7,6 +7,7 @@ import {
   SPOTPATCH_LOCALES,
   type SpotAnnotation,
 } from "../model/annotation.js";
+import { AGENT_APPLY_MODES, type AgentApplyMode } from "../model/agent.js";
 
 export const runtimeBootstrapRequestSchema = z.strictObject({});
 
@@ -130,6 +131,7 @@ export const agentWorkspaceHealthRequestSchema = z.strictObject({});
 
 export const agentJobCreateRequestSchema = z.strictObject({
   annotation: spotAnnotationRequestSchema,
+  applyMode: z.enum(AGENT_APPLY_MODES).optional(),
   providerProfileId: profileIdSchema,
   modelProfileId: profileIdSchema,
   providerDataConsent: z.literal(true),
@@ -147,6 +149,7 @@ export type OpenEditorRequest = z.infer<typeof openEditorRequestSchema>;
 export type AgentCapabilityRequest = z.infer<typeof agentCapabilityRequestSchema>;
 export interface AgentJobCreateRequest {
   readonly annotation: SpotAnnotation;
+  readonly applyMode?: AgentApplyMode;
   readonly providerProfileId: string;
   readonly modelProfileId: string;
   readonly providerDataConsent: true;

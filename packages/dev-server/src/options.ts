@@ -56,6 +56,8 @@ export interface SpotPatchOptions {
   readonly redact?: boolean;
   readonly budget?: Partial<ContextBudget>;
   readonly shortcut?: string;
+  /** Exposes the review/trusted-fast selector after a project check is resolved. */
+  readonly trustedFastMode?: boolean;
   readonly allowLan?: boolean;
   readonly debug?: boolean;
   readonly locale?: SpotPatchLocalePreference;
@@ -500,6 +502,13 @@ export function resolveOptions(
   options: SpotPatchOptions = {},
   environmentAi?: false | SimpleAiOptions,
 ): ResolvedSpotPatchOptions {
+  if (
+    options.trustedFastMode !== undefined &&
+    typeof options.trustedFastMode !== "boolean"
+  ) {
+    throw new RangeError("SpotPatch trustedFastMode must be a boolean.");
+  }
+
   const budget = Object.freeze({
     ...DEFAULT_OPTIONS.budget,
     ...options.budget,

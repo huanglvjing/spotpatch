@@ -22,6 +22,7 @@ import {
   type AgentJobResultResponse,
   type AgentJobSnapshot,
   type AgentJobStatus,
+  type AgentApplyMode,
   type AgentWorkspaceHealthSnapshot,
   type AgentWorkingTreeMode,
   type ErrorCode,
@@ -71,6 +72,7 @@ interface AgentSelection {
 
 interface InternalAgentJob {
   readonly annotation: SpotAnnotation;
+  readonly applyMode: AgentApplyMode;
   readonly controller: AbortController;
   readonly createdAt: string;
   readonly credential: ProviderCredential;
@@ -442,10 +444,8 @@ export function createAgentJobManager(
       }
 
       const shouldApplyDirectly =
-        (options.ai.execution.applyMode === "auto" &&
-          preparedChange.autoApplyEligible) ||
-        (options.ai.execution.applyMode === "trusted-auto" &&
-          job.trustedFastModeConsent);
+        (job.applyMode === "auto" && preparedChange.autoApplyEligible) ||
+        (job.applyMode === "trusted-auto" && job.trustedFastModeConsent);
 
       if (shouldApplyDirectly) {
         try {
@@ -549,10 +549,21 @@ export function createAgentJobManager(
         throw new SpotPatchError(ERROR_CODES.AI_DISABLED);
       }
 
-      const trustedFastModeConfigured =
-        options.ai.execution.applyMode === "trusted-auto";
+      const configuredApplyMode = options.ai.execution.applyMode;
+      const requestedApplyMode =
+        request.applyMode ??
+        (request.trustedFastModeConsent === true
+          ? "trusted-auto"
+          : configuredApplyMode);
+      const applyModeAllowed =
+        configuredApplyMode === "trusted-auto"
+          ? requestedApplyMode === "review" || requestedApplyMode === "trusted-auto"
+          : requestedApplyMode === configuredApplyMode;
+      const trustedConsentMatches =
+        (requestedApplyMode === "trusted-auto") ===
+        (request.trustedFastModeConsent === true);
 
-      if (trustedFastModeConfigured !== (request.trustedFastModeConsent === true)) {
+      if (!applyModeAllowed || !trustedConsentMatches) {
         throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
       }
 
@@ -579,6 +590,7 @@ export function createAgentJobManager(
       const timestamp = dependencies.now();
       const job: InternalAgentJob = {
         annotation: request.annotation,
+        applyMode: requestedApplyMode,
         controller: new AbortController(),
         createdAt: timestamp,
         credential: selection.credential,

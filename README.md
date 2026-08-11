@@ -44,9 +44,16 @@ npm install --save-dev @spotpatch/vite
 pnpm add -D @spotpatch/vite
 ```
 
-### 2. Configure
+### 2. Initialize
 
-Place SpotPatch before the React plugin. This ordering lets SpotPatch add development source markers before the React transform runs.
+Let the package safely update a supported `vite.config` and verify the result:
+
+```bash
+pnpm exec spotpatch-vite init
+pnpm exec spotpatch-vite check
+```
+
+The initializer places SpotPatch before the React plugin. In a local TypeScript project it also enables the in-page **Review / Trusted fast** selector and discovers `typescript` plus `tsconfig.json` as the required check, without copying provider settings into source code:
 
 ```ts
 // vite.config.ts
@@ -55,7 +62,7 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch(), react()],
+  plugins: [spotPatch({ trustedFastMode: true }), react()],
 });
 ```
 
@@ -73,7 +80,7 @@ The default workflow is:
 2. Write a separate change request for each target.
 3. Inspect the source, DOM, CSS, and bounded code context.
 4. Open the exact location in Cursor or VS Code, or copy the generated prompt.
-5. If AI is enabled, approve the session notice and run the task. The default mode presents the Diff and checks before Apply; explicitly configured trusted fast mode writes validated changes directly.
+5. If AI is enabled, choose **Review** or **Trusted fast** on the page, approve the matching session notice, and run the task.
 
 ## Optional AI setup
 
@@ -102,29 +109,13 @@ spotPatch({
 });
 ```
 
-To enable direct application for a trusted local project, configure at least one real required check and opt in once per browser session:
+`spotpatch-vite init` enables the page selector automatically when it finds the project's local TypeScript installation and root `tsconfig.json`. The equivalent concise manual option is:
 
 ```ts
-spotPatch({
-  ai: {
-    baseURL: "https://relay.example.com/v1",
-    model: "provider-model-name",
-    execution: {
-      applyMode: "trusted-auto",
-      checks: {
-        typecheck: {
-          label: "Typecheck",
-          command: "pnpm",
-          args: ["typecheck"],
-          required: true,
-        },
-      },
-    },
-  },
-});
+spotPatch({ trustedFastMode: true });
 ```
 
-Trusted fast mode includes current local changes and directly applies validated file deletions and configuration changes. It remains project-scoped and never grants access to credentials, environment files, Git metadata, external paths, arbitrary shell commands, failed checks, or baseline conflicts. SpotPatch always creates changes in an isolated Git worktree first. See [AI Agent execution](./docs/技术方案/16-AIAgent执行与变更审阅.md) and [provider credentials](./docs/技术方案/17-模型提供商与凭据配置.md) for the normative rules.
+The page still defaults to Review. Selecting Trusted fast includes current local changes and directly applies validated file deletions and configuration changes. It remains project-scoped and never grants access to credentials, environment files, Git metadata, external paths, arbitrary shell commands, failed checks, or baseline conflicts. SpotPatch always creates changes in an isolated Git worktree first. Advanced projects can still provide explicit checks through `ai.execution`. See [AI Agent execution](./docs/技术方案/16-AIAgent执行与变更审阅.md) and [provider credentials](./docs/技术方案/17-模型提供商与凭据配置.md) for the normative rules.
 
 ## Supported scope
 

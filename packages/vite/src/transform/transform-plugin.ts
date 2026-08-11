@@ -9,7 +9,10 @@ import type { SpotPatchPluginContext } from "../plugin-context.js";
 import { createTransformFilter, stripViteQuery } from "./transform-filter.js";
 
 interface TransformPluginInput {
-  readonly configure?: (config: UserConfig, environment: ConfigEnv) => void;
+  readonly configure?: (
+    config: UserConfig,
+    environment: ConfigEnv,
+  ) => void | Promise<void>;
   readonly context: SpotPatchPluginContext;
   readonly registry: SourceRegistry;
 }
@@ -41,8 +44,8 @@ export function createTransformPlugin(input: TransformPluginInput): Plugin {
     apply: "serve",
     enforce: "pre",
 
-    config(config, environment) {
-      input.configure?.(config, environment);
+    async config(config, environment) {
+      await input.configure?.(config, environment);
     },
 
     configResolved(config) {

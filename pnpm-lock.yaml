@@ -267,6 +267,12 @@ importers:
       '@spotpatch/shared':
         specifier: workspace:^
         version: link:../shared
+      magic-string:
+        specifier: 1.1.0
+        version: 1.1.0
+      oxc-parser:
+        specifier: 0.143.0
+        version: 0.143.0
 
   playgrounds/compat-vite5-react18.2:
     dependencies:

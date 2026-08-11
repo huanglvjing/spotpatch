@@ -10,6 +10,14 @@ export {
   type EnvironmentAiConfiguration,
 } from "./environment-ai.js";
 export {
+  applyIntegrationPlan,
+  createIntegrationFileChange,
+  integrationPathExists,
+  readIntegrationFile,
+  type IntegrationFileChange,
+  type IntegrationPlan,
+} from "./integration/file-plan.js";
+export {
   createRuntimeAiConfig,
   DEFAULT_EXCLUDE,
   DEFAULT_OPTIONS,
@@ -20,6 +28,14 @@ export {
   type SpotPatchAiOptions,
   type SpotPatchOptions,
 } from "./options.js";
+export {
+  resolveProjectOptions,
+  type ResolveProjectOptionsInput,
+} from "./project-options.js";
+export {
+  discoverProjectValidationCheck,
+  type DiscoverProjectValidationCheckOptions,
+} from "./project-validation.js";
 export {
   createSourceRegistry,
   type SourceRegistry,

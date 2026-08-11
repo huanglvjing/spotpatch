@@ -1,16 +1,14 @@
-import { randomBytes } from "node:crypto";
-import {
-  access,
-  lstat,
-  mkdir,
-  readFile,
-  rename,
-  stat,
-  unlink,
-  writeFile,
-} from "node:fs/promises";
 import path from "node:path";
 
+import {
+  applyIntegrationPlan,
+  createIntegrationFileChange,
+  discoverProjectValidationCheck,
+  integrationPathExists,
+  readIntegrationFile,
+  type IntegrationFileChange,
+} from "@spotpatch/dev-server";
+import { DEFAULT_AGENT_LIMITS } from "@spotpatch/shared";
 import { MagicString } from "magic-string";
 import {
   parseSync,
@@ -43,22 +41,17 @@ const INSTRUMENTATION_EXTENSIONS = Object.freeze([
 ] as const);
 const SIMPLE_SCRIPT_ARGUMENT_PATTERN = /^[A-Za-z0-9._:/=@%+,-]+$/u;
 
-export interface IntegrationFileChange {
-  readonly absolutePath: string;
-  readonly nextContent: string;
-  readonly previousContent?: string;
-  readonly relativePath: string;
-}
-
 export interface NextIntegrationPlan {
   readonly appRoot: string;
   readonly changes: readonly IntegrationFileChange[];
+  readonly trustedFastModeAvailable: boolean;
 }
 
 export interface NextIntegrationCheck {
   readonly appRoot: string;
   readonly issues: readonly string[];
   readonly ok: boolean;
+  readonly trustedFastModeAvailable: boolean;
 }
 
 interface PackageManifest {
@@ -80,27 +73,6 @@ function isParserErrorSeverity(value: unknown): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-async function pathExists(absolutePath: string): Promise<boolean> {
-  try {
-    await access(absolutePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function readRegularFile(absolutePath: string): Promise<string> {
-  const metadata = await lstat(absolutePath);
-
-  if (!metadata.isFile() || metadata.isSymbolicLink()) {
-    throw new Error(
-      `SpotPatch refuses to modify the non-regular file ${path.basename(absolutePath)}.`,
-    );
-  }
-
-  return readFile(absolutePath, "utf8");
 }
 
 function parseModule(absolutePath: string, source: string): ParsedModule {
@@ -248,25 +220,54 @@ function unwrapParentheses(
   return current;
 }
 
-function isWrappedDefaultExport(
+function wrappedFactoryCall(
   declaration: ExportDefaultDeclaration["declaration"],
   wrapperName: string,
-): boolean {
+): CallExpression | undefined {
   if (declaration.type !== "CallExpression" || declaration.arguments.length !== 1) {
-    return false;
+    return undefined;
   }
 
   const factoryCall = unwrapParentheses(declaration.callee);
 
   if (factoryCall.type !== "CallExpression") {
-    return false;
+    return undefined;
   }
 
   const callee = unwrapParentheses(factoryCall.callee);
-  return callee.type === "Identifier" && callee.name === wrapperName;
+  return callee.type === "Identifier" && callee.name === wrapperName
+    ? factoryCall
+    : undefined;
 }
 
-function transformNextConfig(absolutePath: string, source: string): string {
+function hasTrustedFastMode(call: CallExpression): boolean {
+  const argument = call.arguments[0];
+
+  if (
+    call.arguments.length !== 1 ||
+    argument === undefined ||
+    argument.type === "SpreadElement" ||
+    argument.type !== "ObjectExpression"
+  ) {
+    return false;
+  }
+
+  return argument.properties.some(
+    (property) =>
+      property.type === "Property" &&
+      !property.computed &&
+      property.key.type === "Identifier" &&
+      property.key.name === "trustedFastMode" &&
+      property.value.type === "Literal" &&
+      property.value.value === true,
+  );
+}
+
+function transformNextConfig(
+  absolutePath: string,
+  source: string,
+  trustedFastModeAvailable: boolean,
+): string {
   if (absolutePath.endsWith(".cjs") || absolutePath.endsWith(".cts")) {
     throw new Error(
       "SpotPatch init does not rewrite CommonJS next.config files; add withSpotPatch manually.",
@@ -276,13 +277,6 @@ function transformNextConfig(absolutePath: string, source: string): string {
   const { program } = parseModule(absolutePath, source);
   const defaultExport = findDefaultExport(program);
   const existingWrapperName = importedWrapperName(program);
-
-  if (
-    existingWrapperName !== undefined &&
-    isWrappedDefaultExport(defaultExport.declaration, existingWrapperName)
-  ) {
-    return source;
-  }
 
   if (
     defaultExport.declaration.type === "FunctionDeclaration" ||
@@ -297,6 +291,27 @@ function transformNextConfig(absolutePath: string, source: string): string {
 
   const magicString = new MagicString(source);
   const wrapperName = existingWrapperName ?? chooseWrapperName(program);
+  const existingFactory =
+    existingWrapperName === undefined
+      ? undefined
+      : wrappedFactoryCall(defaultExport.declaration, existingWrapperName);
+
+  if (existingFactory !== undefined) {
+    if (
+      trustedFastModeAvailable &&
+      existingFactory.arguments.length === 0 &&
+      !hasTrustedFastMode(existingFactory)
+    ) {
+      magicString.overwrite(
+        existingFactory.start,
+        existingFactory.end,
+        `${wrapperName}({ trustedFastMode: true })`,
+      );
+      return magicString.toString();
+    }
+
+    return source;
+  }
 
   if (existingWrapperName === undefined) {
     const specifier =
@@ -317,7 +332,7 @@ function transformNextConfig(absolutePath: string, source: string): string {
   magicString.overwrite(
     defaultExport.declaration.start,
     defaultExport.declaration.end,
-    `${wrapperName}()(${expression})`,
+    `${wrapperName}(${trustedFastModeAvailable ? "{ trustedFastMode: true }" : ""})(${expression})`,
   );
   return magicString.toString();
 }
@@ -440,7 +455,7 @@ async function findNextConfig(appRoot: string): Promise<string> {
     await Promise.all(
       CONFIG_FILE_NAMES.map(async (name) => {
         const absolutePath = path.join(appRoot, name);
-        return (await pathExists(absolutePath)) ? absolutePath : undefined;
+        return (await integrationPathExists(absolutePath)) ? absolutePath : undefined;
       }),
     )
   ).filter((value): value is string => value !== undefined);
@@ -463,12 +478,12 @@ async function resolveInstrumentationPath(
   configPath: string,
 ): Promise<string> {
   const rootRouters = await Promise.all([
-    pathExists(path.join(appRoot, "app")),
-    pathExists(path.join(appRoot, "pages")),
+    integrationPathExists(path.join(appRoot, "app")),
+    integrationPathExists(path.join(appRoot, "pages")),
   ]);
   const sourceRouters = await Promise.all([
-    pathExists(path.join(appRoot, "src", "app")),
-    pathExists(path.join(appRoot, "src", "pages")),
+    integrationPathExists(path.join(appRoot, "src", "app")),
+    integrationPathExists(path.join(appRoot, "src", "pages")),
   ]);
   const hasRootRouter = rootRouters.some(Boolean);
   const hasSourceRouter = sourceRouters.some(Boolean);
@@ -488,7 +503,7 @@ async function resolveInstrumentationPath(
     await Promise.all(
       INSTRUMENTATION_EXTENSIONS.map(async (extension) => {
         const absolutePath = path.join(directory, `instrumentation-client${extension}`);
-        return (await pathExists(absolutePath)) ? absolutePath : undefined;
+        return (await integrationPathExists(absolutePath)) ? absolutePath : undefined;
       }),
     )
   ).filter((value): value is string => value !== undefined);
@@ -507,26 +522,8 @@ async function resolveInstrumentationPath(
     configPath.endsWith(".ts") ||
     configPath.endsWith(".mts") ||
     configPath.endsWith(".cts") ||
-    (await pathExists(path.join(appRoot, "tsconfig.json")));
+    (await integrationPathExists(path.join(appRoot, "tsconfig.json")));
   return path.join(directory, `instrumentation-client.${useTypeScript ? "ts" : "js"}`);
-}
-
-function createChange(
-  appRoot: string,
-  absolutePath: string,
-  nextContent: string,
-  previousContent: string | undefined,
-): IntegrationFileChange | undefined {
-  if (previousContent === nextContent) {
-    return undefined;
-  }
-
-  return Object.freeze({
-    absolutePath,
-    nextContent,
-    ...(previousContent === undefined ? {} : { previousContent }),
-    relativePath: path.relative(appRoot, absolutePath).split(path.sep).join("/"),
-  });
 }
 
 export async function planNextIntegration(
@@ -535,28 +532,35 @@ export async function planNextIntegration(
   const appRoot = path.resolve(directory);
   const packagePath = path.join(appRoot, "package.json");
   const [packageSource, configPath] = await Promise.all([
-    readRegularFile(packagePath),
+    readIntegrationFile(packagePath),
     findNextConfig(appRoot),
   ]);
-  const configSource = await readRegularFile(configPath);
+  const [configSource, discoveredCheck] = await Promise.all([
+    readIntegrationFile(configPath),
+    discoverProjectValidationCheck({
+      appRoot,
+      timeoutMs: DEFAULT_AGENT_LIMITS.checkTimeoutMs,
+    }),
+  ]);
+  const trustedFastModeAvailable = discoveredCheck !== undefined;
   const instrumentationPath = await resolveInstrumentationPath(appRoot, configPath);
-  const instrumentationSource = (await pathExists(instrumentationPath))
-    ? await readRegularFile(instrumentationPath)
+  const instrumentationSource = (await integrationPathExists(instrumentationPath))
+    ? await readIntegrationFile(instrumentationPath)
     : undefined;
   const changes = [
-    createChange(
+    createIntegrationFileChange(
       appRoot,
       configPath,
-      transformNextConfig(configPath, configSource),
+      transformNextConfig(configPath, configSource, trustedFastModeAvailable),
       configSource,
     ),
-    createChange(
+    createIntegrationFileChange(
       appRoot,
       instrumentationPath,
       transformInstrumentationClient(instrumentationPath, instrumentationSource ?? ""),
       instrumentationSource,
     ),
-    createChange(
+    createIntegrationFileChange(
       appRoot,
       packagePath,
       transformPackageJson(packageSource),
@@ -564,73 +568,17 @@ export async function planNextIntegration(
     ),
   ].filter((change): change is IntegrationFileChange => change !== undefined);
 
-  return Object.freeze({ appRoot, changes: Object.freeze(changes) });
-}
-
-function temporaryPath(absolutePath: string, label: string): string {
-  return path.join(
-    path.dirname(absolutePath),
-    `.${path.basename(absolutePath)}.spotpatch-${label}-${String(process.pid)}-${randomBytes(8).toString("hex")}`,
-  );
-}
-
-async function writeAtomic(
-  absolutePath: string,
-  content: string,
-  mode: number,
-): Promise<void> {
-  await mkdir(path.dirname(absolutePath), { recursive: true });
-  const stagedPath = temporaryPath(absolutePath, "stage");
-
-  try {
-    await writeFile(stagedPath, content, { encoding: "utf8", flag: "wx", mode });
-    await rename(stagedPath, absolutePath);
-  } catch (error: unknown) {
-    await unlink(stagedPath).catch(() => undefined);
-    throw error;
-  }
-}
-
-async function rollbackChange(change: IntegrationFileChange): Promise<void> {
-  if (change.previousContent === undefined) {
-    await unlink(change.absolutePath).catch(() => undefined);
-    return;
-  }
-
-  const mode = (await stat(change.absolutePath)).mode;
-  await writeAtomic(change.absolutePath, change.previousContent, mode);
+  return Object.freeze({
+    appRoot,
+    changes: Object.freeze(changes),
+    trustedFastModeAvailable,
+  });
 }
 
 export async function applyNextIntegrationPlan(
   plan: NextIntegrationPlan,
 ): Promise<void> {
-  const applied: IntegrationFileChange[] = [];
-
-  try {
-    for (const change of plan.changes) {
-      const mode =
-        change.previousContent === undefined
-          ? 0o600
-          : (await stat(change.absolutePath)).mode;
-      await writeAtomic(change.absolutePath, change.nextContent, mode);
-      applied.push(change);
-    }
-  } catch (error: unknown) {
-    const rollbackResults = await Promise.allSettled(
-      applied.reverse().map(rollbackChange),
-    );
-
-    if (rollbackResults.some((result) => result.status === "rejected")) {
-      throw new Error(
-        "SpotPatch init failed and could not completely restore the previous files.",
-        { cause: error },
-      );
-    }
-
-    throw new Error("SpotPatch init failed; all written files were restored.", {
-      cause: error,
-    });
-  }
+  await applyIntegrationPlan(plan);
 }
 
 export async function checkNextIntegration(
@@ -645,6 +593,7 @@ export async function checkNextIntegration(
       appRoot: plan.appRoot,
       issues: Object.freeze(issues),
       ok: issues.length === 0,
+      trustedFastModeAvailable: plan.trustedFastModeAvailable,
     });
   } catch (error: unknown) {
     return Object.freeze({
@@ -653,6 +602,7 @@ export async function checkNextIntegration(
         error instanceof Error ? error.message : "SpotPatch integration check failed.",
       ]),
       ok: false,
+      trustedFastModeAvailable: false,
     });
   }
 }

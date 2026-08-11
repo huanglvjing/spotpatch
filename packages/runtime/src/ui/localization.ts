@@ -77,6 +77,8 @@ export interface UiMessages {
   }>;
   readonly agent: Readonly<{
     title: string;
+    mode: string;
+    modeAriaLabel: string;
     review: string;
     autoGated: string;
     trustedFast: string;
@@ -428,6 +430,8 @@ export const UI_MESSAGES = Object.freeze({
     }),
     agent: Object.freeze({
       title: "AI code agent",
+      mode: "Execution mode",
+      modeAriaLabel: "AI execution mode",
       review: "Review",
       autoGated: "Auto gated",
       trustedFast: "Trusted fast",
@@ -582,6 +586,8 @@ export const UI_MESSAGES = Object.freeze({
     }),
     agent: Object.freeze({
       title: "AI 代码 Agent",
+      mode: "执行方式",
+      modeAriaLabel: "AI 执行方式",
       review: "审阅模式",
       autoGated: "受控自动模式",
       trustedFast: "可信快速模式",

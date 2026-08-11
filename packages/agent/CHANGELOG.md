@@ -1,5 +1,15 @@
 # @spotpatch/agent
 
+## 1.2.4
+
+### Patch Changes
+
+- 8bd8e88: Keep denied or unavailable `read_file` calls inside the bounded Agent loop so
+  the model can recover through allowed discovery results without weakening path
+  or write protections.
+- Updated dependencies [14c3a48]
+  - @spotpatch/shared@1.7.0
+
 ## 1.2.3
 
 ### Patch Changes

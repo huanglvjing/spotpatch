@@ -4,7 +4,7 @@ import { SPOTPATCH_API_BASE } from "../protocol/endpoints.js";
 import { MAX_ANNOTATION_TARGETS, SPOTPATCH_LOCALE_PREFERENCES } from "./annotation.js";
 import { SPOTPATCH_EDITOR_PREFERENCES } from "./editor.js";
 import type { ContextBudget } from "./code-context.js";
-import type { RuntimeAiConfig } from "./agent.js";
+import { AGENT_APPLY_MODES, type RuntimeAiConfig } from "./agent.js";
 
 export const SPOTPATCH_NEXT_BUNDLERS = Object.freeze(["turbopack", "webpack"] as const);
 export const SPOTPATCH_NEXT_ROUTER_KINDS = Object.freeze([
@@ -76,7 +76,7 @@ const runtimeAiConfigSchema = z.discriminatedUnion("enabled", [
       enabled: z.literal(true),
       providers: z.array(runtimeAiProviderSchema).min(1).max(32),
       defaultProvider: profileIdSchema,
-      applyMode: z.enum(["review", "auto"]),
+      applyMode: z.enum(AGENT_APPLY_MODES),
     })
     .refine(
       ({ defaultProvider, providers }) =>

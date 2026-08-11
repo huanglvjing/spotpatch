@@ -150,6 +150,28 @@ describe("protocol request schemas", () => {
     ).toBe(false);
   });
 
+  it("accepts only an explicit true trusted fast-mode consent", () => {
+    const request = {
+      annotation,
+      providerProfileId: "relay",
+      modelProfileId: "coding-model",
+      providerDataConsent: true,
+    } as const;
+
+    expect(
+      agentJobCreateRequestSchema.safeParse({
+        ...request,
+        trustedFastModeConsent: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      agentJobCreateRequestSchema.safeParse({
+        ...request,
+        trustedFastModeConsent: false,
+      }).success,
+    ).toBe(false);
+  });
+
   it("rejects injected execution configuration and oversized annotation fields", () => {
     expect(
       agentJobCreateRequestSchema.safeParse({

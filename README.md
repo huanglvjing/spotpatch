@@ -73,7 +73,7 @@ The default workflow is:
 2. Write a separate change request for each target.
 3. Inspect the source, DOM, CSS, and bounded code context.
 4. Open the exact location in Cursor or VS Code, or copy the generated prompt.
-5. If AI is enabled, review the remote-transmission notice, run the task, inspect the Diff and checks, then explicitly apply or reject the change.
+5. If AI is enabled, approve the session notice and run the task. The default mode presents the Diff and checks before Apply; explicitly configured trusted fast mode writes validated changes directly.
 
 ## Optional AI setup
 
@@ -102,7 +102,29 @@ spotPatch({
 });
 ```
 
-SpotPatch does not expose arbitrary shell execution to the model. Agent edits are created in an isolated Git worktree, bounded by path and size policies, and shown for review before the default `review` apply mode changes the application workspace. See [AI Agent execution](./docs/技术方案/16-AIAgent执行与变更审阅.md) and [provider credentials](./docs/技术方案/17-模型提供商与凭据配置.md) for the normative rules.
+To enable direct application for a trusted local project, configure at least one real required check and opt in once per browser session:
+
+```ts
+spotPatch({
+  ai: {
+    baseURL: "https://relay.example.com/v1",
+    model: "provider-model-name",
+    execution: {
+      applyMode: "trusted-auto",
+      checks: {
+        typecheck: {
+          label: "Typecheck",
+          command: "pnpm",
+          args: ["typecheck"],
+          required: true,
+        },
+      },
+    },
+  },
+});
+```
+
+Trusted fast mode includes current local changes and directly applies validated file deletions and configuration changes. It remains project-scoped and never grants access to credentials, environment files, Git metadata, external paths, arbitrary shell commands, failed checks, or baseline conflicts. SpotPatch always creates changes in an isolated Git worktree first. See [AI Agent execution](./docs/技术方案/16-AIAgent执行与变更审阅.md) and [provider credentials](./docs/技术方案/17-模型提供商与凭据配置.md) for the normative rules.
 
 ## Supported scope
 

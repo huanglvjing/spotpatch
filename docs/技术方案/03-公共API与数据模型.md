@@ -70,7 +70,7 @@ export interface ContextBudget {
 
 export type AiProviderProtocol = "responses" | "chat-completions";
 export type AiProviderAuthentication = "bearer" | "x-api-key";
-export type AgentApplyMode = "review" | "auto";
+export type AgentApplyMode = "review" | "auto" | "trusted-auto";
 export type SpotPatchLocale = "en-US" | "zh-CN";
 export type SpotPatchLocalePreference = "auto" | SpotPatchLocale;
 export type SpotPatchEditorPreference = "auto" | "vscode" | "cursor";
@@ -119,7 +119,7 @@ export interface AgentCheckDefinition {
   readonly label: string;
   readonly command: string;
   readonly args?: readonly string[];
-  /** 默认 true；auto 模式至少需要一个 required check。 */
+  /** 默认 true；auto 与 trusted-auto 模式至少需要一个 required check。 */
   readonly required?: boolean;
   /** 默认 DEFAULT_AGENT_LIMITS.checkTimeoutMs。 */
   readonly timeoutMs?: number;
@@ -223,7 +223,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
 
 AI 有三层入口，优先级为“显式 `ai: false` 或显式对象 > 约定式本地环境 > 关闭”。完整 `AiOptions` 服务多 Provider/多模型；`SimpleAiOptions` 固定生成 `default` provider/model profile；未传 `ai` 时，仅在 URL、模型和 Key 三个必要环境值完整存在时生成同一简洁配置。简洁配置默认 `chat-completions`、`bearer`、`SPOTPATCH_AI_API_KEY`、`review`、`git-worktree`、空 checks 和公共 limits；所有默认均允许由相应字段覆盖。不得猜测项目的包管理器或脚本，因而 `lint/build` 不属于跨项目默认 checks。
 
-AI 配置解析必须满足：URL、模型和运行时 Key 均存在；provider 和 model profile ID 非空且唯一；`defaultProvider` 与每个 `defaultModel` 都引用已登记 ID；`apiKeyEnv` 是不以 `VITE_` 开头的大写环境变量名；`authentication` 只接受 `bearer | x-api-key`；`baseURL`、协议和凭据规则通过 provider 校验；check ID 只含安全标识字符，命令非空，超时和 limits 为有限正整数。`applyMode: "auto"` 至少配置一个 required check。缺少必要值或存在部分约定式配置时，开发服务器启动失败并只报告缺少的变量名，不回显值，也不得静默降级为似乎可运行的 AI。执行语义见 Agent 规范 (见 doc-id:16-ai-agent-execution)，环境变量名、provider 与凭据语义见模型提供商规范 (见 doc-id:17-model-provider-credentials)。
+AI 配置解析必须满足：URL、模型和运行时 Key 均存在；provider 和 model profile ID 非空且唯一；`defaultProvider` 与每个 `defaultModel` 都引用已登记 ID；`apiKeyEnv` 是不以 `VITE_` 开头的大写环境变量名；`authentication` 只接受 `bearer | x-api-key`；`baseURL`、协议和凭据规则通过 provider 校验；check ID 只含安全标识字符，命令非空，超时和 limits 为有限正整数。`applyMode: "auto" | "trusted-auto"` 至少配置一个 required check。`trusted-auto` 还要求每次创建 Job 都携带当前浏览器会话的显式可信快速模式同意；缺少必要值或存在部分约定式配置时，开发服务器启动失败并只报告缺少的变量名，不回显值，也不得静默降级为似乎可运行的 AI。执行语义见 Agent 规范 (见 doc-id:16-ai-agent-execution)，环境变量名、provider 与凭据语义见模型提供商规范 (见 doc-id:17-model-provider-credentials)。
 
 ### 用户接入方式
 

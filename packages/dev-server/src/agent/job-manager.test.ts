@@ -2,6 +2,7 @@ import {
   ERROR_CODES,
   SpotPatchError,
   type AgentCapabilitySnapshot,
+  type AgentApplyMode,
   type AgentJobCreateRequest,
   type AgentJobResult,
   type ErrorCode,
@@ -64,7 +65,7 @@ const annotation = Object.freeze({
   createdAt: "2026-08-07T00:00:00.000Z",
 }) satisfies SpotAnnotation;
 
-function resolveAi(applyMode: "review" | "auto" = "review"): ResolvedAiOptions {
+function resolveAi(applyMode: AgentApplyMode = "review"): ResolvedAiOptions {
   const ai = resolveOptions({
     ai: {
       providers: {
@@ -84,16 +85,16 @@ function resolveAi(applyMode: "review" | "auto" = "review"): ResolvedAiOptions {
       execution: {
         applyMode,
         checks:
-          applyMode === "auto"
-            ? {
+          applyMode === "review"
+            ? {}
+            : {
                 typecheck: {
                   label: "Typecheck",
                   command: "node",
                   args: ["--version"],
                   required: true,
                 },
-              }
-            : {},
+              },
       },
     },
   }).ai;
@@ -105,12 +106,13 @@ function resolveAi(applyMode: "review" | "auto" = "review"): ResolvedAiOptions {
   return ai;
 }
 
-function jobRequest(): AgentJobCreateRequest {
+function jobRequest(trustedFastModeConsent = false): AgentJobCreateRequest {
   return Object.freeze({
     annotation,
     providerProfileId: "relay",
     modelProfileId: "coder",
     providerDataConsent: true,
+    ...(trustedFastModeConsent ? { trustedFastModeConsent: true as const } : {}),
     workingTreeMode: "require-clean",
   });
 }
@@ -401,6 +403,58 @@ describe("Agent job manager", () => {
     expect(applyChange).toHaveBeenCalledOnce();
     expect(manager.result(created.jobId).snapshot.canRevert).toBe(true);
     await manager.close();
+  });
+
+  it("directly applies a validated trusted fast-mode change", async () => {
+    const applyChange = vi.fn(() => Promise.resolve());
+    const manager = createAgentJobManager({
+      ai: resolveAi("trusted-auto"),
+      root: "/project",
+      environment: TEST_ENVIRONMENT,
+      dependencies: {
+        applyChange,
+        createJobId: () => "0123456789abcdefghijklmn",
+        executeChange: ({ jobId }) =>
+          Promise.resolve(
+            Object.freeze({
+              kind: "prepared-agent-change" as const,
+              result: resultFor(jobId),
+              validationPassed: true,
+              autoApplyEligible: false,
+            }),
+          ),
+      },
+    });
+    const created = manager.create(jobRequest(true));
+    await waitForStatus(manager, created.jobId, "applied");
+
+    expect(applyChange).toHaveBeenCalledOnce();
+    expect(manager.result(created.jobId).snapshot.canApply).toBe(false);
+    expect(manager.result(created.jobId).snapshot.canRevert).toBe(true);
+    await manager.close();
+  });
+
+  it("requires trusted fast-mode consent to match the server configuration", async () => {
+    const trustedManager = createAgentJobManager({
+      ai: resolveAi("trusted-auto"),
+      root: "/project",
+      environment: TEST_ENVIRONMENT,
+    });
+    const reviewManager = createAgentJobManager({
+      ai: resolveAi(),
+      root: "/project",
+      environment: TEST_ENVIRONMENT,
+    });
+
+    expectSpotPatchError(
+      () => trustedManager.create(jobRequest()),
+      ERROR_CODES.INVALID_REQUEST,
+    );
+    expectSpotPatchError(
+      () => reviewManager.create(jobRequest(true)),
+      ERROR_CODES.INVALID_REQUEST,
+    );
+    await Promise.all([trustedManager.close(), reviewManager.close()]);
   });
 
   it("surfaces Apply and Revert conflicts without claiming a successful write", async () => {

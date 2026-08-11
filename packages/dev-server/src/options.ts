@@ -1,4 +1,5 @@
 import {
+  AGENT_APPLY_MODES,
   DEFAULT_AGENT_LIMITS,
   MAX_ANNOTATION_TARGETS,
   SPOTPATCH_EDITOR_PREFERENCES,
@@ -166,7 +167,7 @@ const aiOptionsSchema = z.strictObject({
   execution: z
     .strictObject({
       isolation: z.literal("git-worktree").optional(),
-      applyMode: z.enum(["review", "auto"]).optional(),
+      applyMode: z.enum(AGENT_APPLY_MODES).optional(),
       checks: z.record(z.string(), agentCheckSchema).optional(),
       limits: agentLimitsSchema,
     })
@@ -431,8 +432,11 @@ function resolveAiOptions(
   const checks = resolveChecks(validated.execution?.checks, limits.checkTimeoutMs);
   const applyMode = validated.execution?.applyMode ?? "review";
 
-  if (applyMode === "auto" && !Object.values(checks).some((check) => check.required)) {
-    throw new RangeError("SpotPatch AI auto mode requires a required check.");
+  if (
+    applyMode !== "review" &&
+    !Object.values(checks).some((check) => check.required)
+  ) {
+    throw new RangeError(`SpotPatch AI ${applyMode} mode requires a required check.`);
   }
 
   const providers = resolveProviders(validated.providers);

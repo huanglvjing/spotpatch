@@ -2,7 +2,12 @@ import type { ErrorCode } from "../errors/error-code.js";
 
 export type AiProviderProtocol = "responses" | "chat-completions";
 export type AiProviderAuthentication = "bearer" | "x-api-key";
-export type AgentApplyMode = "review" | "auto";
+export const AGENT_APPLY_MODES = Object.freeze([
+  "review",
+  "auto",
+  "trusted-auto",
+] as const);
+export type AgentApplyMode = (typeof AGENT_APPLY_MODES)[number];
 export type AgentWorkingTreeMode = "require-clean" | "include-local-changes";
 
 export interface AiModelProfile {

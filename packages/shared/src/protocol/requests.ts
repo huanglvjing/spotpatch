@@ -133,6 +133,7 @@ export const agentJobCreateRequestSchema = z.strictObject({
   providerProfileId: profileIdSchema,
   modelProfileId: profileIdSchema,
   providerDataConsent: z.literal(true),
+  trustedFastModeConsent: z.literal(true).optional(),
   workingTreeMode: z
     .enum(["require-clean", "include-local-changes"])
     .default("require-clean"),
@@ -149,5 +150,6 @@ export interface AgentJobCreateRequest {
   readonly providerProfileId: string;
   readonly modelProfileId: string;
   readonly providerDataConsent: true;
+  readonly trustedFastModeConsent?: true;
   readonly workingTreeMode: "require-clean" | "include-local-changes";
 }

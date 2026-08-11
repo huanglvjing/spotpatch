@@ -119,8 +119,8 @@ AI Job 是与元素选择状态正交的服务端状态，不把 `running`、`va
 - 多目标 Job Apply 后必须一次性释放全部目标的 Element、Observer 和几何引用；不能只释放最后一个活动目标后继续使用其余旧 DOM。
 - Runtime 只展示脱敏 Job 快照、Diff 和检查结果；不能依据模型自然语言自行判定“已修改”或“检查通过”。
 - AI 启用且进入选中态时，Runtime 必须读取本地工作区健康快照；provider/model 改变、环境检查、重置 Job 和真正运行前都必须重新检查，不能复用过期快照。健康状态与公共结构只在公共模型定义 (见 doc-id:03-public-api-models)。
-- `ready` 直接允许继续；`consent-required` 必须展示 staged/unstaged/untracked 数量和独立的本地修改纳入同意，用户勾选前 Run 保持禁用；`blocked` 必须展示稳定错误码对应的具体原因，不能用同意绕过。检查中的瞬时状态不得清空用户刚刚作出的同意，最终变为 `ready` 或 `blocked` 时必须清除不再适用的同意。
-- 创建 Job 时只能根据本次最新健康快照生成 `workingTreeMode`：干净为 `require-clean`，存在且已同意的可隔离修改为 `include-local-changes`。该字段不是长期偏好，不写盘，也不能由 provider capability 同意代替。服务端仍重新检查，防止浏览器状态与磁盘状态之间的竞态。
+- `ready` 直接允许继续；review/auto 的 `consent-required` 必须展示 staged/unstaged/untracked 数量和独立的本地修改纳入同意，用户勾选前 Run 保持禁用；trusted-auto 使用包含远程传输、本地修改与直接应用后果的一次会话级同意，不重复显示第二个复选框。`blocked` 必须展示稳定错误码对应的具体原因，任何模式都不能用同意绕过。检查中的瞬时状态不得清空用户刚刚作出的同意，最终变为 `ready` 或 `blocked` 时必须清除不再适用的独立工作区同意。
+- 创建 Job 时只能根据本次最新健康快照生成 `workingTreeMode`：干净为 `require-clean`，存在且已同意的可隔离修改为 `include-local-changes`。trusted-auto 还必须显式发送 `trustedFastModeConsent: true`；其他模式不得发送，服务端配置不匹配时必须拒绝。两个字段都不是长期偏好，不写盘，也不能由 provider capability 同意代替。服务端仍重新检查，防止浏览器状态与磁盘状态之间的竞态。
 
 ## 元素选择器
 

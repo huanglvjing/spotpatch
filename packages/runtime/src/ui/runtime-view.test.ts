@@ -40,6 +40,11 @@ const aiConfig = Object.freeze({
   applyMode: "review" as const,
 }) satisfies RuntimeAiConfig;
 
+const trustedFastAiConfig = Object.freeze({
+  ...aiConfig,
+  applyMode: "trusted-auto" as const,
+}) satisfies RuntimeAiConfig;
+
 afterEach(() => {
   vi.restoreAllMocks();
   document.querySelectorAll("spotpatch-root").forEach((host) => {
@@ -466,6 +471,42 @@ describe("runtime view", () => {
     expect(view.host.shadowRoot?.textContent).toContain(
       "Resolve all Git conflicts before running AI",
     );
+  });
+
+  it("uses one session consent for trusted fast mode and local changes", () => {
+    const view = createRuntimeView(
+      document,
+      "Mod+Shift+S",
+      trustedFastAiConfig,
+      "zh-CN",
+    );
+
+    view.renderStatus("selected");
+    view.showSelection("Browser context: ready", true, true);
+    view.renderAgentWorkspaceHealth("consent-required", {
+      state: "consent-required",
+      checkedAt: "2026-08-11T00:00:00.000Z",
+      changes: {
+        staged: 1,
+        unstaged: 2,
+        untracked: 1,
+        conflicted: 0,
+        total: 3,
+      },
+      canIncludeLocalChanges: true,
+    });
+
+    expect(view.host.shadowRoot?.textContent).toContain("可信快速模式");
+    expect(view.host.shadowRoot?.textContent).toContain("包括删除文件与配置变更");
+    expect(view.agentWorkspaceConsentCheckbox.closest("label")?.hidden).toBe(true);
+    expect(view.agentWorkspaceConsentGranted()).toBe(false);
+    expect(view.agentRunButton.disabled).toBe(true);
+
+    view.setAgentProviderConsent(true);
+
+    expect(view.agentConsentGranted()).toBe(true);
+    expect(view.agentWorkspaceConsentGranted()).toBe(true);
+    expect(view.agentRunButton.disabled).toBe(false);
   });
 
   it("renders a complete Chinese interface and switches language without losing target drafts", () => {

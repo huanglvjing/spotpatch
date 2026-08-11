@@ -119,7 +119,31 @@ spotPatch({
 });
 ```
 
-The default Agent path is review-gated: **Check environment** provides an optional source-free capability diagnostic, while Run starts the real isolated tool session directly and proves tool continuation inline. The Agent supplies bounded nearby project conventions, exposes file tools rather than an arbitrary shell, reuses current host-run checks, and shows the complete Diff before Apply. SpotPatch does not commit, push, publish, or deploy application code.
+The default Agent path is review-gated: **Check environment** provides an optional source-free capability diagnostic, while Run starts the real isolated tool session directly and proves tool continuation inline. The Agent supplies bounded nearby project conventions, exposes file tools rather than an arbitrary shell, reuses current host-run checks, and shows the complete Diff before Apply.
+
+For a trusted local project, `trusted-auto` replaces the provider and dirty-worktree confirmations with one session-scoped consent and directly applies changes after required checks:
+
+```ts
+spotPatch({
+  ai: {
+    baseURL: "https://relay.example.com/v1",
+    model: "provider-model-name",
+    execution: {
+      applyMode: "trusted-auto",
+      checks: {
+        typecheck: {
+          label: "Typecheck",
+          command: "pnpm",
+          args: ["typecheck"],
+          required: true,
+        },
+      },
+    },
+  },
+});
+```
+
+This mode can directly apply validated file deletions and restart-sensitive configuration changes. It does not allow credentials, environment files, Git metadata, external paths, arbitrary shell, failed checks, or baseline conflicts. SpotPatch does not commit, push, publish, or deploy application code.
 
 ### Security and production behavior
 
@@ -255,7 +279,31 @@ spotPatch({
 });
 ```
 
-默认 Agent 路径必须经过审阅：“检查运行环境”提供不含源码的可选能力诊断；点击运行会直接进入真实隔离工具会话，并在会话内证明工具续接能力。Agent 会提供有界的就近项目规范，只暴露文件工具而不是任意 Shell，复用当前变更版本中由宿主实际执行的检查，并在 Apply 前展示完整 Diff。SpotPatch 不会替业务代码执行 commit、push、发包或部署。
+默认 Agent 路径必须经过审阅：“检查运行环境”提供不含源码的可选能力诊断；点击运行会直接进入真实隔离工具会话，并在会话内证明工具续接能力。Agent 会提供有界的就近项目规范，只暴露文件工具而不是任意 Shell，复用当前变更版本中由宿主实际执行的检查，并在 Apply 前展示完整 Diff。
+
+可信的本地项目可以配置 `trusted-auto`：面板将 Provider 与脏工作区确认合并成一次会话级授权，必需检查通过后直接应用变更。
+
+```ts
+spotPatch({
+  ai: {
+    baseURL: "https://relay.example.com/v1",
+    model: "provider-model-name",
+    execution: {
+      applyMode: "trusted-auto",
+      checks: {
+        typecheck: {
+          label: "Typecheck",
+          command: "pnpm",
+          args: ["typecheck"],
+          required: true,
+        },
+      },
+    },
+  },
+});
+```
+
+该模式可以直接应用验证通过的文件删除与需要重启开发服务的配置变更，但不会开放凭据、环境文件、Git 元数据、项目外路径、任意 Shell，也不会绕过失败检查或基线冲突。SpotPatch 不会替业务代码执行 commit、push、发包或部署。
 
 ### 安全与生产行为
 

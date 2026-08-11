@@ -170,6 +170,13 @@ export const AGENT_PANEL_STYLES = `
     line-height: 1.5;
   }
   .spotpatch-consent input { width: 14px; height: 14px; flex: none; margin: 2px 0 0; accent-color: var(--spotpatch-accent); }
+  .spotpatch-trusted-consent {
+    border: 1px solid rgb(251 191 36 / 20%);
+    border-radius: 10px;
+    padding: 9px 10px;
+    color: #e5e7eb;
+    background: rgb(120 53 15 / 10%);
+  }
   .spotpatch-workspace-consent {
     margin-top: 9px;
     border: 1px solid rgb(251 191 36 / 18%);
@@ -380,6 +387,8 @@ export function createAgentPanel(
   const resetButton = createButton(document, messages.agent.revise);
 
   const providers = ai.enabled ? ai.providers : [];
+  const trustedFastMode = ai.enabled && ai.applyMode === "trusted-auto";
+  consent.classList.toggle("spotpatch-trusted-consent", trustedFastMode);
   const providerById = new Map(providers.map((provider) => [provider.id, provider]));
   let contextReady = false;
   let editingEnabled = true;
@@ -410,12 +419,25 @@ export function createAgentPanel(
   const selectedProvider = (): RuntimeAiProviderProfile | undefined =>
     providerById.get(providerSelect.value);
 
+  const consentMessage = (provider: RuntimeAiProviderProfile | undefined): string => {
+    if (provider === undefined) {
+      return messages.agent.providerUnavailable;
+    }
+
+    return trustedFastMode
+      ? messages.agent.trustedFastConsent(provider.label)
+      : messages.agent.consent(provider.label);
+  };
+
+  const localChangesConsentGranted = (): boolean =>
+    trustedFastMode ? consentCheckbox.checked : workspaceConsentCheckbox.checked;
+
   const populateModels = (): void => {
     const provider = selectedProvider();
     modelSelect.replaceChildren();
 
     if (provider === undefined) {
-      consentText.textContent = messages.agent.providerUnavailable;
+      consentText.textContent = consentMessage(provider);
       return;
     }
 
@@ -424,7 +446,7 @@ export function createAgentPanel(
     }
 
     modelSelect.value = provider.defaultModel;
-    consentText.textContent = messages.agent.consent(provider.label);
+    consentText.textContent = consentMessage(provider);
   };
 
   const refreshActions = (): void => {
@@ -445,8 +467,7 @@ export function createAgentPanel(
       latestWorkspaceState === "idle" ||
       latestWorkspaceState === "checking" ||
       latestWorkspaceState === "blocked" ||
-      (latestWorkspaceState === "consent-required" &&
-        !workspaceConsentCheckbox.checked) ||
+      (latestWorkspaceState === "consent-required" && !localChangesConsentGranted()) ||
       selectedProvider() === undefined ||
       modelSelect.value.length === 0;
 
@@ -567,8 +588,9 @@ export function createAgentPanel(
   function applyMessages(): void {
     messages = localizer.messages();
     title.textContent = messages.agent.title;
-    badge.textContent =
-      ai.enabled && ai.applyMode === "auto"
+    badge.textContent = trustedFastMode
+      ? messages.agent.trustedFast
+      : ai.enabled && ai.applyMode === "auto"
         ? messages.agent.autoGated
         : messages.agent.review;
     providerText.textContent = messages.agent.provider;
@@ -583,10 +605,7 @@ export function createAgentPanel(
     revertButton.textContent = messages.agent.revert;
     resetButton.textContent = messages.agent.revise;
     const provider = selectedProvider();
-    consentText.textContent =
-      provider === undefined
-        ? messages.agent.providerUnavailable
-        : messages.agent.consent(provider.label);
+    consentText.textContent = consentMessage(provider);
 
     if (latestCapabilityState === "idle") {
       capability.textContent = messages.agent.connectionNotTested;
@@ -628,7 +647,7 @@ export function createAgentPanel(
     },
 
     workspaceConsentGranted(): boolean {
-      return workspaceConsentCheckbox.checked;
+      return localChangesConsentGranted();
     },
 
     readSelection(): AgentSelectionValue | undefined {
@@ -675,7 +694,7 @@ export function createAgentPanel(
       latestWorkspaceErrorCode = errorCode ?? snapshot?.errorCode;
       workspace.dataset.state = state;
       if (state !== "checking") {
-        workspaceConsent.hidden = state !== "consent-required";
+        workspaceConsent.hidden = trustedFastMode || state !== "consent-required";
       }
 
       if (state === "idle" || state === "ready" || state === "blocked") {

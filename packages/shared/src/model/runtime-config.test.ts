@@ -67,4 +67,32 @@ describe("runtime config schema", () => {
       }).success,
     ).toBe(false);
   });
+
+  it("accepts trusted auto-apply only as a public runtime mode", () => {
+    const ai = {
+      enabled: true,
+      providers: [
+        {
+          id: "relay",
+          label: "Trusted Relay",
+          protocol: "responses",
+          models: [{ id: "coder", label: "Coding Model" }],
+          defaultModel: "coder",
+        },
+      ],
+      defaultProvider: "relay",
+      applyMode: "trusted-auto",
+    } as const;
+
+    expect(
+      runtimeConfigSchema.safeParse({ ...base, ai, framework: "vite" }).success,
+    ).toBe(true);
+    expect(
+      runtimeConfigSchema.safeParse({
+        ...base,
+        ai: { ...ai, applyMode: "unrestricted" },
+        framework: "vite",
+      }).success,
+    ).toBe(false);
+  });
 });

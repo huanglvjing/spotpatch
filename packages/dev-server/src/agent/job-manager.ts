@@ -79,6 +79,7 @@ interface InternalAgentJob {
   readonly listeners: Set<AgentJobEventListener>;
   readonly model: ResolvedAiModelProfile;
   readonly provider: ResolvedOpenAICompatibleProviderOptions;
+  readonly trustedFastModeConsent: boolean;
   readonly workingTreeMode: AgentWorkingTreeMode;
   errorCode: ErrorCode | undefined;
   phaseMessage: string;
@@ -440,10 +441,13 @@ export function createAgentJobManager(
         return;
       }
 
-      if (
-        options.ai.execution.applyMode === "auto" &&
-        preparedChange.autoApplyEligible
-      ) {
+      const shouldApplyDirectly =
+        (options.ai.execution.applyMode === "auto" &&
+          preparedChange.autoApplyEligible) ||
+        (options.ai.execution.applyMode === "trusted-auto" &&
+          job.trustedFastModeConsent);
+
+      if (shouldApplyDirectly) {
         try {
           await applyChange(job, preparedChange);
         } catch {
@@ -545,6 +549,13 @@ export function createAgentJobManager(
         throw new SpotPatchError(ERROR_CODES.AI_DISABLED);
       }
 
+      const trustedFastModeConfigured =
+        options.ai.execution.applyMode === "trusted-auto";
+
+      if (trustedFastModeConfigured !== (request.trustedFastModeConsent === true)) {
+        throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+      }
+
       if (hasActiveJob()) {
         throw new SpotPatchError(ERROR_CODES.AGENT_BUSY);
       }
@@ -583,6 +594,7 @@ export function createAgentJobManager(
         runPromise: undefined,
         sequence: 0,
         status: "queued",
+        trustedFastModeConsent: request.trustedFastModeConsent === true,
         updatedAt: timestamp,
         workingTreeMode: request.workingTreeMode,
       };

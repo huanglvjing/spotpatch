@@ -41,7 +41,7 @@ Agent Engine 不负责：
 - 保存或展示 API Key。
 - 决定中转站协议是否兼容。
 - 允许浏览器提供 API URL、绝对路径或命令。
-- 绕过 Git、检查、保护路径或用户审阅直接写入业务仓库。
+- 绕过 Git、检查、保护路径，或在没有可信快速模式显式授权时绕过用户审阅直接写入业务仓库。
 - 自动提交、推送、创建分支、安装依赖或发布构建。
 
 ## 总体执行链路
@@ -58,6 +58,7 @@ SpotAnnotation(targets[]) + modelProfileId
   → 生成 Diff、摘要和检查结果
   → review：等待用户 Apply
      auto：满足全部门禁后 Apply
+     trusted-auto：取得当前会话显式授权并通过 required checks 后直接 Apply
   → Vite HMR 观察到业务文件变化
 ```
 
@@ -71,6 +72,7 @@ Agent 输入的段落、预算和系统约束由 Prompt 规范定义 (见 doc-id
 - 服务端解析后的 provider profile ID 和 model profile ID。
 - Git 根目录、HEAD OID 和工作区状态摘要。
 - 已解析的执行模式、限制和检查集合。
+- 是否取得与服务端 `trusted-auto` 配置匹配的当前会话显式授权。
 - 本次会话 ID 和随机 Job ID。
 
 多目标仍是一个 Job，不建立每目标子 Job 或隐式并发队列。Engine 必须把每个 `instruction` 与其目标编号明确绑定，并在系统约束中要求模型逐项检查、不得合并/忽略/扩大说明，在读文件时复用同一路径的结果；目标可以落在一个或多个业务文件，但最终仍生成一份统一 Diff、运行同一组 required checks，并以全有或全无方式 Apply/Revert。目标数量、说明上限与结构由公共模型定义 (见 doc-id:03-public-api-models)，服务端授权由本地协议定义 (见 doc-id:09-local-protocol-security)。
@@ -112,7 +114,7 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 - 每个 patch 只允许相对路径，不允许绝对路径、`..`、NUL、URL 编码逃逸或平台分隔符混淆。
 - 同一轮的多个写入按事件顺序串行执行，不并发修改同一 worktree。
 - 相同模型轮次内的 `toolCallId` 只能产生一次副作用；网络重试或同一逻辑调用的重复流事件必须返回该轮已记录结果，不得重复应用。provider 可以在后续轮次复用原始 ID，执行器必须以 SpotPatch 生成的 `turn + toolCallId` 作为幂等键，不能把后续轮次误判为旧调用重放。
-- 删除文件属于破坏性变更：允许进入审阅结果，但禁止自动应用到业务工作区。
+- 删除文件属于破坏性变更：允许进入审阅结果；`auto` 禁止自动应用，`trusted-auto` 只有在当前会话明确授权且 required checks 成功后才可直接应用。
 - patch 因格式或 hunk 上下文不匹配而被拒绝，且拒绝前后的 worktree 指纹完全一致时，必须返回带 `PATCH_REJECTED` 和 `retryable: true` 的结构化工具结果；局部既有文件修改应改用 `replace_text`，其他情形才重新读取并使用新的 `toolCallId` 提交纠正后的 canonical diff。该次工具活动记为失败，但 Job 可在既有轮数和工具调用上限内继续。
 - 路径越界、保护文件、超限输入、拒绝后 worktree 已变化或达到既有限制仍是终止性失败；不得把这些情况降级为重试。`apply_patch` 实现不得私自把任意 patch 猜测性转换成文本替换，不得开放整文件覆盖，也不得使用 `--reject` 留下部分结果；唯一允许的精确文本替换只来自独立、严格校验的 `replace_text` 工具。
 
@@ -203,7 +205,7 @@ Agent 可以在运行中请求 `run_check` 获取反馈。`run_check` 由宿主�
 required check 失败时：
 
 - Job 返回 Diff、失败检查和有界日志。
-- 自动应用必须停止。
+- `auto` 与 `trusted-auto` 的自动应用都必须停止。
 - v1.1 不提供“忽略失败并应用”入口。
 - 用户可以分别修改各目标要求并创建新 Job，或复制 Prompt 采用人工流程。
 
@@ -235,6 +237,14 @@ required check 失败时：
 - 没有依赖文件、保护路径或需要重启 Vite 的配置变更。
 
 任一条件不满足都降级为等待审阅或失败；不得以“尽量自动”为由跳过门禁。
+
+### trusted-auto 可信快速模式
+
+`trusted-auto` 只允许由项目的服务端配置显式开启，并且至少登记一个 required check。Runtime 必须在当前浏览器会话展示一次完整后果说明，由用户主动勾选后才可以创建 Job；请求必须携带字面量 `trustedFastModeConsent: true`，服务端配置与该字段任一不匹配都返回 `INVALID_REQUEST`。同意不写盘、不跨会话或 provider 继承。
+
+开启后，一次同意同时覆盖该 provider 的项目上下文传输、将健康检查发现的有界本地修改纳入隔离基线，以及 required checks 全部通过后的直接 Apply。与 `auto` 不同，`trusted-auto` 不因删除文件或需要重启 Vite 的配置路径退回等待审阅；UI 仍展示执行状态、结果与 Revert，不再要求单独点击 Apply。
+
+可信快速模式只减少交互门禁，不改变执行沙箱。模型仍只能操作当前项目 root 内允许的 UTF-8 文本文件；凭据、环境文件、锁文件、依赖目录、生成物、Git 元数据、项目外路径、符号链接与任意 Shell 继续拒绝。变更仍先在隔离 worktree 中形成原子 Diff；required checks 失败、Git 操作被阻断、HEAD 或 Agent 触及路径基线变化、patch check 或写回冲突都必须失败且不得部分覆盖。它也不授权 commit、push、安装依赖、发包或部署。
 
 ### 撤销
 
@@ -281,7 +291,7 @@ provider adapter 不进入 `tools/` 或 `worktree/`，文件工具也不得直�
 - 两种 adapter 均允许中转站跨轮复用 provider `toolCallId`，同时拒绝同轮冲突；Runtime 中不同轮的活动不能相互覆盖。
 - provider 返回任意恶意路径、重复调用和畸形参数都不能逃离 worktree。
 - 脏工作区、并发变化、检查失败和 apply 冲突全部 fail-closed。
-- review 模式可 Apply 和安全 Revert；auto 模式只在全部门禁通过时应用。
+- review 模式可 Apply 和安全 Revert；auto 模式只在受控门禁通过时应用；trusted-auto 只有显式会话授权和 required checks 均通过才直接应用，并继续接受隔离、路径、冲突与 Revert 验收。
 - Key、绝对路径、环境变量和完整源码不出现在浏览器协议、日志与错误中。
 - 生产构建仍保持零 Runtime、零 endpoint、零 provider 配置残留。
 

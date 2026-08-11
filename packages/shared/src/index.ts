@@ -33,6 +33,7 @@ export {
   type SpotPatchEditorPreference,
 } from "./model/editor.js";
 export {
+  AGENT_APPLY_MODES,
   AGENT_CAPABILITY_STATES,
   AGENT_CHECK_STATUSES,
   AGENT_FILE_CHANGE_KINDS,

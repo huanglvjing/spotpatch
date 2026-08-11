@@ -191,6 +191,25 @@ describe("resolveOptions", () => {
     expect(serialized).not.toContain("pnpm");
   });
 
+  it("exposes trusted auto-apply without exposing its checks", () => {
+    const resolved = resolveOptions({
+      ai: {
+        ...aiOptions,
+        execution: {
+          ...aiOptions.execution,
+          applyMode: "trusted-auto",
+        },
+      },
+    });
+    const runtime = createRuntimeAiConfig(resolved.ai);
+
+    expect(runtime).toMatchObject({
+      enabled: true,
+      applyMode: "trusted-auto",
+    });
+    expect(JSON.stringify(runtime)).not.toContain("pnpm");
+  });
+
   it.each([
     {
       label: "remote HTTP",
@@ -237,6 +256,13 @@ describe("resolveOptions", () => {
       mutate: (source: AiOptions): AiOptions => ({
         ...source,
         execution: { applyMode: "auto", checks: {} },
+      }),
+    },
+    {
+      label: "trusted auto without required check",
+      mutate: (source: AiOptions): AiOptions => ({
+        ...source,
+        execution: { applyMode: "trusted-auto", checks: {} },
       }),
     },
     {

@@ -3,6 +3,7 @@
 import {
   SOURCE_MARKER_ATTRIBUTE,
   SPOTPATCH_API_BASE,
+  type AgentApplyMode,
   type CodeContext,
   type ContextBudget,
   type SpotAnnotation,
@@ -38,6 +39,28 @@ const config = Object.freeze({
   shortcut: "Mod+Shift+S",
   spotPatchVersion: "0.0.0",
 }) satisfies RuntimeConfig;
+
+function withAgentConfig(applyMode: AgentApplyMode): RuntimeConfig {
+  return Object.freeze({
+    ...config,
+    ai: Object.freeze({
+      enabled: true as const,
+      providers: Object.freeze([
+        Object.freeze({
+          id: "relay",
+          label: "Trusted Relay",
+          protocol: "responses" as const,
+          models: Object.freeze([
+            Object.freeze({ id: "coder", label: "Coding Model" }),
+          ]),
+          defaultModel: "coder",
+        }),
+      ]),
+      defaultProvider: "relay",
+      applyMode,
+    }),
+  });
+}
 
 const context = Object.freeze({
   relativePath: "src/App.tsx",
@@ -710,25 +733,7 @@ describe("runtime controller", () => {
       .mockResolvedValueOnce({ snapshot: reverted, result });
     vi.mocked(api.applyAgentJob).mockResolvedValue(applied);
     vi.mocked(api.revertAgentJob).mockResolvedValue(reverted);
-    const agentConfig = Object.freeze({
-      ...config,
-      ai: Object.freeze({
-        enabled: true as const,
-        providers: Object.freeze([
-          Object.freeze({
-            id: "relay",
-            label: "Trusted Relay",
-            protocol: "responses" as const,
-            models: Object.freeze([
-              Object.freeze({ id: "coder", label: "Coding Model" }),
-            ]),
-            defaultModel: "coder",
-          }),
-        ]),
-        defaultProvider: "relay",
-        applyMode: "review" as const,
-      }),
-    }) satisfies RuntimeConfig;
+    const agentConfig = withAgentConfig("review");
     const controller = createController(agentConfig, {
       api,
       createId: () => "annotation-id",
@@ -847,6 +852,114 @@ describe("runtime controller", () => {
       expect(api.revertAgentJob).toHaveBeenCalledWith(jobId);
       expect(api.revertAgentJob).toHaveBeenCalledOnce();
       expect(shadowRoot?.textContent).toContain("safely reverted");
+    });
+    controller.dispose();
+  });
+
+  it("submits one explicit trusted fast-mode consent for direct dirty-worktree execution", async () => {
+    const target = document.createElement("button");
+    target.textContent = "Save";
+    target.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-id:36:5");
+    document.body.append(target);
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue(visibleRect());
+    setHitTarget(target);
+
+    const api = createApi();
+    vi.mocked(api.agentWorkspaceHealth).mockResolvedValue({
+      state: "consent-required",
+      checkedAt: "2026-08-11T00:00:00.000Z",
+      changes: {
+        staged: 1,
+        unstaged: 1,
+        untracked: 0,
+        conflicted: 0,
+        total: 1,
+      },
+      canIncludeLocalChanges: true,
+    });
+    const queued = {
+      jobId: "0123456789abcdefghijklmn",
+      status: "queued" as const,
+      providerProfileId: "relay",
+      providerLabel: "Trusted Relay",
+      modelProfileId: "coder",
+      modelLabel: "Coding Model",
+      phaseMessage: "Agent job queued.",
+      createdAt: "2026-08-11T00:00:00.000Z",
+      updatedAt: "2026-08-11T00:00:00.000Z",
+      canCancel: true,
+      canApply: false,
+      canRevert: false,
+    };
+    vi.mocked(api.createAgentJob).mockResolvedValue(queued);
+    vi.mocked(api.cancelAgentJob).mockResolvedValue(queued);
+    vi.mocked(api.agentEvents).mockResolvedValue();
+    vi.mocked(api.agentResult).mockResolvedValue({ snapshot: queued });
+    const agentConfig = withAgentConfig("trusted-auto");
+    const controller = createController(agentConfig, {
+      api,
+      createId: () => "annotation-id",
+      now: () => "2026-08-11T00:00:00.000Z",
+    });
+    controller.mount();
+    const shadowRoot = document.querySelector("spotpatch-root")?.shadowRoot;
+
+    shadowRoot?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+    target.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        clientX: 20,
+        clientY: 30,
+      }),
+    );
+    await vi.waitFor(() => {
+      expect(
+        shadowRoot?.querySelector<HTMLTextAreaElement>(
+          "textarea[data-target-instruction-id]",
+        ),
+      ).toBeTruthy();
+    });
+    const instructionInput = shadowRoot?.querySelector<HTMLTextAreaElement>(
+      "textarea[data-target-instruction-id]",
+    );
+    const trustedConsent = shadowRoot?.querySelector<HTMLInputElement>(
+      ".spotpatch-trusted-consent input",
+    );
+
+    if (
+      instructionInput === null ||
+      instructionInput === undefined ||
+      trustedConsent === null ||
+      trustedConsent === undefined
+    ) {
+      throw new Error("Expected trusted fast-mode inputs.");
+    }
+
+    instructionInput.value = "Clarify the selected action.";
+    instructionInput.dispatchEvent(new Event("input", { bubbles: true }));
+    trustedConsent.checked = true;
+    trustedConsent.dispatchEvent(new Event("change", { bubbles: true }));
+    const runButton = findShadowButton(shadowRoot, "Run AI");
+    await vi.waitFor(() => {
+      expect(runButton.disabled).toBe(false);
+    });
+    expect(
+      shadowRoot?.querySelector<HTMLElement>(".spotpatch-workspace-consent")?.hidden,
+    ).toBe(true);
+
+    runButton.click();
+
+    await vi.waitFor(() => {
+      expect(api.createAgentJob).toHaveBeenCalledWith(
+        expect.objectContaining({
+          providerProfileId: "relay",
+          modelProfileId: "coder",
+          providerDataConsent: true,
+          trustedFastModeConsent: true,
+          workingTreeMode: "include-local-changes",
+        }),
+      );
     });
     controller.dispose();
   });

@@ -79,12 +79,14 @@ export interface UiMessages {
     title: string;
     review: string;
     autoGated: string;
+    trustedFast: string;
     provider: string;
     model: string;
     providerAriaLabel: string;
     modelAriaLabel: string;
     providerUnavailable: string;
     consent: (provider: string) => string;
+    trustedFastConsent: (provider: string) => string;
     connectionNotTested: string;
     workspaceNotChecked: string;
     checkingWorkspace: string;
@@ -428,6 +430,7 @@ export const UI_MESSAGES = Object.freeze({
       title: "AI code agent",
       review: "Review",
       autoGated: "Auto gated",
+      trustedFast: "Trusted fast",
       provider: "Provider",
       model: "Model",
       providerAriaLabel: "AI provider",
@@ -435,6 +438,8 @@ export const UI_MESSAGES = Object.freeze({
       providerUnavailable: "Provider configuration is unavailable.",
       consent: (provider: string) =>
         `I understand selected context and allowed source may be sent to ${provider}; its data policy is my responsibility.`,
+      trustedFastConsent: (provider: string) =>
+        `Enable trusted fast mode for ${provider}: send allowed project context, include current local changes, and directly apply AI changes after required checks, including file deletions and configuration changes.`,
       connectionNotTested: "Optional connection check not run",
       workspaceNotChecked: "Local workspace not checked",
       checkingWorkspace: "Checking Git workspace and isolated execution…",
@@ -579,6 +584,7 @@ export const UI_MESSAGES = Object.freeze({
       title: "AI 代码 Agent",
       review: "审阅模式",
       autoGated: "受控自动模式",
+      trustedFast: "可信快速模式",
       provider: "模型服务",
       model: "模型",
       providerAriaLabel: "AI 模型服务",
@@ -586,6 +592,8 @@ export const UI_MESSAGES = Object.freeze({
       providerUnavailable: "模型服务配置不可用。",
       consent: (provider: string) =>
         `我了解选中上下文与获准源码可能发送到 ${provider}，并自行负责其数据策略。`,
+      trustedFastConsent: (provider: string) =>
+        `为 ${provider} 启用可信快速模式：发送获准的项目上下文、纳入当前本地修改，并在必需检查通过后直接应用 AI 变更，包括删除文件与配置变更。`,
       connectionNotTested: "尚未执行可选连接检查",
       workspaceNotChecked: "尚未检查本地工作区",
       checkingWorkspace: "正在检查 Git 工作区与隔离执行环境……",

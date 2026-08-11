@@ -254,6 +254,7 @@ describe("runtime API client", () => {
         providerProfileId: "relay",
         modelProfileId: "coder",
         providerDataConsent: true,
+        trustedFastModeConsent: true,
         workingTreeMode: "require-clean",
       }),
     ).resolves.toEqual(jobSnapshot);
@@ -268,6 +269,7 @@ describe("runtime API client", () => {
     expect(serializedRequests).toContain(getAgentJobEndpoint(jobId, "result"));
     expect(createBody).toBeTypeOf("string");
     expect(createBody).toContain('"providerDataConsent":true');
+    expect(createBody).toContain('"trustedFastModeConsent":true');
     expect(createBody).not.toContain("browser excerpt must be reloaded");
     expect(serializedRequests).not.toContain("baseURL");
     expect(serializedRequests).not.toContain("apiKey");

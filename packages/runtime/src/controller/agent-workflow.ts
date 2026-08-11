@@ -420,6 +420,7 @@ export function createAgentWorkflow(
         return;
       }
 
+      const trustedFastMode = options.ai.applyMode === "trusted-auto";
       const selection = selectedProfiles();
       const annotation = options.getAnnotation();
 
@@ -463,6 +464,7 @@ export function createAgentWorkflow(
             providerProfileId: selection.providerProfileId,
             modelProfileId: selection.modelProfileId,
             providerDataConsent: true,
+            ...(trustedFastMode ? { trustedFastModeConsent: true as const } : {}),
             workingTreeMode:
               health.state === "consent-required"
                 ? "include-local-changes"

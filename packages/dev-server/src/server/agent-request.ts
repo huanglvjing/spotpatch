@@ -225,6 +225,9 @@ export async function authorizeAgentJobRequest(
     providerProfileId: input.request.providerProfileId,
     modelProfileId: input.request.modelProfileId,
     providerDataConsent: true,
+    ...(input.request.trustedFastModeConsent === true
+      ? { trustedFastModeConsent: true as const }
+      : {}),
     workingTreeMode: input.request.workingTreeMode,
   });
 }

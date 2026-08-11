@@ -153,6 +153,29 @@ describe("Agent job request authorization", () => {
     );
   });
 
+  it("preserves only an explicit trusted fast-mode consent", async () => {
+    const trustedRequest = agentJobCreateRequestSchema.parse({
+      ...request(),
+      trustedFastModeConsent: true,
+    });
+    const authorized = await authorizeAgentJobRequest({
+      request: trustedRequest,
+      options: resolveOptions(),
+      registry,
+      root,
+    });
+
+    expect(authorized.trustedFastModeConsent).toBe(true);
+    expect(
+      await authorizeAgentJobRequest({
+        request: request(),
+        options: resolveOptions(),
+        registry,
+        root,
+      }),
+    ).not.toHaveProperty("trustedFastModeConsent");
+  });
+
   it("rejects a forged display path for a valid opaque source ID", async () => {
     await expectErrorCode(
       authorizeAgentJobRequest({

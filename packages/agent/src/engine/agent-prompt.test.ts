@@ -169,5 +169,15 @@ describe("Agent prompt", () => {
     expect(prompt).toContain("typecheck");
     expect(prompt).not.toContain("private-command");
     expect(prompt).not.toContain("private-argument");
+
+    const trustedPrompt = composeAgentUserPrompt(annotation, 8_000, {
+      projectConventions: {
+        files: [],
+      },
+      trustedFast: true,
+    });
+    expect(trustedPrompt).toContain("Trusted direct execution is enabled");
+    expect(trustedPrompt).toContain("do not call list_files first");
+    expect(trustedPrompt).toContain("No project validation check is available");
   });
 });

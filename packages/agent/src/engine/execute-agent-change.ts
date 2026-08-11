@@ -21,6 +21,7 @@ import { isRestartSensitivePath } from "../security/path-policy.js";
 import { createAgentToolExecutor } from "../tools/tool-executor.js";
 import {
   AGENT_TOOL_DEFINITIONS,
+  AGENT_TOOL_DEFINITIONS_WITHOUT_CHECKS,
   isReadOnlyAgentTool,
 } from "../tools/tool-definitions.js";
 import { runConfiguredCheck } from "../validation/check-runner.js";
@@ -31,7 +32,10 @@ import {
   createPreparedAgentChange,
   type PreparedAgentChange,
 } from "../worktree/prepared-change.js";
-import { AGENT_SYSTEM_INSTRUCTIONS, composeAgentUserPrompt } from "./agent-prompt.js";
+import {
+  composeAgentUserPrompt,
+  resolveAgentSystemInstructions,
+} from "./agent-prompt.js";
 
 export interface AgentExecutionCallbacks {
   readonly onCheck?: (result: AgentCheckResult) => void;
@@ -170,6 +174,10 @@ async function executeToolCalls(
 export async function executeAgentChange(
   options: ExecuteAgentChangeOptions,
 ): Promise<PreparedAgentChange> {
+  const trustedFast = options.execution.applyMode === "trusted-auto";
+  const activeChecks: ResolvedAiExecutionOptions["checks"] = trustedFast
+    ? Object.freeze({})
+    : options.execution.checks;
   const controller = new AbortController();
   const unlink = linkSignal(options.signal, controller);
   let jobTimedOut = false;
@@ -204,7 +212,7 @@ export async function executeAgentChange(
       }),
     );
     const executor = createAgentToolExecutor({
-      checks: options.execution.checks,
+      checks: activeChecks,
       limits: options.execution.limits,
       worktreeRoot: worktree.root,
       onCheck(result) {
@@ -220,16 +228,19 @@ export async function executeAgentChange(
       provider: options.provider,
       model: options.model,
       credential: options.credential,
-      instructions: AGENT_SYSTEM_INSTRUCTIONS,
+      instructions: resolveAgentSystemInstructions(trustedFast),
       userPrompt: composeAgentUserPrompt(
         options.annotation,
         options.promptMaxCharacters ?? 16_000,
         Object.freeze({
-          checks: options.execution.checks,
+          checks: activeChecks,
           projectConventions,
+          trustedFast,
         }),
       ),
-      tools: AGENT_TOOL_DEFINITIONS,
+      tools: trustedFast
+        ? AGENT_TOOL_DEFINITIONS_WITHOUT_CHECKS
+        : AGENT_TOOL_DEFINITIONS,
       limits: options.execution.limits,
       ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
     });
@@ -276,7 +287,9 @@ export async function executeAgentChange(
     options.callbacks?.onPhase?.(
       Object.freeze({
         phase: "validating",
-        message: "Validating proposed changes.",
+        message: trustedFast
+          ? "Preparing trusted change for direct apply."
+          : "Validating proposed changes.",
       }),
     );
     const initialChangeSet = await collectAgentChangeSet(
@@ -288,7 +301,7 @@ export async function executeAgentChange(
     const requiredChecks =
       initialChangeSet.diff.length === 0
         ? []
-        : Object.values(options.execution.checks).filter((check) => check.required);
+        : Object.values(activeChecks).filter((check) => check.required);
     const finalChecks: AgentCheckResult[] = [];
     let ranFinalCheck = false;
 

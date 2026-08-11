@@ -500,7 +500,7 @@ describe("runtime view", () => {
       canIncludeLocalChanges: true,
     });
 
-    expect(view.host.shadowRoot?.textContent).toContain("可信快速模式");
+    expect(view.host.shadowRoot?.textContent).toContain("可信极速模式");
     expect(view.host.shadowRoot?.textContent).toContain("包括删除文件与配置变更");
     expect(view.readAgentSelection()?.applyMode).toBe("trusted-auto");
     expect(view.agentWorkspaceConsentCheckbox.closest("label")?.hidden).toBe(true);

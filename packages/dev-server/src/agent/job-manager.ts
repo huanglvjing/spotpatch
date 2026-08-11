@@ -361,7 +361,13 @@ export function createAgentJobManager(
     job: InternalAgentJob,
     preparedChange: PreparedAgentChange,
   ): Promise<void> => {
-    transition(job, "applying", "Applying validated changes to the project.");
+    transition(
+      job,
+      "applying",
+      job.applyMode === "trusted-auto"
+        ? "Applying trusted change directly to the project."
+        : "Applying validated changes to the project.",
+    );
 
     try {
       await dependencies.applyChange(preparedChange);
@@ -403,11 +409,15 @@ export function createAgentJobManager(
           );
         },
       };
+      const execution = Object.freeze({
+        ...options.ai.execution,
+        applyMode: job.applyMode,
+      });
       const preparedChange = await dependencies.executeChange({
         annotation: job.annotation,
         callbacks,
         credential: job.credential,
-        execution: options.ai.execution,
+        execution,
         jobId: job.id,
         model: job.model,
         provider: job.provider,

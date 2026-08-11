@@ -432,7 +432,7 @@ export const UI_MESSAGES = Object.freeze({
       mode: "Execution mode",
       review: "Review",
       autoGated: "Auto gated",
-      trustedFast: "Trusted fast",
+      trustedFast: "Trusted direct",
       provider: "Provider",
       model: "Model",
       providerAriaLabel: "AI provider",
@@ -441,7 +441,7 @@ export const UI_MESSAGES = Object.freeze({
       consent: (provider: string) =>
         `I understand selected context and allowed source may be sent to ${provider}; its data policy is my responsibility.`,
       trustedFastConsent: (provider: string) =>
-        `Enable trusted fast mode for ${provider}: send allowed project context, include current local changes, and directly apply AI changes after required checks, including file deletions and configuration changes.`,
+        `Enable trusted direct mode for ${provider}: send allowed project context, include current local changes, skip project validation checks, and immediately apply AI changes, including file deletions and configuration changes.`,
       connectionNotTested: "Optional connection check not run",
       workspaceNotChecked: "Local workspace not checked",
       checkingWorkspace: "Checking Git workspace and isolated execution…",
@@ -456,7 +456,7 @@ export const UI_MESSAGES = Object.freeze({
       capabilityVerified: "Agent capability verified",
       capabilityVerifiedAnnouncement: "AI provider capability verified.",
       testingCapability: "Testing authentication, tools, continuation, and streaming…",
-      applying: "Applying validated changes to the project.",
+      applying: "Applying changes to the project.",
       cancelling: "Cancelling Agent job.",
       reverting: "Reverting the applied Agent change.",
       consentRequired: "Confirm remote provider data transmission before running AI.",
@@ -587,7 +587,7 @@ export const UI_MESSAGES = Object.freeze({
       mode: "执行方式",
       review: "审阅模式",
       autoGated: "受控自动模式",
-      trustedFast: "可信快速模式",
+      trustedFast: "可信极速模式",
       provider: "模型服务",
       model: "模型",
       providerAriaLabel: "AI 模型服务",
@@ -596,7 +596,7 @@ export const UI_MESSAGES = Object.freeze({
       consent: (provider: string) =>
         `我了解选中上下文与获准源码可能发送到 ${provider}，并自行负责其数据策略。`,
       trustedFastConsent: (provider: string) =>
-        `为 ${provider} 启用可信快速模式：发送获准的项目上下文、纳入当前本地修改，并在必需检查通过后直接应用 AI 变更，包括删除文件与配置变更。`,
+        `为 ${provider} 启用可信极速模式：发送获准的项目上下文、纳入当前本地修改、跳过项目验证检查，并立即应用 AI 变更，包括删除文件与配置变更。`,
       connectionNotTested: "尚未执行可选连接检查",
       workspaceNotChecked: "尚未检查本地工作区",
       checkingWorkspace: "正在检查 Git 工作区与隔离执行环境……",
@@ -610,7 +610,7 @@ export const UI_MESSAGES = Object.freeze({
       capabilityVerified: "Agent 能力验证通过",
       capabilityVerifiedAnnouncement: "AI 模型服务能力验证通过。",
       testingCapability: "正在验证鉴权、工具调用、连续调用与流式响应……",
-      applying: "正在将已验证变更应用到项目。",
+      applying: "正在将变更应用到项目。",
       cancelling: "正在取消 Agent 任务。",
       reverting: "正在撤销已应用的 Agent 变更。",
       consentRequired: "运行 AI 前，请先确认允许向远程模型服务传输数据。",

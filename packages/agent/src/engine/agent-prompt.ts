@@ -15,7 +15,11 @@ const MINIMUM_SELECTION_CONTEXT_CHARACTERS = 1_024;
 interface AgentPromptContext {
   readonly checks?: Readonly<Record<string, ResolvedAgentCheckDefinition>>;
   readonly projectConventions?: AgentProjectConventions;
+  readonly trustedFast?: boolean;
 }
+
+const VALIDATION_SYSTEM_INSTRUCTION =
+  "- Run each relevant configured check after the final write so failures can be corrected. Do not rerun an unchanged check, and do not claim a check passed unless run_check returned a passed status.\n";
 
 export const AGENT_SYSTEM_INSTRUCTIONS = `You are editing code only inside a disposable, isolated Git worktree.
 
@@ -33,8 +37,14 @@ Follow these rules exactly:
 - If any tool returns a retryable TOOL_ARGUMENTS_INVALID result, no file changed. Retry once with a new tool call ID using only the declared fields and value types.
 - If read_file returns a retryable TOOL_PATH_DENIED result, no file was read or changed. Do not retry that path. Use list_files or search_text and choose an allowed path returned by the tool; never probe protected, external, generated, credential, environment, or lock files.
 - Never modify credentials, environment files, lockfiles, generated output, Git metadata, or dependencies.
-- Run each relevant configured check after the final write so failures can be corrected. Do not rerun an unchanged check, and do not claim a check passed unless run_check returned a passed status.
+${VALIDATION_SYSTEM_INSTRUCTION.trimEnd()}
 - Finish with a concise factual summary after all needed tool calls. Do not include secrets or absolute paths.`;
+
+export function resolveAgentSystemInstructions(trustedFast: boolean): string {
+  return trustedFast
+    ? AGENT_SYSTEM_INSTRUCTIONS.replace(VALIDATION_SYSTEM_INSTRUCTION, "")
+    : AGENT_SYSTEM_INSTRUCTIONS;
+}
 
 function redactedJson(value: unknown): string {
   return JSON.stringify(
@@ -299,7 +309,10 @@ export function composeAgentUserPrompt(
         `Target ${String(index + 1)}:\n${redactSensitiveText(target.instruction.trim())}`,
     )
     .join("\n\n");
-  const requestBlock = `${requestPrefix}${request}`;
+  const trustedFastBlock = context.trustedFast
+    ? "\n\nTrusted direct execution is enabled. Start from each target's supplied code.relativePath or source.relativePath. When an exact path is present, do not call list_files first. Read each affected file once unless a write is rejected, make the smallest exact replacement that satisfies the request, and finish immediately after the successful write. No project validation check is available in this mode."
+    : "";
+  const requestBlock = `${requestPrefix}${request}${trustedFastBlock}`;
   const checksPrefix =
     "\n\nConfigured validation checks (IDs and labels only):\n<validation_checks>\n";
   const checksSuffix = "\n</validation_checks>";

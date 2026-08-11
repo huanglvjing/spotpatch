@@ -6,7 +6,12 @@ test("opens the customizable Agent selector below its field", async ({ page }) =
   await page.getByTestId("tailwind-button").click();
   const dialog = page.getByRole("dialog", { name: "Plan the change" });
   const provider = dialog.getByLabel("AI provider");
+  const mode = dialog.getByLabel("Execution mode");
 
+  await expect(mode).toHaveValue("review");
+  await expect(mode.getByRole("option", { name: "Trusted direct" })).toHaveCount(1);
+  await mode.selectOption("trusted-auto");
+  await expect(dialog).toContainText("skip project validation checks");
   await expect(provider).toBeVisible();
   await expect(provider).toHaveCSS("appearance", "base-select");
   await provider.scrollIntoViewIfNeeded();

@@ -238,15 +238,17 @@ describe("Agent job manager", () => {
       dependencies: {
         applyChange,
         createJobId: () => "0123456789abcdefghijklmn",
-        executeChange: ({ jobId }) =>
-          Promise.resolve(
+        executeChange: ({ execution, jobId }) => {
+          expect(execution.applyMode).toBe("review");
+          return Promise.resolve(
             Object.freeze({
               kind: "prepared-agent-change" as const,
               result: resultFor(jobId),
               validationPassed: true,
               autoApplyEligible: false,
             }),
-          ),
+          );
+        },
         now: monotonicClock(),
         probeCapability,
         revertChange,
@@ -283,15 +285,17 @@ describe("Agent job manager", () => {
       environment: TEST_ENVIRONMENT,
       dependencies: {
         createJobId: () => "0123456789abcdefghijklmn",
-        executeChange: ({ jobId }) =>
-          Promise.resolve(
+        executeChange: ({ execution, jobId }) => {
+          expect(execution.applyMode).toBe("review");
+          return Promise.resolve(
             Object.freeze({
               kind: "prepared-agent-change" as const,
               result: resultFor(jobId),
               validationPassed: true,
               autoApplyEligible: false,
             }),
-          ),
+          );
+        },
         probeCapability: () => Promise.resolve(capabilitySnapshot()),
       },
     });
@@ -405,7 +409,7 @@ describe("Agent job manager", () => {
     await manager.close();
   });
 
-  it("directly applies a validated trusted fast-mode change", async () => {
+  it("directly applies a trusted fast-mode change", async () => {
     const applyChange = vi.fn(() => Promise.resolve());
     const manager = createAgentJobManager({
       ai: resolveAi("trusted-auto"),
@@ -414,15 +418,17 @@ describe("Agent job manager", () => {
       dependencies: {
         applyChange,
         createJobId: () => "0123456789abcdefghijklmn",
-        executeChange: ({ jobId }) =>
-          Promise.resolve(
+        executeChange: ({ execution, jobId }) => {
+          expect(execution.applyMode).toBe("trusted-auto");
+          return Promise.resolve(
             Object.freeze({
               kind: "prepared-agent-change" as const,
               result: resultFor(jobId),
               validationPassed: true,
               autoApplyEligible: false,
             }),
-          ),
+          );
+        },
       },
     });
     const created = manager.create(jobRequest(true));
@@ -464,15 +470,17 @@ describe("Agent job manager", () => {
       environment: TEST_ENVIRONMENT,
       dependencies: {
         createJobId: () => "0123456789abcdefghijklmn",
-        executeChange: ({ jobId }) =>
-          Promise.resolve(
+        executeChange: ({ execution, jobId }) => {
+          expect(execution.applyMode).toBe("review");
+          return Promise.resolve(
             Object.freeze({
               kind: "prepared-agent-change" as const,
               result: resultFor(jobId),
               validationPassed: true,
               autoApplyEligible: false,
             }),
-          ),
+          );
+        },
       },
     });
     const created = manager.create(

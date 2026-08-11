@@ -34,7 +34,7 @@ pnpm exec spotpatch-vite init
 pnpm exec spotpatch-vite check
 ```
 
-The initializer places SpotPatch before the React plugin. When the project has a local TypeScript installation and root `tsconfig.json`, it also exposes the in-page Review / Trusted fast selector without duplicating provider configuration:
+The initializer places SpotPatch before the React plugin. When the project has a local TypeScript installation and root `tsconfig.json`, it also exposes the in-page Review / Trusted direct selector without duplicating provider configuration:
 
 ```ts
 // vite.config.ts
@@ -96,7 +96,7 @@ spotPatch({
 | `locale`          | `"auto"`                                          | Resolves `en-US` or `zh-CN`.                                            |
 | `maxTargets`      | `8`                                               | Targets allowed in one change request by default.                       |
 | `ai`              | disabled or a detected complete environment       | Optional provider and Agent settings.                                   |
-| `trustedFastMode` | `false`                                           | Exposes the page selector and auto-discovers a local TypeScript check.  |
+| `trustedFastMode` | `false`                                           | Exposes Review/Trusted direct and discovers TypeScript for Review.      |
 
 The package exports the option types, AI provider types, Agent limits, and immutable defaults. See the [public API specification](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/03-%E5%85%AC%E5%85%B1API%E4%B8%8E%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B.md) for the complete constraints.
 
@@ -135,7 +135,7 @@ The default Agent path is review-gated: **Check environment** provides an option
 spotPatch({ trustedFastMode: true });
 ```
 
-The page defaults to Review; choosing Trusted fast replaces the provider and dirty-worktree confirmations with one session-scoped consent and directly applies changes after required checks. Advanced projects can still configure explicit checks through `ai.execution`. This mode can directly apply validated file deletions and restart-sensitive configuration changes. It does not allow credentials, environment files, Git metadata, external paths, arbitrary shell, failed checks, or baseline conflicts. SpotPatch does not commit, push, publish, or deploy application code.
+The page defaults to Review. Choosing Trusted direct uses the exact SpotPatch source path first, removes `run_check` from the model tools, skips host project checks, and immediately applies the isolated Diff after one session-scoped consent. This is faster but does not promise that TypeScript, lint, tests, or builds pass; configured checks still protect Review and Auto modes. Project-root boundaries, protected paths, atomic patch checks, concurrent-edit hashes, Revert, and the ban on arbitrary shell remain enforced. SpotPatch does not commit, push, publish, or deploy application code.
 
 ### Security and production behavior
 
@@ -186,7 +186,7 @@ pnpm exec spotpatch-vite init
 pnpm exec spotpatch-vite check
 ```
 
-初始化器会把 SpotPatch 放在 React 插件之前；项目存在本地 TypeScript 与根 `tsconfig.json` 时，还会自动开放页面内的“审阅 / 可信快速”选择，不需要重复填写 Provider：
+初始化器会把 SpotPatch 放在 React 插件之前；项目存在本地 TypeScript 与根 `tsconfig.json` 时，还会自动开放页面内的“审阅 / 可信极速”选择，不需要重复填写 Provider：
 
 ```ts
 // vite.config.ts
@@ -234,21 +234,21 @@ spotPatch({
 });
 ```
 
-| 选项              | 默认值                       | 说明                                                 |
-| ----------------- | ---------------------------- | ---------------------------------------------------- |
-| `enabled`         | `true`                       | 启用开发期插件。                                     |
-| `include`         | `src` 下 JSX/TSX             | 允许注入源码标记的文件。                             |
-| `exclude`         | 依赖、测试、Story 与生成目录 | 不进行转换的文件。                                   |
-| `editor`          | `"auto"`                     | 自动识别 Cursor 或 VS Code，也可显式固定。           |
-| `redact`          | `true`                       | 清洗采集上下文；强制保护的秘密类型不会因关闭而暴露。 |
-| `budget`          | 有界默认值                   | 限制总量、DOM、CSS 和源码上下文大小。                |
-| `shortcut`        | `"Mod+Shift+S"`              | 切换元素选择器。                                     |
-| `allowLan`        | `false`                      | 默认只允许 loopback Host 与 Origin。                 |
-| `debug`           | `false`                      | 输出不包含凭据的开发诊断。                           |
-| `locale`          | `"auto"`                     | 自动解析 `en-US` 或 `zh-CN`。                        |
-| `maxTargets`      | `8`                          | 一次修改任务默认允许的目标数。                       |
-| `ai`              | 关闭或检测到完整环境配置     | 可选 Provider 和 Agent 配置。                        |
-| `trustedFastMode` | `false`                      | 开放页面模式选择并自动发现本地 TypeScript 校验。     |
+| 选项              | 默认值                       | 说明                                                   |
+| ----------------- | ---------------------------- | ------------------------------------------------------ |
+| `enabled`         | `true`                       | 启用开发期插件。                                       |
+| `include`         | `src` 下 JSX/TSX             | 允许注入源码标记的文件。                               |
+| `exclude`         | 依赖、测试、Story 与生成目录 | 不进行转换的文件。                                     |
+| `editor`          | `"auto"`                     | 自动识别 Cursor 或 VS Code，也可显式固定。             |
+| `redact`          | `true`                       | 清洗采集上下文；强制保护的秘密类型不会因关闭而暴露。   |
+| `budget`          | 有界默认值                   | 限制总量、DOM、CSS 和源码上下文大小。                  |
+| `shortcut`        | `"Mod+Shift+S"`              | 切换元素选择器。                                       |
+| `allowLan`        | `false`                      | 默认只允许 loopback Host 与 Origin。                   |
+| `debug`           | `false`                      | 输出不包含凭据的开发诊断。                             |
+| `locale`          | `"auto"`                     | 自动解析 `en-US` 或 `zh-CN`。                          |
+| `maxTargets`      | `8`                          | 一次修改任务默认允许的目标数。                         |
+| `ai`              | 关闭或检测到完整环境配置     | 可选 Provider 和 Agent 配置。                          |
+| `trustedFastMode` | `false`                      | 开放审阅/可信极速选择；TypeScript 检查供审阅模式使用。 |
 
 本包导出选项类型、AI Provider 类型、Agent 限制和不可变默认值。完整约束见[公共 API 规范](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/03-%E5%85%AC%E5%85%B1API%E4%B8%8E%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B.md)。
 
@@ -287,7 +287,7 @@ spotPatch({
 spotPatch({ trustedFastMode: true });
 ```
 
-页面默认保持审阅模式；用户选择“可信快速”后，面板才会把 Provider 与脏工作区确认合并成一次会话级授权，并在必需检查通过后直接应用。高级项目仍可通过 `ai.execution` 配置自己的检查。该模式可以直接应用验证通过的文件删除与需要重启开发服务的配置变更，但不会开放凭据、环境文件、Git 元数据、项目外路径、任意 Shell，也不会绕过失败检查或基线冲突。SpotPatch 不会替业务代码执行 commit、push、发包或部署。
+页面默认保持审阅模式。用户选择“可信极速”后，Agent 会优先使用 SpotPatch 已定位的精确源码路径，不再获得 `run_check` 工具，也不执行宿主项目检查；隔离 Diff 形成后立即写回。它速度更快，但不承诺 TypeScript、lint、测试或构建通过；配置的检查仍用于审阅和受控自动模式。项目根、保护路径、原子 patch 校验、并发哈希冲突和 Revert 仍然保留，也不会开放任意 Shell，或替业务代码执行 commit、push、发包和部署。
 
 ### 安全与生产行为
 

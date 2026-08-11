@@ -41,7 +41,7 @@ Agent Engine 不负责：
 - 保存或展示 API Key。
 - 决定中转站协议是否兼容。
 - 允许浏览器提供 API URL、绝对路径或命令。
-- 绕过 Git、检查、保护路径，或在没有可信快速模式显式授权时绕过用户审阅直接写入业务仓库。
+- 绕过 Git、保护路径，或在没有可信极速模式显式授权时绕过用户审阅直接写入业务仓库；review/auto 也不得绕过配置的检查。
 - 自动提交、推送、创建分支、安装依赖或发布构建。
 
 ## 总体执行链路
@@ -54,11 +54,11 @@ SpotAnnotation(targets[]) + modelProfileId
   → 组合系统约束、项目规范证据和结构化目标上下文
   → 模型响应 / 工具调用循环（首次真实工具往返同时形成内联能力证明）
   → 变更路径、规模和策略校验
-  → 预配置检查
+  → review/auto：预配置检查；trusted-auto：跳过项目检查
   → 生成 Diff、摘要和检查结果
   → review：等待用户 Apply
      auto：满足全部门禁后 Apply
-     trusted-auto：取得当前会话显式授权并通过 required checks 后直接 Apply
+     trusted-auto：取得当前会话显式授权后直接 Apply
   → Vite HMR 观察到业务文件变化
 ```
 
@@ -75,7 +75,7 @@ Agent 输入的段落、预算和系统约束由 Prompt 规范定义 (见 doc-id
 - 是否取得与服务端 `trusted-auto` 配置匹配的当前会话显式授权。
 - 本次会话 ID 和随机 Job ID。
 
-多目标仍是一个 Job，不建立每目标子 Job 或隐式并发队列。Engine 必须把每个 `instruction` 与其目标编号明确绑定，并在系统约束中要求模型逐项检查、不得合并/忽略/扩大说明，在读文件时复用同一路径的结果；目标可以落在一个或多个业务文件，但最终仍生成一份统一 Diff、运行同一组 required checks，并以全有或全无方式 Apply/Revert。目标数量、说明上限与结构由公共模型定义 (见 doc-id:03-public-api-models)，服务端授权由本地协议定义 (见 doc-id:09-local-protocol-security)。
+多目标仍是一个 Job，不建立每目标子 Job 或隐式并发队列。Engine 必须把每个 `instruction` 与其目标编号明确绑定，并在系统约束中要求模型逐项检查、不得合并/忽略/扩大说明，在读文件时复用同一路径的结果；目标可以落在一个或多个业务文件，但最终仍生成一份统一 Diff，并以全有或全无方式 Apply/Revert。review/auto 运行配置的 required checks；trusted-auto 不向模型暴露 `run_check` 且不执行项目检查。目标数量、说明上限与结构由公共模型定义 (见 doc-id:03-public-api-models)，服务端授权由本地协议定义 (见 doc-id:09-local-protocol-security)。
 
 用户在 Job 启动后继续编辑任何目标说明、追加/删除/重新选择元素、切换界面语言或切换模型，不得修改已运行 Job 的不可变目标快照。需要采用新输入时必须创建新 Job；旧 Job 可以继续、取消或被用户显式关闭。
 
@@ -83,7 +83,7 @@ Job 不得持有 DOM、Element、Fiber、CSSStyleDeclaration 或浏览器对象�
 
 ## Agent 工具集合
 
-v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
+review/auto 最多提供以下六个工具；trusted-auto 不下发 `run_check`，因此只提供五个文件工具。工具名称和职责只在本节定义。
 
 | 工具 | 输入摘要 | 唯一职责 | 副作用 |
 | --- | --- | --- | --- |
@@ -114,7 +114,7 @@ v1.1 只提供以下六个工具；工具名称和职责只在本节定义。
 - 每个 patch 只允许相对路径，不允许绝对路径、`..`、NUL、URL 编码逃逸或平台分隔符混淆。
 - 同一轮的多个写入按事件顺序串行执行，不并发修改同一 worktree。
 - 相同模型轮次内的 `toolCallId` 只能产生一次副作用；网络重试或同一逻辑调用的重复流事件必须返回该轮已记录结果，不得重复应用。provider 可以在后续轮次复用原始 ID，执行器必须以 SpotPatch 生成的 `turn + toolCallId` 作为幂等键，不能把后续轮次误判为旧调用重放。
-- 删除文件属于破坏性变更：允许进入审阅结果；`auto` 禁止自动应用，`trusted-auto` 只有在当前会话明确授权且 required checks 成功后才可直接应用。
+- 删除文件属于破坏性变更：允许进入审阅结果；`auto` 禁止自动应用，`trusted-auto` 只有在当前会话明确授权后才可直接应用。
 - patch 因格式或 hunk 上下文不匹配而被拒绝，且拒绝前后的 worktree 指纹完全一致时，必须返回带 `PATCH_REJECTED` 和 `retryable: true` 的结构化工具结果；局部既有文件修改应改用 `replace_text`，其他情形才重新读取并使用新的 `toolCallId` 提交纠正后的 canonical diff。该次工具活动记为失败，但 Job 可在既有轮数和工具调用上限内继续。
 - 路径越界、保护文件、超限输入、拒绝后 worktree 已变化或达到既有限制仍是终止性失败；不得把这些情况降级为重试。`apply_patch` 实现不得私自把任意 patch 猜测性转换成文本替换，不得开放整文件覆盖，也不得使用 `--reject` 留下部分结果；唯一允许的精确文本替换只来自独立、严格校验的 `replace_text` 工具。
 
@@ -193,9 +193,9 @@ Agent 没有 Git 命令工具。宿主只允许通过固定 argv 调用创建、
 
 ## 验证
 
-Agent 可以在运行中请求 `run_check` 获取反馈。`run_check` 由宿主使用可信配置执行，不是模型声称的结果；只要此后没有任何文件变更，宿主可以把同一变更版本的实际结果作为最终 required check 结果。任一写入都会使缓存失效。模型未运行、结果过期或不存在的 required check 仍由宿主在生成最终结果后独立执行。
+review/auto 中 Agent 可以请求 `run_check` 获取反馈。`run_check` 由宿主使用可信配置执行，不是模型声称的结果；只要此后没有任何文件变更，宿主可以把同一变更版本的实际结果作为最终 required check 结果。任一写入都会使缓存失效。模型未运行、结果过期或不存在的 required check 仍由宿主在生成最终结果后独立执行。trusted-auto 不下发该工具，也不执行最终项目检查。
 
-验证顺序固定为：
+review/auto 的验证顺序固定为：
 
 1. 变更集安全校验。
 2. 变更文件的静态格式和语法检查（若已配置）。
@@ -205,7 +205,7 @@ Agent 可以在运行中请求 `run_check` 获取反馈。`run_check` 由宿主�
 required check 失败时：
 
 - Job 返回 Diff、失败检查和有界日志。
-- `auto` 与 `trusted-auto` 的自动应用都必须停止。
+- `auto` 的自动应用必须停止；trusted-auto 不运行这些项目检查。
 - v1.1 不提供“忽略失败并应用”入口。
 - 用户可以分别修改各目标要求并创建新 Job，或复制 Prompt 采用人工流程。
 
@@ -238,15 +238,15 @@ required check 失败时：
 
 任一条件不满足都降级为等待审阅或失败；不得以“尽量自动”为由跳过门禁。
 
-### trusted-auto 可信快速模式
+### trusted-auto 可信极速模式
 
-`trusted-auto` 只允许由项目的服务端策略显式开启，并且至少登记一个 required check。项目可以使用完整 `ai.execution` 配置，也可以使用 `trustedFastMode: true` 让 Vite/Next 适配器安全发现本地 TypeScript CLI 和根 `tsconfig.json` 后补全 required check；发现失败时不得猜测包管理器脚本或跳过验证。服务端公开该能力后，Runtime 必须默认 review，并只提供 `review | trusted-auto` 两个页面选项。
+`trusted-auto` 只允许由项目的服务端策略显式开启。当前低配置入口仍要求 Vite/Next 适配器发现本地 TypeScript CLI 和根 `tsconfig.json`，以便页面切回 review 时具备真实检查；可信极速任务自身不使用该检查。服务端公开能力后，Runtime 必须默认 review，并只提供 `review | trusted-auto` 两个页面选项。
 
 用户主动选择 trusted-auto 后，Runtime 必须在当前浏览器会话展示一次完整后果说明，由用户勾选后才可以创建 Job；请求必须携带 `applyMode: "trusted-auto"` 和字面量 `trustedFastModeConsent: true`。review 请求则携带 `applyMode: "review"` 且不得携带可信同意。服务端策略、请求模式与该字段任一不匹配都返回 `INVALID_REQUEST`。同意不写盘、不跨模式、会话或 provider 继承。
 
-开启后，一次同意同时覆盖该 provider 的项目上下文传输、将健康检查发现的有界本地修改纳入隔离基线，以及 required checks 全部通过后的直接 Apply。与 `auto` 不同，`trusted-auto` 不因删除文件或需要重启 Vite 的配置路径退回等待审阅；UI 仍展示执行状态、结果与 Revert，不再要求单独点击 Apply。
+开启后，一次同意同时覆盖该 provider 的项目上下文传输、将健康检查发现的有界本地修改纳入隔离基线、跳过项目检查和直接 Apply。Engine 必须优先读取 SpotPatch 已提供的精确源码路径，不先枚举全仓；对局部修改优先使用一次 `read_file` 和一次 `replace_text`，只有路径缺失或写入被拒绝时才回退发现或重读。UI 仍展示执行状态、结果与 Revert，不再要求单独点击 Apply。
 
-可信快速模式只减少交互门禁，不改变执行沙箱。模型仍只能操作当前项目 root 内允许的 UTF-8 文本文件；凭据、环境文件、锁文件、依赖目录、生成物、Git 元数据、项目外路径、符号链接与任意 Shell 继续拒绝。变更仍先在隔离 worktree 中形成原子 Diff；required checks 失败、Git 操作被阻断、HEAD 或 Agent 触及路径基线变化、patch check 或写回冲突都必须失败且不得部分覆盖。它也不授权 commit、push、安装依赖、发包或部署。
+可信极速模式明确用项目检查保障换取响应速度，不能宣称 TypeScript、lint、测试或构建通过。它不改变执行沙箱：模型仍只能操作当前项目 root 内允许的 UTF-8 文本文件；凭据、环境文件、锁文件、依赖目录、生成物、Git 元数据、项目外路径、符号链接与任意 Shell 继续拒绝。变更仍先在隔离 worktree 中形成原子 Diff；Git 操作被阻断、HEAD 或 Agent 触及路径基线变化、patch check 或写回冲突都必须失败且不得部分覆盖。它也不授权 commit、push、安装依赖、发包或部署。
 
 ### 撤销
 
@@ -293,7 +293,7 @@ provider adapter 不进入 `tools/` 或 `worktree/`，文件工具也不得直�
 - 两种 adapter 均允许中转站跨轮复用 provider `toolCallId`，同时拒绝同轮冲突；Runtime 中不同轮的活动不能相互覆盖。
 - provider 返回任意恶意路径、重复调用和畸形参数都不能逃离 worktree。
 - 脏工作区、并发变化、检查失败和 apply 冲突全部 fail-closed。
-- review 模式可 Apply 和安全 Revert；auto 模式只在受控门禁通过时应用；trusted-auto 只有显式会话授权和 required checks 均通过才直接应用，并继续接受隔离、路径、冲突与 Revert 验收。
+- review 模式可 Apply 和安全 Revert；auto 模式只在受控门禁通过时应用；trusted-auto 只有显式会话授权才跳过项目检查并直接应用，同时继续接受隔离、路径、原子 patch、冲突与 Revert 验收。
 - Key、绝对路径、环境变量和完整源码不出现在浏览器协议、日志与错误中。
 - 生产构建仍保持零 Runtime、零 endpoint、零 provider 配置残留。
 

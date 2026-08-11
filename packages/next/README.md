@@ -40,7 +40,7 @@ pnpm exec spotpatch-next check
 pnpm dev
 ```
 
-The supported initializer result has three parts. The TypeScript example below enables the in-page Review / Trusted fast selector by discovering the local TypeScript check; a JavaScript-only project remains on `withSpotPatch()` and review mode.
+The supported initializer result has three parts. The TypeScript example below enables the in-page Review / Trusted direct selector and preserves the discovered TypeScript check for Review; a JavaScript-only project remains on `withSpotPatch()` and review mode. Trusted direct itself does not expose `run_check` or run project checks.
 
 ```ts
 // next.config.ts
@@ -141,7 +141,7 @@ pnpm exec spotpatch-next check
 pnpm dev
 ```
 
-受支持的初始化结果包含三部分。下面的 TypeScript 示例会通过自动发现本地 TypeScript 校验来开放页面内“审阅 / 可信快速”选择；纯 JavaScript 项目保持 `withSpotPatch()` 和审阅模式。
+受支持的初始化结果包含三部分。下面的 TypeScript 示例会开放页面内“审阅 / 可信极速”选择，并保留自动发现的 TypeScript 校验供审阅模式使用；纯 JavaScript 项目保持 `withSpotPatch()` 和审阅模式。可信极速模式本身不向模型暴露 `run_check`，也不执行项目检查。
 
 ```ts
 // next.config.ts

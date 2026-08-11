@@ -19,6 +19,17 @@ const e2eAi =
           },
         },
         defaultProvider: "relay",
+        execution: {
+          applyMode: "trusted-auto" as const,
+          checks: {
+            verify: {
+              label: "E2E validation",
+              command: process.execPath,
+              args: ["--version"],
+              required: true,
+            },
+          },
+        },
       }
     : undefined;
 

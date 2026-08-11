@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_AGENT_LIMITS,
   ERROR_CODES,
+  type AgentApplyMode,
   type ResolvedAiExecutionOptions,
   type ResolvedOpenAICompatibleProviderOptions,
   type SpotAnnotation,
@@ -106,7 +107,7 @@ function provider(): ResolvedOpenAICompatibleProviderOptions {
 
 function execution(
   checkScript: string,
-  applyMode: "review" | "auto" = "review",
+  applyMode: AgentApplyMode = "review",
 ): ResolvedAiExecutionOptions {
   return Object.freeze({
     isolation: "git-worktree",
@@ -336,6 +337,53 @@ describe("Agent execution", { timeout: GIT_PROCESS_INTEGRATION_TIMEOUT_MS }, () 
         code: ERROR_CODES.VALIDATION_FAILED,
       });
       expect(await repository.read("src/App.tsx")).toContain("Before");
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
+  it("uses the exact-source fast path and skips validation in trusted mode", async () => {
+    const repository = await createTestGitRepository();
+    const source = provider();
+    const fetch = queuedFetch([
+      toolResponse("read-1", "read_file", { path: "src/App.tsx" }),
+      toolResponse("replace-1", "replace_text", {
+        path: "src/App.tsx",
+        oldText: "<button>Before</button>",
+        newText: "<button>After</button>",
+      }),
+      finalResponse("Changed the selected button label directly."),
+    ]);
+    const checkStatuses: string[] = [];
+
+    try {
+      const prepared = await executeAgentChange({
+        annotation,
+        credential: createProviderCredential("synthetic-test-credential"),
+        execution: execution("process.exit(1)", "trusted-auto"),
+        fetch,
+        jobId: "job-trusted-fast",
+        model: codingModel(source),
+        provider: source,
+        root: repository.root,
+        signal: new AbortController().signal,
+        callbacks: {
+          onCheck(result) {
+            checkStatuses.push(result.status);
+          },
+        },
+      });
+
+      expect(prepared.validationPassed).toBe(true);
+      expect(prepared.result.checks).toEqual([]);
+      expect(checkStatuses).toEqual([]);
+      expect(fetch).toHaveBeenCalledTimes(3);
+
+      const firstRequest = fetch.mock.calls[0]?.[1];
+      const requestBody = JSON.stringify(firstRequest?.body);
+      expect(requestBody).toContain("Trusted direct execution is enabled");
+      expect(requestBody).not.toContain("run_check");
+      expect(requestBody).not.toContain("Verify change");
     } finally {
       await repository.cleanup();
     }

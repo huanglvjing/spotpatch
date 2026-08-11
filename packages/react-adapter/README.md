@@ -1,8 +1,4 @@
-<p align="center">
-  <a href="https://github.com/huanglvjing/spotpatch"><img src="https://raw.githubusercontent.com/huanglvjing/spotpatch/main/docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch logo mark" width="144" /></a>
-</p>
-
-# `@spotpatch/react-adapter`
+<h1><a href="https://github.com/huanglvjing/spotpatch"><img src="https://raw.githubusercontent.com/huanglvjing/spotpatch/main/docs/assets/spotpatch-npm-icon.png" alt="SpotPatch" width="48" height="48" align="absmiddle" /></a> <code>@spotpatch/react-adapter</code></h1>
 
 ## English
 

@@ -6,6 +6,9 @@ const REPOSITORY_URL = "git+https://github.com/huanglvjing/spotpatch.git";
 const HOMEPAGE_URL = "https://github.com/huanglvjing/spotpatch#readme";
 const BUGS_URL = "https://github.com/huanglvjing/spotpatch/issues";
 const NPM_REGISTRY_URL = "https://registry.npmjs.org/";
+const NPM_README_ICON_PATH = "docs/assets/spotpatch-npm-icon.png";
+const NPM_README_ICON_URL =
+  "https://raw.githubusercontent.com/huanglvjing/spotpatch/main/docs/assets/spotpatch-npm-icon.png";
 
 const workspacePackages = [
   { directory: "packages/shared", name: "@spotpatch/shared" },
@@ -100,8 +103,19 @@ describe("repository structure", () => {
           },
         });
         expect(readme.trim()).not.toBe("");
+        const expectedHeading = `<h1><a href="https://github.com/huanglvjing/spotpatch"><img src="${NPM_README_ICON_URL}" alt="SpotPatch" width="48" height="48" align="absmiddle" /></a> <code>${name}</code></h1>`;
+        expect(readme.startsWith(expectedHeading)).toBe(true);
+        expect(readme).not.toContain("spotpatch-logo-mark.svg");
       }),
     );
+  });
+
+  it("keeps the npm README icon compact and retina-ready", async () => {
+    const icon = await readFile(NPM_README_ICON_PATH);
+
+    expect(icon.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+    expect(icon.readUInt32BE(16)).toBe(64);
+    expect(icon.readUInt32BE(20)).toBe(64);
   });
 
   it("resolves every workspace dependency to a declared public package", async () => {

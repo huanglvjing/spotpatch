@@ -1,8 +1,4 @@
-<p align="center">
-  <a href="https://github.com/huanglvjing/spotpatch">
-    <img src="https://raw.githubusercontent.com/huanglvjing/spotpatch/main/docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch logo mark" width="144" />
-  </a>
-</p>
+<h1><a href="https://github.com/huanglvjing/spotpatch"><img src="https://raw.githubusercontent.com/huanglvjing/spotpatch/main/docs/assets/spotpatch-npm-icon.png" alt="SpotPatch" width="48" height="48" align="absmiddle" /></a> <code>@spotpatch/vite</code></h1>
 
 <p align="center">
   <a href="#english">English</a> · <a href="#简体中文">简体中文</a>
@@ -14,8 +10,6 @@
   <a href="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml"><img src="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status" /></a>
   <a href="https://github.com/huanglvjing/spotpatch/blob/main/LICENSE"><img src="https://img.shields.io/npm/l/%40spotpatch%2Fvite" alt="MIT license" /></a>
 </p>
-
-# `@spotpatch/vite`
 
 ## English
 

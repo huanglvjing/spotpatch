@@ -1,5 +1,15 @@
 # @spotpatch/runtime
 
+## 1.8.0
+
+### Minor Changes
+
+- df52b66: Make the explicitly consented trusted mode a direct, low-latency path. It now
+  starts from SpotPatch's exact source location, omits the `run_check` tool,
+  skips host project checks, and applies the isolated Diff immediately while
+  retaining project boundaries, atomic patching, conflict detection, and Revert.
+  Review and gated auto modes continue to run configured checks.
+
 ## 1.7.1
 
 ### Patch Changes

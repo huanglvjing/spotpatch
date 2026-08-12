@@ -36,17 +36,30 @@ SpotPatch is a local-first, development-only feedback workspace for React applic
 
 ## Quick start: Vite
 
-### 1. Install
+### 1. One-command setup (recommended)
 
 ```bash
-npm install --save-dev @spotpatch/vite
-# or
-pnpm add -D @spotpatch/vite
+# pnpm project
+pnpm dlx @spotpatch/vite@latest setup
+
+# npm project
+npx --yes @spotpatch/vite@latest setup
 ```
 
-### 2. Configure
+`setup` detects the project's package manager, explicitly installs or upgrades the npm `latest` tag, updates a supported `vite.config.*`, and enables Trusted fast when a safe local TypeScript check is available. It supports static config objects and object-returning `defineConfig` callbacks. Ambiguous dynamic configurations fail without writing the Vite config.
 
-`@spotpatch/vite` is a Vite plugin package, not a command-line tool. Add it directly to `vite.config.ts`, before the React plugin so its development transform runs first:
+To keep installation and initialization separate, always include `@latest` when you intend to upgrade an existing locked dependency:
+
+```bash
+npm install --save-dev @spotpatch/vite@latest
+npx spotpatch-vite init
+
+# or
+pnpm add -D @spotpatch/vite@latest
+pnpm exec spotpatch-vite init
+```
+
+The generated integration places SpotPatch before the React plugin:
 
 ```ts
 // vite.config.ts
@@ -55,11 +68,13 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch(), react()],
+  plugins: [spotPatch({ trustedFastMode: true }), react()],
 });
 ```
 
-### 3. Use
+If the project has no discoverable TypeScript check, initialization safely uses `spotPatch()` and keeps Review mode. For an unsupported dynamic config, make the same edit manually.
+
+### 2. Use
 
 Start the ordinary Vite development server, open the application, then select **Select element** in the bottom-right corner or press `Mod+Shift+S`.
 
@@ -102,7 +117,7 @@ spotPatch({
 });
 ```
 
-If you intentionally want the optional **Trusted fast** mode, enable it explicitly. It requires a local TypeScript project check; use the default Review mode when the project cannot provide one:
+If you configure SpotPatch manually and intentionally want the optional **Trusted fast** mode, enable it explicitly. It requires a local TypeScript project check; use the default Review mode when the project cannot provide one:
 
 ```ts
 spotPatch({ trustedFastMode: true });

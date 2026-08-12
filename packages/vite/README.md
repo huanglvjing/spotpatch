@@ -17,17 +17,30 @@ The supported Vite integration for SpotPatch: select React UI, trace it to JSX/T
 
 SpotPatch runs only with the Vite development server. Production builds contain no SpotPatch Runtime, source markers, or local API endpoints.
 
-### Install
+### One-command setup (recommended)
 
 ```bash
-npm install --save-dev @spotpatch/vite
-# or
-pnpm add -D @spotpatch/vite
+# pnpm project
+pnpm dlx @spotpatch/vite@latest setup
+
+# npm project
+npx --yes @spotpatch/vite@latest setup
 ```
 
-### Configure
+`setup` detects npm or pnpm, installs or upgrades the explicit npm `latest` tag, updates a supported `vite.config.*`, and verifies the result. The initializer supports configuration objects and object-returning `defineConfig` callbacks, while ambiguous dynamic configurations fail without writing the config.
 
-`@spotpatch/vite` is a Vite plugin package, not a command-line tool. It intentionally does not provide a `spotpatch-vite` executable. Configure it in your Vite config, before the React plugin, so source markers are injected before React transforms the module:
+For separate steps, use `@latest` when you intend to upgrade an existing lockfile entry:
+
+```bash
+npm install --save-dev @spotpatch/vite@latest
+npx spotpatch-vite init
+
+# or
+pnpm add -D @spotpatch/vite@latest
+pnpm exec spotpatch-vite init
+```
+
+The initializer places SpotPatch before the React plugin so source markers are injected before React transforms the module:
 
 ```ts
 // vite.config.ts
@@ -36,9 +49,11 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch(), react()],
+  plugins: [spotPatch({ trustedFastMode: true }), react()],
 });
 ```
+
+When no safe local TypeScript check can be discovered, it generates `spotPatch()` and keeps Review mode. Unsupported dynamic configuration can still be integrated manually using the same plugin order.
 
 Start the application normally:
 
@@ -53,7 +68,7 @@ Select **Select element** in the bottom-right corner or press `Mod+Shift+S`. Spo
 | Dependency           | Supported range                |
 | -------------------- | ------------------------------ |
 | Node.js              | `>=20.19.0`                    |
-| Vite                 | `^5.0.0                        |     | ^6.0.0 |     | ^7.0.0` |
+| Vite                 | `>=5.0.0 <8.0.0`               |
 | React public support | `18.2–18.3`                    |
 | Default source files | `src/**/*.jsx`, `src/**/*.tsx` |
 
@@ -142,7 +157,8 @@ The page defaults to Review. Choosing Trusted direct uses the exact SpotPatch so
 
 ### Troubleshooting
 
-- **`Command "spotpatch-vite" not found`:** expected—`@spotpatch/vite` has no CLI. Import `spotPatch` in `vite.config.*` and restart `pnpm dev`.
+- **An old version remains installed:** use `@spotpatch/vite@latest`; an untagged add may preserve an existing compatible lockfile entry.
+- **Initializer rejects the config:** use a configuration object or a callback with one unambiguous object return. For conditional returns or dynamic plugin arrays, configure `spotPatch()` manually before the React plugin.
 - **No selection button:** confirm `spotPatch()` appears before the React plugin and that the app is running through `vite`/`vite dev`, not `vite preview`.
 - **No exact source location:** confirm the component is authored in an included `.jsx` or `.tsx` file under `src`, or configure `include` explicitly.
 - **AI is unavailable:** provide all three required environment values or set `ai: false`; partial environment configuration fails closed.
@@ -163,17 +179,30 @@ The page defaults to Review. Choosing Trusted direct uses the exact SpotPatch so
 
 SpotPatch 只在 Vite 开发服务器中运行。生产构建不包含 SpotPatch Runtime、源码标记或本地 API 端点。
 
-### 安装
+### 一条命令接入（推荐）
 
 ```bash
-npm install --save-dev @spotpatch/vite
-# 或
-pnpm add -D @spotpatch/vite
+# pnpm 项目
+pnpm dlx @spotpatch/vite@latest setup
+
+# npm 项目
+npx --yes @spotpatch/vite@latest setup
 ```
 
-### 配置
+`setup` 会识别 npm 或 pnpm，显式安装或升级 npm `latest` 标签，安全更新受支持的 `vite.config.*` 并验证结果。初始化器支持配置对象和返回对象的 `defineConfig` 回调；有歧义的动态配置会在不写入配置文件的情况下失败。
 
-`@spotpatch/vite` 是 Vite 插件包，不是命令行工具，并且特意不提供 `spotpatch-vite` 可执行文件。请在 Vite 配置中导入它，并放在 React 插件之前，确保源码标记在 React 转换前注入：
+需要分开执行时，如果要升级锁文件里的已有版本，请显式使用 `@latest`：
+
+```bash
+npm install --save-dev @spotpatch/vite@latest
+npx spotpatch-vite init
+
+# 或
+pnpm add -D @spotpatch/vite@latest
+pnpm exec spotpatch-vite init
+```
+
+初始化器会将 SpotPatch 放在 React 插件之前，确保源码标记在 React 转换前注入：
 
 ```ts
 // vite.config.ts
@@ -182,9 +211,11 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch(), react()],
+  plugins: [spotPatch({ trustedFastMode: true }), react()],
 });
 ```
+
+无法发现安全的本地 TypeScript 检查时，初始化器会生成 `spotPatch()` 并保持审阅模式。不受支持的动态配置仍可按相同插件顺序手动接入。
 
 照常启动应用：
 
@@ -199,7 +230,7 @@ pnpm dev
 | 依赖           | 正式支持范围                   |
 | -------------- | ------------------------------ |
 | Node.js        | `>=20.19.0`                    |
-| Vite           | `^5.0.0                        |     | ^6.0.0 |     | ^7.0.0` |
+| Vite           | `>=5.0.0 <8.0.0`               |
 | React 正式支持 | `18.2–18.3`                    |
 | 默认源码文件   | `src/**/*.jsx`、`src/**/*.tsx` |
 
@@ -288,7 +319,8 @@ spotPatch({ trustedFastMode: true });
 
 ### 常见问题
 
-- **`Command "spotpatch-vite" not found`：**这是预期行为：`@spotpatch/vite` 没有 CLI。请在 `vite.config.*` 中导入 `spotPatch`，再重启 `pnpm dev`。
+- **仍然安装了旧版本：**请使用 `@spotpatch/vite@latest`；不带标签的 add 可能继续复用锁文件中满足范围的旧版本。
+- **初始化器拒绝配置：**请使用配置对象，或只含一个明确对象返回的回调。存在条件返回或动态插件数组时，手动将 `spotPatch()` 放到 React 插件之前。
 - **没有选择元素按钮：**确认 `spotPatch()` 位于 React 插件之前，并且应用通过 `vite`/`vite dev` 而不是 `vite preview` 启动。
 - **没有精确源码位置：**确认组件来自 include 范围内的 `.jsx` 或 `.tsx` 文件，默认范围是 `src`。
 - **AI 不可用：**提供全部三个必需环境变量，或者显式设置 `ai: false`；不完整配置会安全失败。

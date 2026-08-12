@@ -25,7 +25,7 @@ const workspacePackages = [
 ] as const;
 
 interface PackageManifest {
-  readonly bin?: unknown;
+  readonly bin?: Readonly<Record<string, string>>;
   readonly bugs?: { readonly url?: string };
   readonly dependencies?: Readonly<Record<string, string>>;
   readonly devDependencies?: Readonly<Record<string, string>>;
@@ -111,10 +111,12 @@ describe("repository structure", () => {
     );
   });
 
-  it("keeps the Vite adapter as a configuration-only integration", async () => {
+  it("publishes the supported Vite setup command", async () => {
     const manifest = await readManifest("packages/vite");
 
-    expect(manifest.bin).toBeUndefined();
+    expect(manifest.bin).toEqual({
+      "spotpatch-vite": "./dist/cli.js",
+    });
   });
 
   it("keeps the npm README icon compact and retina-ready", async () => {

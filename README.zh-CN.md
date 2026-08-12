@@ -36,17 +36,30 @@ SpotPatch 是一个本地优先、仅在开发期运行的 React 页面反馈工
 
 ## 快速开始：Vite
 
-### 1. 安装
+### 1. 一条命令接入（推荐）
 
 ```bash
-npm install --save-dev @spotpatch/vite
-# 或
-pnpm add -D @spotpatch/vite
+# pnpm 项目
+pnpm dlx @spotpatch/vite@latest setup
+
+# npm 项目
+npx --yes @spotpatch/vite@latest setup
 ```
 
-### 2. 配置
+`setup` 会识别项目包管理器，显式安装或升级 npm `latest` 标签，安全更新受支持的 `vite.config.*`，并在能发现本地 TypeScript 检查时开放“可信极速”。它支持静态配置对象，也支持返回对象的 `defineConfig` 回调；有歧义的动态配置会在不写入 Vite 配置的情况下失败。
 
-`@spotpatch/vite` 是 Vite 插件包，不是命令行工具。不要运行 `pnpm exec spotpatch-vite init`；请直接在 `vite.config.ts` 中配置，并将 SpotPatch 放在 React 插件之前，使开发期源码标记先于 React 转换执行。
+需要分开安装和初始化时，如果目标是升级已被锁文件固定的旧依赖，必须显式写 `@latest`：
+
+```bash
+npm install --save-dev @spotpatch/vite@latest
+npx spotpatch-vite init
+
+# 或
+pnpm add -D @spotpatch/vite@latest
+pnpm exec spotpatch-vite init
+```
+
+初始化器会把 SpotPatch 放在 React 插件之前：
 
 ```ts
 // vite.config.ts
@@ -55,11 +68,13 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch(), react()],
+  plugins: [spotPatch({ trustedFastMode: true }), react()],
 });
 ```
 
-### 3. 使用
+如果项目无法发现 TypeScript 检查，初始化器会安全使用 `spotPatch()` 并保持审阅模式。配置结构过于动态而不受支持时，再按同样结果手动编辑。
+
+### 2. 使用
 
 照常启动 Vite 开发服务器并打开页面，然后点击右下角的 **选择元素**，或者按下 `Mod+Shift+S`。
 

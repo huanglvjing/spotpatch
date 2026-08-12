@@ -30,6 +30,9 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "spotpatch-vite": "./dist/cli.js"
+  },
   "exports": {
     ".": {
       "import": {
@@ -43,7 +46,7 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean && tsup --config tsup.runtime-client.config.ts && tsup --config tsup.runtime-react-adapter.config.ts",
+    "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean && tsup --config tsup.cli.config.ts && tsup --config tsup.runtime-client.config.ts && tsup --config tsup.runtime-react-adapter.config.ts",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

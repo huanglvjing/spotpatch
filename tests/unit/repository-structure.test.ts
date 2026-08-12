@@ -25,6 +25,7 @@ const workspacePackages = [
 ] as const;
 
 interface PackageManifest {
+  readonly bin?: unknown;
   readonly bugs?: { readonly url?: string };
   readonly dependencies?: Readonly<Record<string, string>>;
   readonly devDependencies?: Readonly<Record<string, string>>;
@@ -108,6 +109,12 @@ describe("repository structure", () => {
         expect(readme).not.toContain("spotpatch-logo-mark.svg");
       }),
     );
+  });
+
+  it("keeps the Vite adapter as a configuration-only integration", async () => {
+    const manifest = await readManifest("packages/vite");
+
+    expect(manifest.bin).toBeUndefined();
   });
 
   it("keeps the npm README icon compact and retina-ready", async () => {

@@ -46,7 +46,7 @@ pnpm add -D @spotpatch/vite
 
 ### 2. 配置
 
-SpotPatch 必须放在 React 插件之前，使开发期源码标记先于 React 转换执行。
+`@spotpatch/vite` 是 Vite 插件包，不是命令行工具。不要运行 `pnpm exec spotpatch-vite init`；请直接在 `vite.config.ts` 中配置，并将 SpotPatch 放在 React 插件之前，使开发期源码标记先于 React 转换执行。
 
 ```ts
 // vite.config.ts
@@ -118,6 +118,9 @@ SpotPatch 不会向模型开放任意 Shell。Agent 修改创建在隔离 Git wo
 | 操作系统 | macOS、Windows、Linux              | CI 与编辑器启动逻辑按平台处理。      |
 
 其他组合可能可以运行，但不属于当前公共承诺。唯一事实来源是[产品定义与边界](./docs/技术方案/01-产品定义与边界.md)。
+
+> [!WARNING]
+> React 19（包括 19.2.x）可以自行尝试，但不在正式支持范围内。请先在自身项目验证元素选择、源码定位、HMR 和 AI 流程，再用于日常开发。
 
 ## Next.js 公共预览用法
 

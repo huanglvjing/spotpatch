@@ -25,16 +25,9 @@ npm install --save-dev @spotpatch/vite
 pnpm add -D @spotpatch/vite
 ```
 
-### Initialize
+### Configure
 
-Run the safe, idempotent initializer and its read-only diagnostic:
-
-```bash
-pnpm exec spotpatch-vite init
-pnpm exec spotpatch-vite check
-```
-
-The initializer places SpotPatch before the React plugin. When the project has a local TypeScript installation and root `tsconfig.json`, it also exposes the in-page Review / Trusted direct selector without duplicating provider configuration:
+`@spotpatch/vite` is a Vite plugin package, not a command-line tool. It intentionally does not provide a `spotpatch-vite` executable. Configure it in your Vite config, before the React plugin, so source markers are injected before React transforms the module:
 
 ```ts
 // vite.config.ts
@@ -43,7 +36,7 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ trustedFastMode: true }), react()],
+  plugins: [spotPatch(), react()],
 });
 ```
 
@@ -64,7 +57,7 @@ Select **Select element** in the bottom-right corner or press `Mod+Shift+S`. Spo
 | React public support | `18.2–18.3`                    |
 | Default source files | `src/**/*.jsx`, `src/**/*.tsx` |
 
-React 19 is not part of the Vite v1 public support promise. Next.js projects must not use this package as a substitute for a Next adapter; see the repository's [Next.js status](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E6%9E%B6%E6%9E%84%E6%91%98%E8%A6%81.md).
+React 19, including 19.2.x, is not part of the Vite v1 public support promise. You may try it experimentally, but verify picking, source resolution, HMR, and the AI workflow in your application before relying on it. Next.js projects must not use this package as a substitute for a Next adapter; see the repository's [Next.js status](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E6%9E%B6%E6%9E%84%E6%91%98%E8%A6%81.md).
 
 ### Options
 
@@ -129,7 +122,7 @@ spotPatch({
 
 The default Agent path is review-gated: **Check environment** provides an optional source-free capability diagnostic, while Run starts the real isolated tool session directly and proves tool continuation inline. The Agent supplies bounded nearby project conventions, exposes file tools rather than an arbitrary shell, reuses current host-run checks, and shows the complete Diff before Apply.
 
-`spotpatch-vite init` automatically enables the page selector when it can discover a local TypeScript check. The equivalent concise manual option is:
+To expose the optional Trusted direct mode, configure it explicitly. It requires a local TypeScript project check; otherwise keep the default Review mode:
 
 ```ts
 spotPatch({ trustedFastMode: true });
@@ -149,6 +142,7 @@ The page defaults to Review. Choosing Trusted direct uses the exact SpotPatch so
 
 ### Troubleshooting
 
+- **`Command "spotpatch-vite" not found`:** expected—`@spotpatch/vite` has no CLI. Import `spotPatch` in `vite.config.*` and restart `pnpm dev`.
 - **No selection button:** confirm `spotPatch()` appears before the React plugin and that the app is running through `vite`/`vite dev`, not `vite preview`.
 - **No exact source location:** confirm the component is authored in an included `.jsx` or `.tsx` file under `src`, or configure `include` explicitly.
 - **AI is unavailable:** provide all three required environment values or set `ai: false`; partial environment configuration fails closed.
@@ -177,16 +171,9 @@ npm install --save-dev @spotpatch/vite
 pnpm add -D @spotpatch/vite
 ```
 
-### 初始化
+### 配置
 
-运行安全、幂等的初始化命令，再执行只读诊断：
-
-```bash
-pnpm exec spotpatch-vite init
-pnpm exec spotpatch-vite check
-```
-
-初始化器会把 SpotPatch 放在 React 插件之前；项目存在本地 TypeScript 与根 `tsconfig.json` 时，还会自动开放页面内的“审阅 / 可信极速”选择，不需要重复填写 Provider：
+`@spotpatch/vite` 是 Vite 插件包，不是命令行工具，并且特意不提供 `spotpatch-vite` 可执行文件。请在 Vite 配置中导入它，并放在 React 插件之前，确保源码标记在 React 转换前注入：
 
 ```ts
 // vite.config.ts
@@ -195,7 +182,7 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ trustedFastMode: true }), react()],
+  plugins: [spotPatch(), react()],
 });
 ```
 
@@ -216,7 +203,7 @@ pnpm dev
 | React 正式支持 | `18.2–18.3`                    |
 | 默认源码文件   | `src/**/*.jsx`、`src/**/*.tsx` |
 
-React 19 不在 Vite v1 正式承诺内。Next.js 项目不能把本包当作 Next 适配器使用；准确状态见仓库中的 [Next.js 适配说明](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E6%9E%B6%E6%9E%84%E6%91%98%E8%A6%81.md)。
+React 19（包括 19.2.x）不在 Vite v1 正式承诺内。可以作为实验性组合尝试，但在日常使用前必须在自身项目验证元素选择、源码定位、HMR 和 AI 流程。Next.js 项目不能把本包当作 Next 适配器使用；准确状态见仓库中的 [Next.js 适配说明](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E6%9E%B6%E6%9E%84%E6%91%98%E8%A6%81.md)。
 
 ### 选项
 
@@ -281,7 +268,7 @@ spotPatch({
 
 默认 Agent 路径必须经过审阅：“检查运行环境”提供不含源码的可选能力诊断；点击运行会直接进入真实隔离工具会话，并在会话内证明工具续接能力。Agent 会提供有界的就近项目规范，只暴露文件工具而不是任意 Shell，复用当前变更版本中由宿主实际执行的检查，并在 Apply 前展示完整 Diff。
 
-`spotpatch-vite init` 能发现本地 TypeScript 校验时会自动开放页面选择；等价的简洁手动配置只有一行：
+需要开放可选的“可信极速”模式时，请显式配置。它要求项目能提供本地 TypeScript 检查；否则请保持默认的审阅模式：
 
 ```ts
 spotPatch({ trustedFastMode: true });
@@ -301,6 +288,7 @@ spotPatch({ trustedFastMode: true });
 
 ### 常见问题
 
+- **`Command "spotpatch-vite" not found`：**这是预期行为：`@spotpatch/vite` 没有 CLI。请在 `vite.config.*` 中导入 `spotPatch`，再重启 `pnpm dev`。
 - **没有选择元素按钮：**确认 `spotPatch()` 位于 React 插件之前，并且应用通过 `vite`/`vite dev` 而不是 `vite preview` 启动。
 - **没有精确源码位置：**确认组件来自 include 范围内的 `.jsx` 或 `.tsx` 文件，默认范围是 `src`。
 - **AI 不可用：**提供全部三个必需环境变量，或者显式设置 `ai: false`；不完整配置会安全失败。

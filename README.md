@@ -44,16 +44,9 @@ npm install --save-dev @spotpatch/vite
 pnpm add -D @spotpatch/vite
 ```
 
-### 2. Initialize
+### 2. Configure
 
-Let the package safely update a supported `vite.config` and verify the result:
-
-```bash
-pnpm exec spotpatch-vite init
-pnpm exec spotpatch-vite check
-```
-
-The initializer places SpotPatch before the React plugin. In a local TypeScript project it also enables the in-page **Review / Trusted fast** selector and discovers `typescript` plus `tsconfig.json` as the required check, without copying provider settings into source code:
+`@spotpatch/vite` is a Vite plugin package, not a command-line tool. Add it directly to `vite.config.ts`, before the React plugin so its development transform runs first:
 
 ```ts
 // vite.config.ts
@@ -62,7 +55,7 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ trustedFastMode: true }), react()],
+  plugins: [spotPatch(), react()],
 });
 ```
 
@@ -109,7 +102,7 @@ spotPatch({
 });
 ```
 
-`spotpatch-vite init` enables the page selector automatically when it finds the project's local TypeScript installation and root `tsconfig.json`. The equivalent concise manual option is:
+If you intentionally want the optional **Trusted fast** mode, enable it explicitly. It requires a local TypeScript project check; use the default Review mode when the project cannot provide one:
 
 ```ts
 spotPatch({ trustedFastMode: true });
@@ -131,6 +124,9 @@ The page still defaults to Review. Selecting Trusted fast includes current local
 | Operating systems | macOS, Windows, Linux                 | CI and editor launch behavior are platform-aware.            |
 
 Other combinations may work, but they are not part of the current public promise. The [product boundary](./docs/技术方案/01-产品定义与边界.md) is the source of truth.
+
+> [!WARNING]
+> React 19 (including 19.2.x) may be tried experimentally, but it is outside the supported range. Verify picking, source resolution, HMR, and any AI workflow in your own project before relying on it.
 
 ## Next.js public preview
 

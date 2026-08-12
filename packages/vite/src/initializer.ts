@@ -107,6 +107,20 @@ function insertStaticImport(
   magicString.appendRight(offset, `\n${statement}`);
 }
 
+function importQuote(source: string, program: Program): '"' | "'" {
+  const firstImport = importsOf(program)[0];
+
+  if (firstImport !== undefined) {
+    const quote = source[firstImport.source.start];
+
+    if (quote === '"' || quote === "'") {
+      return quote;
+    }
+  }
+
+  return '"';
+}
+
 function collectIdentifierNames(program: Program): ReadonlySet<string> {
   const names = new Set<string>();
   new Visitor({
@@ -509,6 +523,8 @@ function addPluginCall(
 
   if (first === undefined) {
     magicString.appendLeft(value.end - 1, call);
+  } else if (!source.slice(value.start, first.start).includes("\n")) {
+    magicString.appendLeft(first.start, `${call}, `);
   } else {
     magicString.appendLeft(
       first.start,
@@ -531,10 +547,11 @@ function transformViteConfig(
   if (existingPluginName === undefined) {
     const specifier =
       pluginName === "spotPatch" ? "spotPatch" : `spotPatch as ${pluginName}`;
+    const quote = importQuote(source, program);
     insertStaticImport(
       magicString,
       program,
-      `import { ${specifier} } from ${JSON.stringify(ADAPTER_PACKAGE_NAME)};`,
+      `import { ${specifier} } from ${quote}${ADAPTER_PACKAGE_NAME}${quote};`,
     );
   }
 

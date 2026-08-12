@@ -20,25 +20,21 @@ SpotPatch runs only with the Vite development server. Production builds contain 
 ### One-command setup (recommended)
 
 ```bash
-# pnpm project
-pnpm dlx @spotpatch/vite@latest setup
-
-# npm project
 npx --yes @spotpatch/vite@latest setup
 ```
 
-`setup` detects npm or pnpm, installs or upgrades the explicit npm `latest` tag, updates a supported `vite.config.*`, and verifies the result. The initializer supports configuration objects and object-returning `defineConfig` callbacks, while ambiguous dynamic configurations fail without writing the config.
+This npm-bootstrap command supports both npm and pnpm projects. It fetches the registry's actual latest CLI, detects the project package manager, installs that CLI's exact SpotPatch version, updates a supported `vite.config.*`, and verifies the result. The exact-version handoff avoids pnpm 11's default 24-hour `minimumReleaseAge` policy silently resolving `@latest` to an older mature release.
 
-For separate steps, use `@latest` when you intend to upgrade an existing lockfile entry:
+The initializer supports configuration objects and object-returning `defineConfig` callbacks, while ambiguous dynamic configurations fail without writing the config.
+
+For npm, installation and initialization can also be kept separate:
 
 ```bash
 npm install --save-dev @spotpatch/vite@latest
 npx spotpatch-vite init
-
-# or
-pnpm add -D @spotpatch/vite@latest
-pnpm exec spotpatch-vite init
 ```
+
+With pnpm 11, use the recommended setup command, install a trusted exact version, or wait until the release is 24 hours old. SpotPatch does not globally disable the project's supply-chain quarantine.
 
 The initializer places SpotPatch before the React plugin so source markers are injected before React transforms the module:
 
@@ -157,7 +153,7 @@ The page defaults to Review. Choosing Trusted direct uses the exact SpotPatch so
 
 ### Troubleshooting
 
-- **An old version remains installed:** use `@spotpatch/vite@latest`; an untagged add may preserve an existing compatible lockfile entry.
+- **pnpm 11 installs an older version for `@latest`:** its default 24-hour `minimumReleaseAge` policy selects the newest mature release. Use the recommended `npx ... setup`, specify a trusted exact version, or wait 24 hours.
 - **Initializer rejects the config:** use a configuration object or a callback with one unambiguous object return. For conditional returns or dynamic plugin arrays, configure `spotPatch()` manually before the React plugin.
 - **No selection button:** confirm `spotPatch()` appears before the React plugin and that the app is running through `vite`/`vite dev`, not `vite preview`.
 - **No exact source location:** confirm the component is authored in an included `.jsx` or `.tsx` file under `src`, or configure `include` explicitly.
@@ -182,25 +178,21 @@ SpotPatch 只在 Vite 开发服务器中运行。生产构建不包含 SpotPatch
 ### 一条命令接入（推荐）
 
 ```bash
-# pnpm 项目
-pnpm dlx @spotpatch/vite@latest setup
-
-# npm 项目
 npx --yes @spotpatch/vite@latest setup
 ```
 
-`setup` 会识别 npm 或 pnpm，显式安装或升级 npm `latest` 标签，安全更新受支持的 `vite.config.*` 并验证结果。初始化器支持配置对象和返回对象的 `defineConfig` 回调；有歧义的动态配置会在不写入配置文件的情况下失败。
+这条由 npm 引导的命令同时支持 npm 和 pnpm 项目。它先取得 registry 真正的最新 CLI，再识别项目包管理器、安装该 CLI 对应的 SpotPatch 精确版本、安全更新受支持的 `vite.config.*` 并验证结果。精确版本交接可以避免 pnpm 11 默认 24 小时 `minimumReleaseAge` 把 `@latest` 解析成较旧的成熟版本。
 
-需要分开执行时，如果要升级锁文件里的已有版本，请显式使用 `@latest`：
+初始化器支持配置对象和返回对象的 `defineConfig` 回调；有歧义的动态配置会在不写入配置文件的情况下失败。
+
+npm 项目也可以分开安装和初始化：
 
 ```bash
 npm install --save-dev @spotpatch/vite@latest
 npx spotpatch-vite init
-
-# 或
-pnpm add -D @spotpatch/vite@latest
-pnpm exec spotpatch-vite init
 ```
+
+pnpm 11 项目请使用推荐的 setup 命令、安装已确认的精确版本，或等待发布满 24 小时。SpotPatch 不会全局关闭项目的供应链隔离策略。
 
 初始化器会将 SpotPatch 放在 React 插件之前，确保源码标记在 React 转换前注入：
 
@@ -319,7 +311,7 @@ spotPatch({ trustedFastMode: true });
 
 ### 常见问题
 
-- **仍然安装了旧版本：**请使用 `@spotpatch/vite@latest`；不带标签的 add 可能继续复用锁文件中满足范围的旧版本。
+- **pnpm 11 对 `@latest` 安装了旧版本：**默认 24 小时 `minimumReleaseAge` 会选择最新的成熟版本。请使用推荐的 `npx ... setup`、安装已确认的精确版本，或等待 24 小时。
 - **初始化器拒绝配置：**请使用配置对象，或只含一个明确对象返回的回调。存在条件返回或动态插件数组时，手动将 `spotPatch()` 放到 React 插件之前。
 - **没有选择元素按钮：**确认 `spotPatch()` 位于 React 插件之前，并且应用通过 `vite`/`vite dev` 而不是 `vite preview` 启动。
 - **没有精确源码位置：**确认组件来自 include 范围内的 `.jsx` 或 `.tsx` 文件，默认范围是 `src`。

@@ -112,6 +112,18 @@ describe("Vite integration initializer", () => {
     await expect(planViteIntegration(root)).resolves.toMatchObject({ changes: [] });
   });
 
+  it("preserves single-quote imports and an inline plugin array", async () => {
+    const root = await fixture(
+      "import react from '@vitejs/plugin-react';\nimport { defineConfig } from 'vite';\n\nexport default defineConfig(() => ({ plugins: [react()] }));\n",
+    );
+    const config = (await planViteIntegration(root)).changes[0]?.nextContent ?? "";
+
+    expect(config).toContain("import { spotPatch } from '@spotpatch/vite';");
+    expect(config).toContain(
+      "plugins: [spotPatch({ trustedFastMode: true }), react()]",
+    );
+  });
+
   it("supports a concise object-returning defineConfig callback", async () => {
     const root = await fixture(
       'import { defineConfig } from "vite";\n\nexport default defineConfig(() => ({ plugins: [] }));\n',

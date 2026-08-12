@@ -4,7 +4,11 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createInstallCommand, detectPackageManager } from "./setup.js";
+import {
+  createInstallCommand,
+  detectPackageManager,
+  readCurrentAdapterVersion,
+} from "./setup.js";
 
 const roots: string[] = [];
 
@@ -56,14 +60,24 @@ describe("Vite one-command setup", () => {
     );
   });
 
-  it("always installs the explicit latest tag without a shell", () => {
-    expect(createInstallCommand("pnpm", "darwin")).toEqual({
+  it("installs the running CLI's exact version without a shell", () => {
+    expect(createInstallCommand("pnpm", "1.8.1", "darwin")).toEqual({
       executable: "pnpm",
-      arguments: ["add", "-D", "@spotpatch/vite@latest"],
+      arguments: ["add", "-D", "@spotpatch/vite@1.8.1"],
     });
-    expect(createInstallCommand("npm", "win32")).toEqual({
+    expect(createInstallCommand("npm", "1.8.1", "win32")).toEqual({
       executable: "npm.cmd",
-      arguments: ["install", "--save-dev", "@spotpatch/vite@latest"],
+      arguments: ["install", "--save-dev", "@spotpatch/vite@1.8.1"],
     });
+  });
+
+  it("reads a valid exact version from the package running the CLI", async () => {
+    await expect(readCurrentAdapterVersion()).resolves.toMatch(/^\d+\.\d+\.\d+$/u);
+  });
+
+  it("rejects an invalid package version before spawning a package manager", () => {
+    expect(() => createInstallCommand("pnpm", "latest", "darwin")).toThrow(
+      /could not determine its package version/u,
+    );
   });
 });

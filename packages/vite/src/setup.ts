@@ -13,6 +13,12 @@ export interface InstallCommand {
   readonly executable: string;
 }
 
+const VERSION_PATTERN = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u;
+
+interface AdapterManifest {
+  readonly version?: unknown;
+}
+
 async function pathExists(absolutePath: string): Promise<boolean> {
   try {
     await access(absolutePath);
@@ -82,26 +88,47 @@ export async function detectPackageManager(
 
 export function createInstallCommand(
   packageManager: SupportedPackageManager,
+  version: string,
   platform = process.platform,
 ): InstallCommand {
+  if (!VERSION_PATTERN.test(version)) {
+    throw new Error("SpotPatch setup could not determine its package version.");
+  }
+
+  const packageSpecifier = `@spotpatch/vite@${version}`;
+
   return Object.freeze({
     executable: platform === "win32" ? `${packageManager}.cmd` : packageManager,
     arguments: Object.freeze(
       packageManager === "pnpm"
-        ? ["add", "-D", "@spotpatch/vite@latest"]
-        : ["install", "--save-dev", "@spotpatch/vite@latest"],
+        ? ["add", "-D", packageSpecifier]
+        : ["install", "--save-dev", packageSpecifier],
     ),
   });
 }
 
-export async function installLatestAdapter(
+export async function readCurrentAdapterVersion(): Promise<string> {
+  const manifest = JSON.parse(
+    await readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ) as AdapterManifest;
+  const version = manifest.version;
+
+  if (typeof version !== "string" || !VERSION_PATTERN.test(version)) {
+    throw new Error("SpotPatch setup could not determine its package version.");
+  }
+
+  return version;
+}
+
+export async function installCurrentAdapter(
   packageManager: SupportedPackageManager,
   appRoot = process.cwd(),
 ): Promise<void> {
-  const command = createInstallCommand(packageManager);
+  const version = await readCurrentAdapterVersion();
+  const command = createInstallCommand(packageManager, version);
 
   process.stdout.write(
-    `[spotpatch:vite] installing @spotpatch/vite@latest with ${packageManager}...\n`,
+    `[spotpatch:vite] installing @spotpatch/vite@${version} with ${packageManager}...\n`,
   );
 
   await new Promise<void>((resolve, reject) => {

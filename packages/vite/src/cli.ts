@@ -7,14 +7,14 @@ import {
   checkViteIntegration,
   planViteIntegration,
 } from "./initializer.js";
-import { detectPackageManager, installLatestAdapter } from "./setup.js";
+import { detectPackageManager, installCurrentAdapter } from "./setup.js";
 
 const VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$/u;
 
 function writeUsage(): void {
   process.stderr.write(
     "Usage: spotpatch-vite <setup|init|check>\n" +
-      "  setup  Install or upgrade @spotpatch/vite@latest, then initialize it.\n" +
+      "  setup  Install this CLI's exact @spotpatch/vite version, then initialize it.\n" +
       "  init   Preview and apply safe Vite integration changes.\n" +
       "  check  Verify the Vite integration without writing files.\n",
   );
@@ -112,7 +112,7 @@ async function runSetup(arguments_: readonly string[]): Promise<number> {
   }
 
   const packageManager = await detectPackageManager();
-  await installLatestAdapter(packageManager);
+  await installCurrentAdapter(packageManager);
   return runInit([]);
 }
 

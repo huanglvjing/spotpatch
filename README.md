@@ -39,25 +39,21 @@ SpotPatch is a local-first, development-only feedback workspace for React applic
 ### 1. One-command setup (recommended)
 
 ```bash
-# pnpm project
-pnpm dlx @spotpatch/vite@latest setup
-
-# npm project
 npx --yes @spotpatch/vite@latest setup
 ```
 
-`setup` detects the project's package manager, explicitly installs or upgrades the npm `latest` tag, updates a supported `vite.config.*`, and enables Trusted fast when a safe local TypeScript check is available. It supports static config objects and object-returning `defineConfig` callbacks. Ambiguous dynamic configurations fail without writing the Vite config.
+This npm-bootstrap command works for both npm and pnpm projects. It fetches the registry's actual `latest` CLI, detects the project's package manager, installs that CLI's exact SpotPatch version, updates a supported `vite.config.*`, and enables Trusted fast when a safe local TypeScript check is available. Installing the exact version is important with pnpm 11, whose default 24-hour `minimumReleaseAge` policy can otherwise make `pnpm add ...@latest` select an older day-old release.
 
-To keep installation and initialization separate, always include `@latest` when you intend to upgrade an existing locked dependency:
+The initializer supports static config objects and object-returning `defineConfig` callbacks. Ambiguous dynamic configurations fail without writing the Vite config.
+
+For npm, installation and initialization can also be kept separate:
 
 ```bash
 npm install --save-dev @spotpatch/vite@latest
 npx spotpatch-vite init
-
-# or
-pnpm add -D @spotpatch/vite@latest
-pnpm exec spotpatch-vite init
 ```
+
+On pnpm 11, either use the recommended setup command, specify an exact trusted version, or wait until the release is 24 hours old. Disabling `minimumReleaseAge` is a project security decision and SpotPatch does not do it globally.
 
 The generated integration places SpotPatch before the React plugin:
 

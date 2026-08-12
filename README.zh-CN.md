@@ -39,25 +39,21 @@ SpotPatch 是一个本地优先、仅在开发期运行的 React 页面反馈工
 ### 1. 一条命令接入（推荐）
 
 ```bash
-# pnpm 项目
-pnpm dlx @spotpatch/vite@latest setup
-
-# npm 项目
 npx --yes @spotpatch/vite@latest setup
 ```
 
-`setup` 会识别项目包管理器，显式安装或升级 npm `latest` 标签，安全更新受支持的 `vite.config.*`，并在能发现本地 TypeScript 检查时开放“可信极速”。它支持静态配置对象，也支持返回对象的 `defineConfig` 回调；有歧义的动态配置会在不写入 Vite 配置的情况下失败。
+这条由 npm 引导的命令同时适用于 npm 和 pnpm 项目。它先取得 registry 真正的 `latest` CLI，再识别项目包管理器、安装该 CLI 对应的 SpotPatch 精确版本、安全更新受支持的 `vite.config.*`，并在能发现本地 TypeScript 检查时开放“可信极速”。精确版本很重要：pnpm 11 默认启用 24 小时 `minimumReleaseAge`，直接执行 `pnpm add ...@latest` 可能有意选择已发布满一天的旧版本。
 
-需要分开安装和初始化时，如果目标是升级已被锁文件固定的旧依赖，必须显式写 `@latest`：
+初始化器支持静态配置对象，也支持返回对象的 `defineConfig` 回调；有歧义的动态配置会在不写入 Vite 配置的情况下失败。
+
+npm 项目也可以分开安装和初始化：
 
 ```bash
 npm install --save-dev @spotpatch/vite@latest
 npx spotpatch-vite init
-
-# 或
-pnpm add -D @spotpatch/vite@latest
-pnpm exec spotpatch-vite init
 ```
+
+pnpm 11 项目请使用上面的推荐 setup 命令、显式安装你已确认的精确版本，或等待新版本发布满 24 小时。关闭 `minimumReleaseAge` 属于项目自身的供应链安全决策，SpotPatch 不会全局关闭它。
 
 初始化器会把 SpotPatch 放在 React 插件之前：
 

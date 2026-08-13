@@ -1,10 +1,6 @@
-<p align="center">
-  <a href="https://github.com/huanglvjing/spotpatch">
-    <img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch 标志" width="144" />
-  </a>
-</p>
-
-<h1 align="center">SpotPatch</h1>
+<h1 align="center">
+  <a href="https://github.com/huanglvjing/spotpatch"><img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch 标志" width="52" /></a>&nbsp;SpotPatch
+</h1>
 
 <p align="center">
   <strong>点选页面，直达源码，审阅后再应用。</strong>

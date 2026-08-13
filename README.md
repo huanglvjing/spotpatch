@@ -26,10 +26,10 @@
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/huanglvjing/spotpatch" alt="MIT license" /></a>
 </p>
 
-SpotPatch turns rendered React UI into precise, reusable development context. Select one or more elements in the browser, trace each target to its JSX/TSX source, inspect the component and its proven data flow, then open the exact location in Cursor or VS Code, copy a structured prompt, or run an optional review-gated AI coding workflow.
+SpotPatch turns rendered React UI into precise, reusable development context. Select one or more elements in the browser, trace each target to its JSX/TSX source, inspect the component and its proven data flow, then open the exact location in Cursor or VS Code, copy a structured prompt, or run an optional AI coding workflow that defaults to Review.
 
 <p align="center">
-  <img src="./docs/assets/readme/spotpatch-source-diff.jpg" alt="SpotPatch connects a selected React UI element to the exact source change" width="790" />
+  <img src="./docs/assets/readme/en-US/spotpatch-source-diff.png" alt="SpotPatch connects a selected React UI element to the exact source change" width="790" />
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@ Run one command from the root of an existing Vite + React project:
 npx --yes @spotpatch/vite@latest setup
 ```
 
-The initializer detects npm or pnpm, installs the matching SpotPatch version, safely updates a supported `vite.config.*`, and enables the development-only data-flow Beta. If a safe local TypeScript check is discoverable, it also makes the optional Trusted fast mode available; the page still starts in Review mode.
+The initializer detects npm or pnpm, installs the matching SpotPatch version, safely updates a supported `vite.config.*`, and enables the development-only data-flow Beta. If a safe local TypeScript check is discoverable, it also exposes the optional Trusted direct mode; the page still starts in Review mode.
 
 <details>
 <summary><strong>Manual setup and pnpm 11 notes</strong></summary>
@@ -83,11 +83,11 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ dataFlow: {} }), react()],
+  plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()],
 });
 ```
 
-The initializer supports static config objects and object-returning `defineConfig` callbacks. Ambiguous dynamic configurations fail without writing the Vite config, so they can be integrated manually.
+If no safe local TypeScript check is discoverable, the initializer generates `spotPatch({ dataFlow: {} })` and keeps the page in Review-only mode. It supports static config objects and object-returning `defineConfig` callbacks. Ambiguous dynamic configurations fail without writing the Vite config, so they can be integrated manually.
 
 On pnpm 11, use the recommended setup command, install an explicitly trusted exact version, or wait until a release satisfies pnpm's default 24-hour `minimumReleaseAge`. SpotPatch does not disable that supply-chain policy globally.
 
@@ -105,17 +105,17 @@ Click **Select element** in the bottom-right corner or press `Mod+Shift+S`. Sele
 
 - open the exact source location in Cursor or VS Code;
 - preview and copy a structured prompt to any coding assistant; or
-- if AI is configured, run a review-gated change in an isolated worktree.
+- if AI is configured, run a change in default Review mode or explicitly opt into Trusted direct when the project exposes it.
 
 ## Visual workflow
 
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-workbench.png" alt="SpotPatch multi-target feedback workbench" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-workbench.png" alt="SpotPatch multi-target feedback workbench" width="360" />
     </td>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-open-source.png" alt="Open the selected React component at its exact source location" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-open-source.png" alt="Open the selected React component at its exact source location" width="360" />
     </td>
   </tr>
   <tr>
@@ -124,10 +124,10 @@ Click **Select element** in the bottom-right corner or press `Mod+Shift+S`. Sele
   </tr>
   <tr>
     <td align="center">
-      <img src="./docs/assets/readme/spotpatch-diagnostics.png" alt="Inspect the selected component, source coordinates, confidence, and React stack" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-diagnostics.png" alt="Inspect the selected component, source coordinates, confidence, and React stack" width="360" />
     </td>
     <td align="center">
-      <img src="./docs/assets/readme/spotpatch-copy-prompt.png" alt="Preview and copy a structured source-aware prompt" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-copy-prompt.png" alt="Preview and copy a structured source-aware prompt" width="360" />
     </td>
   </tr>
   <tr>
@@ -136,7 +136,7 @@ Click **Select element** in the bottom-right corner or press `Mod+Shift+S`. Sele
   </tr>
 </table>
 
-> The screenshots show the `zh-CN` locale. The same workbench is available in `en-US`, and switching language does not discard the current draft or review state.
+> The screenshots show SpotPatch in `en-US`; the example host application keeps its own locale. Switching the SpotPatch interface language does not discard the current draft or review state.
 
 ## Component data flow (Beta)
 
@@ -151,10 +151,10 @@ After selecting an element, use **Data flow** for the proven component report an
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-component-data-flow.jpg" alt="SpotPatch component data-flow report with proven API relationships" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-component-data-flow.png" alt="SpotPatch component data-flow report with proven API relationships" width="360" />
     </td>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-page-apis.png" alt="SpotPatch page API inventory" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-page-apis.png" alt="SpotPatch page API inventory" width="360" />
     </td>
   </tr>
   <tr>
@@ -198,40 +198,42 @@ spotPatch({
 
 ### What a guarded run looks like
 
+The sequence below shows the default Review path:
+
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-execution-mode.png" alt="Choose Review or Trusted fast execution mode in SpotPatch" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-execution-mode.png" alt="Choose Review or Trusted direct execution mode in SpotPatch" width="360" />
     </td>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-change-request.png" alt="Write a target-specific change request before running the SpotPatch Agent" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-change-request.png" alt="Write a target-specific change request before running the SpotPatch Agent" width="360" />
     </td>
   </tr>
   <tr>
-    <td align="center"><strong>1. Choose the boundary</strong><br /><sub>Review is the default; Trusted fast is explicit and check-gated.</sub></td>
+    <td align="center"><strong>1. Choose the boundary</strong><br /><sub>Review is the default; Trusted direct is explicit and skips host checks.</sub></td>
     <td align="center"><strong>2. State the exact change</strong><br /><sub>Every selected target keeps its own instruction and context.</sub></td>
   </tr>
   <tr>
     <td align="center">
-      <img src="./docs/assets/readme/spotpatch-agent-running.png" alt="SpotPatch AI Agent running bounded tools in an isolated worktree" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-agent-running.png" alt="SpotPatch AI Agent running bounded tools in an isolated worktree" width="360" />
     </td>
     <td align="center">
-      <img src="./docs/assets/readme/spotpatch-agent-result.png" alt="SpotPatch AI Agent result with applied change and passed checks" width="360" />
+      <img src="./docs/assets/readme/en-US/spotpatch-agent-result.png" alt="SpotPatch Review result with a passed TypeScript check, Diff, and Apply action" width="360" />
     </td>
   </tr>
   <tr>
     <td align="center"><strong>3. Watch bounded execution</strong><br /><sub>Changes are prepared in an isolated Git worktree.</sub></td>
-    <td align="center"><strong>4. Review, apply, or revert</strong><br /><sub>Project checks and the resulting Diff stay visible.</sub></td>
+    <td align="center"><strong>4. Review the result</strong><br /><sub>Inspect checks and the Diff, then apply or discard the change.</sub></td>
   </tr>
 </table>
 
-If you intentionally enable **Trusted fast** during manual integration, a local TypeScript project check is required:
+To expose **Trusted direct** during manual integration, SpotPatch must discover a local TypeScript project check. The discovered check protects Review mode; Trusted direct itself skips host checks:
 
 ```ts
 spotPatch({ trustedFastMode: true });
 ```
 
-Trusted fast can include current local changes and directly apply validated file deletions and configuration changes, but it remains project-scoped. It never grants access to credentials, environment files, Git metadata, external paths, arbitrary shell commands, failed checks, or baseline conflicts. SpotPatch always prepares the change in an isolated Git worktree first. See [AI Agent execution](./docs/技术方案/16-AIAgent执行与变更审阅.md) and [provider credentials](./docs/技术方案/17-模型提供商与凭据配置.md) for the normative rules.
+The configuration field remains `trustedFastMode`, while the current UI labels the mode **Trusted direct**. After one session-scoped consent, Trusted direct prioritizes SpotPatch's exact source path, skips host project checks, and immediately applies the isolated Diff. It does not promise that TypeScript, lint, tests, or builds pass. Project-root boundaries, protected paths, atomic patch validation, concurrent-edit checks, Revert, and the ban on arbitrary shell commands remain enforced. SpotPatch does not commit, push, publish, or deploy application code. See [AI Agent execution](./docs/技术方案/16-AIAgent执行与变更审阅.md) and [provider credentials](./docs/技术方案/17-模型提供商与凭据配置.md) for the normative rules.
 
 ## Supported scope
 
@@ -275,19 +277,20 @@ See the complete [`@spotpatch/next` public-preview guide](./packages/next/README
 
 The Vite entry exports `spotPatch(options)`. Important defaults are:
 
-| Option       | Default                                        | Purpose                                           |
-| ------------ | ---------------------------------------------- | ------------------------------------------------- |
-| `enabled`    | `true`                                         | Disable the plugin explicitly when needed.        |
-| `include`    | JSX/TSX inside `src`                           | Source files eligible for marker injection.       |
-| `exclude`    | dependencies, tests, stories, generated output | Files that must not be transformed.               |
-| `editor`     | `"auto"`                                       | Auto-detect Cursor or VS Code.                    |
-| `redact`     | `true`                                         | Sanitize collected browser context.               |
-| `shortcut`   | `"Mod+Shift+S"`                                | Toggle the element picker.                        |
-| `allowLan`   | `false`                                        | Keep the local protocol loopback-only by default. |
-| `locale`     | `"auto"`                                       | Resolve `en-US` or `zh-CN`.                       |
-| `maxTargets` | `8`                                            | Maximum targets in one task by default.           |
-| `ai`         | `false` or detected complete environment       | Optional provider and Agent configuration.        |
-| `dataFlow`   | `false`                                        | Opt-in dispatch-only component data-flow Beta.    |
+| Option            | Default                                        | Purpose                                                                   |
+| ----------------- | ---------------------------------------------- | ------------------------------------------------------------------------- |
+| `enabled`         | `true`                                         | Disable the plugin explicitly when needed.                                |
+| `include`         | JSX/TSX inside `src`                           | Source files eligible for marker injection.                               |
+| `exclude`         | dependencies, tests, stories, generated output | Files that must not be transformed.                                       |
+| `editor`          | `"auto"`                                       | Auto-detect Cursor or VS Code.                                            |
+| `redact`          | `true`                                         | Sanitize collected browser context.                                       |
+| `shortcut`        | `"Mod+Shift+S"`                                | Toggle the element picker.                                                |
+| `allowLan`        | `false`                                        | Keep the local protocol loopback-only by default.                         |
+| `locale`          | `"auto"`                                       | Resolve `en-US` or `zh-CN`.                                               |
+| `maxTargets`      | `8`                                            | Maximum targets in one task by default.                                   |
+| `ai`              | `false` or detected complete environment       | Optional provider and Agent configuration.                                |
+| `dataFlow`        | `false`                                        | Opt-in dispatch-only component data-flow Beta.                            |
+| `trustedFastMode` | `false`                                        | Expose Review/Trusted direct; discovered TypeScript protects Review only. |
 
 See [`@spotpatch/vite`](./packages/vite/README.md) and the [public API specification](./docs/技术方案/03-公共API与数据模型.md) for complete types and constraints.
 

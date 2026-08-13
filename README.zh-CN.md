@@ -29,7 +29,7 @@
 SpotPatch 把真实 React 页面转换成准确、可复用的开发上下文。你可以在浏览器中选择一个或多个元素，追溯到对应 JSX/TSX 源码，检查组件及其可证明的数据链路，然后在 Cursor 或 VS Code 中打开精确位置、复制结构化 Prompt，或运行一个默认需要审阅的可选 AI 编码流程。
 
 <p align="center">
-  <img src="./docs/assets/readme/spotpatch-source-diff.jpg" alt="SpotPatch 把选中的 React 页面元素连接到准确的源码修改" width="790" />
+  <img src="./docs/assets/readme/zh-CN/spotpatch-source-diff.png" alt="SpotPatch 把选中的 React 页面元素连接到准确的源码修改" width="790" />
 </p>
 
 <p align="center">
@@ -83,11 +83,11 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ dataFlow: {} }), react()],
+  plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()],
 });
 ```
 
-初始化器支持静态配置对象，也支持返回对象的 `defineConfig` 回调；存在歧义的动态配置会在不写入 Vite 配置的情况下失败，之后可以手动接入。
+如果无法发现安全的本地 TypeScript 检查，初始化器会生成 `spotPatch({ dataFlow: {} })`，页面只保留审阅模式。初始化器支持静态配置对象，也支持返回对象的 `defineConfig` 回调；存在歧义的动态配置会在不写入 Vite 配置的情况下失败，之后可以手动接入。
 
 pnpm 11 项目请使用上面的推荐 setup 命令、显式安装已经确认的精确版本，或等待新版本满足默认 24 小时 `minimumReleaseAge`。SpotPatch 不会全局关闭这项供应链安全策略。
 
@@ -112,10 +112,10 @@ pnpm dev
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-workbench.png" alt="SpotPatch 多目标页面反馈工作台" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-workbench.png" alt="SpotPatch 多目标页面反馈工作台" width="360" />
     </td>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-open-source.png" alt="在编辑器中打开所选 React 组件的准确源码位置" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-open-source.png" alt="在编辑器中打开所选 React 组件的准确源码位置" width="360" />
     </td>
   </tr>
   <tr>
@@ -124,10 +124,10 @@ pnpm dev
   </tr>
   <tr>
     <td align="center">
-      <img src="./docs/assets/readme/spotpatch-diagnostics.png" alt="查看组件、源码坐标、置信度和 React 组件栈" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-diagnostics.png" alt="查看组件、源码坐标、置信度和 React 组件栈" width="360" />
     </td>
     <td align="center">
-      <img src="./docs/assets/readme/spotpatch-copy-prompt.png" alt="预览并复制带有源码上下文的结构化 Prompt" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-copy-prompt.png" alt="预览并复制带有源码上下文的结构化 Prompt" width="360" />
     </td>
   </tr>
   <tr>
@@ -135,6 +135,8 @@ pnpm dev
     <td align="center"><strong>4. 准确交接</strong><br /><sub>复制经过预算裁剪的上下文，不再解释一张截图。</sub></td>
   </tr>
 </table>
+
+> 截图使用 SpotPatch 的 `zh-CN` 界面；宿主应用可以保持自己的语言。切换 SpotPatch 界面语言不会丢失当前草稿或审阅状态。
 
 ## 组件数据链路（Beta）
 
@@ -149,10 +151,10 @@ spotPatch({ dataFlow: {} });
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-component-data-flow.jpg" alt="SpotPatch 展示有证据的组件数据链路" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-component-data-flow.jpg" alt="SpotPatch 展示有证据的组件数据链路" width="360" />
     </td>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-page-apis.png" alt="SpotPatch 展示当前页面的接口清单" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-page-apis.png" alt="SpotPatch 展示当前页面的接口清单" width="360" />
     </td>
   </tr>
   <tr>
@@ -196,40 +198,42 @@ spotPatch({
 
 ### 一次受控执行是什么样的
 
+下面展示默认的审阅路径：
+
 <table>
   <tr>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-execution-mode.png" alt="在 SpotPatch 中选择审阅模式或可信极速模式" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-execution-mode.png" alt="在 SpotPatch 中选择审阅模式或可信极速模式" width="360" />
     </td>
     <td align="center" width="50%">
-      <img src="./docs/assets/readme/spotpatch-change-request.png" alt="运行 SpotPatch Agent 前填写当前目标的准确修改要求" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-change-request.png" alt="运行 SpotPatch Agent 前填写当前目标的准确修改要求" width="360" />
     </td>
   </tr>
   <tr>
-    <td align="center"><strong>1. 选择执行边界</strong><br /><sub>默认审阅；可信极速必须显式选择并通过检查门禁。</sub></td>
+    <td align="center"><strong>1. 选择执行边界</strong><br /><sub>默认审阅；可信极速需显式授权，并会跳过宿主项目检查。</sub></td>
     <td align="center"><strong>2. 写清当前修改</strong><br /><sub>每个选中目标都保持自己的要求和上下文。</sub></td>
   </tr>
   <tr>
     <td align="center">
-      <img src="./docs/assets/readme/spotpatch-agent-running.png" alt="SpotPatch AI Agent 在隔离 worktree 中运行受限工具" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-agent-running.png" alt="SpotPatch AI Agent 在隔离 worktree 中运行受限工具" width="360" />
     </td>
     <td align="center">
-      <img src="./docs/assets/readme/spotpatch-agent-result.png" alt="SpotPatch AI Agent 显示已应用的修改和通过的项目检查" width="360" />
+      <img src="./docs/assets/readme/zh-CN/spotpatch-agent-result.png" alt="SpotPatch AI Agent 显示已应用的修改、通过的项目检查和撤销入口" width="360" />
     </td>
   </tr>
   <tr>
     <td align="center"><strong>3. 查看受限执行</strong><br /><sub>修改先在隔离 Git worktree 中准备。</sub></td>
-    <td align="center"><strong>4. 审阅、应用或撤销</strong><br /><sub>项目检查与最终 Diff 始终可见。</sub></td>
+    <td align="center"><strong>4. 审阅、应用或撤销</strong><br /><sub>审阅模式显示检查与 Diff；应用后仍可安全撤销。</sub></td>
   </tr>
 </table>
 
-手工接入时，如果确实要开放 **可信极速**，项目必须具备本地 TypeScript 检查：
+手工接入时，如果要开放 **可信极速**，SpotPatch 必须能够发现本地 TypeScript 项目检查。该检查用于保护审阅模式；可信极速任务本身会跳过宿主项目检查：
 
 ```ts
 spotPatch({ trustedFastMode: true });
 ```
 
-可信极速可以纳入当前本地修改，并直接应用通过校验的文件删除与配置修改，但权限始终限制在项目内。它不会开放凭据、环境文件、Git 元数据、外部路径、任意 Shell、失败检查或基线冲突。SpotPatch 始终先在隔离 Git worktree 中准备修改。规范规则见 [AI Agent 执行与变更审阅](./docs/技术方案/16-AIAgent执行与变更审阅.md)和 [Provider 与凭据配置](./docs/技术方案/17-模型提供商与凭据配置.md)。
+页面默认保持审阅模式。完成一次会话级授权后，可信极速会优先使用 SpotPatch 已定位的精确源码路径，跳过宿主项目检查，并立即应用隔离 Diff；它不承诺 TypeScript、lint、测试或构建通过。项目根、保护路径、原子 patch 校验、并发修改检查、Revert 和任意 Shell 禁令仍然有效。SpotPatch 不会替业务代码执行 commit、push、发包或部署。规范规则见 [AI Agent 执行与变更审阅](./docs/技术方案/16-AIAgent执行与变更审阅.md)和 [Provider 与凭据配置](./docs/技术方案/17-模型提供商与凭据配置.md)。
 
 ## 正式支持范围
 
@@ -273,19 +277,20 @@ pnpm dev
 
 Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 
-| 选项         | 默认值                       | 用途                               |
-| ------------ | ---------------------------- | ---------------------------------- |
-| `enabled`    | `true`                       | 需要时显式禁用插件。               |
-| `include`    | `src` 内 JSX/TSX             | 允许注入源码标记的文件。           |
-| `exclude`    | 依赖、测试、Story、生成目录  | 不允许转换的文件。                 |
-| `editor`     | `"auto"`                     | 自动识别 Cursor 或 VS Code。       |
-| `redact`     | `true`                       | 清洗采集到的浏览器上下文。         |
-| `shortcut`   | `"Mod+Shift+S"`              | 切换元素选择器。                   |
-| `allowLan`   | `false`                      | 默认只允许 loopback 本地协议。     |
-| `locale`     | `"auto"`                     | 自动解析 `en-US` 或 `zh-CN`。      |
-| `maxTargets` | `8`                          | 一次任务默认最多选择的目标数。     |
-| `ai`         | `false` 或检测到完整环境配置 | 可选 Provider 和 Agent 配置。      |
-| `dataFlow`   | `false`                      | 可选 dispatch-only 数据链路 Beta。 |
+| 选项              | 默认值                       | 用途                                                      |
+| ----------------- | ---------------------------- | --------------------------------------------------------- |
+| `enabled`         | `true`                       | 需要时显式禁用插件。                                      |
+| `include`         | `src` 内 JSX/TSX             | 允许注入源码标记的文件。                                  |
+| `exclude`         | 依赖、测试、Story、生成目录  | 不允许转换的文件。                                        |
+| `editor`          | `"auto"`                     | 自动识别 Cursor 或 VS Code。                              |
+| `redact`          | `true`                       | 清洗采集到的浏览器上下文。                                |
+| `shortcut`        | `"Mod+Shift+S"`              | 切换元素选择器。                                          |
+| `allowLan`        | `false`                      | 默认只允许 loopback 本地协议。                            |
+| `locale`          | `"auto"`                     | 自动解析 `en-US` 或 `zh-CN`。                             |
+| `maxTargets`      | `8`                          | 一次任务默认最多选择的目标数。                            |
+| `ai`              | `false` 或检测到完整环境配置 | 可选 Provider 和 Agent 配置。                             |
+| `dataFlow`        | `false`                      | 可选 dispatch-only 数据链路 Beta。                        |
+| `trustedFastMode` | `false`                      | 开放审阅/可信极速；发现的 TypeScript 检查只保护审阅模式。 |
 
 完整类型和约束见 [`@spotpatch/vite`](./packages/vite/README.md)与[公共 API 规范](./docs/技术方案/03-公共API与数据模型.md)。
 

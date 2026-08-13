@@ -818,7 +818,7 @@ function diagnostic(
 export function createStaticDataFlowAnalyzer(
   options: StaticDataFlowAnalyzerOptions,
 ): StaticDataFlowAnalyzer {
-  const root = realpathSync(path.resolve(options.root));
+  const root = realpathSync.native(path.resolve(options.root));
   const limits = options.limits ?? DEFAULT_DATA_FLOW_LIMITS;
   const compilerOptionsByEntry = new Map<string, ts.CompilerOptions>();
   const programCache = new Map<string, ProgramCacheEntry>();
@@ -875,7 +875,7 @@ export function createStaticDataFlowAnalyzer(
   }
 
   function analyzeComponent(input: AnalyzeComponentInput): ComponentDataFlowReport {
-    const absolutePath = realpathSync(path.resolve(input.absolutePath));
+    const absolutePath = realpathSync.native(path.resolve(input.absolutePath));
     if (!isInsideRoot(root, absolutePath)) {
       throw new RangeError("SpotPatch data-flow source is outside the project root.");
     }

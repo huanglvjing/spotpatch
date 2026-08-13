@@ -1,3 +1,4 @@
+import { statSync } from "node:fs";
 import path from "node:path";
 
 import ts from "typescript";
@@ -75,16 +76,43 @@ export function resolveAliasedSymbol(
 
 export function isInsideRoot(root: string, absolutePath: string): boolean {
   const relative = path.relative(root, absolutePath);
-  return (
+  if (
     relative.length > 0 &&
     relative !== ".." &&
     !relative.startsWith(`..${path.sep}`) &&
     !path.isAbsolute(relative)
-  );
+  ) {
+    return true;
+  }
+
+  const resolvedRoot = path.resolve(root);
+  let ancestor = path.dirname(path.resolve(absolutePath));
+  const filesystemRoot = path.parse(ancestor).root;
+  while (ancestor !== filesystemRoot) {
+    if (isSameFilePath(resolvedRoot, ancestor)) return true;
+    ancestor = path.dirname(ancestor);
+  }
+  return isSameFilePath(resolvedRoot, filesystemRoot);
 }
 
 export function isSameFilePath(first: string, second: string): boolean {
-  return path.relative(path.resolve(first), path.resolve(second)).length === 0;
+  const resolvedFirst = path.resolve(first);
+  const resolvedSecond = path.resolve(second);
+  if (path.relative(resolvedFirst, resolvedSecond).length === 0) return true;
+
+  // Windows can expose one directory through both an 8.3 alias and its long name.
+  // Device/inode identity keeps containment correct when lexical paths diverge.
+  try {
+    const firstStat = statSync(resolvedFirst, { bigint: true });
+    const secondStat = statSync(resolvedSecond, { bigint: true });
+    return (
+      firstStat.ino !== 0n &&
+      firstStat.dev === secondStat.dev &&
+      firstStat.ino === secondStat.ino
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function toDisplayPath(root: string, absolutePath: string): string {

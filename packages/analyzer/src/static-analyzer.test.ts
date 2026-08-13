@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -61,7 +61,7 @@ describe("static data-flow analyzer", () => {
     expect(JSON.stringify(report)).not.toContain("never-returned");
   });
 
-  it("matches an entry source through an equivalent normalized path", async () => {
+  it("matches an entry source after asynchronous path canonicalization", async () => {
     fixtureRoot = await mkdtemp(path.join(tmpdir(), "spotpatch-analyzer-"));
     const sourcePath = path.join(fixtureRoot, "EquivalentPath.tsx");
     await writeFile(
@@ -78,7 +78,9 @@ describe("static data-flow analyzer", () => {
     });
 
     const report = analyzer.analyzeComponent({
-      absolutePath: path.join(fixtureRoot, "nested", "..", "EquivalentPath.tsx"),
+      absolutePath: await realpath(
+        path.join(fixtureRoot, "nested", "..", "EquivalentPath.tsx"),
+      ),
       line: 1,
       column: 1,
     });

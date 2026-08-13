@@ -83,6 +83,10 @@ export function isInsideRoot(root: string, absolutePath: string): boolean {
   );
 }
 
+export function isSameFilePath(first: string, second: string): boolean {
+  return path.relative(path.resolve(first), path.resolve(second)).length === 0;
+}
+
 export function toDisplayPath(root: string, absolutePath: string): string {
   return path.relative(root, absolutePath).split(path.sep).join("/");
 }

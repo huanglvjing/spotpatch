@@ -27,6 +27,7 @@ import {
   functionName,
   isFunctionImplementation,
   isInsideRoot,
+  isSameFilePath,
   propertyNameText,
   resolveAliasedSymbol,
   toDisplayPath,
@@ -128,7 +129,7 @@ function readCompilerOptions(root: string, absolutePath: string): ts.CompilerOpt
       normalized,
     );
 
-    if (parsed.fileNames.some((fileName) => path.resolve(fileName) === absolutePath)) {
+    if (parsed.fileNames.some((fileName) => isSameFilePath(fileName, absolutePath))) {
       return parsed;
     }
 
@@ -136,7 +137,7 @@ function readCompilerOptions(root: string, absolutePath: string): ts.CompilerOpt
       const referencePath = ts.resolveProjectReferencePath(reference);
       const referenced = parseConfig(referencePath);
       if (
-        referenced.fileNames.some((fileName) => path.resolve(fileName) === absolutePath)
+        referenced.fileNames.some((fileName) => isSameFilePath(fileName, absolutePath))
       ) {
         return referenced;
       }
@@ -890,7 +891,11 @@ export function createStaticDataFlowAnalyzer(
     );
     const program = getProgram(absolutePath, code);
     const checker = program.getTypeChecker();
-    const sourceFile = program.getSourceFile(absolutePath);
+    const sourceFile =
+      program.getSourceFile(absolutePath) ??
+      program
+        .getSourceFiles()
+        .find((candidate) => isSameFilePath(candidate.fileName, absolutePath));
     if (sourceFile === undefined) {
       throw new TypeError("SpotPatch data-flow source could not be parsed.");
     }

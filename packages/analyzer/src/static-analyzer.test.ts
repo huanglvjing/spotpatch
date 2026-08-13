@@ -61,6 +61,31 @@ describe("static data-flow analyzer", () => {
     expect(JSON.stringify(report)).not.toContain("never-returned");
   });
 
+  it("matches an entry source through an equivalent normalized path", async () => {
+    fixtureRoot = await mkdtemp(path.join(tmpdir(), "spotpatch-analyzer-"));
+    const sourcePath = path.join(fixtureRoot, "EquivalentPath.tsx");
+    await writeFile(
+      sourcePath,
+      `export function EquivalentPath() {
+        return <button onClick={() => fetch("/normalized-path")}>Load</button>;
+      }`,
+      "utf8",
+    );
+    const analyzer = createStaticDataFlowAnalyzer({
+      root: path.join(fixtureRoot, "."),
+      registryEpoch: "fixture-registry",
+      registerSource: () => "fixture-source",
+    });
+
+    const report = analyzer.analyzeComponent({
+      absolutePath: path.join(fixtureRoot, "nested", "..", "EquivalentPath.tsx"),
+      line: 1,
+      column: 1,
+    });
+
+    expect(report.dependencies[0]?.url?.pathname).toBe("/normalized-path");
+  });
+
   it("analyzes a fetch dispatched directly during component render", async () => {
     fixtureRoot = await mkdtemp(path.join(tmpdir(), "spotpatch-analyzer-"));
     const sourcePath = path.join(fixtureRoot, "RenderFetch.tsx");

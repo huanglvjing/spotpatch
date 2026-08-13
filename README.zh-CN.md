@@ -1,6 +1,10 @@
 <h1 align="center">
-  <a href="https://github.com/huanglvjing/spotpatch"><img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch 标志" width="52" /></a>&nbsp;SpotPatch
+  <a href="https://github.com/huanglvjing/spotpatch"><img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch 标志" width="32" align="middle" /></a>&nbsp;SpotPatch
 </h1>
+
+<p align="center">
+  <img src="./docs/assets/readme/spotpatch-hero.png" alt="SpotPatch 将选中的 React 页面元素直接连接到可审阅的源码修改" width="100%" />
+</p>
 
 <p align="center">
   <strong>点选页面，直达源码，审阅后再应用。</strong>

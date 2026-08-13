@@ -1,6 +1,10 @@
 <h1 align="center">
-  <a href="https://github.com/huanglvjing/spotpatch"><img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch logo mark" width="52" /></a>&nbsp;SpotPatch
+  <a href="https://github.com/huanglvjing/spotpatch"><img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch logo mark" width="32" align="middle" /></a>&nbsp;SpotPatch
 </h1>
+
+<p align="center">
+  <img src="./docs/assets/readme/spotpatch-hero.png" alt="SpotPatch connects selected React UI directly to reviewable source changes" width="100%" />
+</p>
 
 <p align="center">
   <strong>Click the UI. Reach the source. Ship a reviewed patch.</strong>

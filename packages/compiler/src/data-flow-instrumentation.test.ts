@@ -23,7 +23,7 @@ describe("data-flow instrumentation", () => {
     const code = `export function Login() {
       async function onFinish(values: unknown) {
         await Promise.resolve();
-        return fetch("/v2/auth/login", { method: "POST", body: JSON.stringify(values) });
+        return fetch("/auth/login", { method: "POST", body: JSON.stringify(values) });
       }
       return <button onClick={onFinish}>Login</button>;
     }`;
@@ -41,7 +41,7 @@ describe("data-flow instrumentation", () => {
     const code = `function Login() {
       async function onFinish(values: unknown) {
         await Promise.resolve();
-        return fetch("/v2/auth/login", { method: "POST", body: JSON.stringify(values) });
+        return fetch("/auth/login", { method: "POST", body: JSON.stringify(values) });
       }
       return <button onClick={onFinish}>Login</button>;
     }

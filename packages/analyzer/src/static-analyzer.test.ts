@@ -464,7 +464,7 @@ describe("static data-flow analyzer", () => {
       export function Polling({ onSuccess }) {
         useEffect(() => {
           async function query() {
-            const result = await axios.post("/wechat/query", { scene_id: "hidden", state: "hidden" });
+            const result = await axios.post("/auth/session/query", { session_id: "hidden", state: "hidden" });
             onSuccess(result.data.token);
           }
           const timer = setInterval(query, 1000);
@@ -499,10 +499,10 @@ describe("static data-flow analyzer", () => {
       ),
     ).toEqual(expect.arrayContaining(["email", "password"]));
     const query = polling.dependencies.find(
-      ({ url }) => url?.pathname === "/wechat/query",
+      ({ url }) => url?.pathname === "/auth/session/query",
     );
     expect(query?.parameters.map(({ path }) => path)).toEqual(
-      expect.arrayContaining(["scene_id", "state"]),
+      expect.arrayContaining(["session_id", "state"]),
     );
     expect(query?.response.consumedFields).toContain("data.token");
     expect(JSON.stringify({ login, polling })).not.toContain("hidden");

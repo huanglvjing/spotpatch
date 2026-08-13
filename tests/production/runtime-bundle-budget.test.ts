@@ -3,8 +3,9 @@ import { gzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
-// Supported Node/zlib builds differ slightly; keep a strict cross-platform ceiling.
-const RUNTIME_GZIP_BUDGET_BYTES = 41 * 1024;
+// Linux and macOS Node/zlib builds differ slightly for the same bundle. This
+// ceiling includes the measured cross-platform variance while remaining tight.
+const RUNTIME_GZIP_BUDGET_BYTES = 42 * 1024;
 const DATA_FLOW_PRELUDE_GZIP_BUDGET_BYTES = 8 * 1024;
 const DATA_FLOW_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;
 const serverOnlySignatures = [

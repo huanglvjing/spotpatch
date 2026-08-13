@@ -43,7 +43,7 @@ describe("data-flow runtime", () => {
       token,
       { requestCallsiteId: "request_login", sourceVersion: "source_login" },
       () =>
-        target.fetch("/v2/auth/login?token=secret&scene_id=private", {
+        target.fetch("/auth/login?token=secret&session_id=private", {
           method: "POST",
         }),
     );
@@ -59,8 +59,8 @@ describe("data-flow runtime", () => {
         transport: "fetch",
         url: {
           origin: "https://example.test",
-          pathname: "/v2/auth/login",
-          queryKeys: ["scene_id", "token"],
+          pathname: "/auth/login",
+          queryKeys: ["session_id", "token"],
         },
       },
     ]);
@@ -160,15 +160,15 @@ describe("data-flow runtime", () => {
     const runtime = createDataFlowRuntime(config, target);
     const request = new FakeXmlHttpRequest();
 
-    request.open("POST", "/v2/auth/login?token=secret");
+    request.open("POST", "/auth/login?token=secret");
     request.send();
 
-    expect(request.calls).toEqual(["open:POST:/v2/auth/login?token=secret", "send"]);
+    expect(request.calls).toEqual(["open:POST:/auth/login?token=secret", "send"]);
     expect(runtime.observations()).toMatchObject([
       {
         method: "POST",
         transport: "xhr",
-        url: { pathname: "/v2/auth/login", queryKeys: ["token"] },
+        url: { pathname: "/auth/login", queryKeys: ["token"] },
       },
     ]);
     const failingRequest = new FakeXmlHttpRequest();

@@ -113,7 +113,7 @@ merger 只有在 freshness 为 current，且 request callsite、sourceVersion、
 
 组件函数每次 render 现在也有与 analyzer 对齐的独立 trigger，直接请求及同步进入自定义 Hook 的请求可携带 render provenance。React Query queryFn 和 concise JSX callback 只有真正被调用时才创建 trigger token。tRPC 则由开发态自动前置的透明 Link 记录 procedure path/type；动态 links 配置不能安全插入时在 Vite development 日志生成去重 diagnostic，不猜测已调度状态。该 compiler diagnostic 当前尚未投影进组件报告 UI。
 
-静态 URL 没有 origin、但精确匹配的 observation 只有一个唯一 origin 时，merger 会把这个已观测 origin 补入卡片，因此用户可直接看到类似 `https://api.shengsuanyun.com/wechat/query` 的完整清洗接口；若同一精确链路观测到多个 origin，则保留 path 且不选择任何一个 origin。
+静态 URL 没有 origin、但精确匹配的 observation 只有一个唯一 origin 时，merger 会把这个已观测 origin 补入卡片，因此用户可直接看到类似 `https://api.example.test/auth/session/query` 的完整清洗接口；若同一精确链路观测到多个 origin，则保留 path 且不选择任何一个 origin。
 
 静态 analyzer 则使用 TypeScript Program 与 symbol identity，从选中组件的事件/effect 根沿本地函数、导入函数和 Store action 追踪到请求调用点。结果携带源码 anchor、import/symbol/call/data-binding evidence 和 completeness；达到深度、模块、调用点或时间预算时报告 partial。
 
@@ -136,19 +136,18 @@ merger 只有在 freshness 为 current，且 request callsite、sourceVersion、
 | 数据去向 | React state、Zustand set、storage、callback prop 的已证明 binding | Redux/Query/SWR/Apollo 等没有专用 adapter 承诺 |
 | 页面总览 | 已分析目标的静态依赖 + 当前 route 的 unassigned 请求/逻辑 operation | 不是浏览器全部 Network 资源替代品；浏览器 URL 不自动等于 proxy upstream |
 
-## shengsuanyun-web 实仓验证
+## 仓内可移植项目验证
 
-产品代码没有写入该项目的路径、域名、Store 名或接口名；实仓断言仅存在于 analyzer oracle 测试。当前自动化 oracle 覆盖四类关键链路：
+产品代码、文档和测试不保存第三方项目的品牌、路径、域名、Store 名或真实接口。analyzer oracle 在操作系统临时目录创建中性多模块源码，当前覆盖四类关键链路：
 
 | 场景 | 可证明结果 |
 | --- | --- |
-| 短信登录 | `POST /v2/auth/login` |
-| 密码登录 | 条件分支 `POST /auth/email/login` 与 `POST /base/login` |
-| 微信登录 | mount 请求 `/wechat/login`；timer 轮询 `/wechat/query`；参数 `scene_id/callback_url/state`；消费 `code/data.open_id/data.token/data.expires_in/data.user/data.redirectUrl`；去向含 callback、Zustand openId/user |
-| 模型表格 | `GET /model/list/user`；参数 `page/pageSize/name`；消费 `data.list/data.total`；去向 `react-state:data/total` |
-| React Query 支付轮询 | `ChargeModal` 的 `POST /user/payQuery`；参数 `orderId`；静态保持 declared，不能因 Hook 存在而伪报 observed |
+| Store 间接认证 | 条件分支 `POST /auth/email/login` 与 `POST /auth/account/login`，关联为 transitive |
+| 会话轮询 | effect/timer 请求 `/auth/session/query`；参数 `session_id/state`；消费 `data.session/data.token`；去向含 callback 与 React state |
+| 模型表格 | `GET /models`；参数 `page/pageSize/name`；消费 `data.list/data.total`；去向 `react-state:rows/total` |
+| React Query 状态轮询 | `POST /payments/status`；参数 `orderId`；静态保持 declared，不能因 Hook 存在而伪报 observed |
 
-这证明用户反复询问的 `/wechat/query` 可以被实际代码准确找出，也证明它不能被错误地归到短信登录按钮。需要同时明确：原设计中的 147 callsite 与 17 Table 是冻结审计分母，本次没有把它们全部转成独立 oracle，因此 **不能声称当前 Beta 已完成 147/147 与 17/17 发布 Gate**。
+这些测试证明跨模块、生命周期和数据供给链可以被确定性识别，也证明同页面请求不能仅凭时间或 URL 相似度归给按钮。它们只证明已声明的仓内 fixture 支持范围，不代表任意外部项目已经达到全调用点覆盖。
 
 ## 协议与安全
 
@@ -194,17 +193,17 @@ observation 只在当前页面内存的双上限 ring buffer 中短驻留，并�
 | `packages/react-adapter` | DOM/Fiber 到已登记业务 component type 的隔离桥 |
 | `packages/vite` | development-only client、React Adapter、prelude、panel 四入口注入与 HMR Registry 对接 |
 
-默认值和 Node 限额只由 options resolver 与 `DEFAULT_DATA_FLOW_LIMITS` 维护；`createRuntimeDataFlowConfig` 显式投影浏览器实际需要的 observation/report 四项预算，避免把 graph、协议请求或未来能力字段发送到页面。endpoint 只由 shared 常量派生；ID/sourceVersion 使用 compiler 公共 helper；UI 不重新实现关联算法。目标项目特例只在测试 oracle，产品路径没有项目硬编码。
+默认值和 Node 限额只由 options resolver 与 `DEFAULT_DATA_FLOW_LIMITS` 维护；`createRuntimeDataFlowConfig` 显式投影浏览器实际需要的 observation/report 四项预算，避免把 graph、协议请求或未来能力字段发送到页面。endpoint 只由 shared 常量派生；ID/sourceVersion 使用 compiler 公共 helper；UI 不重新实现关联算法。测试 oracle 使用中性可移植源码，产品路径和测试均没有第三方项目硬编码。
 
-面板不是核心 Runtime 的死代码：Vite 只在 `dataFlow:true` 时让客户端导入独立 panel/prelude 虚拟模块。当前面板随启用后的 Runtime bootstrap 加载，不声称点击页签后才动态下载。三项发布预算分别为核心 Runtime `<41 KiB gzip`、prelude `<8 KiB gzip`、panel `<10 KiB gzip`；不得通过提高预算掩盖回归。
+面板不是核心 Runtime 的死代码：Vite 只在 `dataFlow:true` 时让客户端导入独立 panel/prelude 虚拟模块。当前面板随启用后的 Runtime bootstrap 加载，不声称点击页签后才动态下载。三项发布预算分别为核心 Runtime `<42 KiB gzip`（覆盖 Linux/macOS Node zlib 的实测差异）、prelude `<8 KiB gzip`、panel `<10 KiB gzip`；功能体积继续按独立 bundle 记账，不以无限放宽门禁掩盖回归。
 
 ## 已执行验证与门禁
 
-截至 2026-08-13 当前未提交工作区，以下验证已实际执行通过；后续代码变化必须重新执行，不能把本记录当永久绿灯：
+发布候选必须持续通过以下验证；任何代码变化都要重新执行，不能把历史记录当永久绿灯：
 
 - shared 严格 Schema、协议版本、请求结构和运行时配置。
 - compiler 坐标、render/concise/Query trigger、tRPC Link 注入、async 返回值、Promise callback identity、wrapper、binding 冲突与诊断。
-- analyzer global fetch/Axios/tRPC/React Query、conditional URL、参数、消费字段、Zustand、跨模块/cache invalidation 与实仓 oracle。
+- analyzer global fetch/Axios/tRPC/React Query、conditional URL、参数、消费字段、Zustand、跨模块/cache invalidation 与可移植 oracle。
 - recorder Promise identity、tRPC pass-through result、并发 provenance、每次 trigger 新 token、callback receiver、query key/内存预算、wrapper 共存、内部流量排除与 route freshness。
 - merger HTTP 条件分支与 RPC operation 精确匹配、transitive component + trigger 双校验、唯一 origin 升级、origin 冲突不猜和 unassigned 分流。
 - dev-server disabled/stale/boundary/body limit/敏感值与绝对路径不泄漏。
@@ -214,9 +213,9 @@ observation 只在当前页面内存的双上限 ring buffer 中短驻留，并�
 - 独立 prelude gzip 预算、Runtime 客户端预算、transform 性能预算和 production leakage 扫描。
 - `publint` 与 Are The Types Wrong 对所有发布包和 `data-flow-runtime`、`data-flow`、`data-flow-panel` 子路径的 Node 10/16、CJS、ESM、bundler 解析验证。
 
-本轮最终完整结果为：75 个 unit test 文件、535 条 unit test 全部通过；其中真实 `shengsuanyun-web` 四组 oracle 继续通过。Chromium 全套 18 条 E2E、Vite 5/6 兼容 fixture、2 条性能门禁和 9 条生产门禁全部通过；所有发布包的 build、`publint` 与 Are The Types Wrong 校验全部通过。`format:check`、`lint`、`typecheck` 也已通过。
+2026-08-13 发布候选首次本地验证曾全部通过，但远端 Linux 揭示了外部目录测试依赖和 gzip 跨平台差异；这两项已改为自包含 oracle 与带实测平台余量的 42 KiB 核心 Runtime 上限。当前是否可发布必须以最新提交的完整本地验证和远端 CI 结果为准，本文不记录会随测试增减而失真的文件/用例总数。
 
-以上是当前未提交工作区在本轮最后一次验证中的事实，不是永久绿灯。任何后续代码变化都必须重新执行 `format:check`、`lint`、`typecheck`、unit、build、compatibility、performance、E2E、production leakage 与 package validation；本页不能替代测试命令的实际结果。
+任何后续代码变化都必须重新执行 `format:check`、`lint`、`typecheck`、unit、build、compatibility、performance、E2E、production leakage 与 package validation；本页不能替代测试命令和远端 CI 的实际结果。
 
 ## 未完成与后续 Gate
 
@@ -229,7 +228,7 @@ observation 只在当前页面内存的双上限 ring buffer 中短驻留，并�
 - Query `useQueries`/QueryClient 全矩阵、Redux、SWR、Apollo 等版本化 adapter。
 - tRPC 真实 v10/v11、batch/stream/WebSocket host 矩阵与逻辑 operation/物理 transport 批组协议。
 - 选择目标 JSX trigger 的报告过滤、同组件多 DOM instance 区分，以及 browser URL/Vite proxy upstream 分层展示。
-- shengsuanyun-web 147/147 callsite 与 17/17 Table 发布级 oracle。
+- 更大规模、公开可复现的多框架 callsite 与 Table 发布级 oracle。
 - 完整 a11y/读屏专项、CSP 全矩阵和全部 OS/browser 组合。
 
 这些缺口不会通过 AI、URL 相似、时间邻近或项目硬编码填补。新增能力必须先补 fixture/oracle、证据升级规则、安全预算和回归门禁，再扩大支持声明。

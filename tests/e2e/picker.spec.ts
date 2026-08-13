@@ -10,23 +10,27 @@ const expectHighlightToMatch = async (
   target: Locator,
   selector = ".spotpatch-highlight",
 ): Promise<void> => {
-  const targetBox = await target.boundingBox();
-  const highlightBox = await page
-    .locator("spotpatch-root")
-    .locator(selector)
-    .boundingBox();
+  const highlight = page.locator("spotpatch-root").locator(selector);
 
-  expect(targetBox).not.toBeNull();
-  expect(highlightBox).not.toBeNull();
+  await expect(highlight).toBeVisible();
+  await expect
+    .poll(async () => {
+      const [targetBox, highlightBox] = await Promise.all([
+        target.boundingBox(),
+        highlight.boundingBox(),
+      ]);
+      if (targetBox === null || highlightBox === null) {
+        return Number.POSITIVE_INFINITY;
+      }
 
-  if (targetBox === null || highlightBox === null) {
-    return;
-  }
-
-  expect(Math.abs(highlightBox.x - targetBox.x)).toBeLessThanOrEqual(1);
-  expect(Math.abs(highlightBox.y - targetBox.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(highlightBox.width - targetBox.width)).toBeLessThanOrEqual(1);
-  expect(Math.abs(highlightBox.height - targetBox.height)).toBeLessThanOrEqual(1);
+      return Math.max(
+        Math.abs(highlightBox.x - targetBox.x),
+        Math.abs(highlightBox.y - targetBox.y),
+        Math.abs(highlightBox.width - targetBox.width),
+        Math.abs(highlightBox.height - targetBox.height),
+      );
+    })
+    .toBeLessThanOrEqual(1);
 };
 
 test("keeps the highlight aligned with the hovered and selected element", async ({

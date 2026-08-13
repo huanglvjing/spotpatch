@@ -71,9 +71,9 @@ describe("data-flow public contracts", () => {
       transport: "fetch",
       method: "GET",
       url: {
-        pathname: "/wechat/query",
+        pathname: "/auth/session/query",
         queryKeys: ["scene_id"],
-        raw: "https://api.example.test/wechat/query?scene_id=secret",
+        raw: "https://api.example.test/auth/session/query?session_id=secret",
       },
       outcome: "dispatched",
       freshness: "current",

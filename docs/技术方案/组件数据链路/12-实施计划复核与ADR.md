@@ -25,12 +25,12 @@ source-range: "POC 与 Beta 实施结果、剩余里程碑、技术选型、退�
 
 | 阶段 | 当前结果 |
 | --- | --- |
-| D1 | AntD composite mapping、稳定 ID、显式 invocation/request frame、fetch Promise identity、并发、timer/Promise callback、fetch/XHR dispatch 与实仓关键样本已通过自动化 |
+| D1 | AntD composite mapping、稳定 ID、显式 invocation/request frame、fetch Promise identity、并发、timer/Promise callback、fetch/XHR dispatch 与可移植关键样本已通过自动化 |
 | D2 | shared 契约、单遍 compiler instrumentation、Node-only TypeScript analyzer、跨模块 cache 与 Axios/Zustand 子集已实现 |
 | D3 | head-prepend 轻量 prelude、内存 ring buffer、route/source freshness、严格 evidence merger 已实现；result tap/safe JSON shape 未实现，公开模式收窄为 dispatch-only |
 | D4 | 严格只读 endpoint、组件数据链路/页面接口 UI、自动加载与刷新已实现；完整目标 UI 的观测窗口、源码证据展开和专项 a11y 仍待补 |
 | D5 | 未实现；不公开无行为 AI 开关，capability 为 disabled |
-| D6 | 关键登录/微信/表格 oracle、Vite 5/6 真宿主、AntD E2E、性能与生产扫描已加入；147/147、17/17 与全部发布矩阵尚未完成 |
+| D6 | 认证、生命周期轮询、表格 oracle、Vite 5/6 真宿主、AntD E2E、性能与生产扫描已加入；大规模公开 fixture 与全部发布矩阵尚未完成 |
 | D7 | 未开始；Next 不继承 Vite Beta 声明 |
 
 当前实现、配置和不支持项以 (见 doc-id:data-flow-13-beta-implementation) 为准。下文保留原 Gate 的理由和后续工作，不能把阶段标题误读为全部完成。
@@ -54,7 +54,7 @@ source-range: "POC 与 Beta 实施结果、剩余里程碑、技术选型、退�
 | AST | 复用 `oxc-parser@0.143.0` + `MagicString` | 仓库已有、快、transform/source map 已验证 | 再引入 Babel/ts-morph 复制解析链 |
 | 模块解析 | Vite host resolver 首发 | 与真实 alias/exports 一致 | analyzer 自写 Node/Vite 两套 resolver |
 | 图结构 | TypeScript `Map/Set` + 不可变输出 | 规模有硬上限，无需图数据库 | Neo4j/通用重图依赖 |
-| 类型 | 显式注解 + runtime shape 首发；TS semantic provider 后置 Gate | 目标项目大量 `any`，类型不能替代 observation | 启动时全仓 TypeScript Program |
+| 类型 | 显式注解 + runtime shape 首发；TS semantic provider 后置 Gate | 真实项目常见 `any`，类型不能替代 observation | 启动时全仓 TypeScript Program |
 | 浏览器观测 | 小型 head-prepend prelude + fetch/XHR adapter | npm 插件内可用，页面加载起观测 | 强制 DevTools Extension/CDP |
 | 异步来源 | 编译期显式 invocation provenance POC | 可审计并能定义降级 | `Error.stack`/时间/URL 猜测；依赖未标准化 AsyncContext |
 | 协议 | 现有 same-origin `/__spotpatch/v1` + Zod strict Schema | 复用鉴权和 envelope | 新 WebSocket 或任意查询 API |
@@ -202,7 +202,7 @@ POC 不能因“演示看起来可以”直接搬进 runtime。
 
 - 新模块有单一 owner、窄接口、注入副作用和对应 dispose。
 - 默认值、限额、endpoint、状态、消息、adapter ID 没有重复定义。
-- 目标项目路径、域名、Store/function/field 名只在 fixture/oracle，不在产品代码。
+- fixture 只使用中性名称和保留域；第三方品牌、路径、域名、Store/function/field 名不进入仓库。
 - 没有 `any` 逃避模型、非空断言掩盖证据缺失或字符串比较冒充 symbol resolution。
 - 没有未使用 export、不可达分支、永久 TODO、无退出日期 flag 或被新实现取代的旧代码。
 - recorder、cache、handler、AbortController、timer/listener 均有清理测试。
@@ -260,9 +260,9 @@ Vite Beta 不能自动推导 Next/RSC/Server Action 支持。
 | fetch Promise 观测改变 rejection | 阻断 | dispatch-only 为安全基线；result tap 独立证明 |
 | response Proxy/getter 副作用 | 阻断 | 任意对象不遍历；仅安全来源 shape |
 | prelude 晚于首请求/CSP | 高 | head-prepend + 真宿主门禁；能力不足明确显示 |
-| 目标项目大量 `any` | 高 | consumed fields + safe runtime shape，不伪造 declared contract |
+| 真实项目大量 `any` | 高 | consumed fields + safe runtime shape，不伪造 declared contract |
 | 同 URL 多组件 | 高 | 只按 callsite/invocation；缺证据 unassigned |
-| 表格由父/Store 提供 | 高 | 独立 data-fed-by 图与 17-file oracle |
+| 表格由父/Store 提供 | 高 | 独立 data-fed-by 图与多文件 oracle |
 | 外部后端数据库未知 | 中 | 永远 unknown；只有同仓 ORM 证据可升级 |
 | AI hallucination | 高 | 独立结果、evidence validation、只读工具 |
 | 包体/启动成本 | 高 | prelude/UI/analyzer 分层、惰性、独立预算 |
@@ -270,6 +270,6 @@ Vite Beta 不能自动推导 Next/RSC/Server Action 支持。
 
 ## 当前最终建议
 
-建议将当前结果作为未发布的 Vite + React 18 Beta 进入代码审阅与全量门禁，不直接宣称完整产品或 147/147 发布达标。D1 的复合组件、异步 provenance 和 dispatch 非干扰核心门禁已经通过，因此可以在已声明支持语法内称为“证据化组件接口能力”；范围外必须继续展示 partial/unknown/unassigned。
+建议将当前结果作为 Vite + React 18 Beta 进入代码审阅与全量门禁，不直接宣称对任意项目完整覆盖。D1 的复合组件、异步 provenance 和 dispatch 非干扰核心门禁已经通过，因此可以在已声明支持语法内称为“证据化组件接口能力”；范围外必须继续展示 partial/unknown/unassigned。
 
-AI、safe JSON shape、通用 upstream、Next 和全量实仓 oracle 必须继续独立过 Gate。即使后续 Gate 失败，页面接口总览、静态声明依赖、参数/消费字段和 unassigned 请求仍可保留，但 UI 和市场文案不得把未知包装为已精确归属。
+AI、safe JSON shape、通用 upstream、Next 和大规模可移植 oracle 必须继续独立过 Gate。即使后续 Gate 失败，页面接口总览、静态声明依赖、参数/消费字段和 unassigned 请求仍可保留，但 UI 和市场文案不得把未知包装为已精确归属。

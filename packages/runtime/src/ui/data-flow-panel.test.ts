@@ -10,7 +10,7 @@ import { createDataFlowPanel } from "./data-flow-panel.js";
 
 const report = Object.freeze({
   schemaVersion: DATA_FLOW_SCHEMA_VERSION,
-  reportId: "report_wechat",
+  reportId: "report_session",
   baseline: Object.freeze({
     registryEpoch: "registry_1",
     analyzerVersion: "1",
@@ -31,11 +31,11 @@ const report = Object.freeze({
     ]),
   }),
   component: Object.freeze({
-    componentSourceId: "component_wechat",
-    displayName: "WechatLogin",
+    componentSourceId: "component_session",
+    displayName: "SessionStatus",
     source: Object.freeze({
       fileId: "file_1",
-      displayPath: "src/WechatLogin.tsx",
+      displayPath: "src/SessionStatus.tsx",
       line: 1,
       column: 1,
       sourceVersion: "source_1",
@@ -43,7 +43,7 @@ const report = Object.freeze({
   }),
   dependencies: Object.freeze([
     Object.freeze({
-      id: "dependency_wechat",
+      id: "dependency_session",
       kind: "http",
       direction: "write",
       execution: "observed",
@@ -52,7 +52,7 @@ const report = Object.freeze({
       method: "POST",
       url: Object.freeze({
         origin: "https://api.example.test",
-        pathname: "/wechat/query",
+        pathname: "/auth/session/query",
         queryKeys: Object.freeze([]),
       }),
       parameters: Object.freeze([
@@ -120,7 +120,7 @@ describe("data-flow panel", () => {
     });
 
     const text = panel.root.textContent;
-    expect(text).toContain("https://api.example.test/wechat/query");
+    expect(text).toContain("https://api.example.test/auth/session/query");
     expect(text).toContain("body.scene_id [when enabled]");
     expect(text).toContain("1 static · 1 runtime");
     expect(text).toContain("DATA_FLOW_ANALYSIS_TRUNCATED");

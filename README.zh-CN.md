@@ -1,5 +1,5 @@
 <h1 align="center">
-  <a href="https://github.com/huanglvjing/spotpatch"><img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch 标志" width="32" align="middle" /></a>&nbsp;SpotPatch
+  <a href="https://github.com/huanglvjing/spotpatch"><img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch 标志" width="32" align="texttop" /></a>&nbsp;SpotPatch
 </h1>
 
 <p align="center">

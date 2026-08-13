@@ -1,10 +1,18 @@
 <p align="center">
   <a href="https://github.com/huanglvjing/spotpatch">
-    <img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch logo mark" width="160" />
+    <img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch logo mark" width="144" />
   </a>
 </p>
 
 <h1 align="center">SpotPatch</h1>
+
+<p align="center">
+  <strong>Click the UI. Reach the source. Ship a reviewed patch.</strong>
+</p>
+
+<p align="center">
+  A local-first, development-only feedback workspace for React.
+</p>
 
 <p align="center">
   <strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a>
@@ -18,43 +26,53 @@
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/huanglvjing/spotpatch" alt="MIT license" /></a>
 </p>
 
-SpotPatch is a local-first, development-only feedback workspace for React applications. Select rendered UI, trace it to the responsible JSX/TSX source, attach a separate instruction to each target, and either copy a structured prompt or run an optional review-gated AI coding workflow.
+SpotPatch turns rendered React UI into precise, reusable development context. Select one or more elements in the browser, trace each target to its JSX/TSX source, inspect the component and its proven data flow, then open the exact location in Cursor or VS Code, copy a structured prompt, or run an optional review-gated AI coding workflow.
+
+<p align="center">
+  <img src="./docs/assets/readme/spotpatch-source-diff.jpg" alt="SpotPatch connects a selected React UI element to the exact source change" width="790" />
+</p>
+
+<p align="center">
+  <sub>A selected UI target, its exact TSX location, and the resulting source change—kept in one feedback loop.</sub>
+</p>
 
 > [!IMPORTANT]
 > `@spotpatch/vite` is the supported public integration. The installable [Next.js adapter](./packages/next/README.md) is a **0.x public preview**, not yet part of the public support matrix.
 
-**Integration guides:** [Vite quick start](#quick-start-vite) · [Next.js public preview](#nextjs-public-preview)
+**Start here:** [Vite quick start](#quick-start-vite) · [Visual workflow](#visual-workflow) · [Data flow Beta](#component-data-flow-beta) · [Optional AI](#optional-ai-agent)
 
 ## Why SpotPatch
 
-- **UI-to-source selection** — map a rendered element to an authorized source file, line, and column.
-- **Component data flow (Beta)** — inspect proven component APIs, parameter keys, consumed response fields, data destinations, and current-page unassigned requests without opening DevTools.
+- **UI-to-source, without guesswork** — map rendered elements to an authorized source file, line, and column.
+- **Evidence-first component data flow** — inspect proven APIs, parameter keys, consumed response fields, destinations, and current-page unassigned requests without opening DevTools.
 - **Multi-target feedback** — keep independent instructions and context for up to eight targets by default.
 - **Useful without AI** — inspect context, open Cursor or VS Code, preview a structured prompt, and copy it to any coding assistant.
-- **Optional AI Agent** — use an explicitly configured OpenAI-compatible provider, bounded tools, an isolated Git worktree, project checks, Diff review, Apply, and conflict-safe Revert.
-- **Chinese and English UI** — switch locale without losing the current draft or review state.
-- **Development-only by construction** — production builds contain no SpotPatch Runtime, source markers, or local protocol endpoints.
+- **A guarded AI path when you want it** — use an explicitly configured OpenAI-compatible provider, bounded tools, an isolated Git worktree, project checks, Diff review, Apply, and conflict-safe Revert.
+- **Local-first and development-only** — switch between Chinese and English, while production builds retain no SpotPatch Runtime, source markers, or local protocol endpoints.
 
 ## Quick start: Vite
 
-### 1. One-command setup (recommended)
+**Requirements:** Node.js 20.19+, React 18.2–18.3, and Vite 5, 6, or 7.
+
+### 1. Set up SpotPatch
+
+Run one command from the root of an existing Vite + React project:
 
 ```bash
 npx --yes @spotpatch/vite@latest setup
 ```
 
-This npm-bootstrap command works for both npm and pnpm projects. It fetches the registry's actual `latest` CLI, detects the project's package manager, installs that CLI's exact SpotPatch version, updates a supported `vite.config.*`, and enables Trusted fast when a safe local TypeScript check is available. Installing the exact version is important with pnpm 11, whose default 24-hour `minimumReleaseAge` policy can otherwise make `pnpm add ...@latest` select an older day-old release.
+The initializer detects npm or pnpm, installs the matching SpotPatch version, safely updates a supported `vite.config.*`, and enables the development-only data-flow Beta. If a safe local TypeScript check is discoverable, it also makes the optional Trusted fast mode available; the page still starts in Review mode.
 
-The initializer supports static config objects and object-returning `defineConfig` callbacks. Ambiguous dynamic configurations fail without writing the Vite config.
+<details>
+<summary><strong>Manual setup and pnpm 11 notes</strong></summary>
 
-For npm, installation and initialization can also be kept separate:
+For npm, installation and initialization can be kept separate:
 
 ```bash
 npm install --save-dev @spotpatch/vite@latest
 npx spotpatch-vite init
 ```
-
-On pnpm 11, either use the recommended setup command, specify an exact trusted version, or wait until the release is 24 hours old. Disabling `minimumReleaseAge` is a project security decision and SpotPatch does not do it globally.
 
 The generated integration places SpotPatch before the React plugin:
 
@@ -65,43 +83,93 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()],
+  plugins: [spotPatch({ dataFlow: {} }), react()],
 });
 ```
 
-If the project has no discoverable TypeScript check, initialization safely uses `spotPatch({ dataFlow: {} })` and keeps Review mode. For an unsupported dynamic config, make the same edit manually.
+The initializer supports static config objects and object-returning `defineConfig` callbacks. Ambiguous dynamic configurations fail without writing the Vite config, so they can be integrated manually.
 
-### 2. Use
+On pnpm 11, use the recommended setup command, install an explicitly trusted exact version, or wait until a release satisfies pnpm's default 24-hour `minimumReleaseAge`. SpotPatch does not disable that supply-chain policy globally.
 
-Start the ordinary Vite development server, open the application, then select **Select element** in the bottom-right corner or press `Mod+Shift+S`.
+</details>
+
+### 2. Select an element
+
+Start the ordinary Vite development server and open the application:
 
 ```bash
 pnpm dev
 ```
 
-The default workflow is:
+Click **Select element** in the bottom-right corner or press `Mod+Shift+S`. Select one or more targets, give each one a separate instruction, then choose the path that fits the task:
 
-1. Select one or more UI elements.
-2. Write a separate change request for each target.
-3. Inspect the source, DOM, CSS, and bounded code context.
-4. Open the exact location in Cursor or VS Code, or copy the generated prompt.
-5. If AI is enabled, choose **Review** or **Trusted fast** on the page, approve the matching session notice, and run the task.
+- open the exact source location in Cursor or VS Code;
+- preview and copy a structured prompt to any coding assistant; or
+- if AI is configured, run a review-gated change in an isolated worktree.
 
-### Component data flow (Beta)
+## Visual workflow
 
-The current `setup/init` writes this development-only option automatically. Enable it explicitly when integrating manually:
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-workbench.png" alt="SpotPatch multi-target feedback workbench" width="360" />
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-open-source.png" alt="Open the selected React component at its exact source location" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>1. Select and describe</strong><br /><sub>Keep a separate request for every UI target.</sub></td>
+    <td align="center"><strong>2. Jump to source</strong><br /><sub>Open the exact line in Cursor or VS Code.</sub></td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./docs/assets/readme/spotpatch-diagnostics.png" alt="Inspect the selected component, source coordinates, confidence, and React stack" width="360" />
+    </td>
+    <td align="center">
+      <img src="./docs/assets/readme/spotpatch-copy-prompt.png" alt="Preview and copy a structured source-aware prompt" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>3. Verify the context</strong><br /><sub>Inspect component, stack, source coordinates, and confidence.</sub></td>
+    <td align="center"><strong>4. Hand off cleanly</strong><br /><sub>Copy bounded context instead of explaining a screenshot.</sub></td>
+  </tr>
+</table>
+
+> The screenshots show the `zh-CN` locale. The same workbench is available in `en-US`, and switching language does not discard the current draft or review state.
+
+## Component data flow (Beta)
+
+Enable the development-only inspector explicitly when integrating manually:
 
 ```ts
 spotPatch({ dataFlow: {} });
 ```
 
-After selecting an element, use **Data flow** for the proven component report and **Page APIs** for the selected page scope plus actually observed but unassigned requests. Reports include HTTP method/path, parameter keys and positions, source-consumed response fields, and proven React state/Zustand/storage/callback destinations. Runtime observation is dispatch-only: SpotPatch does not read or clone response bodies, and query values are never retained.
+After selecting an element, use **Data flow** for the proven component report and **Page APIs** for the selected page scope plus actually observed but unassigned requests.
 
-The current adapter set covers supported direct/component-service `fetch`, Axios, React Query/TanStack Query callback forms, and an experimental tRPC logical-procedure path. A tRPC procedure and its physical batch HTTP request remain separate evidence layers; SpotPatch does not assign a shared batch URL to one component by timing or URL similarity.
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-component-data-flow.jpg" alt="SpotPatch component data-flow report with proven API relationships" width="360" />
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-page-apis.png" alt="SpotPatch page API inventory" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Component data flow</strong><br /><sub>See APIs proven to belong to the selected component.</sub></td>
+    <td align="center"><strong>Page APIs</strong><br /><sub>See the page scope and requests not yet assigned to a component.</sub></td>
+  </tr>
+</table>
 
-This Beta reports a component relationship only when stable component, source, callsite, and invocation evidence agree. Unsupported or ambiguous traffic remains partial, unknown, or unassigned; matching URL/time alone is never treated as proof. It currently targets Vite + React 18 and does not enable data-flow AI, safe JSON response inspection, or Next.js support. See the [implementation status and exact support matrix](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md).
+Reports include HTTP method/path, parameter keys and positions, source-consumed response fields, and proven React state, Zustand, storage, or callback destinations. Runtime observation is dispatch-only: SpotPatch does not read or clone response bodies, and query values are never retained.
 
-## Optional AI setup
+The current adapters cover supported direct and component-service `fetch`, Axios, React Query/TanStack Query callback forms, and an experimental tRPC logical-procedure path. A tRPC procedure and its physical batch HTTP request remain separate evidence layers.
+
+This Beta reports a relationship only when stable component, source, callsite, and invocation evidence agree. Unsupported or ambiguous traffic remains partial, unknown, or unassigned; URL or timing similarity alone is never treated as proof. The current scope is Vite + React 18 and does not include data-flow AI, JSON response inspection, or Next.js. See the [implementation status and exact support matrix](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md).
+
+## Optional AI Agent
 
 AI is disabled unless a complete provider configuration is available. The smallest setup uses a Git-ignored `.env.local` file and requires no change to `spotPatch()`:
 
@@ -117,7 +185,7 @@ SPOTPATCH_AI_API_KEY=<your-key>
 
 `SPOTPATCH_AI_PROTOCOL` supports `chat-completions` and `responses`. Authentication supports `bearer` and `x-api-key`. API keys stay in the Vite Node process and must never use a `VITE_` prefix or be committed to Git.
 
-You can also declare non-secret provider information in `vite.config.ts`:
+Non-secret provider information can also be declared in `vite.config.ts`:
 
 ```ts
 spotPatch({
@@ -128,13 +196,42 @@ spotPatch({
 });
 ```
 
-If you configure SpotPatch manually and intentionally want the optional **Trusted fast** mode, enable it explicitly. It requires a local TypeScript project check; use the default Review mode when the project cannot provide one:
+### What a guarded run looks like
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-execution-mode.png" alt="Choose Review or Trusted fast execution mode in SpotPatch" width="360" />
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-change-request.png" alt="Write a target-specific change request before running the SpotPatch Agent" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>1. Choose the boundary</strong><br /><sub>Review is the default; Trusted fast is explicit and check-gated.</sub></td>
+    <td align="center"><strong>2. State the exact change</strong><br /><sub>Every selected target keeps its own instruction and context.</sub></td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./docs/assets/readme/spotpatch-agent-running.png" alt="SpotPatch AI Agent running bounded tools in an isolated worktree" width="360" />
+    </td>
+    <td align="center">
+      <img src="./docs/assets/readme/spotpatch-agent-result.png" alt="SpotPatch AI Agent result with applied change and passed checks" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>3. Watch bounded execution</strong><br /><sub>Changes are prepared in an isolated Git worktree.</sub></td>
+    <td align="center"><strong>4. Review, apply, or revert</strong><br /><sub>Project checks and the resulting Diff stay visible.</sub></td>
+  </tr>
+</table>
+
+If you intentionally enable **Trusted fast** during manual integration, a local TypeScript project check is required:
 
 ```ts
 spotPatch({ trustedFastMode: true });
 ```
 
-The page still defaults to Review. Selecting Trusted fast includes current local changes and directly applies validated file deletions and configuration changes. It remains project-scoped and never grants access to credentials, environment files, Git metadata, external paths, arbitrary shell commands, failed checks, or baseline conflicts. SpotPatch always creates changes in an isolated Git worktree first. Advanced projects can still provide explicit checks through `ai.execution`. See [AI Agent execution](./docs/技术方案/16-AIAgent执行与变更审阅.md) and [provider credentials](./docs/技术方案/17-模型提供商与凭据配置.md) for the normative rules.
+Trusted fast can include current local changes and directly apply validated file deletions and configuration changes, but it remains project-scoped. It never grants access to credentials, environment files, Git metadata, external paths, arbitrary shell commands, failed checks, or baseline conflicts. SpotPatch always prepares the change in an isolated Git worktree first. See [AI Agent execution](./docs/技术方案/16-AIAgent执行与变更审阅.md) and [provider credentials](./docs/技术方案/17-模型提供商与凭据配置.md) for the normative rules.
 
 ## Supported scope
 
@@ -152,16 +249,14 @@ The page still defaults to Review. Selecting Trusted fast includes current local
 Other combinations may work, but they are not part of the current public promise. The [product boundary](./docs/技术方案/01-产品定义与边界.md) is the source of truth.
 
 > [!WARNING]
-> React 19 (including 19.2.x) may be tried experimentally, but it is outside the supported range. Verify picking, source resolution, HMR, and any AI workflow in your own project before relying on it.
+> React 19, including 19.2.x, may be tried experimentally but is outside the supported Vite range. Verify picking, source resolution, HMR, and any AI workflow in your own project before relying on it.
 
 ## Next.js public preview
 
 > [!WARNING]
-> `@spotpatch/next@0.1.0` is the first public preview. It is installable from npm, but its peer range is a candidate test range—not a completed compatibility or production-support claim.
+> `@spotpatch/next` is a **0.x public preview**. It is installable from npm, but its peer range is a candidate test range—not a completed compatibility or production-support claim.
 
-The preview contains a CLI, Sidecar, Turbopack/webpack Loader paths, source registration, Runtime bootstrap, and production no-op isolation. It has passed the locked POC and one private Next 16 App Router host, but the complete Next/React/router/Node/OS/browser support matrix is still unfinished.
-
-Install the single framework entry, initialize the host, verify the generated integration, and start development:
+The preview contains a CLI, Sidecar, Turbopack and webpack Loader paths, source registration, Runtime bootstrap, and production no-op isolation. It has passed the locked POC and a private Next 16 App Router host, but the complete Next/React/router/Node/OS/browser support matrix is unfinished.
 
 ```bash
 pnpm add -D @spotpatch/next
@@ -178,7 +273,7 @@ See the complete [`@spotpatch/next` public-preview guide](./packages/next/README
 
 ## Configuration
 
-The public Vite entry exports `spotPatch(options)`. Important defaults are:
+The Vite entry exports `spotPatch(options)`. Important defaults are:
 
 | Option       | Default                                        | Purpose                                           |
 | ------------ | ---------------------------------------------- | ------------------------------------------------- |
@@ -254,6 +349,10 @@ The CI workflow also runs its quality matrix on Ubuntu, macOS, and Windows with 
 - [Testing and acceptance](./docs/技术方案/12-测试与验收.md)
 - [Component data-flow Beta status](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)
 - [Next.js adapter status](./docs/技术方案/Next适配/00-索引与架构摘要.md)
+
+## Feedback
+
+If SpotPatch shortens your UI-fix loop, consider [starring the repository](https://github.com/huanglvjing/spotpatch). Found an unsupported pattern or a source-resolution edge case? [Open an issue](https://github.com/huanglvjing/spotpatch/issues) with a minimal reproduction and your framework versions.
 
 ## License
 

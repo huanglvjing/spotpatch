@@ -1,10 +1,18 @@
 <p align="center">
   <a href="https://github.com/huanglvjing/spotpatch">
-    <img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch 标志" width="160" />
+    <img src="./docs/assets/spotpatch-logo-mark.svg" alt="SpotPatch 标志" width="144" />
   </a>
 </p>
 
 <h1 align="center">SpotPatch</h1>
+
+<p align="center">
+  <strong>点选页面，直达源码，审阅后再应用。</strong>
+</p>
+
+<p align="center">
+  一个本地优先、仅在开发期运行的 React 页面反馈工作台。
+</p>
 
 <p align="center">
   <a href="./README.md">English</a> · <strong>简体中文</strong>
@@ -18,34 +26,46 @@
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/huanglvjing/spotpatch" alt="MIT 许可证" /></a>
 </p>
 
-SpotPatch 是一个本地优先、仅在开发期运行的 React 页面反馈工作台。你可以在真实页面中选择元素，追溯到对应 JSX/TSX 源码，为每个目标分别编写修改要求，然后复制结构化 Prompt，或运行一个默认需要审阅的可选 AI 编码流程。
+SpotPatch 把真实 React 页面转换成准确、可复用的开发上下文。你可以在浏览器中选择一个或多个元素，追溯到对应 JSX/TSX 源码，检查组件及其可证明的数据链路，然后在 Cursor 或 VS Code 中打开精确位置、复制结构化 Prompt，或运行一个默认需要审阅的可选 AI 编码流程。
+
+<p align="center">
+  <img src="./docs/assets/readme/spotpatch-source-diff.jpg" alt="SpotPatch 把选中的 React 页面元素连接到准确的源码修改" width="790" />
+</p>
+
+<p align="center">
+  <sub>从选中页面目标、定位 TSX 源码，到查看实际修改结果，都在同一条反馈链路内完成。</sub>
+</p>
 
 > [!IMPORTANT]
 > `@spotpatch/vite` 是当前正式支持的公共接入包。可安装的 [Next.js 适配器](./packages/next/README.md#简体中文)是 **0.x 公共预览版**，尚未进入公共支持矩阵。
 
-**接入指南：** [Vite 快速开始](#快速开始vite) · [Next.js 公共预览](#nextjs-公共预览用法)
+**从这里开始：** [Vite 快速开始](#快速开始vite) · [界面流程](#从页面到源码的四步流程) · [数据链路 Beta](#组件数据链路beta) · [可选 AI](#可选-ai-agent)
 
 ## 为什么使用 SpotPatch
 
-- **从页面精确定位源码**：把渲染后的元素映射到经过授权的源码文件、行号和列号。
-- **组件数据链路（Beta）**：无需打开 DevTools，即可查看有证据的组件接口、参数键、响应消费字段、数据去向和页面未归属请求。
-- **多目标独立描述**：一次任务默认最多选择八个目标，每个目标保留独立要求与上下文。
-- **不配置 AI 也能完整使用**：查看上下文、打开 Cursor 或 VS Code、预览结构化 Prompt 并复制给任意编程助手。
-- **可选 AI Agent**：显式配置 OpenAI-compatible Provider 后，使用受限工具、隔离 Git worktree、项目检查、Diff 审阅、Apply 和冲突安全的 Revert。
-- **中英文工作台**：切换语言不会丢失当前草稿或审阅状态。
-- **开发期隔离**：生产构建不包含 SpotPatch Runtime、源码标记或本地协议端点。
+- **从页面精确定位源码**：把渲染后的元素映射到经过授权的源码文件、行号和列号，不再靠截图和猜测沟通。
+- **证据优先的组件数据链路**：无需打开 DevTools，即可查看有证据的组件接口、参数键、响应消费字段、数据去向和页面未归属请求。
+- **多目标独立描述**：一次任务默认最多选择八个目标，每个目标保留自己的修改要求与上下文。
+- **不配置 AI 也能完整使用**：查看上下文、打开 Cursor 或 VS Code、预览结构化 Prompt，并复制给任意编程助手。
+- **需要时再启用受控 AI**：显式配置 OpenAI-compatible Provider 后，使用受限工具、隔离 Git worktree、项目检查、Diff 审阅、Apply 和冲突安全的 Revert。
+- **本地优先且仅限开发期**：工作台支持中英文切换，生产构建不包含 SpotPatch Runtime、源码标记或本地协议端点。
 
 ## 快速开始：Vite
 
-### 1. 一条命令接入（推荐）
+**环境要求：** Node.js 20.19+、React 18.2–18.3，以及 Vite 5、6 或 7。
+
+### 1. 接入 SpotPatch
+
+在已有 Vite + React 项目的根目录运行一条命令：
 
 ```bash
 npx --yes @spotpatch/vite@latest setup
 ```
 
-这条由 npm 引导的命令同时适用于 npm 和 pnpm 项目。它先取得 registry 真正的 `latest` CLI，再识别项目包管理器、安装该 CLI 对应的 SpotPatch 精确版本、安全更新受支持的 `vite.config.*`，并在能发现本地 TypeScript 检查时开放“可信极速”。精确版本很重要：pnpm 11 默认启用 24 小时 `minimumReleaseAge`，直接执行 `pnpm add ...@latest` 可能有意选择已发布满一天的旧版本。
+初始化器会识别 npm 或 pnpm，安装匹配的 SpotPatch 版本，安全更新受支持的 `vite.config.*`，并启用仅在开发期生效的数据链路 Beta。如果能发现安全的本地 TypeScript 检查，还会开放可选的“可信极速”模式；页面仍默认使用审阅模式。
 
-初始化器支持静态配置对象，也支持返回对象的 `defineConfig` 回调；有歧义的动态配置会在不写入 Vite 配置的情况下失败。
+<details>
+<summary><strong>手动接入与 pnpm 11 说明</strong></summary>
 
 npm 项目也可以分开安装和初始化：
 
@@ -53,8 +73,6 @@ npm 项目也可以分开安装和初始化：
 npm install --save-dev @spotpatch/vite@latest
 npx spotpatch-vite init
 ```
-
-pnpm 11 项目请使用上面的推荐 setup 命令、显式安装你已确认的精确版本，或等待新版本发布满 24 小时。关闭 `minimumReleaseAge` 属于项目自身的供应链安全决策，SpotPatch 不会全局关闭它。
 
 初始化器会把 SpotPatch 放在 React 插件之前：
 
@@ -65,43 +83,91 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()],
+  plugins: [spotPatch({ dataFlow: {} }), react()],
 });
 ```
 
-如果项目无法发现 TypeScript 检查，初始化器会安全使用 `spotPatch({ dataFlow: {} })` 并保持审阅模式。配置结构过于动态而不受支持时，再按同样结果手动编辑。
+初始化器支持静态配置对象，也支持返回对象的 `defineConfig` 回调；存在歧义的动态配置会在不写入 Vite 配置的情况下失败，之后可以手动接入。
 
-### 2. 使用
+pnpm 11 项目请使用上面的推荐 setup 命令、显式安装已经确认的精确版本，或等待新版本满足默认 24 小时 `minimumReleaseAge`。SpotPatch 不会全局关闭这项供应链安全策略。
 
-照常启动 Vite 开发服务器并打开页面，然后点击右下角的 **选择元素**，或者按下 `Mod+Shift+S`。
+</details>
+
+### 2. 选择页面元素
+
+照常启动 Vite 开发服务器并打开页面：
 
 ```bash
 pnpm dev
 ```
 
-默认使用流程是：
+点击右下角的 **选择元素**，或者按下 `Mod+Shift+S`。选择一个或多个目标，为每项填写独立要求，然后按任务选择后续路径：
 
-1. 选择一个或多个页面元素。
-2. 为每个目标分别编写修改要求。
-3. 检查对应源码、DOM、CSS 和经过预算裁剪的代码上下文。
-4. 在 Cursor 或 VS Code 中打开精确位置，或者复制生成的 Prompt。
-5. 如果启用了 AI，先确认远程传输，再运行任务、审阅 Diff 与检查结果，最后明确选择应用或拒绝修改。
+- 在 Cursor 或 VS Code 中打开准确源码位置；
+- 预览并复制结构化 Prompt 给任意编程助手；或
+- 配置 AI 后，在隔离 worktree 中运行默认需要审阅的修改。
 
-### 组件数据链路（Beta）
+## 从页面到源码的四步流程
 
-新版 `setup/init` 会自动写入这个仅开发环境生效的选项；手工接入时需要显式启用：
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-workbench.png" alt="SpotPatch 多目标页面反馈工作台" width="360" />
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-open-source.png" alt="在编辑器中打开所选 React 组件的准确源码位置" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>1. 点选并描述</strong><br /><sub>每个页面目标都保留独立的修改要求。</sub></td>
+    <td align="center"><strong>2. 直达源码</strong><br /><sub>在 Cursor 或 VS Code 中打开准确行列。</sub></td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./docs/assets/readme/spotpatch-diagnostics.png" alt="查看组件、源码坐标、置信度和 React 组件栈" width="360" />
+    </td>
+    <td align="center">
+      <img src="./docs/assets/readme/spotpatch-copy-prompt.png" alt="预览并复制带有源码上下文的结构化 Prompt" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>3. 核对上下文</strong><br /><sub>检查组件、组件栈、源码坐标与定位置信度。</sub></td>
+    <td align="center"><strong>4. 准确交接</strong><br /><sub>复制经过预算裁剪的上下文，不再解释一张截图。</sub></td>
+  </tr>
+</table>
+
+## 组件数据链路（Beta）
+
+手工接入时，需要显式启用这个仅在开发期生效的检查器：
 
 ```ts
 spotPatch({ dataFlow: {} });
 ```
 
-选择元素后，使用 **数据链路** 查看当前业务组件的可证明报告，使用 **页面接口** 查看当前已选页面范围以及实际发生但尚未归属组件的请求。报告包含 method/path、参数键和位置、源码实际读取的响应字段，以及可证明的 React state、Zustand、storage、callback 数据去向。运行时观测只记录 dispatch：SpotPatch 不读取或 clone 响应体，也不保留 query 值。
+选择元素后，使用 **数据链路** 查看当前业务组件的可证明报告，使用 **页面接口** 查看当前已选页面范围以及实际发生但尚未归属组件的请求。
 
-当前适配器覆盖已支持的组件直接/Service `fetch`、Axios、React Query/TanStack Query 回调形态，以及实验性的 tRPC 逻辑 procedure 链路。tRPC procedure 与物理 batch HTTP 请求保持为两层证据；SpotPatch 不会因为时间接近或 URL 相似把共享 batch URL 强行归属给某个组件。
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-component-data-flow.jpg" alt="SpotPatch 展示有证据的组件数据链路" width="360" />
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-page-apis.png" alt="SpotPatch 展示当前页面的接口清单" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>组件数据链路</strong><br /><sub>只展示能够证明属于当前组件的接口关系。</sub></td>
+    <td align="center"><strong>页面接口</strong><br /><sub>同时查看页面范围与尚未归属组件的请求。</sub></td>
+  </tr>
+</table>
 
-只有稳定组件、源码、callsite 与 invocation 证据一致时，Beta 才报告组件关联。范围外或存在歧义的流量保持 partial、unknown 或 unassigned，绝不因为 URL 相同或时间接近就猜测。当前范围是 Vite + React 18，不包含 data-flow AI、安全 JSON 响应读取或 Next.js 支持。完整事实见 [Beta 实现状态与支持矩阵](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)。
+报告包含 method/path、参数键和位置、源码实际读取的响应字段，以及可证明的 React state、Zustand、storage 或 callback 数据去向。运行时观测只记录 dispatch：SpotPatch 不读取或 clone 响应体，也不保留 query 值。
 
-## 可选 AI 配置
+当前适配器覆盖已支持的组件直接调用与 Service `fetch`、Axios、React Query/TanStack Query 回调形态，以及实验性的 tRPC 逻辑 procedure 链路。tRPC procedure 与物理 batch HTTP 请求保持为两层证据。
+
+只有稳定组件、源码、callsite 与 invocation 证据一致时，Beta 才报告组件关联。范围外或存在歧义的流量保持 partial、unknown 或 unassigned，绝不因为 URL 相同或时间接近就猜测。当前范围是 Vite + React 18，不包含 data-flow AI、JSON 响应读取或 Next.js 支持。完整事实见 [Beta 实现状态与支持矩阵](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)。
+
+## 可选 AI Agent
 
 只有完整的 Provider 配置可用时 AI 才会启用。最小接入只需在 Git 忽略的 `.env.local` 中提供以下内容，不需要修改 `spotPatch()`：
 
@@ -117,7 +183,7 @@ SPOTPATCH_AI_API_KEY=<your-key>
 
 `SPOTPATCH_AI_PROTOCOL` 支持 `chat-completions` 和 `responses`，认证方式支持 `bearer` 和 `x-api-key`。API Key 只保留在 Vite Node 进程中，绝不能使用 `VITE_` 前缀，也不能提交到 Git。
 
-你也可以在 `vite.config.ts` 中声明非秘密的 Provider 信息：
+非秘密的 Provider 信息也可以写在 `vite.config.ts` 中：
 
 ```ts
 spotPatch({
@@ -128,7 +194,42 @@ spotPatch({
 });
 ```
 
-SpotPatch 不会向模型开放任意 Shell。Agent 修改创建在隔离 Git worktree 中，受到路径和规模策略约束；默认 `review` 模式只有在用户审阅后才会修改业务工作区。规范规则见 [AI Agent 执行与变更审阅](./docs/技术方案/16-AIAgent执行与变更审阅.md)和 [Provider 与凭据配置](./docs/技术方案/17-模型提供商与凭据配置.md)。
+### 一次受控执行是什么样的
+
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-execution-mode.png" alt="在 SpotPatch 中选择审阅模式或可信极速模式" width="360" />
+    </td>
+    <td align="center" width="50%">
+      <img src="./docs/assets/readme/spotpatch-change-request.png" alt="运行 SpotPatch Agent 前填写当前目标的准确修改要求" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>1. 选择执行边界</strong><br /><sub>默认审阅；可信极速必须显式选择并通过检查门禁。</sub></td>
+    <td align="center"><strong>2. 写清当前修改</strong><br /><sub>每个选中目标都保持自己的要求和上下文。</sub></td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="./docs/assets/readme/spotpatch-agent-running.png" alt="SpotPatch AI Agent 在隔离 worktree 中运行受限工具" width="360" />
+    </td>
+    <td align="center">
+      <img src="./docs/assets/readme/spotpatch-agent-result.png" alt="SpotPatch AI Agent 显示已应用的修改和通过的项目检查" width="360" />
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>3. 查看受限执行</strong><br /><sub>修改先在隔离 Git worktree 中准备。</sub></td>
+    <td align="center"><strong>4. 审阅、应用或撤销</strong><br /><sub>项目检查与最终 Diff 始终可见。</sub></td>
+  </tr>
+</table>
+
+手工接入时，如果确实要开放 **可信极速**，项目必须具备本地 TypeScript 检查：
+
+```ts
+spotPatch({ trustedFastMode: true });
+```
+
+可信极速可以纳入当前本地修改，并直接应用通过校验的文件删除与配置修改，但权限始终限制在项目内。它不会开放凭据、环境文件、Git 元数据、外部路径、任意 Shell、失败检查或基线冲突。SpotPatch 始终先在隔离 Git worktree 中准备修改。规范规则见 [AI Agent 执行与变更审阅](./docs/技术方案/16-AIAgent执行与变更审阅.md)和 [Provider 与凭据配置](./docs/技术方案/17-模型提供商与凭据配置.md)。
 
 ## 正式支持范围
 
@@ -146,16 +247,14 @@ SpotPatch 不会向模型开放任意 Shell。Agent 修改创建在隔离 Git wo
 其他组合可能可以运行，但不属于当前公共承诺。唯一事实来源是[产品定义与边界](./docs/技术方案/01-产品定义与边界.md)。
 
 > [!WARNING]
-> React 19（包括 19.2.x）可以自行尝试，但不在正式支持范围内。请先在自身项目验证元素选择、源码定位、HMR 和 AI 流程，再用于日常开发。
+> React 19（包括 19.2.x）可以自行尝试，但不在 Vite 正式支持范围内。请先在自身项目验证元素选择、源码定位、HMR 和 AI 流程，再用于日常开发。
 
-## Next.js 公共预览用法
+## Next.js 公共预览
 
 > [!WARNING]
-> `@spotpatch/next@0.1.0` 是首个公共预览版，可以从 npm 安装；但 peer 范围只是候选测试范围，不能解释成完整兼容或生产支持声明。
+> `@spotpatch/next` 是 **0.x 公共预览版**，可以从 npm 安装；但 peer 范围只是候选测试范围，不能解释成完整兼容或生产支持声明。
 
-该预览包含 CLI、Sidecar、Turbopack/webpack Loader、源码注册、Runtime bootstrap 和生产 no-op 隔离。它已经通过锁定范围 POC 和一个私有 Next 16 App Router 宿主，但完整的 Next/React/router/Node/OS/浏览器支持矩阵仍未完成。
-
-安装唯一的框架入口包，初始化并检查接入，然后启动开发环境：
+该预览包含 CLI、Sidecar、Turbopack 与 webpack Loader、源码注册、Runtime bootstrap 和生产 no-op 隔离。它已经通过锁定范围 POC 和一个私有 Next 16 App Router 宿主，但完整的 Next/React/router/Node/OS/浏览器支持矩阵仍未完成。
 
 ```bash
 pnpm add -D @spotpatch/next
@@ -164,9 +263,9 @@ pnpm exec spotpatch-next check
 pnpm dev
 ```
 
-`init` 会安全组合 `next.config`、在正确的 `instrumentation-client` 文件中增加 `@spotpatch/next/client`，并把简单的 `next dev` 脚本改为 `spotpatch-next dev`。`check` 只读检查这三个接入点。开发时必须通过 package script 启动；直接运行 `next dev` 不存在 SpotPatch Sidecar 生命周期所有者。
+`init` 会安全组合 `next.config`、在正确的 `instrumentation-client` 文件中增加 `@spotpatch/next/client`，并把简单的 `next dev` 脚本改为 `spotpatch-next dev`。`check` 只读检查这些接入点。开发时必须通过 package script 启动；直接运行 `next dev` 不存在 SpotPatch Sidecar 生命周期所有者。
 
-启动成功后终端会打印一行以 `[spotpatch:next] ready` 开头的信息。打开其中的 loopback 地址，即可使用 **选择元素** / **Select element**。可选 AI 流程复用上文的服务端 `SPOTPATCH_AI_*` 变量，绝不能改成带 `NEXT_PUBLIC_` 前缀的变量。
+启动成功后，终端会打印一行以 `[spotpatch:next] ready` 开头的信息。打开其中的 loopback 地址，即可使用 **选择元素** / **Select element**。可选 AI 流程复用上文的服务端 `SPOTPATCH_AI_*` 变量，绝不能改成带 `NEXT_PUBLIC_` 前缀的变量。
 
 生成文件示例、生产命令、已知限制和证据边界见完整的 [`@spotpatch/next` 公共预览指南](./packages/next/README.md#简体中文)。作出兼容性声明前，必须核对 [Next.js 适配计划](./docs/技术方案/Next适配/00-索引与架构摘要.md)和[剩余支持门禁](./docs/技术方案/Next适配/08-测试验收与实施计划.md)。
 
@@ -200,7 +299,7 @@ Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 - 生产构建验证 Runtime、源码标记、私有 API 和内部秘密零残留。
 - SpotPatch 不会隐式执行 `stash`、`reset`、`commit`、`push`、发包或部署。
 
-开启 LAN 或 AI 前请阅读完整的[本地协议与安全规范](./docs/技术方案/09-本地协议与安全.md)。
+开启 LAN 或 AI 前，请阅读完整的[本地协议与安全规范](./docs/技术方案/09-本地协议与安全.md)。
 
 ## 包结构
 
@@ -248,6 +347,10 @@ CI 质量矩阵还会在 Ubuntu、macOS、Windows 和声明的 Node 版本上运
 - [组件数据链路 Beta 状态](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)
 - [测试与验收](./docs/技术方案/12-测试与验收.md)
 - [Next.js 适配状态](./docs/技术方案/Next适配/00-索引与架构摘要.md)
+
+## 反馈与支持
+
+如果 SpotPatch 缩短了你的页面修改链路，欢迎给[仓库点一个 Star](https://github.com/huanglvjing/spotpatch)。遇到尚未支持的调用形态或源码定位边界时，请提交包含最小复现与框架版本的 [Issue](https://github.com/huanglvjing/spotpatch/issues)。
 
 ## 许可证
 

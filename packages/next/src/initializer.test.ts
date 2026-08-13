@@ -160,6 +160,17 @@ describe("Next integration initializer", () => {
     expect(config).toContain("withSpotPatch({ trustedFastMode: true })(config)");
   });
 
+  it("rejects a static component data-flow option that Next cannot execute", async () => {
+    const root = await fixture({
+      config:
+        'import { withSpotPatch } from "@spotpatch/next";\nconst config = {};\nexport default withSpotPatch({ dataFlow: {} })(config);\n',
+    });
+
+    await expect(planNextIntegration(root)).rejects.toThrow(
+      /does not support component dataFlow/u,
+    );
+  });
+
   it("fails closed before writes for unsupported config and shell scripts", async () => {
     const functionRoot = await fixture({
       config: "export default function config() { return {}; }\n",

@@ -20,6 +20,12 @@ const NOISE_COMPONENT_NAMES = new Set([
 interface ComponentEntry {
   readonly name: string;
   readonly source?: FiberSourceLocation;
+  readonly registration?: ComponentRegistration;
+}
+
+export interface ComponentRegistration {
+  readonly componentSourceId: string;
+  readonly sourceVersion: string;
 }
 
 interface CollectedComponents {
@@ -30,6 +36,9 @@ interface CollectedComponents {
 
 export interface CreateReact18AdapterOptions {
   readonly bridge?: FiberBridge;
+  readonly getComponentRegistration?: (
+    component: object,
+  ) => ComponentRegistration | undefined;
   readonly maxComponentDepth: number;
 }
 
@@ -49,10 +58,12 @@ function collectComponents(
   bridge: FiberBridge,
   node: unknown,
   maxDepth: number,
+  getComponentRegistration?: CreateReact18AdapterOptions["getComponentRegistration"],
 ): CollectedComponents {
   const stack: string[] = [];
   let firstComponent: ComponentEntry | undefined;
-  let businessComponent: ComponentEntry | undefined;
+  let registeredComponent: ComponentEntry | undefined;
+  let sourceComponent: ComponentEntry | undefined;
 
   for (const ancestor of bridge.getAncestors(node)) {
     if (!bridge.isComposite(ancestor)) {
@@ -66,9 +77,15 @@ function collectComponents(
     }
 
     const source = bridge.getSource(ancestor);
+    const componentType = bridge.getComponentType?.(ancestor);
+    const registration =
+      componentType === undefined
+        ? undefined
+        : getComponentRegistration?.(componentType);
     const component = Object.freeze({
       name,
       ...(source === undefined ? {} : { source }),
+      ...(registration === undefined ? {} : { registration }),
     });
     firstComponent ??= component;
 
@@ -76,19 +93,24 @@ function collectComponents(
       stack.push(name);
     }
 
+    if (registration !== undefined && registeredComponent === undefined) {
+      registeredComponent = component;
+    }
     if (
-      businessComponent === undefined &&
+      sourceComponent === undefined &&
       source !== undefined &&
       !isThirdPartySource(source.fileName) &&
       toSafeRelativeSourcePath(source.fileName) !== undefined
     ) {
-      businessComponent = component;
+      sourceComponent = component;
     }
 
-    if (businessComponent !== undefined && stack.length >= maxDepth) {
+    if (registeredComponent !== undefined && stack.length >= maxDepth) {
       break;
     }
   }
+
+  const businessComponent = registeredComponent ?? sourceComponent;
 
   return Object.freeze({
     ...(businessComponent === undefined ? {} : { businessComponent }),
@@ -147,15 +169,22 @@ export function createReact18Adapter(
       });
     }
 
-    const components = collectComponents(bridge, match.node, options.maxComponentDepth);
+    const components = collectComponents(
+      bridge,
+      match.node,
+      options.maxComponentDepth,
+      options.getComponentRegistration,
+    );
     const componentName =
       components.businessComponent?.name ?? components.firstComponent?.name;
     const source = toProbableSource(components.businessComponent?.source);
+    const registration = components.businessComponent?.registration;
 
     return Object.freeze({
       supported: true,
       version: match.version,
       ...(componentName === undefined ? {} : { componentName }),
+      ...(registration ?? {}),
       componentStack: components.stack,
       ...(source === undefined ? {} : { source }),
     });

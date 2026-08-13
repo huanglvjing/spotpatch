@@ -14,6 +14,7 @@ describe("SpotPatch options transport", () => {
         baseURL: "https://relay.example/v1",
         model: "provider-model",
       },
+      dataFlow: { runtime: "dispatch" },
     });
     const serialized = serializeResolvedSpotPatchOptions(resolved);
     const parsed = parseSerializedSpotPatchOptions(serialized);

@@ -8,6 +8,7 @@ import type { FiberBridge, FiberSourceLocation } from "./fiber/fiber-bridge.js";
 
 interface FakeNode {
   readonly composite: boolean;
+  readonly componentType?: object;
   readonly name?: string;
   readonly source?: FiberSourceLocation;
 }
@@ -23,6 +24,7 @@ function createBridge(
     }),
     getAncestors: () => nodes,
     getDisplayName: (node) => (node as FakeNode).name,
+    getComponentType: (node) => (node as FakeNode).componentType,
     getSource: (node) => (node as FakeNode).source,
     isComposite: (node) => (node as FakeNode).composite,
   };
@@ -149,6 +151,42 @@ describe("React 18 Bippy adapter", () => {
       version: "18.3.1",
       componentName: "VendorButton",
       componentStack: ["VendorButton"],
+    });
+  });
+
+  it("uses the registered business component identity through vendor wrappers", () => {
+    const businessType = function UserActions(): undefined {
+      return undefined;
+    };
+    const bridge = createBridge("18.3.1", [
+      {
+        composite: true,
+        name: "AntButton",
+        componentType: {},
+        source: { fileName: "/project/src/UserActions.tsx", line: 20 },
+      },
+      {
+        composite: true,
+        name: "UserActions",
+        componentType: businessType,
+      },
+    ]);
+    const context = createReact18Adapter({
+      bridge,
+      getComponentRegistration: (component) =>
+        component === businessType
+          ? {
+              componentSourceId: "component_user_actions",
+              sourceVersion: "source_current",
+            }
+          : undefined,
+      maxComponentDepth: 8,
+    }).inspect(document.createElement("button"));
+
+    expect(context).toMatchObject({
+      componentName: "UserActions",
+      componentSourceId: "component_user_actions",
+      sourceVersion: "source_current",
     });
   });
 

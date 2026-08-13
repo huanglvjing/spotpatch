@@ -1,6 +1,10 @@
 // @vitest-environment jsdom
 
-import { SPOTPATCH_API_BASE, type ContextBudget } from "@spotpatch/shared";
+import {
+  DEFAULT_RUNTIME_DATA_FLOW_LIMITS,
+  SPOTPATCH_API_BASE,
+  type ContextBudget,
+} from "@spotpatch/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { bootstrapSpotPatch, RUNTIME_INSTANCE_KEY } from "./bootstrap.js";
@@ -21,6 +25,11 @@ const config = Object.freeze({
   ai: Object.freeze({ enabled: false }),
   budget,
   debug: false,
+  dataFlow: Object.freeze({
+    enabled: false,
+    runtime: "dispatch",
+    limits: DEFAULT_RUNTIME_DATA_FLOW_LIMITS,
+  }),
   editor: "auto",
   framework: "vite",
   frameworkVersion: "7.3.6",

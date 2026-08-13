@@ -9,6 +9,7 @@ export type {
   ResolvedSpotPatchOptions,
   SimpleAiOptions,
   SpotPatchAiOptions,
+  SpotPatchDataFlowOptions,
   SpotPatchOptions,
 } from "@spotpatch/dev-server";
 

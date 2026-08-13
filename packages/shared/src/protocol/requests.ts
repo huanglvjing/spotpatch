@@ -25,6 +25,32 @@ export const sourceContextRequestSchema = sourceCoordinatesSchema
 
 export const openEditorRequestSchema = sourceCoordinatesSchema.strict();
 
+const dataFlowSourceCoordinatesRequestSchema = sourceCoordinatesSchema
+  .extend({
+    schemaVersion: z.literal(1),
+    sourceVersion: z.string().min(1).max(128).optional(),
+  })
+  .strict();
+
+const dataFlowComponentIdentityRequestSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  componentSourceId: z.string().min(1).max(128),
+  sourceVersion: z.string().min(1).max(128),
+});
+
+export const dataFlowComponentReportRequestSchema = z.union([
+  dataFlowSourceCoordinatesRequestSchema,
+  dataFlowComponentIdentityRequestSchema,
+]);
+
+export const dataFlowPageReportRequestSchema = z.strictObject({
+  schemaVersion: z.literal(1),
+  targets: z
+    .array(dataFlowComponentReportRequestSchema)
+    .min(1)
+    .max(MAX_ANNOTATION_TARGETS),
+});
+
 const profileIdSchema = z
   .string()
   .min(1)
@@ -71,6 +97,8 @@ export const spotTargetContextRequestSchema = z.strictObject({
     supported: z.boolean(),
     version: boundedString(64).optional(),
     componentName: boundedString(256).optional(),
+    componentSourceId: boundedString(128).optional(),
+    sourceVersion: boundedString(128).optional(),
     componentStack: z.array(boundedString(256)).max(64),
     source: sourceRefSchema.optional(),
   }),
@@ -146,6 +174,10 @@ export const agentJobActionRequestSchema = z.strictObject({});
 export type SourceContextRequest = z.infer<typeof sourceContextRequestSchema>;
 export type RuntimeBootstrapRequest = z.infer<typeof runtimeBootstrapRequestSchema>;
 export type OpenEditorRequest = z.infer<typeof openEditorRequestSchema>;
+export type DataFlowComponentReportRequest = z.infer<
+  typeof dataFlowComponentReportRequestSchema
+>;
+export type DataFlowPageReportRequest = z.infer<typeof dataFlowPageReportRequestSchema>;
 export type AgentCapabilityRequest = z.infer<typeof agentCapabilityRequestSchema>;
 export interface AgentJobCreateRequest {
   readonly annotation: SpotAnnotation;

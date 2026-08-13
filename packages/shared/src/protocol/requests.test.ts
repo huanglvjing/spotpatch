@@ -8,6 +8,8 @@ import {
 import {
   agentCapabilityRequestSchema,
   agentJobCreateRequestSchema,
+  dataFlowComponentReportRequestSchema,
+  dataFlowPageReportRequestSchema,
   openEditorRequestSchema,
   runtimeBootstrapRequestSchema,
   sourceContextRequestSchema,
@@ -96,6 +98,42 @@ describe("protocol request schemas", () => {
         column: 5,
         absolutePath: "/tmp/private.tsx",
         command: "code",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("accepts only opaque bounded data-flow report targets", () => {
+    const target = {
+      schemaVersion: 1,
+      fileId: "Q7k3pA9vL2s",
+      line: 36,
+      column: 5,
+      sourceVersion: "source_abc",
+    };
+    expect(dataFlowComponentReportRequestSchema.safeParse(target).success).toBe(true);
+    expect(
+      dataFlowPageReportRequestSchema.safeParse({
+        schemaVersion: 1,
+        targets: [target],
+      }).success,
+    ).toBe(true);
+    expect(
+      dataFlowComponentReportRequestSchema.safeParse({
+        ...target,
+        root: "/private/project",
+      }).success,
+    ).toBe(false);
+    expect(
+      dataFlowComponentReportRequestSchema.safeParse({
+        schemaVersion: 1,
+        componentSourceId: "component_login",
+        sourceVersion: "source_abc",
+      }).success,
+    ).toBe(true);
+    expect(
+      dataFlowComponentReportRequestSchema.safeParse({
+        schemaVersion: 1,
+        componentSourceId: "component_login",
       }).success,
     ).toBe(false);
   });

@@ -5,6 +5,8 @@ export const SPOTPATCH_ENDPOINTS = Object.freeze({
   bootstrap: `${SPOTPATCH_API_BASE}/bootstrap`,
   sourceContext: `${SPOTPATCH_API_BASE}/source-context`,
   openEditor: `${SPOTPATCH_API_BASE}/open-editor`,
+  dataFlowComponentReport: `${SPOTPATCH_API_BASE}/data-flow/component-report`,
+  dataFlowPageReport: `${SPOTPATCH_API_BASE}/data-flow/page-report`,
   agentCapability: `${SPOTPATCH_API_BASE}/agent/capability`,
   agentWorkspaceHealth: `${SPOTPATCH_API_BASE}/agent/workspace-health`,
   agentJobs: `${SPOTPATCH_API_BASE}/agent/jobs`,

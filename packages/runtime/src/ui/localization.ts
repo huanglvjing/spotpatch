@@ -187,6 +187,11 @@ const ERROR_MESSAGES_EN = Object.freeze({
   [ERROR_CODES.SOURCE_OUTSIDE_ROOT]: "The selected source is outside the project.",
   [ERROR_CODES.SOURCE_TOO_LARGE]: "The selected source exceeds the safety limit.",
   [ERROR_CODES.EDITOR_OPEN_FAILED]: "The editor request failed.",
+  [ERROR_CODES.DATA_FLOW_DISABLED]: "Component data-flow analysis is disabled.",
+  [ERROR_CODES.DATA_FLOW_SOURCE_STALE]:
+    "The selected source changed. Select the component again.",
+  [ERROR_CODES.DATA_FLOW_ANALYSIS_CANCELLED]:
+    "Component data-flow analysis was cancelled.",
   [ERROR_CODES.AI_DISABLED]: "AI execution is disabled in Vite configuration.",
   [ERROR_CODES.PROVIDER_NOT_CONFIGURED]:
     "The provider Key environment variable is missing on the Vite process.",
@@ -234,6 +239,9 @@ const ERROR_MESSAGES_ZH = Object.freeze({
   [ERROR_CODES.SOURCE_OUTSIDE_ROOT]: "选中源码位于项目根目录之外。",
   [ERROR_CODES.SOURCE_TOO_LARGE]: "选中源码超过安全大小限制。",
   [ERROR_CODES.EDITOR_OPEN_FAILED]: "编辑器打开请求失败。",
+  [ERROR_CODES.DATA_FLOW_DISABLED]: "组件数据链路分析未启用。",
+  [ERROR_CODES.DATA_FLOW_SOURCE_STALE]: "选中源码已经变化，请重新选择组件。",
+  [ERROR_CODES.DATA_FLOW_ANALYSIS_CANCELLED]: "组件数据链路分析已取消。",
   [ERROR_CODES.AI_DISABLED]: "Vite 配置未启用 AI 执行。",
   [ERROR_CODES.PROVIDER_NOT_CONFIGURED]:
     "启动 Vite 的进程中缺少模型服务 Key 环境变量。",

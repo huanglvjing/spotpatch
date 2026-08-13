@@ -11,6 +11,7 @@ import path from "node:path";
 import type { RuntimeConfig } from "@spotpatch/runtime";
 import {
   createRuntimeAiConfig,
+  createRuntimeDataFlowConfig,
   createSession,
   createSourceRegistry,
   createSpotPatchMiddleware,
@@ -219,6 +220,7 @@ export async function startRuntimePocSidecar(
     apiBase: SPOTPATCH_API_BASE,
     ai: createRuntimeAiConfig(options.ai),
     budget: options.budget,
+    dataFlow: createRuntimeDataFlowConfig(options.dataFlow),
     bundler: input.bundler,
     debug: options.debug,
     editor: options.editor,

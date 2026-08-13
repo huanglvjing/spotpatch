@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import { BusinessCard } from "./business-card";
 import {
   CssModuleFixture,
+  DataFlowFixture,
   ForwardField,
   FragmentFixture,
   ListFixture,
@@ -41,6 +42,7 @@ function App(): JSX.Element {
           <FragmentFixture />
           <ListFixture />
           <CssModuleFixture />
+          <DataFlowFixture />
         </div>
       </section>
 

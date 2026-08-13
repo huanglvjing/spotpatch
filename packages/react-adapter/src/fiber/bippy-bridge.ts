@@ -83,6 +83,15 @@ export function createBippyBridge(): FiberBridge {
         : (getDisplayName(fiber.type) ?? undefined);
     },
 
+    getComponentType(node: unknown): object | undefined {
+      const fiber = asFiber(node);
+      const componentType: unknown = fiber?.type;
+      return (typeof componentType === "object" && componentType !== null) ||
+        typeof componentType === "function"
+        ? componentType
+        : undefined;
+    },
+
     getSource(node: unknown): FiberSourceLocation | undefined {
       const fiber = asFiber(node);
       return fiber === undefined ? undefined : readDebugSource(fiber);

@@ -18,6 +18,8 @@
 
 The preview connects SpotPatch's element picker, source-aware context, bilingual multi-target requests, and optional review-gated AI Agent to a Next.js development server.
 
+Component `dataFlow` is not part of the Next.js preview yet. `spotpatch-next init` intentionally does not write that option, and `withSpotPatch({ dataFlow: {} })` is rejected instead of displaying a non-functional or misleading panel. The currently implemented data-flow Beta remains Vite + React 18 only.
+
 ### Implemented preview path
 
 - `withSpotPatch()` composes an existing `next.config` without evaluating it twice.
@@ -118,6 +120,8 @@ If React reports only a removed body attribute such as `cz-shortcut-listen="true
 > 本包是 **0.x 公共预览版**，不是正式支持的 Next.js 接入。peer dependency 范围不能解释成兼容矩阵或生产支持已经完成。
 
 当前预览把 SpotPatch 的元素选择、源码上下文、中英文多目标修改要求和可选审阅式 AI Agent 接入 Next.js 开发服务器。
+
+组件 `dataFlow` 尚未进入 Next.js 预览范围。`spotpatch-next init` 会有意不写入该选项；`withSpotPatch({ dataFlow: {} })` 会直接拒绝，而不是显示一个不能工作的误导性面板。当前已实现的数据链路 Beta 仍仅限 Vite + React 18。
 
 ### 已实现的预览链路
 

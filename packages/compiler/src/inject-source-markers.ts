@@ -13,6 +13,10 @@ import {
   isIntrinsicOpeningElement,
 } from "./intrinsic-element.js";
 import { createLineStarts, getSourcePosition } from "./source-position.js";
+import {
+  collectDataFlowInstrumentation,
+  type CollectedDataFlowInstrumentation,
+} from "./data-flow-instrumentation.js";
 
 export interface TransformWarning {
   readonly code: "EXISTING_SOURCE_MARKER";
@@ -26,12 +30,14 @@ export interface InjectSourceMarkersInput {
   readonly root: string;
   readonly fileId: string;
   readonly onWarning?: (warning: TransformWarning) => void;
+  readonly dataFlow?: Readonly<{ helperModule: string }>;
 }
 
 export interface InjectSourceMarkersResult {
   readonly code: string;
   readonly map: ReturnType<MagicString["generateMap"]>;
   readonly markerCount: number;
+  readonly dataFlow?: CollectedDataFlowInstrumentation;
 }
 
 function findAttributeInsertionOffset(code: string, node: JSXOpeningElement): number {
@@ -107,7 +113,25 @@ export function injectSourceMarkers(
 
   visitor.visit(parseResult.program);
 
-  if (markerCount === 0) {
+  const dataFlow =
+    input.dataFlow === undefined
+      ? undefined
+      : collectDataFlowInstrumentation({
+          absolutePath: input.absolutePath,
+          code: input.code,
+          helperModule: input.dataFlow.helperModule,
+          root: input.root,
+        });
+
+  for (const edit of dataFlow?.edits ?? []) {
+    if (edit.placement === "left") {
+      magicString.appendLeft(edit.offset, edit.content);
+    } else {
+      magicString.appendRight(edit.offset, edit.content);
+    }
+  }
+
+  if (markerCount === 0 && dataFlow === undefined) {
     return undefined;
   }
 
@@ -119,5 +143,6 @@ export function injectSourceMarkers(
       source: normalizeRelativePath(input.root, input.absolutePath),
     }),
     markerCount,
+    ...(dataFlow === undefined ? {} : { dataFlow }),
   });
 }

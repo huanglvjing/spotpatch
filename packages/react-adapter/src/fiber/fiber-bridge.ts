@@ -13,6 +13,7 @@ export interface FiberBridge {
   readonly find: (element: Element) => FiberMatch | undefined;
   readonly getAncestors: (node: unknown) => readonly unknown[];
   readonly getDisplayName: (node: unknown) => string | undefined;
+  readonly getComponentType?: (node: unknown) => object | undefined;
   readonly getSource: (node: unknown) => FiberSourceLocation | undefined;
   readonly isComposite: (node: unknown) => boolean;
 }

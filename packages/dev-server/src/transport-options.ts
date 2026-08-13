@@ -10,6 +10,7 @@ import {
   resolveOptions,
   type FilterEntry,
   type ResolvedSpotPatchOptions,
+  type SpotPatchDataFlowOptions,
 } from "./options.js";
 
 interface SerializedStringFilter {
@@ -30,6 +31,7 @@ export interface SerializedSpotPatchOptions {
   readonly allowLan: boolean;
   readonly budget: Readonly<ContextBudget>;
   readonly debug: boolean;
+  readonly dataFlow: false | SpotPatchDataFlowOptions;
   readonly editor: SpotPatchEditorPreference;
   readonly enabled: boolean;
   readonly exclude: readonly SerializedFilterEntry[];
@@ -45,6 +47,7 @@ const OPTION_KEYS = Object.freeze([
   "allowLan",
   "budget",
   "debug",
+  "dataFlow",
   "editor",
   "enabled",
   "exclude",
@@ -147,6 +150,11 @@ export function serializeResolvedSpotPatchOptions(
     allowLan: options.allowLan,
     budget: options.budget,
     debug: options.debug,
+    dataFlow: options.dataFlow.enabled
+      ? Object.freeze({
+          runtime: options.dataFlow.runtime,
+        })
+      : false,
     editor: options.editor,
     enabled: options.enabled,
     exclude: Object.freeze(options.exclude.map(serializeFilter)),
@@ -212,6 +220,22 @@ function parseBudget(value: unknown): Readonly<ContextBudget> {
   return Object.freeze(budget);
 }
 
+function parseDataFlow(value: unknown): false | SpotPatchDataFlowOptions {
+  if (value === false) return false;
+
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["runtime"]) ||
+    value.runtime !== "dispatch"
+  ) {
+    throw new TypeError("The SpotPatch data-flow transport is invalid.");
+  }
+
+  return Object.freeze({
+    runtime: value.runtime,
+  });
+}
+
 export function parseSerializedSpotPatchOptions(
   value: unknown,
 ): ResolvedSpotPatchOptions {
@@ -239,6 +263,7 @@ export function parseSerializedSpotPatchOptions(
       allowLan: value.allowLan,
       budget: parseBudget(value.budget),
       debug: value.debug,
+      dataFlow: parseDataFlow(value.dataFlow),
       editor: value.editor as SpotPatchEditorPreference,
       enabled: value.enabled,
       exclude: parseFilterList(value.exclude),

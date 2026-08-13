@@ -11,9 +11,13 @@ import packageMetadata from "../../package.json" with { type: "json" };
 import type { SpotPatchPluginContext } from "../plugin-context.js";
 import {
   createRuntimeInjectionPlugin,
+  RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID,
+  RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID,
   RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID,
   RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
   SPOTPATCH_CLIENT_MODULE_ID,
+  SPOTPATCH_DATA_FLOW_MODULE_ID,
+  SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID,
 } from "./runtime-injection-plugin.js";
 import { BRAND_MARK_CONTENT } from "./brand-mark-content.js";
 
@@ -27,6 +31,8 @@ const clientBundle = [
   "void __SPOTPATCH_RUNTIME_CONFIG__;",
 ].join("\n");
 const reactAdapterBundle = "export function createReact18Adapter() {}";
+const dataFlowPreludeBundle = "export const dataFlowRuntime = {};";
+const dataFlowPanelBundle = "globalThis.__spotpatchPanelInstalled = true;";
 
 function createContext(options: ResolvedSpotPatchOptions): SpotPatchPluginContext {
   return Object.freeze({
@@ -231,5 +237,66 @@ describe("runtime injection plugin", () => {
       reactAdapterBundle,
     );
     expect(hook.call({} as never, "\0virtual:other")).toBeNull();
+  });
+
+  it("prepends and serves the data-flow prelude only when explicitly enabled", () => {
+    const plugin = createRuntimeInjectionPlugin({
+      context: createContext(resolveOptions({ dataFlow: {} })),
+      session,
+      clientBundle,
+      reactAdapterBundle,
+      dataFlowPreludeBundle,
+      dataFlowPanelBundle,
+    });
+    const htmlHook = plugin.transformIndexHtml;
+    const resolveHook = plugin.resolveId;
+    const loadHook = plugin.load;
+    if (
+      typeof htmlHook !== "function" ||
+      typeof resolveHook !== "function" ||
+      typeof loadHook !== "function"
+    ) {
+      throw new Error("Expected runtime injection hooks.");
+    }
+
+    expect(htmlHook.call({} as never, "", {} as never)).toMatchObject([
+      {
+        attrs: { src: `/@id/${SPOTPATCH_DATA_FLOW_MODULE_ID}` },
+        injectTo: "head-prepend",
+      },
+      { attrs: { src: `/@id/${SPOTPATCH_CLIENT_MODULE_ID}` }, injectTo: "head" },
+    ]);
+    expect(
+      resolveHook.call(
+        {} as never,
+        SPOTPATCH_DATA_FLOW_MODULE_ID,
+        undefined,
+        {} as never,
+      ),
+    ).toBe(RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID);
+    const module = loadHook.call(
+      {} as never,
+      RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID,
+    ) as string;
+    expect(module).toContain('"enabled":true');
+    expect(module).toContain(dataFlowPreludeBundle);
+    expect(
+      resolveHook.call(
+        {} as never,
+        SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID,
+        RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
+        {} as never,
+      ),
+    ).toBe(RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID);
+    expect(
+      loadHook.call({} as never, RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID),
+    ).toBe(dataFlowPanelBundle);
+    const client = loadHook.call(
+      {} as never,
+      RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
+    ) as string;
+    expect(client).toContain(
+      `import ${JSON.stringify(SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID)}`,
+    );
   });
 });

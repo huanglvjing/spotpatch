@@ -48,6 +48,7 @@
   },
   "dependencies": {
     "@spotpatch/agent": "workspace:^",
+    "@spotpatch/analyzer": "workspace:^",
     "@spotpatch/compiler": "workspace:^",
     "@spotpatch/shared": "workspace:^",
     "launch-editor": "2.14.1",

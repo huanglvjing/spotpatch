@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SPOTPATCH_API_BASE } from "../protocol/endpoints.js";
+import { DEFAULT_RUNTIME_DATA_FLOW_LIMITS } from "./data-flow.js";
 import { runtimeConfigSchema } from "./runtime-config.js";
 
 const base = Object.freeze({
@@ -15,6 +16,11 @@ const base = Object.freeze({
     maxComponentDepth: 8,
   }),
   debug: false,
+  dataFlow: Object.freeze({
+    enabled: false,
+    runtime: "dispatch",
+    limits: DEFAULT_RUNTIME_DATA_FLOW_LIMITS,
+  }),
   editor: "auto",
   frameworkVersion: "16.3.0",
   locale: "auto",

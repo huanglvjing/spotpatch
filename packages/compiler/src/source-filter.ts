@@ -14,6 +14,7 @@ export interface SourceFilter {
 }
 
 const SUPPORTED_EXTENSIONS = new Set([".jsx", ".tsx"]);
+const DATA_FLOW_EXTENSIONS = new Set([".js", ".jsx", ".ts", ".tsx"]);
 
 export function isInsideRoot(root: string, candidate: string, pathApi = path): boolean {
   const relative = pathApi.relative(pathApi.resolve(root), pathApi.resolve(candidate));
@@ -23,6 +24,26 @@ export function isInsideRoot(root: string, candidate: string, pathApi = path): b
       relative !== ".." &&
       !pathApi.isAbsolute(relative))
   );
+}
+
+export function createDataFlowSourceFilter(
+  root: string,
+  options: SourceFilterOptions,
+): SourceFilter {
+  const resolvedRoot = path.resolve(root);
+  const matchesConfiguredFilter = createFilter(options.include, options.exclude);
+
+  return Object.freeze({
+    shouldTransform(absolutePath: string): boolean {
+      return (
+        DATA_FLOW_EXTENSIONS.has(path.extname(absolutePath).toLowerCase()) &&
+        !absolutePath.includes("/node_modules/") &&
+        !absolutePath.includes("\\node_modules\\") &&
+        isInsideRoot(resolvedRoot, absolutePath) &&
+        matchesConfiguredFilter(absolutePath)
+      );
+    },
+  });
 }
 
 export function createSourceFilter(

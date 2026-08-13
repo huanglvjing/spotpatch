@@ -93,6 +93,7 @@ test("places the contextual workbench with the selected element", async ({ page 
     );
   }
 
+  await dialog.getByRole("tab", { name: "Diagnostics" }).click();
   await dialog.locator(".spotpatch-diagnostics > summary").click();
   const expandedDialogBox = await dialog.boundingBox();
   expect(expandedDialogBox).not.toBeNull();
@@ -324,9 +325,7 @@ test("restores a selection after closing and continues it on another page", asyn
   await expect(prompt).toContainText("?page=b");
 });
 
-test("resolves an Ant Design Button to its probable business call site", async ({
-  page,
-}) => {
+test("resolves an Ant Design Button to its stable business owner", async ({ page }) => {
   const browserErrors: string[] = [];
 
   page.on("pageerror", (error) => {
@@ -345,7 +344,7 @@ test("resolves an Ant Design Button to its probable business call site", async (
     "Confidence: probable (probable owning component)",
   );
   await expect(summary).toContainText("Origin: react-fiber");
-  await expect(summary).toContainText("Component: Button");
+  await expect(summary).toContainText("Component: App");
   await expect(summary).toContainText(/Stack: .*App/);
   await expect(
     dialog.getByRole("button", { name: "Open source", exact: true }),

@@ -34,5 +34,11 @@ const e2eAi =
     : undefined;
 
 export default defineConfig({
-  plugins: [spotPatch(e2eAi === undefined ? {} : { ai: e2eAi }), react()],
+  plugins: [
+    spotPatch({
+      dataFlow: {},
+      ...(e2eAi === undefined ? {} : { ai: e2eAi }),
+    }),
+    react(),
+  ],
 });

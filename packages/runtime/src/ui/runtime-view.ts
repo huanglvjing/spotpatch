@@ -23,6 +23,11 @@ import {
   type AgentSelectionValue,
 } from "./agent-panel.js";
 import { createBrandMark } from "./brand-mark.js";
+import {
+  getDataFlowExtension,
+  type DataFlowPanel,
+  type DataFlowViewState,
+} from "./data-flow-panel-contract.js";
 import { calculateDialogPlacement } from "./dialog-placement.js";
 import { createButton, createMarkedElement } from "./dom.js";
 import {
@@ -65,6 +70,7 @@ export interface RuntimeView {
   readonly backButton: HTMLButtonElement;
   readonly closeButton: HTMLButtonElement;
   readonly copyButton: HTMLButtonElement;
+  readonly dataFlowRefreshButton: HTMLButtonElement;
   readonly host: HTMLElement;
   readonly openEditorButton: HTMLButtonElement;
   readonly repositoryLink: HTMLAnchorElement;
@@ -107,6 +113,7 @@ export interface RuntimeView {
   readonly renderEditorStatus: (
     state: "idle" | "opening" | "success" | "error",
   ) => void;
+  readonly renderDataFlow: (state: DataFlowViewState) => void;
   readonly resetAgentJob: () => void;
   readonly setAgentEditingEnabled: (enabled: boolean) => void;
   readonly setAgentProviderConsent: (granted: boolean) => void;
@@ -854,11 +861,29 @@ function summaryLine(summary: string, prefix: string): string | undefined {
   return line?.slice(prefix.length + 2).trim();
 }
 
+function createUnavailableDataFlowPanel(
+  document: Document,
+  changesRoot: HTMLElement,
+  diagnosticsRoot: HTMLElement,
+): DataFlowPanel {
+  changesRoot.append(diagnosticsRoot);
+
+  return Object.freeze({
+    root: changesRoot,
+    refreshButton: createButton(document, ""),
+    styles: document.createElement("style"),
+    dispose: () => undefined,
+    render: () => undefined,
+    resetView: () => undefined,
+  });
+}
+
 export function createRuntimeView(
   document: Document,
   shortcut: string,
   ai: RuntimeAiConfig = Object.freeze({ enabled: false }),
   localePreference: SpotPatchLocalePreference = "auto",
+  dataFlowEnabled = false,
 ): RuntimeView {
   const localizer: UiLocalizer = createUiLocalizer(document, localePreference);
   let messages = localizer.messages();
@@ -979,7 +1004,18 @@ export function createRuntimeView(
   summary.className = "spotpatch-summary";
   diagnostics.append(diagnosticsLabel, summary);
   const agentPanel = createAgentPanel(document, ai, localizer);
-  selectionPanel.append(targetsPanel, diagnostics, agentPanel.root);
+  const changesPanel = createMarkedElement(document, "div");
+  changesPanel.append(targetsPanel, agentPanel.root);
+  const dataFlowPanel =
+    getDataFlowExtension()?.createPanel(
+      document,
+      dataFlowEnabled,
+      localizer.locale,
+      changesPanel,
+      diagnostics,
+      placeDialog,
+    ) ?? createUnavailableDataFlowPanel(document, changesPanel, diagnostics);
+  selectionPanel.append(dataFlowPanel.root);
 
   const previewPanel = createMarkedElement(document, "div");
   previewPanel.className = "spotpatch-preview-panel";
@@ -1043,6 +1079,7 @@ export function createRuntimeView(
 
   shadowRoot.append(
     createStyles(document),
+    dataFlowPanel.styles,
     selectionHighlights,
     highlight,
     dialog,
@@ -1061,6 +1098,13 @@ export function createRuntimeView(
   let currentTargets: readonly SelectionTargetView[] = [];
   let currentMaximum = 0;
   let currentEditorFeedbackState: "idle" | "opening" | "success" | "error" = "idle";
+  let currentDataFlowState: DataFlowViewState = Object.freeze({
+    component: Object.freeze({
+      status: dataFlowEnabled ? "idle" : "disabled",
+    }),
+    page: Object.freeze({ status: dataFlowEnabled ? "idle" : "disabled" }),
+    observationCount: 0,
+  });
 
   function renderEditorStatus(state: "idle" | "opening" | "success" | "error"): void {
     currentEditorFeedbackState = state;
@@ -1439,6 +1483,7 @@ export function createRuntimeView(
     previewButton.textContent = messages.actions.preview;
     copyButton.textContent = messages.actions.copy;
     backButton.textContent = messages.actions.back;
+    dataFlowPanel.render(currentDataFlowState);
     triggerButton.title = messages.trigger.title(shortcut);
     triggerButton.textContent =
       currentStatus === "inspecting" ? messages.trigger.stop : messages.trigger.select;
@@ -1482,6 +1527,7 @@ export function createRuntimeView(
     repositoryLink,
     previewButton,
     copyButton,
+    dataFlowRefreshButton: dataFlowPanel.refreshButton,
     backButton,
     closeButton,
     agentProviderSelect: agentPanel.providerSelect,
@@ -1506,6 +1552,12 @@ export function createRuntimeView(
     },
 
     renderEditorStatus,
+
+    renderDataFlow(state: DataFlowViewState): void {
+      currentDataFlowState = state;
+      dataFlowPanel.render(state);
+      placeDialog();
+    },
 
     showHighlight(rect: ElementRect, label: string): void {
       currentRect = rect;
@@ -1582,6 +1634,7 @@ export function createRuntimeView(
       agentPanel.setSelectionVisible(false);
       agentPanel.setEditingEnabled(true);
       agentPanel.resetJob();
+      dataFlowPanel.resetView();
     },
 
     hideSelectionTemporarily(): void {
@@ -1685,6 +1738,7 @@ export function createRuntimeView(
       diagnostics.removeEventListener("toggle", placeDialog);
       localeButton.removeEventListener("click", localizer.toggle);
       unsubscribeLocale();
+      dataFlowPanel.dispose();
       agentPanel.dispose();
       host.remove();
     },

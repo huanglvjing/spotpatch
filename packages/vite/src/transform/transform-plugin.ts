@@ -6,6 +6,7 @@ import { injectSourceMarkers } from "@spotpatch/compiler";
 import type { SourceRegistry } from "@spotpatch/dev-server";
 
 import type { SpotPatchPluginContext } from "../plugin-context.js";
+import { SPOTPATCH_DATA_FLOW_MODULE_ID } from "../runtime/runtime-injection-plugin.js";
 import { createTransformFilter, stripViteQuery } from "./transform-filter.js";
 
 interface TransformPluginInput {
@@ -37,6 +38,7 @@ export function createTransformPlugin(input: TransformPluginInput): Plugin {
   let filter = createTransformFilter(root, input.context.getOptions());
   let logger: ResolvedConfig["logger"] | undefined;
   const warnedFiles = new Set<string>();
+  const warnedDataFlowDiagnostics = new Set<string>();
   const cache = new Map<string, ViteTransformOutput | null>();
 
   return {
@@ -75,12 +77,41 @@ export function createTransformPlugin(input: TransformPluginInput): Plugin {
           absolutePath: cleanId,
           root,
           fileId: input.registry.register(cleanId),
+          ...(options.dataFlow.enabled
+            ? { dataFlow: { helperModule: SPOTPATCH_DATA_FLOW_MODULE_ID } }
+            : {}),
           onWarning(warning) {
             logger?.warn(
               `[spotpatch:transform] Existing source marker at ${getDisplayPath(root, id)}:${String(warning.line)}:${String(warning.column)}; preserving application value.`,
             );
           },
         });
+
+        if (result?.dataFlow !== undefined) {
+          input.registry.registerDataFlowComponents(
+            cleanId,
+            result.dataFlow.sourceVersion,
+            result.dataFlow.anchors.flatMap((anchor) =>
+              anchor.kind === "component"
+                ? [
+                    {
+                      componentSourceId: anchor.id,
+                      line: anchor.line,
+                      column: anchor.column,
+                    },
+                  ]
+                : [],
+            ),
+          );
+          for (const diagnostic of result.dataFlow.diagnostics) {
+            const warningKey = `${cleanId}:${diagnostic.code}:${String(diagnostic.line)}:${String(diagnostic.column)}`;
+            if (warnedDataFlowDiagnostics.has(warningKey)) continue;
+            warnedDataFlowDiagnostics.add(warningKey);
+            logger?.warn(
+              `[spotpatch:data-flow] ${diagnostic.code} at ${getDisplayPath(root, id)}:${String(diagnostic.line)}:${String(diagnostic.column)}; keeping this adapter evidence partial.`,
+            );
+          }
+        }
 
         const output =
           result === undefined

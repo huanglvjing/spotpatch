@@ -1,4 +1,5 @@
 import {
+  DATA_FLOW_SCHEMA_VERSION,
   SPOTPATCH_ENDPOINTS,
   SPOTPATCH_TOKEN_HEADER,
   getAgentJobEndpoint,
@@ -11,9 +12,13 @@ import {
   type AgentWorkspaceHealthSnapshot,
   type ApiResponse,
   type CodeContext,
+  type ComponentDataFlowReport,
+  type DataFlowComponentReportRequest,
+  type DataFlowPageReportRequest,
   type EditorOpenResult,
   type ErrorCode,
   type OpenEditorRequest,
+  type PageDataFlowReport,
   type SPOTPATCH_API_BASE,
   type SourceContextRequest,
 } from "@spotpatch/shared";
@@ -42,6 +47,9 @@ export class RuntimeApiError extends Error {
 }
 
 export interface RuntimeApi {
+  readonly componentDataFlowReport: (
+    request: DataFlowComponentReportRequest,
+  ) => Promise<ComponentDataFlowReport>;
   readonly agentCapability: (
     request: AgentCapabilityRequest,
   ) => Promise<AgentCapabilitySnapshot>;
@@ -59,6 +67,9 @@ export interface RuntimeApi {
   ) => Promise<AgentJobSnapshot>;
   readonly dispose: () => void;
   readonly openEditor: (request: OpenEditorRequest) => Promise<EditorOpenResult>;
+  readonly pageDataFlowReport: (
+    request: DataFlowPageReportRequest,
+  ) => Promise<PageDataFlowReport>;
   readonly revertAgentJob: (jobId: string) => Promise<AgentJobSnapshot>;
   readonly sourceContext: (request: SourceContextRequest) => Promise<CodeContext>;
 }
@@ -67,6 +78,7 @@ export interface RuntimeApiOptions {
   readonly apiBase: typeof SPOTPATCH_API_BASE;
   readonly fetch: typeof globalThis.fetch;
   readonly sessionToken: string;
+  readonly dataFlowReportMaxBytes?: number;
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -178,9 +190,12 @@ function parseJson(text: string): unknown {
   }
 }
 
-async function readJsonEnvelope(response: Response): Promise<unknown> {
+async function readJsonEnvelope(
+  response: Response,
+  maximumBytes = MAX_JSON_RESPONSE_BYTES,
+): Promise<unknown> {
   const payload = parseJson(
-    await readBoundedText(response, MAX_JSON_RESPONSE_BYTES),
+    await readBoundedText(response, maximumBytes),
   ) as ApiResponse<unknown>;
 
   if (!response.ok) {
@@ -188,6 +203,84 @@ async function readJsonEnvelope(response: Response): Promise<unknown> {
   }
 
   return readSuccessData(payload);
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isReportCompleteness(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.complete === "boolean" &&
+    typeof value.visitedModules === "number" &&
+    typeof value.visitedCallsites === "number" &&
+    typeof value.frontierCount === "number"
+  );
+}
+
+function isDataFlowCapability(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.enabled === "boolean" &&
+    (value.staticAnalysis === "available" ||
+      value.staticAnalysis === "partial" ||
+      value.staticAnalysis === "unavailable") &&
+    value.runtimeObservation === "dispatch-only" &&
+    value.responseShape === "consumed-fields-only" &&
+    value.aiAssistance === "disabled" &&
+    Array.isArray(value.reasons)
+  );
+}
+
+function isDataFlowDependency(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    typeof value.id === "string" &&
+    typeof value.kind === "string" &&
+    typeof value.direction === "string" &&
+    typeof value.execution === "string" &&
+    typeof value.proof === "string" &&
+    typeof value.association === "string" &&
+    Array.isArray(value.parameters) &&
+    isRecord(value.response) &&
+    isStringArray(value.response.consumedFields) &&
+    isStringArray(value.evidenceIds) &&
+    isStringArray(value.observationIds)
+  );
+}
+
+function isDataFlowReportBase(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    value.schemaVersion === DATA_FLOW_SCHEMA_VERSION &&
+    typeof value.reportId === "string" &&
+    isRecord(value.baseline) &&
+    typeof value.baseline.registryEpoch === "string" &&
+    typeof value.baseline.analyzerVersion === "string" &&
+    isStringArray(value.baseline.analyzedSourceVersions) &&
+    isDataFlowCapability(value.capability) &&
+    Array.isArray(value.dependencies) &&
+    value.dependencies.every(isDataFlowDependency) &&
+    Array.isArray(value.evidence) &&
+    Array.isArray(value.diagnostics) &&
+    isReportCompleteness(value.completeness)
+  );
+}
+
+function isComponentDataFlowReport(value: unknown): value is ComponentDataFlowReport {
+  return (
+    isDataFlowReportBase(value) &&
+    isRecord(value) &&
+    isRecord(value.component) &&
+    isRecord(value.component.source) &&
+    typeof value.component.source.fileId === "string" &&
+    typeof value.component.source.sourceVersion === "string"
+  );
+}
+
+function isPageDataFlowReport(value: unknown): value is PageDataFlowReport {
+  return isDataFlowReportBase(value);
 }
 
 function parseCapability(
@@ -279,6 +372,7 @@ export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {
     endpoint: string,
     method: "GET" | "POST",
     body?: unknown,
+    maximumResponseBytes = MAX_JSON_RESPONSE_BYTES,
   ): Promise<unknown> {
     const abortController = new AbortController();
     pendingRequests.add(abortController);
@@ -293,7 +387,7 @@ export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         signal: abortController.signal,
       });
-      return await readJsonEnvelope(response);
+      return await readJsonEnvelope(response, maximumResponseBytes);
     } finally {
       pendingRequests.delete(abortController);
     }
@@ -415,6 +509,36 @@ export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {
       }
 
       return Object.freeze({ ...data });
+    },
+
+    async componentDataFlowReport(
+      request: DataFlowComponentReportRequest,
+    ): Promise<ComponentDataFlowReport> {
+      const data = await requestJson(
+        SPOTPATCH_ENDPOINTS.dataFlowComponentReport,
+        "POST",
+        request,
+        options.dataFlowReportMaxBytes,
+      );
+      if (!isComponentDataFlowReport(data)) {
+        throw new RuntimeApiError();
+      }
+      return deepFreeze(data);
+    },
+
+    async pageDataFlowReport(
+      request: DataFlowPageReportRequest,
+    ): Promise<PageDataFlowReport> {
+      const data = await requestJson(
+        SPOTPATCH_ENDPOINTS.dataFlowPageReport,
+        "POST",
+        request,
+        options.dataFlowReportMaxBytes,
+      );
+      if (!isPageDataFlowReport(data)) {
+        throw new RuntimeApiError();
+      }
+      return deepFreeze(data);
     },
 
     async openEditor(request: OpenEditorRequest): Promise<EditorOpenResult> {

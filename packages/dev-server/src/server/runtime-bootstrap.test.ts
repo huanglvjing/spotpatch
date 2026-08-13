@@ -8,7 +8,7 @@ import {
 } from "@spotpatch/shared";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { resolveOptions } from "../options.js";
+import { createRuntimeDataFlowConfig, resolveOptions } from "../options.js";
 import { createSourceRegistry } from "../registry/source-registry.js";
 import type { SpotPatchSession } from "../session/session.js";
 import { createSpotPatchMiddleware } from "./middleware.js";
@@ -22,6 +22,7 @@ const runtimeConfig = Object.freeze({
   apiBase: SPOTPATCH_API_BASE,
   ai: Object.freeze({ enabled: false }),
   budget: resolveOptions().budget,
+  dataFlow: createRuntimeDataFlowConfig(resolveOptions().dataFlow),
   bundler: "turbopack",
   debug: false,
   editor: "auto",

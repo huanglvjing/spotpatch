@@ -21,6 +21,11 @@ import type { SpotPatchSession } from "../session/session.js";
 import type { AgentJobManager } from "../agent/job-manager.js";
 import { handleAgentRequest, matchAgentRequestPath } from "./agent-http.js";
 import { type EditorLauncher, launchConfiguredEditor } from "./editor.js";
+import {
+  createDataFlowAnalyzer,
+  handleComponentDataFlowReport,
+  handlePageDataFlowReport,
+} from "./data-flow-http.js";
 import { readJsonRequestBody } from "./request-body.js";
 import { assertRequestAuthorized } from "./request-security.js";
 import {
@@ -61,6 +66,9 @@ const STATUS_BY_ERROR = Object.freeze({
   [ERROR_CODES.SOURCE_OUTSIDE_ROOT]: 403,
   [ERROR_CODES.SOURCE_TOO_LARGE]: 413,
   [ERROR_CODES.EDITOR_OPEN_FAILED]: 500,
+  [ERROR_CODES.DATA_FLOW_DISABLED]: 404,
+  [ERROR_CODES.DATA_FLOW_SOURCE_STALE]: 409,
+  [ERROR_CODES.DATA_FLOW_ANALYSIS_CANCELLED]: 409,
   [ERROR_CODES.AI_DISABLED]: 404,
   [ERROR_CODES.PROVIDER_NOT_CONFIGURED]: 503,
   [ERROR_CODES.PROVIDER_AUTH_FAILED]: 502,
@@ -97,6 +105,9 @@ const PUBLIC_MESSAGES = Object.freeze({
   [ERROR_CODES.SOURCE_OUTSIDE_ROOT]: "The source file is outside the project root.",
   [ERROR_CODES.SOURCE_TOO_LARGE]: "The source file exceeds the size limit.",
   [ERROR_CODES.EDITOR_OPEN_FAILED]: "The editor request could not be started.",
+  [ERROR_CODES.DATA_FLOW_DISABLED]: "Component data-flow analysis is not enabled.",
+  [ERROR_CODES.DATA_FLOW_SOURCE_STALE]: "The selected source version is stale.",
+  [ERROR_CODES.DATA_FLOW_ANALYSIS_CANCELLED]: "The data-flow analysis was cancelled.",
   [ERROR_CODES.AI_DISABLED]: "AI execution is not enabled.",
   [ERROR_CODES.PROVIDER_NOT_CONFIGURED]: "The AI provider is unavailable.",
   [ERROR_CODES.PROVIDER_AUTH_FAILED]: "The AI provider rejected authentication.",
@@ -238,6 +249,7 @@ export function createSpotPatchMiddleware(
     options.bootstrap === undefined
       ? undefined
       : resolveRuntimeBootstrapOptions(options.bootstrap);
+  const dataFlowAnalyzer = createDataFlowAnalyzer(options);
 
   return (request, response, next) => {
     const path = requestPath(request);
@@ -246,6 +258,8 @@ export function createSpotPatchMiddleware(
     if (
       path !== SPOTPATCH_ENDPOINTS.sourceContext &&
       path !== SPOTPATCH_ENDPOINTS.openEditor &&
+      path !== SPOTPATCH_ENDPOINTS.dataFlowComponentReport &&
+      path !== SPOTPATCH_ENDPOINTS.dataFlowPageReport &&
       agentRoute === undefined &&
       !path.startsWith(`${SPOTPATCH_API_BASE}/`)
     ) {
@@ -284,6 +298,28 @@ export function createSpotPatchMiddleware(
         }
 
         const data = await handleOpenEditor(request, options);
+        writeJson(response, 200, { ok: true, data });
+        return;
+      }
+
+      if (path === SPOTPATCH_ENDPOINTS.dataFlowComponentReport) {
+        if (request.method !== "POST") {
+          throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+        }
+        const data = await handleComponentDataFlowReport(
+          request,
+          dataFlowAnalyzer,
+          options,
+        );
+        writeJson(response, 200, { ok: true, data });
+        return;
+      }
+
+      if (path === SPOTPATCH_ENDPOINTS.dataFlowPageReport) {
+        if (request.method !== "POST") {
+          throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+        }
+        const data = await handlePageDataFlowReport(request, dataFlowAnalyzer, options);
         writeJson(response, 200, { ok: true, data });
         return;
       }

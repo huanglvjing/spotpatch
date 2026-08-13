@@ -5,6 +5,7 @@ export {
   type ResolvedSpotPatchOptions,
   type SimpleAiOptions,
   type SpotPatchAiOptions,
+  type SpotPatchDataFlowOptions,
   type SpotPatchOptions,
   type ViteSpotPatchOptions,
 } from "./options.js";

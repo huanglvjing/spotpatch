@@ -53,8 +53,12 @@ try {
   const htmlResponse = await fetch(`${origin}/`);
   assert.equal(htmlResponse.status, 200);
   const html = await htmlResponse.text();
-  const clientPath = html.match(/src="([^"]*spotpatch[^"]*)"/u)?.[1];
+  const clientPath = html.match(/src="([^"]*spotpatch\/client[^"]*)"/u)?.[1];
+  const dataFlowPreludePath = html.match(
+    /src="([^"]*spotpatch\/data-flow-runtime[^"]*)"/u,
+  )?.[1];
   assert.notEqual(clientPath, undefined);
+  assert.notEqual(dataFlowPreludePath, undefined);
 
   const sourceResponse = await fetch(`${origin}/src/main.jsx`);
   assert.equal(sourceResponse.status, 200);
@@ -78,8 +82,15 @@ try {
     ),
   );
   assert.match(runtimeSource, /"framework":"vite"/u);
+  assert.match(runtimeSource, /"dataFlow":\{"enabled":true,"runtime":"dispatch"/u);
   const sessionToken = runtimeSource.match(/"sessionToken":"([^"]+)"/u)?.[1];
   assert.notEqual(sessionToken, undefined);
+
+  const dataFlowPreludeResponse = await fetch(new URL(dataFlowPreludePath, origin));
+  assert.equal(dataFlowPreludeResponse.status, 200);
+  const dataFlowPreludeSource = await dataFlowPreludeResponse.text();
+  assert.match(dataFlowPreludeSource, /"enabled":true/u);
+  assert.match(dataFlowPreludeSource, /spotpatch\.data-flow\.runtime\.v1/u);
 
   const [fileId, line, column] = marker?.split(":") ?? [];
   const contextResponse = await fetch(`${origin}/__spotpatch/v1/source-context`, {
@@ -100,6 +111,30 @@ try {
   const context = await contextResponse.json();
   assert.equal(context.ok, true);
   assert.equal(context.data.relativePath, "src/main.jsx");
+
+  const dataFlowResponse = await fetch(
+    `${origin}/__spotpatch/v1/data-flow/component-report`,
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin,
+        "x-spotpatch-token": sessionToken ?? "",
+      },
+      body: JSON.stringify({
+        schemaVersion: 1,
+        fileId,
+        line: Number(line),
+        column: Number(column),
+      }),
+    },
+  );
+  assert.equal(dataFlowResponse.status, 200);
+  const dataFlowReport = await dataFlowResponse.json();
+  assert.equal(dataFlowReport.ok, true);
+  assert.equal(dataFlowReport.data.capability.enabled, true);
+  assert.equal(dataFlowReport.data.capability.runtimeObservation, "dispatch-only");
+  assert.equal(dataFlowReport.data.component.displayName, "CompatibilityFixture");
 } finally {
   await server.close();
 

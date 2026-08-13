@@ -39,6 +39,36 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./data-flow": {
+      "import": {
+        "types": "./dist/data-flow.d.ts",
+        "default": "./dist/data-flow.js"
+      },
+      "require": {
+        "types": "./dist/data-flow.d.cts",
+        "default": "./dist/data-flow.cjs"
+      }
+    },
+    "./data-flow-panel": {
+      "import": {
+        "types": "./dist/data-flow-panel.d.ts",
+        "default": "./dist/data-flow-panel.js"
+      },
+      "require": {
+        "types": "./dist/data-flow-panel.d.cts",
+        "default": "./dist/data-flow-panel.cjs"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "data-flow": [
+        "dist/data-flow.d.ts"
+      ],
+      "data-flow-panel": [
+        "dist/data-flow-panel.d.ts"
+      ]
     }
   },
   "scripts": {

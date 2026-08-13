@@ -396,8 +396,12 @@ function childIndent(source: string, object: ObjectExpression): string {
   return `${lineIndentAt(source, object.start)}  `;
 }
 
-function trustedFastCall(pluginName: string, enabled: boolean): string {
-  return enabled ? `${pluginName}({ trustedFastMode: true })` : `${pluginName}()`;
+function initializedPluginCall(pluginName: string, trustedFastMode: boolean): string {
+  const options = [
+    "dataFlow: {}",
+    ...(trustedFastMode ? ["trustedFastMode: true"] : []),
+  ];
+  return `${pluginName}({ ${options.join(", ")} })`;
 }
 
 function directPluginCalls(
@@ -414,16 +418,17 @@ function directPluginCalls(
   });
 }
 
-function enableTrustedFastMode(
+function enableInitializedOptions(
   magicString: MagicString,
   source: string,
   call: CallExpression,
+  trustedFastMode: boolean,
 ): void {
   if (call.arguments.length === 0) {
     magicString.overwrite(
       call.start,
       call.end,
-      `${source.slice(call.start, call.end - 1)}{ trustedFastMode: true })`,
+      initializedPluginCall(source.slice(call.start, call.callee.end), trustedFastMode),
     );
     return;
   }
@@ -444,10 +449,34 @@ function enableTrustedFastMode(
     throw new Error("SpotPatch init requires spotPatch options to be an object.");
   }
 
-  const property = findProperty(value, "trustedFastMode");
+  if (value.properties.some((property) => property.type === "SpreadElement")) {
+    throw new Error(
+      "SpotPatch init cannot prove dataFlow through spread spotPatch options.",
+    );
+  }
 
-  if (property !== undefined) {
-    const propertyValue = unwrapExpression(property.value);
+  const dataFlowProperty = findProperty(value, "dataFlow");
+  const trustedFastModeProperty = findProperty(value, "trustedFastMode");
+  const missingProperties: string[] = [];
+
+  if (dataFlowProperty === undefined) {
+    missingProperties.push("dataFlow: {}");
+  } else {
+    const dataFlowValue = unwrapExpression(dataFlowProperty.value);
+
+    if (dataFlowValue.type === "Literal" && dataFlowValue.value === false) {
+      magicString.overwrite(dataFlowValue.start, dataFlowValue.end, "{}");
+    } else if (dataFlowValue.type !== "ObjectExpression") {
+      throw new Error(
+        "SpotPatch init requires dataFlow to be false or an options object.",
+      );
+    }
+  }
+
+  if (trustedFastMode && trustedFastModeProperty === undefined) {
+    missingProperties.push("trustedFastMode: true");
+  } else if (trustedFastModeProperty !== undefined) {
+    const propertyValue = unwrapExpression(trustedFastModeProperty.value);
 
     if (propertyValue.type !== "Literal" || typeof propertyValue.value !== "boolean") {
       throw new Error(
@@ -455,21 +484,21 @@ function enableTrustedFastMode(
       );
     }
 
-    if (!propertyValue.value) {
+    if (trustedFastMode && !propertyValue.value) {
       magicString.overwrite(propertyValue.start, propertyValue.end, "true");
     }
-
-    return;
   }
+
+  if (missingProperties.length === 0) return;
 
   const indent = childIndent(source, value);
 
   if (value.properties.length === 0) {
-    magicString.appendLeft(value.end - 1, " trustedFastMode: true ");
+    magicString.appendLeft(value.end - 1, ` ${missingProperties.join(", ")} `);
   } else {
     magicString.appendLeft(
       value.properties[0]?.start ?? value.end - 1,
-      `trustedFastMode: true,\n${indent}`,
+      `${missingProperties.join(`,\n${indent}`)},\n${indent}`,
     );
   }
 }
@@ -482,7 +511,7 @@ function addPluginCall(
   trustedFastModeAvailable: boolean,
 ): void {
   const pluginsProperty = findProperty(config, "plugins");
-  const call = trustedFastCall(pluginName, trustedFastModeAvailable);
+  const call = initializedPluginCall(pluginName, trustedFastModeAvailable);
 
   if (pluginsProperty === undefined) {
     const indent = childIndent(source, config);
@@ -512,9 +541,12 @@ function addPluginCall(
   }
 
   if (existing[0] !== undefined) {
-    if (trustedFastModeAvailable) {
-      enableTrustedFastMode(magicString, source, existing[0]);
-    }
+    enableInitializedOptions(
+      magicString,
+      source,
+      existing[0],
+      trustedFastModeAvailable,
+    );
 
     return;
   }

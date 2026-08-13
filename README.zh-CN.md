@@ -28,6 +28,7 @@ SpotPatch 是一个本地优先、仅在开发期运行的 React 页面反馈工
 ## 为什么使用 SpotPatch
 
 - **从页面精确定位源码**：把渲染后的元素映射到经过授权的源码文件、行号和列号。
+- **组件数据链路（Beta）**：无需打开 DevTools，即可查看有证据的组件接口、参数键、响应消费字段、数据去向和页面未归属请求。
 - **多目标独立描述**：一次任务默认最多选择八个目标，每个目标保留独立要求与上下文。
 - **不配置 AI 也能完整使用**：查看上下文、打开 Cursor 或 VS Code、预览结构化 Prompt 并复制给任意编程助手。
 - **可选 AI Agent**：显式配置 OpenAI-compatible Provider 后，使用受限工具、隔离 Git worktree、项目检查、Diff 审阅、Apply 和冲突安全的 Revert。
@@ -64,11 +65,11 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ trustedFastMode: true }), react()],
+  plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()],
 });
 ```
 
-如果项目无法发现 TypeScript 检查，初始化器会安全使用 `spotPatch()` 并保持审阅模式。配置结构过于动态而不受支持时，再按同样结果手动编辑。
+如果项目无法发现 TypeScript 检查，初始化器会安全使用 `spotPatch({ dataFlow: {} })` 并保持审阅模式。配置结构过于动态而不受支持时，再按同样结果手动编辑。
 
 ### 2. 使用
 
@@ -85,6 +86,20 @@ pnpm dev
 3. 检查对应源码、DOM、CSS 和经过预算裁剪的代码上下文。
 4. 在 Cursor 或 VS Code 中打开精确位置，或者复制生成的 Prompt。
 5. 如果启用了 AI，先确认远程传输，再运行任务、审阅 Diff 与检查结果，最后明确选择应用或拒绝修改。
+
+### 组件数据链路（Beta）
+
+新版 `setup/init` 会自动写入这个仅开发环境生效的选项；手工接入时需要显式启用：
+
+```ts
+spotPatch({ dataFlow: {} });
+```
+
+选择元素后，使用 **数据链路** 查看当前业务组件的可证明报告，使用 **页面接口** 查看当前已选页面范围以及实际发生但尚未归属组件的请求。报告包含 method/path、参数键和位置、源码实际读取的响应字段，以及可证明的 React state、Zustand、storage、callback 数据去向。运行时观测只记录 dispatch：SpotPatch 不读取或 clone 响应体，也不保留 query 值。
+
+当前适配器覆盖已支持的组件直接/Service `fetch`、Axios、React Query/TanStack Query 回调形态，以及实验性的 tRPC 逻辑 procedure 链路。tRPC procedure 与物理 batch HTTP 请求保持为两层证据；SpotPatch 不会因为时间接近或 URL 相似把共享 batch URL 强行归属给某个组件。
+
+只有稳定组件、源码、callsite 与 invocation 证据一致时，Beta 才报告组件关联。范围外或存在歧义的流量保持 partial、unknown 或 unassigned，绝不因为 URL 相同或时间接近就猜测。当前范围是 Vite + React 18，不包含 data-flow AI、安全 JSON 响应读取或 Next.js 支持。完整事实见 [Beta 实现状态与支持矩阵](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)。
 
 ## 可选 AI 配置
 
@@ -159,18 +174,19 @@ pnpm dev
 
 Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 
-| 选项         | 默认值                       | 用途                           |
-| ------------ | ---------------------------- | ------------------------------ |
-| `enabled`    | `true`                       | 需要时显式禁用插件。           |
-| `include`    | `src` 内 JSX/TSX             | 允许注入源码标记的文件。       |
-| `exclude`    | 依赖、测试、Story、生成目录  | 不允许转换的文件。             |
-| `editor`     | `"auto"`                     | 自动识别 Cursor 或 VS Code。   |
-| `redact`     | `true`                       | 清洗采集到的浏览器上下文。     |
-| `shortcut`   | `"Mod+Shift+S"`              | 切换元素选择器。               |
-| `allowLan`   | `false`                      | 默认只允许 loopback 本地协议。 |
-| `locale`     | `"auto"`                     | 自动解析 `en-US` 或 `zh-CN`。  |
-| `maxTargets` | `8`                          | 一次任务默认最多选择的目标数。 |
-| `ai`         | `false` 或检测到完整环境配置 | 可选 Provider 和 Agent 配置。  |
+| 选项         | 默认值                       | 用途                               |
+| ------------ | ---------------------------- | ---------------------------------- |
+| `enabled`    | `true`                       | 需要时显式禁用插件。               |
+| `include`    | `src` 内 JSX/TSX             | 允许注入源码标记的文件。           |
+| `exclude`    | 依赖、测试、Story、生成目录  | 不允许转换的文件。                 |
+| `editor`     | `"auto"`                     | 自动识别 Cursor 或 VS Code。       |
+| `redact`     | `true`                       | 清洗采集到的浏览器上下文。         |
+| `shortcut`   | `"Mod+Shift+S"`              | 切换元素选择器。                   |
+| `allowLan`   | `false`                      | 默认只允许 loopback 本地协议。     |
+| `locale`     | `"auto"`                     | 自动解析 `en-US` 或 `zh-CN`。      |
+| `maxTargets` | `8`                          | 一次任务默认最多选择的目标数。     |
+| `ai`         | `false` 或检测到完整环境配置 | 可选 Provider 和 Agent 配置。      |
+| `dataFlow`   | `false`                      | 可选 dispatch-only 数据链路 Beta。 |
 
 完整类型和约束见 [`@spotpatch/vite`](./packages/vite/README.md)与[公共 API 规范](./docs/技术方案/03-公共API与数据模型.md)。
 
@@ -195,6 +211,7 @@ Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 | [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | 正式支持的 Vite 接入                       | **是**                  |
 | [`@spotpatch/next`](./packages/next/README.md#简体中文)            | 可安装的 Next.js 0.x 公共预览              | 仅供预览，尚未正式支持  |
 | `@spotpatch/compiler`                                              | 框架无关 JSX/TSX 标记编译器                | 适配器基础设施          |
+| `@spotpatch/analyzer`                                              | Node-only 组件/请求语义分析器              | 适配器基础设施，仅 Node |
 | `@spotpatch/dev-server`                                            | 本地会话、源码访问、编辑器与 Agent 编排    | 适配器基础设施，仅 Node |
 | `@spotpatch/runtime`                                               | 浏览器选择器、采集器、工作台和 Prompt 生成 | 由适配器安装            |
 | `@spotpatch/react-adapter`                                         | 隔离的 React/Fiber 兼容边界                | 由适配器安装            |
@@ -228,6 +245,7 @@ CI 质量矩阵还会在 Ubuntu、macOS、Windows 和声明的 Node 版本上运
 - [总体架构与包职责](./docs/技术方案/02-总体架构与技术栈.md)
 - [公共 API 与默认值](./docs/技术方案/03-公共API与数据模型.md)
 - [安全模型](./docs/技术方案/09-本地协议与安全.md)
+- [组件数据链路 Beta 状态](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)
 - [测试与验收](./docs/技术方案/12-测试与验收.md)
 - [Next.js 适配状态](./docs/技术方案/Next适配/00-索引与架构摘要.md)
 

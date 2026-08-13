@@ -106,6 +106,12 @@ afterAll(async () => {
 });
 
 describe("withSpotPatch", () => {
+  it("rejects component data flow instead of exposing a non-functional panel", () => {
+    expect(() =>
+      withSpotPatch({ dataFlow: {} } as unknown as Parameters<typeof withSpotPatch>[0]),
+    ).toThrow(/does not support component dataFlow/u);
+  });
+
   it("composes object, synchronous, and asynchronous development configs once", async () => {
     const context = Object.freeze({
       defaultConfig: {},

@@ -1,4 +1,5 @@
 import { createServer, type Server } from "node:http";
+import { createHash } from "node:crypto";
 import { mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -9,10 +10,11 @@ import {
   SPOTPATCH_TOKEN_HEADER,
   type ApiResponse,
   type CodeContext,
+  type ComponentDataFlowReport,
 } from "@spotpatch/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resolveOptions } from "../options.js";
+import { resolveOptions, type SpotPatchOptions } from "../options.js";
 import {
   createSourceRegistry,
   type SourceRegistry,
@@ -38,9 +40,12 @@ let registry: SourceRegistry;
 let fileId = "";
 let testServer: TestServer | undefined;
 
-async function startServer(editorLauncher?: EditorLauncher): Promise<TestServer> {
+async function startServer(
+  editorLauncher?: EditorLauncher,
+  spotPatchOptions: SpotPatchOptions = {},
+): Promise<TestServer> {
   const middleware = createSpotPatchMiddleware({
-    options: resolveOptions(),
+    options: resolveOptions(spotPatchOptions),
     registry,
     root,
     session,
@@ -342,6 +347,88 @@ describe("SpotPatch server middleware", () => {
     expect(payload).toContain(ERROR_CODES.EDITOR_OPEN_FAILED);
     expect(payload).not.toContain(root);
     expect(payload).not.toContain("failed for");
+  });
+
+  it("returns an authorized component data-flow report only when enabled", async () => {
+    if (testServer === undefined) {
+      throw new Error("Test server has not started.");
+    }
+
+    const disabled = await post(SPOTPATCH_ENDPOINTS.dataFlowComponentReport, {
+      schemaVersion: 1,
+      fileId,
+      line: 1,
+      column: 1,
+    });
+    expect(disabled.status).toBe(404);
+    await expect(disabled.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: ERROR_CODES.DATA_FLOW_DISABLED },
+    });
+
+    await stopServer(testServer.server);
+    const dataFlowSource = `export const Example = () => {
+        async function load() {
+          const result = await fetch("/users?token=never-returned", { method: "POST", body: JSON.stringify({ page: 1 }) });
+          return result.json();
+        }
+        return <button onClick={load}>Load</button>;
+      };`;
+    const dataFlowSourceVersion = `source_${createHash("sha256")
+      .update(dataFlowSource)
+      .digest("base64url")
+      .slice(0, 22)}`;
+    await writeFile(path.join(root, "Example.tsx"), dataFlowSource, "utf8");
+    registry.registerDataFlowComponents(
+      path.join(root, "Example.tsx"),
+      dataFlowSourceVersion,
+      [{ componentSourceId: "component_example", line: 1, column: 1 }],
+    );
+    testServer = await startServer(undefined, { dataFlow: {} });
+    const response = await post(SPOTPATCH_ENDPOINTS.dataFlowComponentReport, {
+      schemaVersion: 1,
+      fileId,
+      line: 1,
+      column: 1,
+    });
+    const payload = (await response.json()) as ApiResponse<ComponentDataFlowReport>;
+
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      ok: true,
+      data: {
+        component: { displayName: "Example" },
+        dependencies: [
+          {
+            method: "POST",
+            url: { pathname: "/users", queryKeys: ["token"] },
+          },
+        ],
+      },
+    });
+    expect(JSON.stringify(payload)).not.toContain("never-returned");
+    expect(JSON.stringify(payload)).not.toContain(root);
+
+    const identityResponse = await post(SPOTPATCH_ENDPOINTS.dataFlowComponentReport, {
+      schemaVersion: 1,
+      componentSourceId: "component_example",
+      sourceVersion: dataFlowSourceVersion,
+    });
+    await expect(identityResponse.json()).resolves.toMatchObject({
+      ok: true,
+      data: { component: { displayName: "Example" } },
+    });
+
+    const staleResponse = await post(SPOTPATCH_ENDPOINTS.dataFlowComponentReport, {
+      schemaVersion: 1,
+      componentSourceId: "component_example",
+      sourceVersion: "source_stale",
+    });
+    expect(staleResponse.status).toBe(409);
+    await expect(staleResponse.json()).resolves.toMatchObject({
+      ok: false,
+      error: { code: ERROR_CODES.DATA_FLOW_SOURCE_STALE },
+    });
   });
 
   it("delegates requests outside the private API namespace", async () => {

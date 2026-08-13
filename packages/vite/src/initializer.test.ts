@@ -66,7 +66,7 @@ describe("Vite integration initializer", () => {
       'import { spotPatch } from "@spotpatch/vite";',
     );
     expect(plan.changes[0]?.nextContent).toContain(
-      "plugins: [spotPatch({ trustedFastMode: true }),",
+      "plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }),",
     );
 
     await applyViteIntegrationPlan(plan);
@@ -82,7 +82,7 @@ describe("Vite integration initializer", () => {
     const config = plan.changes[0]?.nextContent ?? "";
 
     expect(config.match(/spotPatch\(/gu)).toHaveLength(1);
-    expect(config).toContain("spotPatch({ trustedFastMode: true })");
+    expect(config).toContain("spotPatch({ dataFlow: {}, trustedFastMode: true })");
   });
 
   it("uses a collision-free import and supports an identifier export", async () => {
@@ -94,7 +94,9 @@ describe("Vite integration initializer", () => {
     expect(config).toContain(
       'import { spotPatch as spotPatch1 } from "@spotpatch/vite";',
     );
-    expect(config).toContain("plugins: [spotPatch1({ trustedFastMode: true })]");
+    expect(config).toContain(
+      "plugins: [spotPatch1({ dataFlow: {}, trustedFastMode: true })]",
+    );
   });
 
   it("supports a defineConfig callback with setup statements and an object return", async () => {
@@ -105,7 +107,9 @@ describe("Vite integration initializer", () => {
     const config = plan.changes[0]?.nextContent ?? "";
 
     expect(config).toContain('import { spotPatch } from "@spotpatch/vite";');
-    expect(config).toContain("plugins: [spotPatch({ trustedFastMode: true }),");
+    expect(config).toContain(
+      "plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }),",
+    );
     expect(config).toContain("define: { __MODE__: JSON.stringify(env.MODE) }");
 
     await applyViteIntegrationPlan(plan);
@@ -120,7 +124,7 @@ describe("Vite integration initializer", () => {
 
     expect(config).toContain("import { spotPatch } from '@spotpatch/vite';");
     expect(config).toContain(
-      "plugins: [spotPatch({ trustedFastMode: true }), react()]",
+      "plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()]",
     );
   });
 
@@ -130,7 +134,9 @@ describe("Vite integration initializer", () => {
     );
     const config = (await planViteIntegration(root)).changes[0]?.nextContent ?? "";
 
-    expect(config).toContain("plugins: [spotPatch({ trustedFastMode: true })]");
+    expect(config).toContain(
+      "plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true })]",
+    );
   });
 
   it("fails closed for callbacks with ambiguous top-level returns", async () => {
@@ -155,7 +161,41 @@ describe("Vite integration initializer", () => {
     const plan = await planViteIntegration(root);
 
     expect(plan.trustedFastModeAvailable).toBe(false);
-    expect(plan.changes[0]?.nextContent).toContain("plugins: [spotPatch()]");
+    expect(plan.changes[0]?.nextContent).toContain(
+      "plugins: [spotPatch({ dataFlow: {} })]",
+    );
+  });
+
+  it("enables data flow in existing static options without losing host settings", async () => {
+    const root = await fixture(
+      'import { spotPatch } from "@spotpatch/vite";\nimport { defineConfig } from "vite";\n\nexport default defineConfig({ plugins: [spotPatch({ ai: false, locale: "zh-CN" })] });\n',
+    );
+    const config = (await planViteIntegration(root)).changes[0]?.nextContent ?? "";
+
+    expect(config).toContain("dataFlow: {},");
+    expect(config).toContain("trustedFastMode: true,");
+    expect(config).toContain('ai: false, locale: "zh-CN"');
+  });
+
+  it("upgrades an explicit disabled data flow literal and stays idempotent", async () => {
+    const root = await fixture(
+      'import { spotPatch } from "@spotpatch/vite";\nimport { defineConfig } from "vite";\n\nexport default defineConfig({ plugins: [spotPatch({ dataFlow: false })] });\n',
+    );
+    const plan = await planViteIntegration(root);
+    const config = plan.changes[0]?.nextContent ?? "";
+
+    expect(config).toContain("dataFlow: {}");
+    expect(config).toContain("trustedFastMode: true");
+    await applyViteIntegrationPlan(plan);
+    await expect(planViteIntegration(root)).resolves.toMatchObject({ changes: [] });
+  });
+
+  it("fails closed when spread options can override the initialized capability", async () => {
+    const root = await fixture(
+      'import { spotPatch } from "@spotpatch/vite";\nimport { defineConfig } from "vite";\nconst options = {};\n\nexport default defineConfig({ plugins: [spotPatch({ ...options })] });\n',
+    );
+
+    await expect(planViteIntegration(root)).rejects.toThrow(/spread spotPatch/u);
   });
 
   it("fails closed for dynamic plugin collections", async () => {

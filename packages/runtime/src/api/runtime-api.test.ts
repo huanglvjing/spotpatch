@@ -8,6 +8,8 @@ import {
   type AgentJobResultResponse,
   type AgentJobSnapshot,
   type CodeContext,
+  type ComponentDataFlowReport,
+  type PageDataFlowReport,
 } from "@spotpatch/shared";
 import { describe, expect, it, vi } from "vitest";
 
@@ -69,6 +71,56 @@ const jobResult = Object.freeze({
   }),
 }) satisfies AgentJobResultResponse;
 
+const dataFlowReport = Object.freeze({
+  schemaVersion: 1,
+  reportId: "report_component",
+  baseline: Object.freeze({
+    registryEpoch: "registry_1",
+    analyzerVersion: "1",
+    adapterSetHash: "builtin",
+    analyzedSourceVersions: Object.freeze(["source_current"]),
+  }),
+  capability: Object.freeze({
+    enabled: true,
+    staticAnalysis: "available",
+    runtimeObservation: "dispatch-only",
+    responseShape: "consumed-fields-only",
+    aiAssistance: "disabled",
+    reasons: Object.freeze([]),
+  }),
+  component: Object.freeze({
+    componentSourceId: "component_login",
+    displayName: "Login",
+    source: Object.freeze({
+      fileId: "file_login",
+      displayPath: "src/Login.tsx",
+      line: 1,
+      column: 1,
+      sourceVersion: "source_current",
+    }),
+  }),
+  dependencies: Object.freeze([]),
+  evidence: Object.freeze([]),
+  diagnostics: Object.freeze([]),
+  completeness: Object.freeze({
+    complete: true,
+    visitedModules: 1,
+    visitedCallsites: 0,
+    frontierCount: 0,
+  }),
+}) satisfies ComponentDataFlowReport;
+
+const pageDataFlowReport = Object.freeze({
+  schemaVersion: dataFlowReport.schemaVersion,
+  reportId: "report_page",
+  baseline: dataFlowReport.baseline,
+  capability: dataFlowReport.capability,
+  dependencies: dataFlowReport.dependencies,
+  evidence: dataFlowReport.evidence,
+  diagnostics: dataFlowReport.diagnostics,
+  completeness: dataFlowReport.completeness,
+}) satisfies PageDataFlowReport;
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -104,6 +156,43 @@ describe("runtime API client", () => {
     const requestBody = fetchMock.mock.calls[0]?.[1]?.body;
     expect(requestBody).toBeTypeOf("string");
     expect(requestBody).not.toContain("session-secret");
+  });
+
+  it("loads, validates, and freezes component and page data-flow reports", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, data: dataFlowReport }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, data: pageDataFlowReport }));
+    const api = createRuntimeApi({
+      apiBase: SPOTPATCH_API_BASE,
+      dataFlowReportMaxBytes: 128 * 1_024,
+      fetch: fetchMock,
+      sessionToken: "token",
+    });
+    const component = await api.componentDataFlowReport({
+      schemaVersion: 1,
+      componentSourceId: "component_login",
+      sourceVersion: "source_current",
+    });
+    const page = await api.pageDataFlowReport({
+      schemaVersion: 1,
+      targets: [
+        {
+          schemaVersion: 1,
+          componentSourceId: "component_login",
+          sourceVersion: "source_current",
+        },
+      ],
+    });
+
+    expect(fetchMock.mock.calls.map(([endpoint]) => endpoint)).toEqual([
+      SPOTPATCH_ENDPOINTS.dataFlowComponentReport,
+      SPOTPATCH_ENDPOINTS.dataFlowPageReport,
+    ]);
+    expect(component).toEqual(dataFlowReport);
+    expect(page).toEqual(pageDataFlowReport);
+    expect(Object.isFrozen(component.component.source)).toBe(true);
+    expect(Object.isFrozen(page.baseline)).toBe(true);
   });
 
   it("rejects non-success and malformed envelopes without exposing server text", async () => {

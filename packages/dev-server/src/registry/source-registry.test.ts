@@ -45,4 +45,28 @@ describe("source registry", () => {
     expect(registry.register("/root/first.tsx")).toBe("same-id");
     expect(registry.register("/root/second.tsx")).toBe("next-id");
   });
+
+  it("replaces component anchors atomically when a source version changes", () => {
+    const registry = createSourceRegistry({ createId: () => "file-id" });
+    const source = "/root/App.tsx";
+
+    registry.registerDataFlowComponents(source, "source_first", [
+      { componentSourceId: "component_first", line: 3, column: 1 },
+    ]);
+    expect(registry.resolveDataFlowComponent("component_first")).toEqual({
+      componentSourceId: "component_first",
+      fileId: "file-id",
+      line: 3,
+      column: 1,
+      sourceVersion: "source_first",
+    });
+
+    registry.registerDataFlowComponents(source, "source_second", [
+      { componentSourceId: "component_second", line: 4, column: 2 },
+    ]);
+    expect(registry.resolveDataFlowComponent("component_first")).toBeUndefined();
+    expect(registry.resolveDataFlowComponent("component_second")?.sourceVersion).toBe(
+      "source_second",
+    );
+  });
 });

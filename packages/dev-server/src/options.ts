@@ -10,6 +10,9 @@ import {
   type AiProviderAuthentication,
   type AiProviderProtocol,
   type ContextBudget,
+  DEFAULT_DATA_FLOW_LIMITS,
+  type DataFlowLimits,
+  type RuntimeDataFlowConfig,
   type ResolvedAgentCheckDefinition,
   type ResolvedAiModelProfile,
   type ResolvedAiOptions,
@@ -48,6 +51,10 @@ export interface SimpleAiOptions {
 
 export type SpotPatchAiOptions = false | SimpleAiOptions | AiOptions;
 
+export interface SpotPatchDataFlowOptions {
+  readonly runtime?: "dispatch";
+}
+
 export interface SpotPatchOptions {
   readonly enabled?: boolean;
   readonly include?: readonly FilterEntry[];
@@ -63,6 +70,7 @@ export interface SpotPatchOptions {
   readonly locale?: SpotPatchLocalePreference;
   readonly maxTargets?: number;
   readonly ai?: SpotPatchAiOptions;
+  readonly dataFlow?: false | SpotPatchDataFlowOptions;
 }
 
 export interface ResolvedSpotPatchOptions {
@@ -78,6 +86,13 @@ export interface ResolvedSpotPatchOptions {
   readonly locale: SpotPatchLocalePreference;
   readonly maxTargets: number;
   readonly ai: false | ResolvedAiOptions;
+  readonly dataFlow: ResolvedSpotPatchDataFlowOptions;
+}
+
+export interface ResolvedSpotPatchDataFlowOptions {
+  readonly enabled: boolean;
+  readonly runtime: "dispatch";
+  readonly limits: DataFlowLimits;
 }
 
 export const DEFAULT_EXCLUDE = Object.freeze([
@@ -89,7 +104,7 @@ export const DEFAULT_EXCLUDE = Object.freeze([
   /(?:^|\/)coverage(?:\/|$)/,
 ]);
 
-const DEFAULT_INCLUDE = Object.freeze([/(?:^|[/\\])src[/\\].+\.(?:jsx|tsx)$/]);
+const DEFAULT_INCLUDE = Object.freeze([/(?:^|[/\\])src[/\\].+\.(?:js|jsx|ts|tsx)$/]);
 
 const DEFAULT_BUDGET = Object.freeze({
   totalCharacters: 16_000,
@@ -113,6 +128,11 @@ export const DEFAULT_OPTIONS = Object.freeze({
   locale: "auto",
   maxTargets: 8,
   ai: false,
+  dataFlow: Object.freeze({
+    enabled: false,
+    runtime: "dispatch",
+    limits: DEFAULT_DATA_FLOW_LIMITS,
+  }),
 } satisfies ResolvedSpotPatchOptions);
 
 const PROFILE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -498,6 +518,45 @@ function assertPositiveBudget(budget: Readonly<ContextBudget>): void {
   }
 }
 
+function resolveDataFlowOptions(
+  options: false | SpotPatchDataFlowOptions | undefined,
+): ResolvedSpotPatchDataFlowOptions {
+  if (options === undefined || options === false) {
+    return DEFAULT_OPTIONS.dataFlow;
+  }
+
+  const candidate: unknown = options;
+  if (typeof candidate !== "object" || candidate === null) {
+    throw new RangeError("SpotPatch dataFlow configuration is invalid.");
+  }
+
+  const runtime: unknown = options.runtime ?? "dispatch";
+  if (runtime !== "dispatch") {
+    throw new RangeError("SpotPatch dataFlow runtime mode is invalid.");
+  }
+
+  return Object.freeze({
+    enabled: true,
+    runtime,
+    limits: DEFAULT_DATA_FLOW_LIMITS,
+  });
+}
+
+export function createRuntimeDataFlowConfig(
+  options: ResolvedSpotPatchDataFlowOptions,
+): RuntimeDataFlowConfig {
+  return Object.freeze({
+    enabled: options.enabled,
+    runtime: options.runtime,
+    limits: Object.freeze({
+      observationMaxEntries: options.limits.observationMaxEntries,
+      observationMaxBytes: options.limits.observationMaxBytes,
+      observationTtlMs: options.limits.observationTtlMs,
+      reportMaxBytes: options.limits.reportMaxBytes,
+    }),
+  });
+}
+
 export function resolveOptions(
   options: SpotPatchOptions = {},
   environmentAi?: false | SimpleAiOptions,
@@ -551,6 +610,7 @@ export function resolveOptions(
     locale,
     maxTargets,
     ai: resolveAiOptions(options.ai ?? environmentAi),
+    dataFlow: resolveDataFlowOptions(options.dataFlow),
   } satisfies ResolvedSpotPatchOptions;
 
   if (

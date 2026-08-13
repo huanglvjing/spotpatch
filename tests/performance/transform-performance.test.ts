@@ -28,12 +28,15 @@ export function PerformanceFixture(): JSX.Element {
 }
 `;
 
-const transformOnce = (iteration: number): void => {
+const transformOnce = (iteration: number, dataFlow = false): void => {
   const result = injectSourceMarkers({
     code: fixtureSource,
     absolutePath: `/workspace/src/performance-${String(iteration)}.tsx`,
     root: "/workspace",
     fileId: `fixture-${String(iteration)}`,
+    ...(dataFlow
+      ? { dataFlow: { helperModule: "virtual:spotpatch/data-flow-runtime" } }
+      : {}),
   });
 
   if (result === undefined) {
@@ -65,5 +68,25 @@ describe("transform performance budget", () => {
       5,
     );
     expect(p95, `uncached transform P95 was ${p95.toFixed(2)}ms`).toBeLessThan(20);
+  });
+
+  it("keeps opt-in data-flow instrumentation within its separate budget", () => {
+    for (let iteration = 0; iteration < WARMUP_COUNT; iteration += 1) {
+      transformOnce(iteration, true);
+    }
+    const durations: number[] = [];
+    for (let iteration = 0; iteration < SAMPLE_COUNT; iteration += 1) {
+      const startedAt = performance.now();
+      transformOnce(iteration + WARMUP_COUNT, true);
+      durations.push(performance.now() - startedAt);
+    }
+    durations.sort((left, right) => left - right);
+    const median =
+      durations[Math.floor(durations.length / 2)] ?? Number.POSITIVE_INFINITY;
+    const p95 =
+      durations[Math.ceil(durations.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
+
+    expect(median).toBeLessThan(15);
+    expect(p95).toBeLessThan(40);
   });
 });

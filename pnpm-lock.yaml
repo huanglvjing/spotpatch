@@ -156,6 +156,18 @@ importers:
         specifier: 4.4.3
         version: 4.4.3
 
+  packages/analyzer:
+    dependencies:
+      '@spotpatch/compiler':
+        specifier: workspace:^
+        version: link:../compiler
+      '@spotpatch/shared':
+        specifier: workspace:^
+        version: link:../shared
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/compiler:
     dependencies:
       '@rollup/pluginutils':
@@ -170,12 +182,18 @@ importers:
       oxc-parser:
         specifier: 0.143.0
         version: 0.143.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
 
   packages/dev-server:
     dependencies:
       '@spotpatch/agent':
         specifier: workspace:^
         version: link:../agent
+      '@spotpatch/analyzer':
+        specifier: workspace:^
+        version: link:../analyzer
       '@spotpatch/compiler':
         specifier: workspace:^
         version: link:../compiler

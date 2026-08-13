@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import type { AiOptions } from "@spotpatch/shared";
 
-import { createRuntimeAiConfig, DEFAULT_OPTIONS, resolveOptions } from "./options.js";
+import {
+  createRuntimeAiConfig,
+  createRuntimeDataFlowConfig,
+  DEFAULT_OPTIONS,
+  resolveOptions,
+} from "./options.js";
 
 const aiOptions = Object.freeze({
   providers: Object.freeze({
@@ -93,6 +98,40 @@ describe("resolveOptions", () => {
     for (const maxTargets of [0, 21, 1.5, Number.NaN]) {
       expect(() => resolveOptions({ maxTargets })).toThrow(RangeError);
     }
+  });
+
+  it("keeps data-flow disabled by default and resolves one frozen option", () => {
+    expect(resolveOptions().dataFlow).toMatchObject({
+      enabled: false,
+      runtime: "dispatch",
+    });
+
+    const resolved = resolveOptions({
+      dataFlow: { runtime: "dispatch" },
+    });
+
+    expect(resolved.dataFlow).toMatchObject({
+      enabled: true,
+      runtime: "dispatch",
+    });
+    expect(Object.isFrozen(resolved.dataFlow)).toBe(true);
+    expect(Object.isFrozen(resolved.dataFlow.limits)).toBe(true);
+    const runtime = createRuntimeDataFlowConfig(resolved.dataFlow);
+    expect(Object.keys(runtime.limits).sort()).toEqual([
+      "observationMaxBytes",
+      "observationMaxEntries",
+      "observationTtlMs",
+      "reportMaxBytes",
+    ]);
+    expect(Object.isFrozen(runtime.limits)).toBe(true);
+  });
+
+  it("rejects invalid data-flow modes at the runtime boundary", () => {
+    expect(() =>
+      resolveOptions({
+        dataFlow: { runtime: "raw-values" as "dispatch" },
+      }),
+    ).toThrow(RangeError);
   });
 
   it("resolves and deeply freezes provider, model, check, and limit data", () => {

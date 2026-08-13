@@ -16,6 +16,7 @@ import {
   type CallExpression,
   type ExportDefaultDeclaration,
   type ImportDeclaration,
+  type ObjectProperty,
   type Program,
 } from "oxc-parser";
 
@@ -240,6 +241,42 @@ function wrappedFactoryCall(
     : undefined;
 }
 
+function staticPropertyName(property: ObjectProperty): string | undefined {
+  if (property.computed) return undefined;
+
+  if (property.key.type === "Identifier") return property.key.name;
+
+  return property.key.type === "Literal" && typeof property.key.value === "string"
+    ? property.key.value
+    : undefined;
+}
+
+function assertSupportedDataFlowOption(factory: CallExpression): void {
+  const argument = factory.arguments[0];
+
+  if (argument?.type !== "ObjectExpression") return;
+
+  const properties = argument.properties.filter(
+    (property): property is ObjectProperty =>
+      property.type === "Property" && staticPropertyName(property) === "dataFlow",
+  );
+
+  if (properties.length > 1) {
+    throw new Error("SpotPatch init found duplicate dataFlow options.");
+  }
+
+  const property = properties[0];
+
+  if (
+    property !== undefined &&
+    !(property.value.type === "Literal" && property.value.value === false)
+  ) {
+    throw new Error(
+      "SpotPatch Next does not support component dataFlow yet; remove dataFlow or set it to false.",
+    );
+  }
+}
+
 function transformNextConfig(
   absolutePath: string,
   source: string,
@@ -274,6 +311,8 @@ function transformNextConfig(
       : wrappedFactoryCall(defaultExport.declaration, existingWrapperName);
 
   if (existingFactory !== undefined) {
+    assertSupportedDataFlowOption(existingFactory);
+
     if (trustedFastModeAvailable && existingFactory.arguments.length === 0) {
       magicString.overwrite(
         existingFactory.start,

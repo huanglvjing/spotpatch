@@ -19,13 +19,16 @@ export {
 } from "./integration/file-plan.js";
 export {
   createRuntimeAiConfig,
+  createRuntimeDataFlowConfig,
   DEFAULT_EXCLUDE,
   DEFAULT_OPTIONS,
   resolveOptions,
   type FilterEntry,
   type ResolvedSpotPatchOptions,
+  type ResolvedSpotPatchDataFlowOptions,
   type SimpleAiOptions,
   type SpotPatchAiOptions,
+  type SpotPatchDataFlowOptions,
   type SpotPatchOptions,
 } from "./options.js";
 export {

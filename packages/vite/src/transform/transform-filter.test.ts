@@ -40,4 +40,15 @@ describe("transform filtering", () => {
     );
     expect(isInsideRoot("C:\\project", "C:\\other\\App.tsx", path.win32)).toBe(false);
   });
+
+  it("includes project TS request modules only when data-flow is enabled", () => {
+    const enabled = createTransformFilter(root, resolveOptions({ dataFlow: {} }));
+
+    expect(enabled.shouldTransform("/project/src/store.ts", "fetch('/api')")).toBe(
+      true,
+    );
+    expect(filter.shouldTransform("/project/src/store.ts", "fetch('/api')")).toBe(
+      false,
+    );
+  });
 });

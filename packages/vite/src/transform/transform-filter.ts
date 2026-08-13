@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { createSourceFilter } from "@spotpatch/compiler";
+import { createDataFlowSourceFilter, createSourceFilter } from "@spotpatch/compiler";
 import type { ResolvedSpotPatchOptions } from "@spotpatch/dev-server";
 
 export function stripViteQuery(id: string): string {
@@ -19,6 +19,10 @@ export function createTransformFilter(
   options: ResolvedSpotPatchOptions,
 ): TransformFilter {
   const sourceFilter = createSourceFilter(root, options);
+  const dataFlowFilter = createDataFlowSourceFilter(root, {
+    include: options.include,
+    exclude: options.exclude,
+  });
 
   return Object.freeze({
     shouldTransform(id: string, code: string): boolean {
@@ -32,7 +36,11 @@ export function createTransformFilter(
       }
 
       const cleanId = stripViteQuery(id);
-      return sourceFilter.shouldTransform(path.resolve(cleanId), code);
+      const absolutePath = path.resolve(cleanId);
+      return (
+        sourceFilter.shouldTransform(absolutePath, code) ||
+        (options.dataFlow.enabled && dataFlowFilter.shouldTransform(absolutePath, code))
+      );
     },
   });
 }

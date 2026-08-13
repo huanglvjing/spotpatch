@@ -8,6 +8,7 @@ import {
 import {
   createAgentJobManager,
   createRuntimeAiConfig,
+  createRuntimeDataFlowConfig,
   createSession,
   createSourceRegistrationService,
   createSourceRegistry,
@@ -258,6 +259,7 @@ export async function createNextSidecar(
         apiBase: SPOTPATCH_API_BASE,
         ai: createRuntimeAiConfig(input.options.ai),
         budget: input.options.budget,
+        dataFlow: createRuntimeDataFlowConfig(input.options.dataFlow),
         bundler: input.bundler,
         debug: input.options.debug,
         editor: input.options.editor,

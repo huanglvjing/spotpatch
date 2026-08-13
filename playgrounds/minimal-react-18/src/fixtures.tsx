@@ -4,7 +4,9 @@ import {
   memo,
   type ComponentPropsWithoutRef,
   type JSX,
+  useState,
 } from "react";
+import { Button } from "antd";
 
 import styles from "./fixture.module.css";
 
@@ -77,6 +79,34 @@ export function CssModuleFixture(): JSX.Element {
     <article className={styles.moduleCard} data-testid="css-module-card">
       <h3>CSS Module fixture</h3>
       <p>The generated class must retain its matching stylesheet rule.</p>
+    </article>
+  );
+}
+
+export function DataFlowFixture(): JSX.Element {
+  const [rows, setRows] = useState<readonly { id: number }[]>([]);
+
+  async function loadRows(): Promise<void> {
+    const response = await fetch("/api/e2e/users?token=never-display-token&page=1");
+    const result = (await response.json()) as {
+      data: { list: readonly { id: number }[] };
+    };
+    setRows(result.data.list);
+  }
+
+  return (
+    <article className="fixture-card">
+      <h3>Component data flow</h3>
+      <Button
+        data-testid="data-flow-button"
+        type="primary"
+        onClick={() => {
+          void loadRows();
+        }}
+      >
+        Load component rows
+      </Button>
+      <span data-testid="data-flow-count">{rows.length}</span>
     </article>
   );
 }

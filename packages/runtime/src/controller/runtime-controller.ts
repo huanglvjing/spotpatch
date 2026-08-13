@@ -1,9 +1,13 @@
 import { createReact18Adapter, type ReactAdapter } from "@spotpatch/react-adapter";
 import {
+  DATA_FLOW_SCHEMA_VERSION,
   MAX_ANNOTATION_INSTRUCTION_CHARACTERS,
   type CodeContext,
+  type ComponentDataFlowReport,
+  type DataFlowComponentReportRequest,
   type ElementContext,
   type PageContext,
+  type PageDataFlowReport,
   type SourceMarker,
   type SpotAnnotation,
   type SpotTargetContext,
@@ -43,6 +47,7 @@ import {
   type SelectionHighlightView,
   type SelectionTargetView,
 } from "../ui/runtime-view.js";
+import { getDataFlowExtension } from "../ui/data-flow-panel-contract.js";
 import {
   createSelectionSummary,
   type ApiConnectionStatus,
@@ -89,6 +94,8 @@ interface SelectedTarget {
   apiStatus: ApiConnectionStatus;
   code: CodeContext | undefined;
   collectionStatus: CollectionStatus;
+  dataFlowReport: ComponentDataFlowReport | undefined;
+  dataFlowStatus: "idle" | "loading" | "ready" | "error";
   element: Element | undefined;
   elementContext: ElementContext | undefined;
   instruction: string;
@@ -163,11 +170,18 @@ export function createController(
   const browser = resolveBrowserDependencies(dependencies);
   const view =
     dependencies.view ??
-    createRuntimeView(browser.document, config.shortcut, config.ai, config.locale);
+    createRuntimeView(
+      browser.document,
+      config.shortcut,
+      config.ai,
+      config.locale,
+      config.dataFlow.enabled,
+    );
   const api =
     dependencies.api ??
     createRuntimeApi({
       apiBase: config.apiBase,
+      dataFlowReportMaxBytes: config.dataFlow.limits.reportMaxBytes,
       fetch: browser.window.fetch.bind(browser.window),
       sessionToken: config.sessionToken,
     });
@@ -187,6 +201,12 @@ export function createController(
     adapter:
       dependencies.reactAdapter ??
       createReact18Adapter({
+        ...(config.dataFlow.enabled
+          ? {
+              getComponentRegistration: (component: object) =>
+                getDataFlowExtension()?.getComponentRegistration(component),
+            }
+          : {}),
         maxComponentDepth: config.budget.maxComponentDepth,
       }),
     onAdapterError() {
@@ -217,6 +237,8 @@ export function createController(
               : "connected",
         code: target.code,
         collectionStatus: "ready",
+        dataFlowReport: undefined,
+        dataFlowStatus: "idle",
         element: undefined,
         elementContext: target.element,
         instruction: target.instruction,
@@ -231,6 +253,9 @@ export function createController(
   let workflowSelectionActive = false;
   let sessionRevision = 0;
   let editorRequestRevision = 0;
+  let dataFlowRequestRevision = 0;
+  let pageDataFlowReport: PageDataFlowReport | undefined;
+  let pageDataFlowStatus: "idle" | "loading" | "ready" | "error" = "idle";
   let addingTarget = false;
   let previewPrompt = "";
   let previousFocus: HTMLElement | undefined;
@@ -246,6 +271,119 @@ export function createController(
 
   function activeTarget(): SelectedTarget | undefined {
     return targets.find((target) => target.id === activeTargetId) ?? targets.at(-1);
+  }
+
+  function dataFlowRequest(
+    target: SelectedTarget,
+  ): DataFlowComponentReportRequest | undefined {
+    const react = target.resolution.react;
+    if (react.componentSourceId !== undefined && react.sourceVersion !== undefined) {
+      return Object.freeze({
+        schemaVersion: DATA_FLOW_SCHEMA_VERSION,
+        componentSourceId: react.componentSourceId,
+        sourceVersion: react.sourceVersion,
+      });
+    }
+
+    const marker = target.marker;
+    return marker === undefined
+      ? undefined
+      : Object.freeze({
+          schemaVersion: DATA_FLOW_SCHEMA_VERSION,
+          fileId: marker.fileId,
+          line: marker.line,
+          column: marker.column,
+        });
+  }
+
+  function renderDataFlowView(): void {
+    const dataFlowClient = getDataFlowExtension();
+    const observations =
+      dataFlowClient?.observations(browser.window.location.pathname) ?? [];
+    const current = activeTarget();
+    view.renderDataFlow({
+      component: Object.freeze({
+        status: config.dataFlow.enabled
+          ? (current?.dataFlowStatus ?? "idle")
+          : "disabled",
+        ...(current?.dataFlowReport === undefined
+          ? {}
+          : {
+              report:
+                dataFlowClient?.mergeComponentReport(
+                  current.dataFlowReport,
+                  observations,
+                ) ?? current.dataFlowReport,
+            }),
+      }),
+      page: Object.freeze({
+        status: config.dataFlow.enabled ? pageDataFlowStatus : "disabled",
+        ...(pageDataFlowReport === undefined
+          ? {}
+          : {
+              report:
+                dataFlowClient?.mergePageReport(pageDataFlowReport, observations) ??
+                pageDataFlowReport,
+            }),
+      }),
+      observationCount: observations.length,
+    });
+  }
+
+  async function loadDataFlowReports(): Promise<void> {
+    if (!config.dataFlow.enabled) {
+      renderDataFlowView();
+      return;
+    }
+
+    const current = activeTarget();
+    const currentRequest = current === undefined ? undefined : dataFlowRequest(current);
+    const pageTargets = targets.flatMap((target) => {
+      const request = dataFlowRequest(target);
+      return request === undefined ? [] : [request];
+    });
+    const revision = ++dataFlowRequestRevision;
+    const selectionRevision = sessionRevision;
+    if (current !== undefined) current.dataFlowStatus = "loading";
+    pageDataFlowStatus = pageTargets.length === 0 ? "idle" : "loading";
+    renderDataFlowView();
+
+    const [componentResult, pageResult] = await Promise.allSettled([
+      currentRequest === undefined
+        ? Promise.resolve(undefined)
+        : api.componentDataFlowReport(currentRequest),
+      pageTargets.length === 0
+        ? Promise.resolve(undefined)
+        : api.pageDataFlowReport({
+            schemaVersion: DATA_FLOW_SCHEMA_VERSION,
+            targets: pageTargets,
+          }),
+    ]);
+    if (
+      !mounted ||
+      revision !== dataFlowRequestRevision ||
+      selectionRevision !== sessionRevision
+    ) {
+      return;
+    }
+
+    if (current !== undefined && targets.includes(current)) {
+      if (componentResult.status === "fulfilled") {
+        current.dataFlowReport = componentResult.value;
+        current.dataFlowStatus = componentResult.value === undefined ? "idle" : "ready";
+      } else {
+        current.dataFlowReport = undefined;
+        current.dataFlowStatus = "error";
+      }
+    }
+    if (pageResult.status === "fulfilled") {
+      pageDataFlowReport = pageResult.value;
+      pageDataFlowStatus = pageResult.value === undefined ? "idle" : "ready";
+    } else {
+      pageDataFlowReport = undefined;
+      pageDataFlowStatus = "error";
+    }
+    renderDataFlowView();
   }
 
   function snapshotTarget(target: SelectedTarget): SelectionSnapshotTarget | undefined {
@@ -468,6 +606,9 @@ export function createController(
     resizeObserver?.disconnect();
     targets = [];
     activeTargetId = undefined;
+    dataFlowRequestRevision += 1;
+    pageDataFlowReport = undefined;
+    pageDataFlowStatus = "idle";
     selectionOpen = false;
     workflowSelectionActive = false;
     addingTarget = false;
@@ -529,6 +670,7 @@ export function createController(
         workflowSelectionActive = true;
       }
       refreshSelectionView(true);
+      void loadDataFlowReports();
       view.focusTargetInstruction(activeTargetId);
       persistSelection();
       return;
@@ -724,6 +866,7 @@ export function createController(
       transition({ type: "SELECT" });
       view.hideHighlight();
       refreshSelectionView(true);
+      void loadDataFlowReports();
       view.focusTargetInstruction(duplicate.id);
       view.announce(view.messages().announcements.duplicate);
       return;
@@ -763,6 +906,8 @@ export function createController(
       instruction: "",
       apiStatus: marker === undefined ? "not-required" : "loading",
       collectionStatus: "loading",
+      dataFlowReport: undefined,
+      dataFlowStatus: "idle",
     };
     targets.push(target);
     activeTargetId = target.id;
@@ -772,6 +917,7 @@ export function createController(
     view.hideHighlight();
     resizeObserver?.observe(element);
     refreshSelectionView(true);
+    void loadDataFlowReports();
     selectionOpen = true;
     view.focusTargetInstruction(target.id);
     scheduleBrowserContextCollection(target, revision);
@@ -910,12 +1056,16 @@ export function createController(
 
       view.hideSelectionTemporarily();
       view.hideSelectionHighlights();
+      pageDataFlowReport = undefined;
+      pageDataFlowStatus = "idle";
+      renderDataFlowView();
       selectionSession.clear();
       view.announce(view.messages().announcements.allTargetsRemoved);
       return;
     }
 
     refreshSelectionView();
+    void loadDataFlowReports();
     persistSelection();
     view.announce(view.messages().announcements.targetRemoved);
   }
@@ -1147,11 +1297,16 @@ export function createController(
 
     activeTargetId = targetId;
     refreshSelectionView();
+    void loadDataFlowReports();
     view.focusTargetInstruction(targetId);
   }
 
   function handleReselect(): void {
     beginReselect();
+  }
+
+  function handleDataFlowRefresh(): void {
+    void loadDataFlowReports();
   }
 
   function mount(): void {
@@ -1173,6 +1328,7 @@ export function createController(
     view.targetList.addEventListener("input", handleTargetListInput);
     view.targetList.addEventListener("keydown", handleTargetListKeydown);
     view.openEditorButton.addEventListener("click", handleOpenEditorButtonClick);
+    view.dataFlowRefreshButton.addEventListener("click", handleDataFlowRefresh);
     view.previewButton.addEventListener("click", handlePreview);
     view.copyButton.addEventListener("click", handleCopy);
     view.backButton.addEventListener("click", handleBack);
@@ -1249,6 +1405,7 @@ export function createController(
     view.targetList.removeEventListener("input", handleTargetListInput);
     view.targetList.removeEventListener("keydown", handleTargetListKeydown);
     view.openEditorButton.removeEventListener("click", handleOpenEditorButtonClick);
+    view.dataFlowRefreshButton.removeEventListener("click", handleDataFlowRefresh);
     view.previewButton.removeEventListener("click", handlePreview);
     view.copyButton.removeEventListener("click", handleCopy);
     view.backButton.removeEventListener("click", handleBack);

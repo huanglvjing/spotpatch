@@ -2,7 +2,11 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { createRuntimeAiConfig, type SpotPatchSession } from "@spotpatch/dev-server";
+import {
+  createRuntimeAiConfig,
+  createRuntimeDataFlowConfig,
+  type SpotPatchSession,
+} from "@spotpatch/dev-server";
 import packageMetadata from "../../package.json" with { type: "json" };
 import { version as VITE_VERSION, type Plugin } from "vite";
 
@@ -13,12 +17,28 @@ export const SPOTPATCH_CLIENT_MODULE_ID = "virtual:spotpatch/client";
 export const RESOLVED_SPOTPATCH_CLIENT_MODULE_ID = `\0${SPOTPATCH_CLIENT_MODULE_ID}`;
 export const SPOTPATCH_REACT_ADAPTER_MODULE_ID = "virtual:spotpatch/react-adapter";
 export const RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID = `\0${SPOTPATCH_REACT_ADAPTER_MODULE_ID}`;
+export const SPOTPATCH_DATA_FLOW_MODULE_ID = "virtual:spotpatch/data-flow-runtime";
+export const RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID = `\0${SPOTPATCH_DATA_FLOW_MODULE_ID}`;
+export const SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID = "virtual:spotpatch/data-flow-panel";
+export const RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID = `\0${SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID}`;
 
 interface RuntimeInjectionPluginInput {
   readonly clientBundle?: string;
   readonly context: SpotPatchPluginContext;
+  readonly dataFlowPreludeBundle?: string;
+  readonly dataFlowPanelBundle?: string;
   readonly reactAdapterBundle?: string;
   readonly session: SpotPatchSession;
+}
+
+function createDataFlowPreludeModule(
+  input: RuntimeInjectionPluginInput,
+  bundle: string,
+): string {
+  return [
+    `const __SPOTPATCH_DATA_FLOW_CONFIG__ = ${JSON.stringify(input.context.getOptions().dataFlow)};`,
+    bundle,
+  ].join("\n");
 }
 
 function readRuntimeBundle(root: string, fileName: string): string {
@@ -58,6 +78,7 @@ function createClientModule(
   const runtimeConfig = {
     ai: createRuntimeAiConfig(options.ai),
     budget: options.budget,
+    dataFlow: createRuntimeDataFlowConfig(options.dataFlow),
     debug: options.debug,
     editor: options.editor,
     framework: "vite" as const,
@@ -72,6 +93,9 @@ function createClientModule(
   };
 
   return [
+    ...(options.dataFlow.enabled
+      ? [`import ${JSON.stringify(SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID)};`]
+      : []),
     `const __SPOTPATCH_BRAND_MARK_CONTENT__ = ${JSON.stringify(BRAND_MARK_CONTENT)};`,
     `const __SPOTPATCH_RUNTIME_CONFIG__ = ${JSON.stringify(runtimeConfig)};`,
     clientBundle,
@@ -83,6 +107,8 @@ export function createRuntimeInjectionPlugin(
 ): Plugin {
   let root = process.cwd();
   let clientBundle = input.clientBundle;
+  let dataFlowPreludeBundle = input.dataFlowPreludeBundle;
+  let dataFlowPanelBundle = input.dataFlowPanelBundle;
   let viteVersion = VITE_VERSION;
 
   return {
@@ -107,6 +133,14 @@ export function createRuntimeInjectionPlugin(
         return RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID;
       }
 
+      if (id === SPOTPATCH_DATA_FLOW_MODULE_ID) {
+        return RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID;
+      }
+
+      if (id === SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID) {
+        return RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID;
+      }
+
       return null;
     },
 
@@ -123,19 +157,47 @@ export function createRuntimeInjectionPlugin(
         );
       }
 
+      if (id === RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID) {
+        if (!input.context.getOptions().dataFlow.enabled) return null;
+        dataFlowPreludeBundle ??= readRuntimeBundle(
+          root,
+          "runtime-data-flow-prelude.js",
+        );
+        return createDataFlowPreludeModule(input, dataFlowPreludeBundle);
+      }
+
+      if (id === RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID) {
+        if (!input.context.getOptions().dataFlow.enabled) return null;
+        dataFlowPanelBundle ??= readRuntimeBundle(root, "runtime-data-flow-panel.js");
+        return dataFlowPanelBundle;
+      }
+
       return null;
     },
 
     transformIndexHtml() {
+      const client = {
+        tag: "script",
+        attrs: {
+          type: "module",
+          src: `/@id/${SPOTPATCH_CLIENT_MODULE_ID}`,
+        },
+        injectTo: "head" as const,
+      };
+      if (!input.context.getOptions().dataFlow.enabled) {
+        return [client];
+      }
+
       return [
         {
           tag: "script",
           attrs: {
             type: "module",
-            src: `/@id/${SPOTPATCH_CLIENT_MODULE_ID}`,
+            src: `/@id/${SPOTPATCH_DATA_FLOW_MODULE_ID}`,
           },
-          injectTo: "head",
+          injectTo: "head-prepend" as const,
         },
+        client,
       ];
     },
   };

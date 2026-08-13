@@ -28,6 +28,7 @@ SpotPatch is a local-first, development-only feedback workspace for React applic
 ## Why SpotPatch
 
 - **UI-to-source selection** — map a rendered element to an authorized source file, line, and column.
+- **Component data flow (Beta)** — inspect proven component APIs, parameter keys, consumed response fields, data destinations, and current-page unassigned requests without opening DevTools.
 - **Multi-target feedback** — keep independent instructions and context for up to eight targets by default.
 - **Useful without AI** — inspect context, open Cursor or VS Code, preview a structured prompt, and copy it to any coding assistant.
 - **Optional AI Agent** — use an explicitly configured OpenAI-compatible provider, bounded tools, an isolated Git worktree, project checks, Diff review, Apply, and conflict-safe Revert.
@@ -64,11 +65,11 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ trustedFastMode: true }), react()],
+  plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()],
 });
 ```
 
-If the project has no discoverable TypeScript check, initialization safely uses `spotPatch()` and keeps Review mode. For an unsupported dynamic config, make the same edit manually.
+If the project has no discoverable TypeScript check, initialization safely uses `spotPatch({ dataFlow: {} })` and keeps Review mode. For an unsupported dynamic config, make the same edit manually.
 
 ### 2. Use
 
@@ -85,6 +86,20 @@ The default workflow is:
 3. Inspect the source, DOM, CSS, and bounded code context.
 4. Open the exact location in Cursor or VS Code, or copy the generated prompt.
 5. If AI is enabled, choose **Review** or **Trusted fast** on the page, approve the matching session notice, and run the task.
+
+### Component data flow (Beta)
+
+The current `setup/init` writes this development-only option automatically. Enable it explicitly when integrating manually:
+
+```ts
+spotPatch({ dataFlow: {} });
+```
+
+After selecting an element, use **Data flow** for the proven component report and **Page APIs** for the selected page scope plus actually observed but unassigned requests. Reports include HTTP method/path, parameter keys and positions, source-consumed response fields, and proven React state/Zustand/storage/callback destinations. Runtime observation is dispatch-only: SpotPatch does not read or clone response bodies, and query values are never retained.
+
+The current adapter set covers supported direct/component-service `fetch`, Axios, React Query/TanStack Query callback forms, and an experimental tRPC logical-procedure path. A tRPC procedure and its physical batch HTTP request remain separate evidence layers; SpotPatch does not assign a shared batch URL to one component by timing or URL similarity.
+
+This Beta reports a component relationship only when stable component, source, callsite, and invocation evidence agree. Unsupported or ambiguous traffic remains partial, unknown, or unassigned; matching URL/time alone is never treated as proof. It currently targets Vite + React 18 and does not enable data-flow AI, safe JSON response inspection, or Next.js support. See the [implementation status and exact support matrix](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md).
 
 ## Optional AI setup
 
@@ -177,6 +192,7 @@ The public Vite entry exports `spotPatch(options)`. Important defaults are:
 | `locale`     | `"auto"`                                       | Resolve `en-US` or `zh-CN`.                       |
 | `maxTargets` | `8`                                            | Maximum targets in one task by default.           |
 | `ai`         | `false` or detected complete environment       | Optional provider and Agent configuration.        |
+| `dataFlow`   | `false`                                        | Opt-in dispatch-only component data-flow Beta.    |
 
 See [`@spotpatch/vite`](./packages/vite/README.md) and the [public API specification](./docs/技术方案/03-公共API与数据模型.md) for complete types and constraints.
 
@@ -201,6 +217,7 @@ Applications should normally install only a framework adapter.
 | [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | Supported Vite integration                                    | **Yes**                                 |
 | [`@spotpatch/next`](./packages/next/README.md)                     | Installable Next.js 0.x public preview                        | Preview only; not formally supported    |
 | `@spotpatch/compiler`                                              | Framework-neutral JSX/TSX marker compiler                     | Adapter infrastructure                  |
+| `@spotpatch/analyzer`                                              | Node-only component/request semantic analyzer                 | Adapter infrastructure; Node only       |
 | `@spotpatch/dev-server`                                            | Local sessions, source access, editor and Agent orchestration | Adapter infrastructure; Node only       |
 | `@spotpatch/runtime`                                               | Browser picker, collectors, workbench and prompt composer     | Installed through an adapter            |
 | `@spotpatch/react-adapter`                                         | Isolated React/Fiber compatibility boundary                   | Installed through an adapter            |
@@ -235,6 +252,7 @@ The CI workflow also runs its quality matrix on Ubuntu, macOS, and Windows with 
 - [Public API and defaults](./docs/技术方案/03-公共API与数据模型.md)
 - [Security model](./docs/技术方案/09-本地协议与安全.md)
 - [Testing and acceptance](./docs/技术方案/12-测试与验收.md)
+- [Component data-flow Beta status](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)
 - [Next.js adapter status](./docs/技术方案/Next适配/00-索引与架构摘要.md)
 
 ## License

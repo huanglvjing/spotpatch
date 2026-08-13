@@ -16,6 +16,12 @@ describe("protocol endpoints", () => {
       `${SPOTPATCH_API_BASE}/agent/workspace-health`,
     );
     expect(SPOTPATCH_ENDPOINTS.agentJobs).toBe(`${SPOTPATCH_API_BASE}/agent/jobs`);
+    expect(SPOTPATCH_ENDPOINTS.dataFlowComponentReport).toBe(
+      `${SPOTPATCH_API_BASE}/data-flow/component-report`,
+    );
+    expect(SPOTPATCH_ENDPOINTS.dataFlowPageReport).toBe(
+      `${SPOTPATCH_API_BASE}/data-flow/page-report`,
+    );
     expect(getAgentJobEndpoint("job/id", "apply")).toBe(
       `${SPOTPATCH_API_BASE}/agent/jobs/job%2Fid/apply`,
     );

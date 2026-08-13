@@ -2,6 +2,7 @@
 
 import {
   SOURCE_MARKER_ATTRIBUTE,
+  DEFAULT_RUNTIME_DATA_FLOW_LIMITS,
   SPOTPATCH_API_BASE,
   type AgentApplyMode,
   type CodeContext,
@@ -28,6 +29,11 @@ const config = Object.freeze({
   ai: Object.freeze({ enabled: false }),
   budget,
   debug: false,
+  dataFlow: Object.freeze({
+    enabled: false,
+    runtime: "dispatch",
+    limits: DEFAULT_RUNTIME_DATA_FLOW_LIMITS,
+  }),
   editor: "auto",
   framework: "vite",
   frameworkVersion: "7.3.6",
@@ -93,11 +99,13 @@ function createApi(): RuntimeApi {
     applyAgentJob: vi.fn<RuntimeApi["applyAgentJob"]>(),
     cancelAgentJob: vi.fn<RuntimeApi["cancelAgentJob"]>(),
     cancelPending: vi.fn(),
+    componentDataFlowReport: vi.fn<RuntimeApi["componentDataFlowReport"]>(),
     createAgentJob: vi.fn<RuntimeApi["createAgentJob"]>(),
     dispose: vi.fn(),
     openEditor: vi
       .fn<RuntimeApi["openEditor"]>()
       .mockResolvedValue(Object.freeze({ editor: "auto" })),
+    pageDataFlowReport: vi.fn<RuntimeApi["pageDataFlowReport"]>(),
     revertAgentJob: vi.fn<RuntimeApi["revertAgentJob"]>(),
     sourceContext: vi.fn<RuntimeApi["sourceContext"]>().mockResolvedValue(context),
   };

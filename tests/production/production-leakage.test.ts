@@ -17,6 +17,8 @@ const forbiddenPatterns = [
   SOURCE_MARKER_ATTRIBUTE,
   SPOTPATCH_API_BASE,
   "spotpatch.runtime",
+  "spotpatch.data-flow",
+  "withRequestFrame",
   SPOTPATCH_TOKEN_HEADER,
 ] as const;
 

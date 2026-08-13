@@ -15,6 +15,8 @@ export interface ReactContext {
   readonly supported: boolean;
   readonly version?: string;
   readonly componentName?: string;
+  readonly componentSourceId?: string;
+  readonly sourceVersion?: string;
   readonly componentStack: readonly string[];
   readonly source?: SourceRef;
 }

@@ -45,11 +45,11 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ trustedFastMode: true }), react()],
+  plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()],
 });
 ```
 
-When no safe local TypeScript check can be discovered, it generates `spotPatch()` and keeps Review mode. Unsupported dynamic configuration can still be integrated manually using the same plugin order.
+When no safe local TypeScript check can be discovered, it generates `spotPatch({ dataFlow: {} })` and keeps Review mode. Unsupported dynamic configuration can still be integrated manually using the same plugin order.
 
 Start the application normally:
 
@@ -58,6 +58,12 @@ pnpm dev
 ```
 
 Select **Select element** in the bottom-right corner or press `Mod+Shift+S`. SpotPatch can collect multiple targets across same-project pages, preserve them through navigation and workbench close/reopen cycles, keep a separate instruction for each one, open the exact source location in Cursor or VS Code, and generate a structured prompt without requiring AI configuration.
+
+### Component data flow (Beta)
+
+The current `setup/init` writes `spotPatch({ dataFlow: {} })` automatically; use the same option for manual integration. The Vite + React 18 development-only **Data flow** and **Page APIs** tabs show proven method/path, parameter keys, source-consumed response fields, data destinations, actually dispatched requests, and unassigned current-page traffic. Query values and response bodies are not collected. A relationship is reported only when stable component/source/callsite/invocation evidence agrees; ambiguous traffic remains unknown or unassigned. Data-flow AI, safe JSON response inspection, and Next.js are not included in this Beta. See the repository's [exact implementation status](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/%E7%BB%84%E4%BB%B6%E6%95%B0%E6%8D%AE%E9%93%BE%E8%B7%AF/13-Beta%E5%AE%9E%E7%8E%B0%E7%8A%B6%E6%80%81%E4%B8%8E%E4%BD%BF%E7%94%A8%E6%89%8B%E5%86%8C.md).
+
+Supported adapters include direct/component-service `fetch`, Axios, React Query/TanStack Query callbacks, and experimental tRPC logical procedures. tRPC batch HTTP transport remains separate evidence and is never assigned by timing or URL similarity.
 
 ### Compatibility
 
@@ -83,6 +89,7 @@ spotPatch({
   locale: "auto",
   maxTargets: 8,
   ai: false,
+  dataFlow: false,
 });
 ```
 
@@ -100,6 +107,7 @@ spotPatch({
 | `locale`          | `"auto"`                                          | Resolves `en-US` or `zh-CN`.                                            |
 | `maxTargets`      | `8`                                               | Targets allowed in one change request by default.                       |
 | `ai`              | disabled or a detected complete environment       | Optional provider and Agent settings.                                   |
+| `dataFlow`        | `false`                                           | Opt-in dispatch-only component data-flow Beta.                          |
 | `trustedFastMode` | `false`                                           | Exposes Review/Trusted direct and discovers TypeScript for Review.      |
 
 The package exports the option types, AI provider types, Agent limits, and immutable defaults. See the [public API specification](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/03-%E5%85%AC%E5%85%B1API%E4%B8%8E%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B.md) for the complete constraints.
@@ -154,7 +162,7 @@ The page defaults to Review. Choosing Trusted direct uses the exact SpotPatch so
 ### Troubleshooting
 
 - **pnpm 11 installs an older version for `@latest`:** its default 24-hour `minimumReleaseAge` policy selects the newest mature release. Use the recommended `npx ... setup`, specify a trusted exact version, or wait 24 hours.
-- **Initializer rejects the config:** use a configuration object or a callback with one unambiguous object return. For conditional returns or dynamic plugin arrays, configure `spotPatch()` manually before the React plugin.
+- **Initializer rejects the config:** use a configuration object or a callback with one unambiguous object return. For conditional returns or dynamic plugin arrays, configure `spotPatch({ dataFlow: {} })` manually before the React plugin.
 - **No selection button:** confirm `spotPatch()` appears before the React plugin and that the app is running through `vite`/`vite dev`, not `vite preview`.
 - **No exact source location:** confirm the component is authored in an included `.jsx` or `.tsx` file under `src`, or configure `include` explicitly.
 - **AI is unavailable:** provide all three required environment values or set `ai: false`; partial environment configuration fails closed.
@@ -203,11 +211,11 @@ import react from "@vitejs/plugin-react-swc";
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  plugins: [spotPatch({ trustedFastMode: true }), react()],
+  plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()],
 });
 ```
 
-无法发现安全的本地 TypeScript 检查时，初始化器会生成 `spotPatch()` 并保持审阅模式。不受支持的动态配置仍可按相同插件顺序手动接入。
+无法发现安全的本地 TypeScript 检查时，初始化器会生成 `spotPatch({ dataFlow: {} })` 并保持审阅模式。不受支持的动态配置仍可按相同插件顺序手动接入。
 
 照常启动应用：
 
@@ -216,6 +224,12 @@ pnpm dev
 ```
 
 点击右下角的 **选择元素** 或按下 `Mod+Shift+S`。SpotPatch 支持跨同一项目的多个页面采集目标，在页面跳转及工作台关闭/重开后保留目标与独立修改要求，在 Cursor 或 VS Code 中打开精确位置，并且在完全不配置 AI 的情况下生成结构化 Prompt。
+
+### 组件数据链路（Beta）
+
+新版 `setup/init` 会自动写入 `spotPatch({ dataFlow: {} })`，手工接入时使用同一选项。Vite + React 18 开发期的 **数据链路** 与 **页面接口** 页签会显示有证据的 method/path、参数键、源码消费字段、数据去向、实际 dispatch 请求和当前页面未归属流量；不采集 query 值或响应体。只有稳定组件、源码、callsite 与 invocation 证据一致时才建立关联，歧义流量保持 unknown/unassigned。当前不包含 data-flow AI、安全 JSON 响应读取或 Next.js 支持。准确范围见仓库中的 [实现状态文档](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/%E7%BB%84%E4%BB%B6%E6%95%B0%E6%8D%AE%E9%93%BE%E8%B7%AF/13-Beta%E5%AE%9E%E7%8E%B0%E7%8A%B6%E6%80%81%E4%B8%8E%E4%BD%BF%E7%94%A8%E6%89%8B%E5%86%8C.md)。
+
+已支持的适配器包括组件直接/Service `fetch`、Axios、React Query/TanStack Query 回调和实验性的 tRPC 逻辑 procedure。tRPC batch HTTP 传输保持为独立证据，绝不按时间或 URL 相似度强行归属。
 
 ### 兼容范围
 
@@ -241,6 +255,7 @@ spotPatch({
   locale: "auto",
   maxTargets: 8,
   ai: false,
+  dataFlow: false,
 });
 ```
 
@@ -258,6 +273,7 @@ spotPatch({
 | `locale`          | `"auto"`                     | 自动解析 `en-US` 或 `zh-CN`。                          |
 | `maxTargets`      | `8`                          | 一次修改任务默认允许的目标数。                         |
 | `ai`              | 关闭或检测到完整环境配置     | 可选 Provider 和 Agent 配置。                          |
+| `dataFlow`        | `false`                      | 可选 dispatch-only 组件数据链路 Beta。                 |
 | `trustedFastMode` | `false`                      | 开放审阅/可信极速选择；TypeScript 检查供审阅模式使用。 |
 
 本包导出选项类型、AI Provider 类型、Agent 限制和不可变默认值。完整约束见[公共 API 规范](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/03-%E5%85%AC%E5%85%B1API%E4%B8%8E%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B.md)。
@@ -312,7 +328,7 @@ spotPatch({ trustedFastMode: true });
 ### 常见问题
 
 - **pnpm 11 对 `@latest` 安装了旧版本：**默认 24 小时 `minimumReleaseAge` 会选择最新的成熟版本。请使用推荐的 `npx ... setup`、安装已确认的精确版本，或等待 24 小时。
-- **初始化器拒绝配置：**请使用配置对象，或只含一个明确对象返回的回调。存在条件返回或动态插件数组时，手动将 `spotPatch()` 放到 React 插件之前。
+- **初始化器拒绝配置：**请使用配置对象，或只含一个明确对象返回的回调。存在条件返回或动态插件数组时，手动将 `spotPatch({ dataFlow: {} })` 放到 React 插件之前。
 - **没有选择元素按钮：**确认 `spotPatch()` 位于 React 插件之前，并且应用通过 `vite`/`vite dev` 而不是 `vite preview` 启动。
 - **没有精确源码位置：**确认组件来自 include 范围内的 `.jsx` 或 `.tsx` 文件，默认范围是 `src`。
 - **AI 不可用：**提供全部三个必需环境变量，或者显式设置 `ai: false`；不完整配置会安全失败。

@@ -5,6 +5,10 @@ import { MAX_ANNOTATION_TARGETS, SPOTPATCH_LOCALE_PREFERENCES } from "./annotati
 import { SPOTPATCH_EDITOR_PREFERENCES } from "./editor.js";
 import type { ContextBudget } from "./code-context.js";
 import { AGENT_APPLY_MODES, type RuntimeAiConfig } from "./agent.js";
+import {
+  runtimeDataFlowConfigSchema,
+  type RuntimeDataFlowConfig,
+} from "./data-flow.js";
 
 export const SPOTPATCH_NEXT_BUNDLERS = Object.freeze(["turbopack", "webpack"] as const);
 export const SPOTPATCH_NEXT_ROUTER_KINDS = Object.freeze([
@@ -20,6 +24,7 @@ interface RuntimeConfigBase {
   readonly apiBase: typeof SPOTPATCH_API_BASE;
   readonly ai: RuntimeAiConfig;
   readonly budget: Readonly<ContextBudget>;
+  readonly dataFlow: RuntimeDataFlowConfig;
   readonly debug: boolean;
   readonly editor: (typeof SPOTPATCH_EDITOR_PREFERENCES)[number];
   readonly frameworkVersion: string;
@@ -98,6 +103,7 @@ const runtimeConfigBaseShape = {
     maxComponentDepth: positiveInteger,
   }),
   debug: z.boolean(),
+  dataFlow: runtimeDataFlowConfigSchema,
   editor: z.enum(SPOTPATCH_EDITOR_PREFERENCES),
   frameworkVersion: boundedText(64),
   locale: z.enum(SPOTPATCH_LOCALE_PREFERENCES),

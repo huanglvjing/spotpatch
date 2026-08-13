@@ -20,8 +20,11 @@ import {
 } from "../internal/constants.js";
 import { configureNextRuntime } from "./handshake.js";
 
-export type NextSpotPatchOptions = Omit<SpotPatchOptions, "allowLan"> &
-  Readonly<{ allowLan?: false }>;
+export type NextSpotPatchOptions = Omit<SpotPatchOptions, "allowLan" | "dataFlow"> &
+  Readonly<{
+    allowLan?: false;
+    dataFlow?: false;
+  }>;
 
 export interface NextConfigContext<
   Config extends object = Readonly<Record<string, unknown>>,
@@ -478,6 +481,14 @@ async function resolveInputConfig<Config extends object>(
 export function withSpotPatch(
   userOptions: NextSpotPatchOptions = {},
 ): NextConfigEnhancer {
+  const requestedDataFlow = (userOptions as Readonly<Record<string, unknown>>).dataFlow;
+
+  if (requestedDataFlow !== undefined && requestedDataFlow !== false) {
+    throw new RangeError(
+      "SpotPatch Next does not support component dataFlow yet; use dataFlow only with @spotpatch/vite.",
+    );
+  }
+
   return <Config extends object = Readonly<Record<string, unknown>>>(
       input?: NextConfigInput<Config>,
     ): NextConfigFactory<Config> =>

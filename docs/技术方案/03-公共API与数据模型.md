@@ -2,9 +2,9 @@
 doc-id: "03-public-api-models"
 title: "公共 API 与数据模型"
 status: "active"
-version: "1.7.0"
-last-updated: "2026-08-08"
-source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 Job 模型；v1.2 有界多目标模型；v1.3 逐目标修改说明与界面语言；v1.4 约定式与简洁 AI 配置；v1.5 编辑器偏好与仓库标识；v1.6 实际编辑器响应；v1.7 本地工作区健康与纳入同意模型"
+version: "1.8.0"
+last-updated: "2026-08-13"
+source-range: "规格书 §6、§6.1、§7；v1.1–v1.7 既有模型；v1.8 可选组件数据链路 Beta 配置与严格 DTO"
 参考文献/依赖:
   - "04-vite-plugin"
   - "08-code-prompt"
@@ -12,6 +12,8 @@ source-range: "规格书 §6、§6.1、§7；v1.1 AI Provider、Agent 配置与 
   - "10-ui-diagnostics"
   - "16-ai-agent-execution"
   - "17-model-provider-credentials"
+  - "data-flow-07-model-protocol-config"
+  - "data-flow-13-beta-implementation"
 ---
 
 # 公共 API 与数据模型
@@ -58,12 +60,20 @@ export interface SpotPatchOptions {
   /** 未提供时尝试约定式本地环境；false 显式关闭。 */
   ai?: false | SimpleAiOptions | AiOptions;
 
+  /** 默认 false；显式传入对象时启用 Vite + React 18 数据链路 Beta。 */
+  dataFlow?: false | SpotPatchDataFlowOptions;
+
   /**
    * 默认 false。为 true 时启用页面可选的可信极速模式能力；
    * 适配器只在能安全发现项目 TypeScript 检查时补全 trusted-auto 配置，
    * 该检查供页面切回 review 时使用，trusted-auto 自身跳过项目检查。
    */
   trustedFastMode?: boolean;
+}
+
+export interface SpotPatchDataFlowOptions {
+  /** 当前唯一支持值和默认值；只记录请求 dispatch，不读取 Response。 */
+  readonly runtime?: "dispatch";
 }
 
 export interface ContextBudget {
@@ -209,6 +219,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
   locale: "auto",
   maxTargets: 8,
   ai: false,
+  dataFlow: false,
   budget: {
     totalCharacters: 16_000,
     domCharacters: 3_000,
@@ -219,6 +230,8 @@ export const DEFAULT_OPTIONS = Object.freeze({
   },
 } satisfies Required<SpotPatchOptions>);
 ```
+
+`dataFlow` 是 opt-in、development-only 能力。`dataFlow: {}` 解析为 dispatch-only；当前不公开 `safe-json-shape`、原始 value、secret 展示或 data-flow AI 开关。报告 DTO、预算和协议结构由 `@spotpatch/shared` 的严格 Zod Schema 唯一维护，当前完整边界见 (见 doc-id:data-flow-07-model-protocol-config)、(见 doc-id:data-flow-13-beta-implementation)。
 
 普通选项先做无环境解析；Vite `config` 阶段加载本地环境后完成一次最终解析，之后通过只读上下文向内部模块提供 `Readonly<ResolvedSpotPatchOptions>`，不得让各模块重复处理默认值。`maxTargets` 必须是从 1 到 `MAX_ANNOTATION_TARGETS` 的安全整数；Runtime 使用已解析值限制交互，协议使用硬上限限制不可信请求，服务端再次使用已解析值授权，三层都不得只依赖 UI。
 

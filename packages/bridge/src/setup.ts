@@ -194,7 +194,11 @@ async function resolveSetupTarget(plan: BridgeSetupPlan): Promise<string> {
 
   const status = await lstat(directory);
 
-  if (!status.isDirectory() || status.isSymbolicLink() || (status.mode & 0o022) !== 0) {
+  if (
+    !status.isDirectory() ||
+    status.isSymbolicLink() ||
+    (process.platform !== "win32" && (status.mode & 0o022) !== 0)
+  ) {
     throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
   }
 

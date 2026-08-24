@@ -378,7 +378,7 @@ export async function runSpotPatchBridgeCli(
       const plan = createBridgeSetupPlan(client, adapter, cwd, mode);
       const write = rest.includes("--write");
       const result = write ? await applyBridgeSetupPlan(plan) : "dry-run";
-      const displayPath = path.relative(cwd, plan.path);
+      const displayPath = path.relative(cwd, plan.path).split(path.sep).join("/");
       const backup =
         result === "updated" ? `Backup: ${displayPath}.spotpatch.bak\n` : "";
       stdout.write(

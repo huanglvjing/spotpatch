@@ -16,6 +16,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { applyBridgeSetupPlan, createBridgeSetupPlan } from "./setup.js";
 
+async function expectPrivateFile(filePath: string): Promise<void> {
+  if (process.platform === "win32") return;
+  expect((await stat(filePath)).mode & 0o777).toBe(0o600);
+}
+
 describe("external Agent project setup", () => {
   let root: string;
 
@@ -32,7 +37,7 @@ describe("external Agent project setup", () => {
 
     await expect(applyBridgeSetupPlan(plan)).resolves.toBe("created");
     await expect(applyBridgeSetupPlan(plan)).resolves.toBe("unchanged");
-    expect((await stat(plan.path)).mode & 0o777).toBe(0o600);
+    await expectPrivateFile(plan.path);
     expect(JSON.parse(await readFile(plan.path, "utf8"))).toMatchObject({
       mcpServers: {
         spotpatch: {
@@ -116,8 +121,8 @@ describe("external Agent project setup", () => {
 
     await expect(applyBridgeSetupPlan(plan)).resolves.toBe("updated");
     expect(await readFile(`${plan.path}.spotpatch.bak`, "utf8")).toBe(existing);
-    expect((await stat(`${plan.path}.spotpatch.bak`)).mode & 0o777).toBe(0o600);
-    expect((await stat(plan.path)).mode & 0o777).toBe(0o600);
+    await expectPrivateFile(`${plan.path}.spotpatch.bak`);
+    await expectPrivateFile(plan.path);
     expect(JSON.parse(await readFile(plan.path, "utf8"))).toMatchObject({
       mcpServers: {
         existing: { command: "existing-server", env: { API_KEY: "do-not-print" } },

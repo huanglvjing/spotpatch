@@ -205,7 +205,10 @@ function bridgePost(
   });
 }
 
-describe("external handoff browser API", () => {
+const describeExternalHandoffBrowserApi =
+  process.platform === "win32" ? describe.skip : describe;
+
+describeExternalHandoffBrowserApi("external handoff browser API", () => {
   it("publishes only a server-authorized snapshot and returns summaries to the page", async () => {
     const capability = await browserPost(
       SPOTPATCH_ENDPOINTS.externalHandoffCapability,

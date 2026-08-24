@@ -365,7 +365,9 @@ function capturedMethods(records: readonly unknown[]): string[] {
   });
 }
 
-describe("Codex App Server adapter contract", () => {
+const describeCodexAdapter = process.platform === "win32" ? describe.skip : describe;
+
+describeCodexAdapter("Codex App Server adapter contract", () => {
   let temporaryRoot: string;
   let harness: Harness;
   const adapters: CodexAppServerAdapter[] = [];

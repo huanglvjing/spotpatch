@@ -151,7 +151,10 @@ function structured(result: {
   return value as Record<string, unknown>;
 }
 
-describe.sequential("external Agent bridge integration", () => {
+const describeExternalAgentBridge =
+  process.platform === "win32" ? describe.skip : describe;
+
+describeExternalAgentBridge.sequential("external Agent bridge integration", () => {
   let projectRoot: string;
   let runtimeRoot: string;
   let service: ExternalHandoffService | undefined;
@@ -407,7 +410,9 @@ describe.sequential("external Agent bridge integration", () => {
       sessionId: otherSessionId,
     });
     await second.start();
-    const mcpServer = createSpotPatchMcpServer(projectRoot, { sessionId: SESSION_ID });
+    const mcpServer = createSpotPatchMcpServer(projectRoot, {
+      sessionId: SESSION_ID,
+    });
     const mcpClient = new Client({ name: "spotpatch-scoped", version: "1.0.0" });
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await mcpServer.connect(serverTransport);

@@ -3,9 +3,11 @@ import { gzipSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
-// Linux and macOS Node/zlib builds differ slightly for the same bundle. This
-// ceiling includes the measured cross-platform variance while remaining tight.
-const RUNTIME_GZIP_BUDGET_BYTES = 42 * 1024;
+// Linux and macOS Node/zlib builds differ slightly for the same bundle. The
+// base Runtime now includes the opt-in external-panel loader and status wiring,
+// while the panel implementation remains isolated below. Ubuntu Node 22 measured
+// 43,458 bytes, so 44 KiB keeps the observed variance bounded with narrow headroom.
+const RUNTIME_GZIP_BUDGET_BYTES = 44 * 1024;
 const DATA_FLOW_PRELUDE_GZIP_BUDGET_BYTES = 8 * 1024;
 const DATA_FLOW_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;
 const EXTERNAL_HANDOFF_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;

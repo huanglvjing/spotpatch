@@ -7,6 +7,7 @@ import {
   bridgeActiveStateResultSchema,
   bridgeWaitRequestSchema,
   externalHandoffDescriptorSchema,
+  resolveExternalHandoffRuntimeDirectory,
 } from "./external-agent-node.js";
 
 const descriptor = Object.freeze({
@@ -86,4 +87,13 @@ describe("external agent Node protocol", () => {
       }).success,
     ).toBe(false);
   });
+
+  it.runIf(process.platform === "win32")(
+    "fails closed when private Windows discovery has not been implemented",
+    async () => {
+      await expect(resolveExternalHandoffRuntimeDirectory(true)).rejects.toMatchObject({
+        code: "BRIDGE_UNAUTHORIZED",
+      });
+    },
+  );
 });

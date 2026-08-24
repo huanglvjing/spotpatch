@@ -31,7 +31,7 @@ async function executable(
   return target;
 }
 
-describe("Codex executable resolution", () => {
+describe.skipIf(process.platform === "win32")("Codex executable resolution", () => {
   let temporaryRoot: string;
   let projectRoot: string;
 

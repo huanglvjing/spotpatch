@@ -76,7 +76,10 @@ function annotation(
   };
 }
 
-describe("external handoff service", () => {
+const describeExternalHandoffService =
+  process.platform === "win32" ? describe.skip : describe;
+
+describeExternalHandoffService("external handoff service", () => {
   it("coalesces concurrent canonical request replays before authorization", async () => {
     if (service === undefined) throw new Error("Missing service.");
     let releaseAuthorization: (() => void) | undefined;

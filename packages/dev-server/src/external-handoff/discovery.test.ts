@@ -22,7 +22,10 @@ async function privateTemporaryDirectory(prefix: string): Promise<string> {
   return directory;
 }
 
-describe("external handoff descriptor publisher", () => {
+const describeDescriptorPublisher =
+  process.platform === "win32" ? describe.skip : describe;
+
+describeDescriptorPublisher("external handoff descriptor publisher", () => {
   it("atomically publishes only private connection metadata and removes its own file", async () => {
     const runtimeRoot = await privateTemporaryDirectory("spotpatch-xdg-");
     const projectRoot = await privateTemporaryDirectory("spotpatch-project-");

@@ -1,6 +1,6 @@
 {
   "name": "@spotpatch/runtime",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "description": "Browser runtime, collectors, and Shadow DOM UI for SpotPatch.",
   "license": "MIT",
   "repository": {

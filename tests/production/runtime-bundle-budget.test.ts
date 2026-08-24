@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 const RUNTIME_GZIP_BUDGET_BYTES = 42 * 1024;
 const DATA_FLOW_PRELUDE_GZIP_BUDGET_BYTES = 8 * 1024;
 const DATA_FLOW_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;
+const EXTERNAL_HANDOFF_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;
 const serverOnlySignatures = [
   "launch-editor",
   "magic-string",
@@ -32,6 +33,8 @@ describe("runtime browser bundle budget", () => {
       expect(source).not.toContain(signature);
     }
     expect(source).not.toContain("spotpatch-data-flow-card");
+    expect(source).not.toContain("spotpatch-external-handoff");
+    expect(source).not.toContain("Send to Agent");
   });
 
   it("keeps the opt-in data-flow prelude isolated and small", async () => {
@@ -59,6 +62,24 @@ describe("runtime browser bundle budget", () => {
       `runtime-data-flow-panel.js gzip size was ${String(gzipBytes)} bytes`,
     ).toBeLessThan(DATA_FLOW_PANEL_GZIP_BUDGET_BYTES);
     expect(source).toContain("spotpatch-data-flow-card");
+    for (const signature of serverOnlySignatures) {
+      expect(source).not.toContain(signature);
+    }
+  });
+
+  it("loads the opt-in external handoff panel as a separate bounded bundle", async () => {
+    const bundle = await readFile(
+      "packages/vite/dist/runtime-external-handoff-panel.js",
+    );
+    const source = bundle.toString("utf8");
+    const gzipBytes = gzipSync(bundle, { level: 9 }).byteLength;
+
+    expect(
+      gzipBytes,
+      `runtime-external-handoff-panel.js gzip size was ${String(gzipBytes)} bytes`,
+    ).toBeLessThan(EXTERNAL_HANDOFF_PANEL_GZIP_BUDGET_BYTES);
+    expect(source).toContain("spotpatch-external-handoff");
+    expect(source).toContain("Send to Agent");
     for (const signature of serverOnlySignatures) {
       expect(source).not.toContain(signature);
     }

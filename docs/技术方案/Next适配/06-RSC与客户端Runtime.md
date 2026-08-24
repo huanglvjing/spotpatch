@@ -3,8 +3,8 @@ doc-id: "next-06-rsc-runtime"
 title: "Next.js RSC 与客户端 Runtime"
 status: "active"
 version: "0.4.0"
-last-updated: "2026-08-09"
-source-range: "Next.js Server/Client Components 与 instrumentation-client；SpotPatch Runtime 公共预览；React Adapter 现状审计"
+last-updated: "2026-08-23"
+source-range: "Next.js Server/Client Components 与 instrumentation-client；SpotPatch Runtime 公共预览；React Adapter 现状审计；严格 CSP nonce 继承"
 implementation-status: "public-preview"
 参考文献/依赖:
   - "03-public-api-models"
@@ -87,6 +87,7 @@ Next client entry 从 Sidecar bootstrap 取得与 Vite 等价的非敏感配置�
 ## Next 开发 UI 共存
 
 - SpotPatch root 保持 Shadow DOM 和独立 overlay；不得修改 Next DevTools/错误 overlay DOM。
+- Next/Proxy 为页面生成唯一脚本 nonce 时，Runtime 只读取 DOM 中该唯一值并赋给自身 Shadow DOM 样式；不能要求宿主增加 `unsafe-inline`，也不能在 nonce 缺失或冲突时伪造一个值。
 - picker 必须排除 SpotPatch 自身，并对 Next error overlay、dev indicator 和浏览器原生 picker 做专项命中测试。
 - z-index 只保证活动选择交互可见，不永久覆盖严重 Next 编译错误；出现 fatal overlay 时应暂停 picker并给出诊断。
 - Hydration error、RSC error 和 Next Fast Refresh 状态不能被 SpotPatch 捕获后吞掉。

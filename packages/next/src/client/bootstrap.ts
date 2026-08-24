@@ -115,6 +115,16 @@ async function executeBootstrap(): Promise<void> {
   const config = parseEnvelope(await readBoundedJson(response));
 
   try {
+    if (config.externalAgent.enabled) {
+      const extension = await import("@spotpatch/runtime/external-handoff-panel");
+      extension.registerExternalHandoffExtension(
+        Object.freeze({
+          createPanel: extension.createExternalHandoffPanel,
+          createWorkflow: extension.createExternalHandoffWorkflow,
+        }),
+      );
+    }
+
     bootstrapSpotPatch(config);
   } catch {
     throw new BootstrapError("MOUNT_FAILED");

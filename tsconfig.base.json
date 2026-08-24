@@ -23,6 +23,7 @@
     "paths": {
       "@spotpatch/agent": ["packages/agent/src/index.ts"],
       "@spotpatch/analyzer": ["packages/analyzer/src/index.ts"],
+      "@spotpatch/bridge": ["packages/bridge/src/index.ts"],
       "@spotpatch/compiler": ["packages/compiler/src/index.ts"],
       "@spotpatch/dev-server": ["packages/dev-server/src/index.ts"],
       "@spotpatch/next": ["packages/next/src/index.ts"],
@@ -30,11 +31,20 @@
       "@spotpatch/shared/data-flow-runtime": [
         "packages/shared/src/data-flow-runtime.ts"
       ],
+      "@spotpatch/shared/external-agent-node": [
+        "packages/shared/src/external-agent-node.ts"
+      ],
+      "@spotpatch/shared/external-handoff-browser": [
+        "packages/shared/src/external-handoff-browser.ts"
+      ],
       "@spotpatch/react-adapter": ["packages/react-adapter/src/index.ts"],
       "@spotpatch/runtime": ["packages/runtime/src/index.ts"],
       "@spotpatch/runtime/data-flow": ["packages/runtime/src/data-flow-entry.ts"],
       "@spotpatch/runtime/data-flow-panel": [
         "packages/runtime/src/data-flow-panel-entry.ts"
+      ],
+      "@spotpatch/runtime/external-handoff-panel": [
+        "packages/runtime/src/external-handoff-panel-entry.ts"
       ],
       "@spotpatch/vite": ["packages/vite/src/index.ts"]
     }

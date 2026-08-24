@@ -34,6 +34,7 @@ export interface SerializedSpotPatchOptions {
   readonly dataFlow: false | SpotPatchDataFlowOptions;
   readonly editor: SpotPatchEditorPreference;
   readonly enabled: boolean;
+  readonly externalAgent: boolean;
   readonly exclude: readonly SerializedFilterEntry[];
   readonly include: readonly SerializedFilterEntry[];
   readonly locale: SpotPatchLocalePreference;
@@ -50,6 +51,7 @@ const OPTION_KEYS = Object.freeze([
   "dataFlow",
   "editor",
   "enabled",
+  "externalAgent",
   "exclude",
   "include",
   "locale",
@@ -157,6 +159,7 @@ export function serializeResolvedSpotPatchOptions(
       : false,
     editor: options.editor,
     enabled: options.enabled,
+    externalAgent: options.externalAgent.enabled,
     exclude: Object.freeze(options.exclude.map(serializeFilter)),
     include: Object.freeze(options.include.map(serializeFilter)),
     locale: options.locale,
@@ -245,6 +248,7 @@ export function parseSerializedSpotPatchOptions(
 
   if (
     typeof value.enabled !== "boolean" ||
+    typeof value.externalAgent !== "boolean" ||
     typeof value.redact !== "boolean" ||
     typeof value.allowLan !== "boolean" ||
     typeof value.debug !== "boolean" ||
@@ -266,6 +270,7 @@ export function parseSerializedSpotPatchOptions(
       dataFlow: parseDataFlow(value.dataFlow),
       editor: value.editor as SpotPatchEditorPreference,
       enabled: value.enabled,
+      externalAgent: value.externalAgent,
       exclude: parseFilterList(value.exclude),
       include: parseFilterList(value.include),
       locale: value.locale as SpotPatchLocalePreference,

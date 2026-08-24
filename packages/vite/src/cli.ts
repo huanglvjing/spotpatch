@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 
+import { runSpotPatchBridgeCli } from "@spotpatch/bridge";
+
 import {
   applyViteIntegrationPlan,
   checkViteIntegration,
@@ -13,10 +15,12 @@ const VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$/u;
 
 function writeUsage(): void {
   process.stderr.write(
-    "Usage: spotpatch-vite <setup|init|check>\n" +
+    "Usage: spotpatch-vite <setup|init|check|connect|bridge>\n" +
       "  setup  Install this CLI's exact @spotpatch/vite version, then initialize it.\n" +
       "  init   Preview and apply safe Vite integration changes.\n" +
-      "  check  Verify the Vite integration without writing files.\n",
+      "  check  Verify the Vite integration without writing files.\n" +
+      "  connect codex  Start the zero-setup Codex Agent connector.\n" +
+      "  bridge Run the local external-Agent MCP, CLI, or setup commands.\n",
   );
 }
 
@@ -154,6 +158,14 @@ async function main(arguments_: readonly string[]): Promise<number> {
 
   if (command === "check") {
     return runCheck(rest);
+  }
+
+  if (command === "bridge") {
+    return runSpotPatchBridgeCli(rest, { adapter: "vite" });
+  }
+
+  if (command === "connect") {
+    return runSpotPatchBridgeCli(arguments_, { adapter: "vite" });
   }
 
   writeUsage();

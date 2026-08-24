@@ -10,6 +10,10 @@ export const SPOTPATCH_ENDPOINTS = Object.freeze({
   agentCapability: `${SPOTPATCH_API_BASE}/agent/capability`,
   agentWorkspaceHealth: `${SPOTPATCH_API_BASE}/agent/workspace-health`,
   agentJobs: `${SPOTPATCH_API_BASE}/agent/jobs`,
+  externalHandoffCapability: `${SPOTPATCH_API_BASE}/external-handoff/capability`,
+  externalHandoffPublish: `${SPOTPATCH_API_BASE}/external-handoff/publish`,
+  externalHandoffStatus: `${SPOTPATCH_API_BASE}/external-handoff/status`,
+  externalHandoffResolveDelivery: `${SPOTPATCH_API_BASE}/external-handoff/resolve-delivery`,
 });
 
 export type AgentJobAction = "events" | "result" | "cancel" | "apply" | "revert";

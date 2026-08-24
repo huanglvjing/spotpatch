@@ -224,6 +224,7 @@ export async function startRuntimePocSidecar(
     bundler: input.bundler,
     debug: options.debug,
     editor: options.editor,
+    externalAgent: Object.freeze({ enabled: false }),
     framework: "next",
     frameworkVersion: input.nextVersion,
     locale: options.locale,

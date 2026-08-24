@@ -7,6 +7,7 @@ import {
 
 import {
   createAgentJobManager,
+  createExternalHandoffService,
   createRuntimeAiConfig,
   createRuntimeDataFlowConfig,
   createSession,
@@ -14,6 +15,7 @@ import {
   createSourceRegistry,
   createSpotPatchMiddleware,
   type AgentJobManager,
+  type ExternalHandoffService,
   type ResolvedSpotPatchOptions,
   type SourceRegistry,
 } from "@spotpatch/dev-server";
@@ -194,6 +196,7 @@ export async function createNextSidecar(
   let closed = false;
   let registry: SourceRegistry | undefined;
   let agentManager: AgentJobManager | undefined;
+  let externalHandoffService: ExternalHandoffService | undefined;
   let handler: RequestHandler = (_request, response) => {
     writeUnavailable(response, 503);
   };
@@ -263,6 +266,7 @@ export async function createNextSidecar(
         bundler: input.bundler,
         debug: input.options.debug,
         editor: input.options.editor,
+        externalAgent: input.options.externalAgent,
         framework: "next",
         frameworkVersion: input.nextVersion,
         locale: input.options.locale,
@@ -282,8 +286,29 @@ export async function createNextSidecar(
               environment: input.credentials,
               root: input.projectRoot,
             });
+      const handoffService = input.options.externalAgent.enabled
+        ? createExternalHandoffService({
+            framework: "next",
+            root: input.appRoot,
+            sessionId: session.id,
+          })
+        : undefined;
+
+      if (handoffService !== undefined) {
+        try {
+          await handoffService.start();
+        } catch {
+          process.stderr.write(
+            "[spotpatch:next] External Agent handoff is unavailable; core tools remain active.\n",
+          );
+        }
+      }
+      externalHandoffService = handoffService;
       const middleware = createSpotPatchMiddleware({
         ...(manager === undefined ? {} : { agentManager: manager }),
+        ...(handoffService === undefined
+          ? {}
+          : { externalHandoffService: handoffService }),
         bootstrap: {
           expectedOrigin: input.publicOrigin,
           runtimeConfig,
@@ -331,6 +356,8 @@ export async function createNextSidecar(
         writeUnavailable(response, 503);
       };
       registry?.clear();
+      await externalHandoffService?.close();
+      externalHandoffService = undefined;
       await agentManager?.close();
       server.closeIdleConnections();
       const closing = closeServer(server);

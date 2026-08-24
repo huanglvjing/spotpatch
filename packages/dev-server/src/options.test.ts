@@ -55,6 +55,16 @@ describe("resolveOptions", () => {
     ).toThrow(RangeError);
   });
 
+  it("keeps external Agent handoff opt-in and frozen", () => {
+    expect(resolveOptions().externalAgent).toEqual({ enabled: false });
+    const enabled = resolveOptions({ externalAgent: true }).externalAgent;
+    expect(enabled).toEqual({ enabled: true });
+    expect(Object.isFrozen(enabled)).toBe(true);
+    expect(() =>
+      resolveOptions({ externalAgent: "yes" as unknown as boolean }),
+    ).toThrow(RangeError);
+  });
+
   it("merges nested budget values once without mutating defaults", () => {
     const resolved = resolveOptions({ budget: { maxCodeLines: 42 } });
 

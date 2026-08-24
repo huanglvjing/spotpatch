@@ -53,6 +53,28 @@ afterEach(() => {
 });
 
 describe("runtime view", () => {
+  it("propagates a unique page nonce to Shadow DOM styles", () => {
+    const script = document.createElement("script");
+    script.nonce = "spotpatch-test-nonce";
+    document.head.append(script);
+    const view = createRuntimeView(document, "Mod+Shift+S");
+
+    try {
+      const styles = view.host.shadowRoot?.querySelectorAll("style");
+
+      expect(styles).toBeDefined();
+      expect(styles).not.toHaveLength(0);
+      expect(
+        styles === undefined
+          ? false
+          : [...styles].every((style) => style.nonce === script.nonce),
+      ).toBe(true);
+    } finally {
+      view.dispose();
+      script.remove();
+    }
+  });
+
   it("mounts an accessible direct-input Shadow DOM workbench", () => {
     const view = createRuntimeView(document, "Mod+Shift+S");
     const dialog = view.host.shadowRoot?.querySelector("[role='dialog']");

@@ -26,6 +26,7 @@ const runtimeConfig = Object.freeze({
   bundler: "turbopack",
   debug: false,
   editor: "auto",
+  externalAgent: Object.freeze({ enabled: false }),
   framework: "next",
   frameworkVersion: "16.3.0",
   locale: "auto",

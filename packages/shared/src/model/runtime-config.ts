@@ -27,6 +27,7 @@ interface RuntimeConfigBase {
   readonly dataFlow: RuntimeDataFlowConfig;
   readonly debug: boolean;
   readonly editor: (typeof SPOTPATCH_EDITOR_PREFERENCES)[number];
+  readonly externalAgent: Readonly<{ enabled: boolean }>;
   readonly frameworkVersion: string;
   readonly locale: (typeof SPOTPATCH_LOCALE_PREFERENCES)[number];
   readonly maxTargets: number;
@@ -105,6 +106,7 @@ const runtimeConfigBaseShape = {
   debug: z.boolean(),
   dataFlow: runtimeDataFlowConfigSchema,
   editor: z.enum(SPOTPATCH_EDITOR_PREFERENCES),
+  externalAgent: z.strictObject({ enabled: z.boolean() }),
   frameworkVersion: boundedText(64),
   locale: z.enum(SPOTPATCH_LOCALE_PREFERENCES),
   maxTargets: z.number().int().min(1).max(MAX_ANNOTATION_TARGETS),

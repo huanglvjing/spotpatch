@@ -15,11 +15,13 @@ describe("SpotPatch options transport", () => {
         model: "provider-model",
       },
       dataFlow: { runtime: "dispatch" },
+      externalAgent: true,
     });
     const serialized = serializeResolvedSpotPatchOptions(resolved);
     const parsed = parseSerializedSpotPatchOptions(serialized);
 
     expect(parsed).toEqual(resolved);
+    expect(parsed.externalAgent).toEqual({ enabled: true });
     expect(JSON.stringify(serialized)).not.toContain("credential");
   });
 

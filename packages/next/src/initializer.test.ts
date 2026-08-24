@@ -76,6 +76,16 @@ afterEach(async () => {
 });
 
 describe("Next integration initializer", () => {
+  it("creates a formatted instrumentation entry when none exists", async () => {
+    const root = await fixture();
+    const plan = await planNextIntegration(root);
+    const instrumentation = plan.changes.find(
+      (change) => change.relativePath === "src/instrumentation-client.ts",
+    )?.nextContent;
+
+    expect(instrumentation).toBe('import "@spotpatch/next/client";\n');
+  });
+
   it("plans, applies, and idempotently checks a typed src project", async () => {
     const root = await fixture({
       instrumentation: 'console.info("host instrumentation");\n',

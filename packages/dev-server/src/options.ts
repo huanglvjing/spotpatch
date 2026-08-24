@@ -71,6 +71,7 @@ export interface SpotPatchOptions {
   readonly maxTargets?: number;
   readonly ai?: SpotPatchAiOptions;
   readonly dataFlow?: false | SpotPatchDataFlowOptions;
+  readonly externalAgent?: boolean;
 }
 
 export interface ResolvedSpotPatchOptions {
@@ -87,6 +88,7 @@ export interface ResolvedSpotPatchOptions {
   readonly maxTargets: number;
   readonly ai: false | ResolvedAiOptions;
   readonly dataFlow: ResolvedSpotPatchDataFlowOptions;
+  readonly externalAgent: Readonly<{ enabled: boolean }>;
 }
 
 export interface ResolvedSpotPatchDataFlowOptions {
@@ -133,6 +135,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
     runtime: "dispatch",
     limits: DEFAULT_DATA_FLOW_LIMITS,
   }),
+  externalAgent: Object.freeze({ enabled: false }),
 } satisfies ResolvedSpotPatchOptions);
 
 const PROFILE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -568,6 +571,13 @@ export function resolveOptions(
     throw new RangeError("SpotPatch trustedFastMode must be a boolean.");
   }
 
+  if (
+    options.externalAgent !== undefined &&
+    typeof options.externalAgent !== "boolean"
+  ) {
+    throw new RangeError("SpotPatch externalAgent must be a boolean.");
+  }
+
   const budget = Object.freeze({
     ...DEFAULT_OPTIONS.budget,
     ...options.budget,
@@ -611,6 +621,9 @@ export function resolveOptions(
     maxTargets,
     ai: resolveAiOptions(options.ai ?? environmentAi),
     dataFlow: resolveDataFlowOptions(options.dataFlow),
+    externalAgent: Object.freeze({
+      enabled: options.externalAgent ?? DEFAULT_OPTIONS.externalAgent.enabled,
+    }),
   } satisfies ResolvedSpotPatchOptions;
 
   if (

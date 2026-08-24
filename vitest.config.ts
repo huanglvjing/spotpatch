@@ -10,6 +10,7 @@ export default defineConfig({
     alias: {
       "@spotpatch/agent": fromRoot("./packages/agent/src/index.ts"),
       "@spotpatch/analyzer": fromRoot("./packages/analyzer/src/index.ts"),
+      "@spotpatch/bridge": fromRoot("./packages/bridge/src/index.ts"),
       "@spotpatch/compiler": fromRoot("./packages/compiler/src/index.ts"),
       "@spotpatch/dev-server": fromRoot("./packages/dev-server/src/index.ts"),
       "@spotpatch/next": fromRoot("./packages/next/src/index.ts"),
@@ -19,8 +20,17 @@ export default defineConfig({
       "@spotpatch/runtime/data-flow-panel": fromRoot(
         "./packages/runtime/src/data-flow-panel-entry.ts",
       ),
+      "@spotpatch/runtime/external-handoff-panel": fromRoot(
+        "./packages/runtime/src/external-handoff-panel-entry.ts",
+      ),
       "@spotpatch/shared/data-flow-runtime": fromRoot(
         "./packages/shared/src/data-flow-runtime.ts",
+      ),
+      "@spotpatch/shared/external-agent-node": fromRoot(
+        "./packages/shared/src/external-agent-node.ts",
+      ),
+      "@spotpatch/shared/external-handoff-browser": fromRoot(
+        "./packages/shared/src/external-handoff-browser.ts",
       ),
       "@spotpatch/shared": fromRoot("./packages/shared/src/index.ts"),
       "@spotpatch/react-adapter": fromRoot("./packages/react-adapter/src/index.ts"),

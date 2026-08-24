@@ -70,6 +70,36 @@ import "@spotpatch/next/client";
 
 Start development through the package script, not a direct `next dev` command. A successful startup prints one line beginning with `[spotpatch:next] ready`; the page then mounts one `spotpatch-root` Shadow DOM host with the **Select element** / **选择元素** action.
 
+### External Agent handoff (local validation)
+
+Enable the development-only handoff UI explicitly in the same wrapper options:
+
+```ts
+export default withSpotPatch({ externalAgent: true })(nextConfig);
+```
+
+Run setup and active commands from the exact canonical project root that owns the running `spotpatch-next dev` session. Setup is a dry run without `--write`:
+
+```bash
+pnpm exec spotpatch-next bridge setup --client claude --scope project --mode active --write
+MCP_PROTOCOL_NEGOTIATION=legacy claude --dangerously-load-development-channels server:spotpatch
+
+pnpm exec spotpatch-next connect codex --allow-workspace-write
+
+pnpm exec spotpatch-next bridge setup --client cursor --scope project --write
+```
+
+The active command forms support an explicit session when `bridge sessions --json` reports multiple sessions for that exact root:
+
+```text
+spotpatch-next bridge channel claude [--session <opaque-id>]
+spotpatch-next connect codex --allow-workspace-write [--session <opaque-id>]
+```
+
+The Claude legacy environment belongs on the Claude host process. Claude Channels are a Research Preview, work only while the Channel-enabled session is running, and provide no completion acknowledgement; completion depends on Claude calling the SpotPatch result tool. Codex active mode is zero-setup: the Connector injects the project-local SpotPatch MCP entry into its App Server thread and does not create or modify `.codex/config.toml`. Codex can still load other MCP servers already enabled by the user's normal Codex configuration. The Connector accepts exactly `codex-cli 0.149.0`. `bridge setup --client codex ...` remains available only for optional Inbox use; Cursor and all generic MCP hosts remain Inbox-only.
+
+This path is `local-validation`, not part of the Next public-support promise. Automated fake-host and two-handoff tests exist, and a consecutive two-revision Codex flow has been manually validated on the recorded macOS/Next.js/Codex 0.149.0 environment. Real Claude Code consecutive delivery, repeatable real-host automation, and Windows process-tree cleanup remain `not-tested`; Cursor remains Inbox-only. See the [external Agent design and exact status](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/%E5%A4%96%E9%83%A8Agent%E8%BF%9E%E6%8E%A5/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E5%86%B3%E7%AD%96%E6%91%98%E8%A6%81.md).
+
 ### Current evidence and remaining gates
 
 The public preview has passed:
@@ -172,6 +202,36 @@ import "@spotpatch/next/client";
 ```
 
 必须通过 package script 启动，而不是直接运行 `next dev`。成功启动时终端只打印一条以 `[spotpatch:next] ready` 开头的信息；页面随后挂载唯一 `spotpatch-root` Shadow DOM，并显示 **Select element** / **选择元素** 操作。
+
+### 外部 Agent 交接（本地验证）
+
+在同一包装器选项中显式启用仅开发期的交接 UI：
+
+```ts
+export default withSpotPatch({ externalAgent: true })(nextConfig);
+```
+
+必须在当前 `spotpatch-next dev` Session 所属的精确 canonical 项目根执行 setup 和主动命令。setup 不带 `--write` 时只是 dry-run：
+
+```bash
+pnpm exec spotpatch-next bridge setup --client claude --scope project --mode active --write
+MCP_PROTOCOL_NEGOTIATION=legacy claude --dangerously-load-development-channels server:spotpatch
+
+pnpm exec spotpatch-next connect codex --allow-workspace-write
+
+pnpm exec spotpatch-next bridge setup --client cursor --scope project --write
+```
+
+若 `bridge sessions --json` 报告该精确项目根有多个 Session，主动子命令支持显式选择：
+
+```text
+spotpatch-next bridge channel claude [--session <opaque-id>]
+spotpatch-next connect codex --allow-workspace-write [--session <opaque-id>]
+```
+
+Claude legacy 环境变量必须设置在 Claude 宿主进程。Claude Channels 仍是 Research Preview，只在已启用 Channel 的会话运行时工作，且没有 completion ACK；完成状态依赖 Claude 调用 SpotPatch 结果 tool。Codex 主动模式为零配置：Connector 只把当前项目的 SpotPatch MCP 配置注入它拥有的 App Server thread，不创建也不修改 `.codex/config.toml`；Codex 仍可能按用户既有配置启动其他已启用 MCP server。Connector 当前只接受 `codex-cli 0.149.0`。`bridge setup --client codex ...` 仅保留为可选 Inbox 配置；Cursor 和所有普通 MCP 宿主仍为 Inbox-only。
+
+该链路当前只是 `local-validation`，不属于 Next 正式支持承诺。仓库有假宿主和连续两 Handoff 自动化测试，并已在记录的 macOS/Next.js/Codex 0.149.0 环境人工验证连续两个 revision。真实 Claude Code 连续投递、可重复真实宿主自动化和 Windows 进程树清理仍为 `not-tested`；Cursor 保持 Inbox-only。准确边界见[外部 Agent 方案与实现状态](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/%E5%A4%96%E9%83%A8Agent%E8%BF%9E%E6%8E%A5/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E5%86%B3%E7%AD%96%E6%91%98%E8%A6%81.md)。
 
 ### 当前证据与剩余门禁
 

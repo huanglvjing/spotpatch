@@ -90,6 +90,7 @@ spotPatch({
   maxTargets: 8,
   ai: false,
   dataFlow: false,
+  externalAgent: false,
 });
 ```
 
@@ -108,9 +109,40 @@ spotPatch({
 | `maxTargets`      | `8`                                               | Targets allowed in one change request by default.                       |
 | `ai`              | disabled or a detected complete environment       | Optional provider and Agent settings.                                   |
 | `dataFlow`        | `false`                                           | Opt-in dispatch-only component data-flow Beta.                          |
+| `externalAgent`   | `false`                                           | Opt-in development-only external Agent handoff; local-validation only.  |
 | `trustedFastMode` | `false`                                           | Exposes Review/Trusted direct and discovers TypeScript for Review.      |
 
 The package exports the option types, AI provider types, Agent limits, and immutable defaults. See the [public API specification](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/03-%E5%85%AC%E5%85%B1API%E4%B8%8E%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B.md) for the complete constraints.
+
+### External Agent handoff (local validation)
+
+Enable the development-only UI explicitly:
+
+```ts
+spotPatch({ externalAgent: true });
+```
+
+Run setup and active commands from the exact canonical project root that owns the running Vite development session. Setup is a dry run without `--write`:
+
+```bash
+pnpm exec spotpatch-vite bridge setup --client claude --scope project --mode active --write
+MCP_PROTOCOL_NEGOTIATION=legacy claude --dangerously-load-development-channels server:spotpatch
+
+pnpm exec spotpatch-vite connect codex --allow-workspace-write
+
+pnpm exec spotpatch-vite bridge setup --client cursor --scope project --write
+```
+
+The active command forms support an explicit session when `bridge sessions --json` reports multiple sessions for that exact root:
+
+```text
+spotpatch-vite bridge channel claude [--session <opaque-id>]
+spotpatch-vite connect codex --allow-workspace-write [--session <opaque-id>]
+```
+
+The Claude legacy environment belongs on the Claude host process. Claude Channels are a Research Preview, work only while the Channel-enabled session is running, and provide no completion acknowledgement; completion depends on Claude calling the SpotPatch result tool. Codex active mode is zero-setup: the Connector injects the project-local SpotPatch MCP entry into its App Server thread and does not create or modify `.codex/config.toml`. Codex can still load other MCP servers already enabled by the user's normal Codex configuration. The Connector accepts exactly `codex-cli 0.149.0`. `bridge setup --client codex ...` remains available only for optional Inbox use; Cursor and all generic MCP hosts remain Inbox-only.
+
+This path is `local-validation`, not stable support. Automated fake-host and two-handoff tests exist, and a consecutive two-revision Codex flow has been manually validated on the recorded macOS/Next.js/Codex 0.149.0 environment. Real Claude Code consecutive delivery, repeatable real-host automation, and Windows process-tree cleanup remain `not-tested`; Cursor remains Inbox-only. See the [external Agent design and exact status](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/%E5%A4%96%E9%83%A8Agent%E8%BF%9E%E6%8E%A5/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E5%86%B3%E7%AD%96%E6%91%98%E8%A6%81.md).
 
 ### Optional AI Agent
 
@@ -256,27 +288,59 @@ spotPatch({
   maxTargets: 8,
   ai: false,
   dataFlow: false,
+  externalAgent: false,
 });
 ```
 
-| 选项              | 默认值                       | 说明                                                   |
-| ----------------- | ---------------------------- | ------------------------------------------------------ |
-| `enabled`         | `true`                       | 启用开发期插件。                                       |
-| `include`         | `src` 下 JSX/TSX             | 允许注入源码标记的文件。                               |
-| `exclude`         | 依赖、测试、Story 与生成目录 | 不进行转换的文件。                                     |
-| `editor`          | `"auto"`                     | 自动识别 Cursor 或 VS Code，也可显式固定。             |
-| `redact`          | `true`                       | 清洗采集上下文；强制保护的秘密类型不会因关闭而暴露。   |
-| `budget`          | 有界默认值                   | 限制总量、DOM、CSS 和源码上下文大小。                  |
-| `shortcut`        | `"Mod+Shift+S"`              | 切换元素选择器。                                       |
-| `allowLan`        | `false`                      | 默认只允许 loopback Host 与 Origin。                   |
-| `debug`           | `false`                      | 输出不包含凭据的开发诊断。                             |
-| `locale`          | `"auto"`                     | 自动解析 `en-US` 或 `zh-CN`。                          |
-| `maxTargets`      | `8`                          | 一次修改任务默认允许的目标数。                         |
-| `ai`              | 关闭或检测到完整环境配置     | 可选 Provider 和 Agent 配置。                          |
-| `dataFlow`        | `false`                      | 可选 dispatch-only 组件数据链路 Beta。                 |
-| `trustedFastMode` | `false`                      | 开放审阅/可信极速选择；TypeScript 检查供审阅模式使用。 |
+| 选项              | 默认值                       | 说明                                                       |
+| ----------------- | ---------------------------- | ---------------------------------------------------------- |
+| `enabled`         | `true`                       | 启用开发期插件。                                           |
+| `include`         | `src` 下 JSX/TSX             | 允许注入源码标记的文件。                                   |
+| `exclude`         | 依赖、测试、Story 与生成目录 | 不进行转换的文件。                                         |
+| `editor`          | `"auto"`                     | 自动识别 Cursor 或 VS Code，也可显式固定。                 |
+| `redact`          | `true`                       | 清洗采集上下文；强制保护的秘密类型不会因关闭而暴露。       |
+| `budget`          | 有界默认值                   | 限制总量、DOM、CSS 和源码上下文大小。                      |
+| `shortcut`        | `"Mod+Shift+S"`              | 切换元素选择器。                                           |
+| `allowLan`        | `false`                      | 默认只允许 loopback Host 与 Origin。                       |
+| `debug`           | `false`                      | 输出不包含凭据的开发诊断。                                 |
+| `locale`          | `"auto"`                     | 自动解析 `en-US` 或 `zh-CN`。                              |
+| `maxTargets`      | `8`                          | 一次修改任务默认允许的目标数。                             |
+| `ai`              | 关闭或检测到完整环境配置     | 可选 Provider 和 Agent 配置。                              |
+| `dataFlow`        | `false`                      | 可选 dispatch-only 组件数据链路 Beta。                     |
+| `externalAgent`   | `false`                      | 可选、仅开发期的外部 Agent 交接；当前仅 local-validation。 |
+| `trustedFastMode` | `false`                      | 开放审阅/可信极速选择；TypeScript 检查供审阅模式使用。     |
 
 本包导出选项类型、AI Provider 类型、Agent 限制和不可变默认值。完整约束见[公共 API 规范](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/03-%E5%85%AC%E5%85%B1API%E4%B8%8E%E6%95%B0%E6%8D%AE%E6%A8%A1%E5%9E%8B.md)。
+
+### 外部 Agent 交接（本地验证）
+
+显式启用仅开发期的 UI：
+
+```ts
+spotPatch({ externalAgent: true });
+```
+
+必须在当前 Vite dev Session 所属的精确 canonical 项目根执行 setup 和主动命令。setup 不带 `--write` 时只是 dry-run：
+
+```bash
+pnpm exec spotpatch-vite bridge setup --client claude --scope project --mode active --write
+MCP_PROTOCOL_NEGOTIATION=legacy claude --dangerously-load-development-channels server:spotpatch
+
+pnpm exec spotpatch-vite connect codex --allow-workspace-write
+
+pnpm exec spotpatch-vite bridge setup --client cursor --scope project --write
+```
+
+若 `bridge sessions --json` 报告该精确项目根有多个 Session，主动子命令支持显式选择：
+
+```text
+spotpatch-vite bridge channel claude [--session <opaque-id>]
+spotpatch-vite connect codex --allow-workspace-write [--session <opaque-id>]
+```
+
+Claude legacy 环境变量必须设置在 Claude 宿主进程。Claude Channels 仍是 Research Preview，只在已启用 Channel 的会话运行时工作，且没有 completion ACK；完成状态依赖 Claude 调用 SpotPatch 结果 tool。Codex 主动模式为零配置：Connector 只把当前项目的 SpotPatch MCP 配置注入它拥有的 App Server thread，不创建也不修改 `.codex/config.toml`；Codex 仍可能按用户既有配置启动其他已启用 MCP server。Connector 当前只接受 `codex-cli 0.149.0`。`bridge setup --client codex ...` 仅保留为可选 Inbox 配置；Cursor 和所有普通 MCP 宿主仍为 Inbox-only。
+
+该链路当前只是 `local-validation`，不是稳定支持。仓库有假宿主和连续两 Handoff 自动化测试，并已在记录的 macOS/Next.js/Codex 0.149.0 环境人工验证连续两个 revision。真实 Claude Code 连续投递、可重复真实宿主自动化和 Windows 进程树清理仍为 `not-tested`；Cursor 保持 Inbox-only。准确边界见[外部 Agent 方案与实现状态](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/%E5%A4%96%E9%83%A8Agent%E8%BF%9E%E6%8E%A5/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E5%86%B3%E7%AD%96%E6%91%98%E8%A6%81.md)。
 
 ### 可选 AI Agent
 

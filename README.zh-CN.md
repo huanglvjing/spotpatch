@@ -26,7 +26,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/huanglvjing/spotpatch" alt="MIT 许可证" /></a>
 </p>
 
-SpotPatch 把真实 React 页面转换成准确、可复用的开发上下文。你可以在浏览器中选择一个或多个元素，追溯到对应 JSX/TSX 源码，检查组件及其可证明的数据链路，然后在 Cursor 或 VS Code 中打开精确位置、复制结构化 Prompt，或运行一个默认需要审阅的可选 AI 编码流程。
+SpotPatch 把真实 React 页面转换成准确、可复用的开发上下文。你可以在浏览器中选择一个或多个元素，追溯到对应 JSX/TSX 源码，检查组件及其可证明的数据链路，然后在 Cursor 或 VS Code 中打开精确位置、复制结构化 Prompt、运行受控的内建 AI 流程，或把已审阅的修改要求显式交给已连接的外部 Agent。
 
 <p align="center">
   <img src="./docs/assets/readme/zh-CN/spotpatch-source-diff.png" alt="SpotPatch 把选中的 React 页面元素连接到准确的源码修改" width="790" />
@@ -39,7 +39,7 @@ SpotPatch 把真实 React 页面转换成准确、可复用的开发上下文。
 > [!IMPORTANT]
 > `@spotpatch/vite` 是当前正式支持的公共接入包。可安装的 [Next.js 适配器](./packages/next/README.md#简体中文)是 **0.x 公共预览版**，尚未进入公共支持矩阵。
 
-**从这里开始：** [Vite 快速开始](#快速开始vite) · [界面流程](#从页面到源码的四步流程) · [数据链路 Beta](#组件数据链路beta) · [可选 AI](#可选-ai-agent)
+**从这里开始：** [Vite 快速开始](#快速开始vite) · [界面流程](#从页面到源码的四步流程) · [外部 Agent](#外部-agent-交接本地验证) · [数据链路 Beta](#组件数据链路beta) · [可选 AI](#可选-ai-agent)
 
 ## 为什么使用 SpotPatch
 
@@ -47,6 +47,7 @@ SpotPatch 把真实 React 页面转换成准确、可复用的开发上下文。
 - **证据优先的组件数据链路**：无需打开 DevTools，即可查看有证据的组件接口、参数键、响应消费字段、数据去向和页面未归属请求。
 - **多目标独立描述**：一次任务默认最多选择八个目标，每个目标保留自己的修改要求与上下文。
 - **不配置 AI 也能完整使用**：查看上下文、打开 Cursor 或 VS Code、预览结构化 Prompt，并复制给任意编程助手。
+- **显式外部 Agent 交接**：把已审阅目标发布到通用 MCP 收件箱；当 Claude Code 或 Codex 主动适配器已连接时，按宿主正式能力立即派发。
 - **需要时再启用受控 AI**：显式配置 OpenAI-compatible Provider 后，使用受限工具、隔离 Git worktree、项目检查、Diff 审阅、Apply 和冲突安全的 Revert。
 - **本地优先且仅限开发期**：工作台支持中英文切换，生产构建不包含 SpotPatch Runtime、源码标记或本地协议端点。
 
@@ -137,6 +138,40 @@ pnpm dev
 </table>
 
 > 截图使用 SpotPatch 的 `zh-CN` 界面；宿主应用可以保持自己的语言。切换 SpotPatch 界面语言不会丢失当前草稿或审阅状态。
+
+## 外部 Agent 交接（本地验证）
+
+必须显式开启仅开发期的交接入口：
+
+```ts
+// Vite
+spotPatch({ externalAgent: true });
+
+// Next.js
+export default withSpotPatch({ externalAgent: true })(nextConfig);
+```
+
+先启动普通 SpotPatch 开发服务，再从该开发会话所属的精确项目根启动主动连接器。Codex 连接器会自行管理无界面的 App Server 子进程并复用用户已有的 Codex 认证，不需要另外打开 Codex 窗口：
+
+```bash
+# Next.js；Vite 项目将 spotpatch-next 替换为 spotpatch-vite
+pnpm exec spotpatch-next connect codex --allow-workspace-write
+```
+
+连接器必须保持运行。每次用户显式点击**发送给 Agent**，SpotPatch 都会生成有界、带源码位置的任务投影，启动一个 Codex turn，按协议证据显示 working/terminal，并在终态后恢复 idle。SpotPatch 不转发审批、不开放沙箱命令网络，也不会把 turn completed 冒充成“修改已正确完成”。
+
+Claude Code 使用实验性的 Channel 能力，必须已有一个启用了该 Channel 的运行中会话。Cursor 和通用 MCP 客户端使用项目 Inbox，因为它们没有相同的已验证主动投递协议：
+
+```bash
+pnpm exec spotpatch-next bridge setup --client claude --scope project --mode active --write
+MCP_PROTOCOL_NEGOTIATION=legacy claude --dangerously-load-development-channels server:spotpatch
+
+pnpm exec spotpatch-next bridge setup --client cursor --scope project --write
+```
+
+不需要执行 `nvm`；当前 Node.js 进程满足 `>=20.19.0` 即可。命令必须绑定项目根，避免发现过程静默连接到其他仓库。同一项目根存在多个 SpotPatch 会话时，先执行 `bridge sessions --json`，再用 `--session <id>` 选择其返回的不透明 ID。
+
+该能力仍是 **local-validation**，不是稳定宿主支持。确定性的连续两 Handoff 自动化已经通过，并已在记录的 macOS/Next.js/Codex 环境中人工验证连续两个 revision。真实 Claude 双次点击、Cursor 主动派发、Windows 进程树清理和完整跨平台矩阵仍未验证或不支持。准确边界见[外部 Agent 状态与证据](./docs/技术方案/外部Agent连接/00-索引与决策摘要.md)。
 
 ## 组件数据链路（Beta）
 
@@ -290,6 +325,7 @@ Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 | `maxTargets`      | `8`                          | 一次任务默认最多选择的目标数。                            |
 | `ai`              | `false` 或检测到完整环境配置 | 可选 Provider 和 Agent 配置。                             |
 | `dataFlow`        | `false`                      | 可选 dispatch-only 数据链路 Beta。                        |
+| `externalAgent`   | `false`                      | 可选外部 Agent Inbox 与主动连接 UI；当前为本地验证。      |
 | `trustedFastMode` | `false`                      | 开放审阅/可信极速；发现的 TypeScript 检查只保护审阅模式。 |
 
 完整类型和约束见 [`@spotpatch/vite`](./packages/vite/README.md)与[公共 API 规范](./docs/技术方案/03-公共API与数据模型.md)。
@@ -317,6 +353,7 @@ Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 | `@spotpatch/compiler`                                              | 框架无关 JSX/TSX 标记编译器                | 适配器基础设施          |
 | `@spotpatch/analyzer`                                              | Node-only 组件/请求语义分析器              | 适配器基础设施，仅 Node |
 | `@spotpatch/dev-server`                                            | 本地会话、源码访问、编辑器与 Agent 编排    | 适配器基础设施，仅 Node |
+| `@spotpatch/bridge`                                                | 外部 Agent Inbox、CLI、事件泵和宿主适配器  | 适配器基础设施，仅 Node |
 | `@spotpatch/runtime`                                               | 浏览器选择器、采集器、工作台和 Prompt 生成 | 由适配器安装            |
 | `@spotpatch/react-adapter`                                         | 隔离的 React/Fiber 兼容边界                | 由适配器安装            |
 | `@spotpatch/agent`                                                 | Provider、受限工具、worktree 和检查引擎    | 由适配器安装，仅 Node   |
@@ -350,6 +387,7 @@ CI 质量矩阵还会在 Ubuntu、macOS、Windows 和声明的 Node 版本上运
 - [公共 API 与默认值](./docs/技术方案/03-公共API与数据模型.md)
 - [安全模型](./docs/技术方案/09-本地协议与安全.md)
 - [组件数据链路 Beta 状态](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)
+- [外部 Agent 交接状态](./docs/技术方案/外部Agent连接/00-索引与决策摘要.md)
 - [测试与验收](./docs/技术方案/12-测试与验收.md)
 - [Next.js 适配状态](./docs/技术方案/Next适配/00-索引与架构摘要.md)
 

@@ -221,6 +221,7 @@ describe("withSpotPatch", () => {
     const config = await createFactory({})(PHASE_PRODUCTION_BUILD, context);
     const turbopackAlias = config.turbopack?.resolveAlias?.[NEXT_CLIENT_MODULE_ID];
 
+    expect(config.turbopack?.root).toBe(packageRoot);
     expect(typeof turbopackAlias).toBe("string");
     expect(turbopackAlias).toContain("noop");
 

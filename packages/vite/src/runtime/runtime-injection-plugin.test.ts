@@ -13,11 +13,13 @@ import {
   createRuntimeInjectionPlugin,
   RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID,
   RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID,
+  RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID,
   RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID,
   RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
   SPOTPATCH_CLIENT_MODULE_ID,
   SPOTPATCH_DATA_FLOW_MODULE_ID,
   SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID,
+  SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID,
 } from "./runtime-injection-plugin.js";
 import { BRAND_MARK_CONTENT } from "./brand-mark-content.js";
 
@@ -33,6 +35,8 @@ const clientBundle = [
 const reactAdapterBundle = "export function createReact18Adapter() {}";
 const dataFlowPreludeBundle = "export const dataFlowRuntime = {};";
 const dataFlowPanelBundle = "globalThis.__spotpatchPanelInstalled = true;";
+const externalHandoffPanelBundle =
+  "globalThis.__spotpatchExternalHandoffInstalled = true;";
 
 function createContext(options: ResolvedSpotPatchOptions): SpotPatchPluginContext {
   return Object.freeze({
@@ -94,6 +98,8 @@ describe("runtime injection plugin", () => {
     expect(code).toContain('"locale":"auto"');
     expect(code).toContain('"editor":"auto"');
     expect(code).toContain('"maxTargets":8');
+    expect(code).toContain('"externalAgent":{"enabled":false}');
+    expect(code).not.toContain(SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID);
     expect(code).toContain("SPOTPATCH_API_BASE");
     expect(code).toContain("__SPOTPATCH_BRAND_MARK_CONTENT__");
     expect(code).toContain(JSON.stringify(BRAND_MARK_CONTENT));
@@ -298,5 +304,41 @@ describe("runtime injection plugin", () => {
     expect(client).toContain(
       `import ${JSON.stringify(SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID)}`,
     );
+  });
+
+  it("serves the external handoff UI bundle only when explicitly enabled", () => {
+    const plugin = createRuntimeInjectionPlugin({
+      context: createContext(resolveOptions({ externalAgent: true })),
+      session,
+      clientBundle,
+      reactAdapterBundle,
+      externalHandoffPanelBundle,
+    });
+    const resolveHook = plugin.resolveId;
+    const loadHook = plugin.load;
+
+    if (typeof resolveHook !== "function" || typeof loadHook !== "function") {
+      throw new Error("Expected runtime injection hooks.");
+    }
+
+    expect(
+      resolveHook.call(
+        {} as never,
+        SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID,
+        RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
+        {} as never,
+      ),
+    ).toBe(RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID);
+    expect(
+      loadHook.call({} as never, RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID),
+    ).toBe(externalHandoffPanelBundle);
+    const client = loadHook.call(
+      {} as never,
+      RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
+    ) as string;
+    expect(client).toContain(
+      `import ${JSON.stringify(SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID)}`,
+    );
+    expect(client).toContain('"externalAgent":{"enabled":true}');
   });
 });

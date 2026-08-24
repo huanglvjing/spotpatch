@@ -21,12 +21,16 @@ export const SPOTPATCH_DATA_FLOW_MODULE_ID = "virtual:spotpatch/data-flow-runtim
 export const RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID = `\0${SPOTPATCH_DATA_FLOW_MODULE_ID}`;
 export const SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID = "virtual:spotpatch/data-flow-panel";
 export const RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID = `\0${SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID}`;
+export const SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID =
+  "virtual:spotpatch/external-handoff-panel";
+export const RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID = `\0${SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID}`;
 
 interface RuntimeInjectionPluginInput {
   readonly clientBundle?: string;
   readonly context: SpotPatchPluginContext;
   readonly dataFlowPreludeBundle?: string;
   readonly dataFlowPanelBundle?: string;
+  readonly externalHandoffPanelBundle?: string;
   readonly reactAdapterBundle?: string;
   readonly session: SpotPatchSession;
 }
@@ -81,6 +85,7 @@ function createClientModule(
     dataFlow: createRuntimeDataFlowConfig(options.dataFlow),
     debug: options.debug,
     editor: options.editor,
+    externalAgent: options.externalAgent,
     framework: "vite" as const,
     frameworkVersion: viteVersion,
     locale: options.locale,
@@ -96,6 +101,9 @@ function createClientModule(
     ...(options.dataFlow.enabled
       ? [`import ${JSON.stringify(SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID)};`]
       : []),
+    ...(options.externalAgent.enabled
+      ? [`import ${JSON.stringify(SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID)};`]
+      : []),
     `const __SPOTPATCH_BRAND_MARK_CONTENT__ = ${JSON.stringify(BRAND_MARK_CONTENT)};`,
     `const __SPOTPATCH_RUNTIME_CONFIG__ = ${JSON.stringify(runtimeConfig)};`,
     clientBundle,
@@ -109,6 +117,7 @@ export function createRuntimeInjectionPlugin(
   let clientBundle = input.clientBundle;
   let dataFlowPreludeBundle = input.dataFlowPreludeBundle;
   let dataFlowPanelBundle = input.dataFlowPanelBundle;
+  let externalHandoffPanelBundle = input.externalHandoffPanelBundle;
   let viteVersion = VITE_VERSION;
 
   return {
@@ -141,6 +150,10 @@ export function createRuntimeInjectionPlugin(
         return RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID;
       }
 
+      if (id === SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID) {
+        return RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID;
+      }
+
       return null;
     },
 
@@ -170,6 +183,15 @@ export function createRuntimeInjectionPlugin(
         if (!input.context.getOptions().dataFlow.enabled) return null;
         dataFlowPanelBundle ??= readRuntimeBundle(root, "runtime-data-flow-panel.js");
         return dataFlowPanelBundle;
+      }
+
+      if (id === RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID) {
+        if (!input.context.getOptions().externalAgent.enabled) return null;
+        externalHandoffPanelBundle ??= readRuntimeBundle(
+          root,
+          "runtime-external-handoff-panel.js",
+        );
+        return externalHandoffPanelBundle;
       }
 
       return null;

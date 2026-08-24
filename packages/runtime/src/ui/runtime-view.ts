@@ -31,6 +31,10 @@ import {
 import { calculateDialogPlacement } from "./dialog-placement.js";
 import { createButton, createMarkedElement } from "./dom.js";
 import {
+  getExternalHandoffExtension,
+  type ExternalHandoffPanel,
+} from "./external-handoff-contract.js";
+import {
   createUiLocalizer,
   type UiLocalizer,
   type UiMessages,
@@ -71,6 +75,7 @@ export interface RuntimeView {
   readonly closeButton: HTMLButtonElement;
   readonly copyButton: HTMLButtonElement;
   readonly dataFlowRefreshButton: HTMLButtonElement;
+  readonly externalHandoffPanel?: ExternalHandoffPanel;
   readonly host: HTMLElement;
   readonly openEditorButton: HTMLButtonElement;
   readonly repositoryLink: HTMLAnchorElement;
@@ -146,6 +151,20 @@ const DIALOG_FALLBACK_HEIGHT = Object.freeze({
   previewing: 560,
   selected: DIALOG_MAX_HEIGHT,
 }) satisfies Readonly<Record<"previewing" | "selected", number>>;
+
+function resolveStyleNonce(document: Document): string | undefined {
+  const nonces = new Set(
+    [...document.querySelectorAll<HTMLScriptElement>("script[nonce]")]
+      .map((script) => script.nonce?.trim() ?? "")
+      .filter(Boolean),
+  );
+
+  if (nonces.size !== 1) {
+    return undefined;
+  }
+
+  return nonces.values().next().value;
+}
 
 function createStyles(document: Document): HTMLStyleElement {
   const style = document.createElement("style");
@@ -884,6 +903,9 @@ export function createRuntimeView(
   ai: RuntimeAiConfig = Object.freeze({ enabled: false }),
   localePreference: SpotPatchLocalePreference = "auto",
   dataFlowEnabled = false,
+  externalAgentEnabled = false,
+  framework: "vite" | "next" = "vite",
+  sessionId = "",
 ): RuntimeView {
   const localizer: UiLocalizer = createUiLocalizer(document, localePreference);
   let messages = localizer.messages();
@@ -1005,7 +1027,21 @@ export function createRuntimeView(
   diagnostics.append(diagnosticsLabel, summary);
   const agentPanel = createAgentPanel(document, ai, localizer);
   const changesPanel = createMarkedElement(document, "div");
-  changesPanel.append(targetsPanel, agentPanel.root);
+  const externalHandoffPanel = externalAgentEnabled
+    ? getExternalHandoffExtension()?.createPanel(
+        document,
+        framework,
+        localizer.locale,
+        sessionId,
+        localizer.subscribe,
+        placeDialog,
+      )
+    : undefined;
+  changesPanel.append(
+    targetsPanel,
+    agentPanel.root,
+    ...(externalHandoffPanel === undefined ? [] : [externalHandoffPanel.root]),
+  );
   const dataFlowPanel =
     getDataFlowExtension()?.createPanel(
       document,
@@ -1060,6 +1096,7 @@ export function createRuntimeView(
     agentPanel.testButton,
     addTargetButton,
     agentPanel.runButton,
+    ...(externalHandoffPanel === undefined ? [] : [externalHandoffPanel.sendButton]),
     previewButton,
     agentPanel.cancelButton,
     agentPanel.applyButton,
@@ -1077,9 +1114,21 @@ export function createRuntimeView(
   liveRegion.setAttribute("aria-live", "polite");
   liveRegion.setAttribute("aria-atomic", "true");
 
-  shadowRoot.append(
+  const styles = [
     createStyles(document),
     dataFlowPanel.styles,
+    ...(externalHandoffPanel === undefined ? [] : [externalHandoffPanel.styles]),
+  ];
+  const styleNonce = resolveStyleNonce(document);
+
+  if (styleNonce !== undefined) {
+    for (const style of styles) {
+      style.nonce = styleNonce;
+    }
+  }
+
+  shadowRoot.append(
+    ...styles,
     selectionHighlights,
     highlight,
     dialog,
@@ -1433,6 +1482,7 @@ export function createRuntimeView(
     openEditorButton.disabled = !canOpenEditor;
     previewButton.disabled = !canPreview;
     agentPanel.setContextReady(canPreview);
+    externalHandoffPanel?.setContextReady(canPreview);
     updateContextOverview(summaryText);
     placeDialog();
   }
@@ -1450,6 +1500,7 @@ export function createRuntimeView(
     previewButton.hidden = !selected;
     secondaryActions.hidden = !selected;
     agentPanel.setSelectionVisible(selected);
+    externalHandoffPanel?.setSelectionVisible(selected);
     copyButton.hidden = !previewing;
     backButton.hidden = !previewing;
     title.textContent = previewing
@@ -1541,6 +1592,7 @@ export function createRuntimeView(
     agentApplyButton: agentPanel.applyButton,
     agentRevertButton: agentPanel.revertButton,
     agentResetButton: agentPanel.resetButton,
+    ...(externalHandoffPanel === undefined ? {} : { externalHandoffPanel }),
 
     renderStatus(status: RuntimeStatus): void {
       const inspecting = status === "inspecting";
@@ -1607,6 +1659,7 @@ export function createRuntimeView(
       currentCanPreview = enabled;
       previewButton.disabled = !enabled;
       agentPanel.setContextReady(enabled);
+      externalHandoffPanel?.setContextReady(enabled);
     },
 
     hideSelection(): void {
@@ -1632,6 +1685,8 @@ export function createRuntimeView(
       currentCanPreview = false;
       agentPanel.setContextReady(false);
       agentPanel.setSelectionVisible(false);
+      externalHandoffPanel?.setContextReady(false);
+      externalHandoffPanel?.setSelectionVisible(false);
       agentPanel.setEditingEnabled(true);
       agentPanel.resetJob();
       dataFlowPanel.resetView();
@@ -1672,6 +1727,7 @@ export function createRuntimeView(
         });
       openEditorButton.disabled = !currentCanOpenEditor;
       previewButton.disabled = !enabled || !currentCanPreview;
+      externalHandoffPanel?.setContextReady(enabled && currentCanPreview);
       agentPanel.setEditingEnabled(enabled);
       placeDialog();
     },
@@ -1739,6 +1795,7 @@ export function createRuntimeView(
       localeButton.removeEventListener("click", localizer.toggle);
       unsubscribeLocale();
       dataFlowPanel.dispose();
+      externalHandoffPanel?.dispose();
       agentPanel.dispose();
       host.remove();
     },

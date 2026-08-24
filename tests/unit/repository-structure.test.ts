@@ -12,6 +12,7 @@ const NPM_README_ICON_URL =
 
 const workspacePackages = [
   { directory: "packages/shared", name: "@spotpatch/shared" },
+  { directory: "packages/bridge", name: "@spotpatch/bridge" },
   { directory: "packages/compiler", name: "@spotpatch/compiler" },
   { directory: "packages/analyzer", name: "@spotpatch/analyzer" },
   { directory: "packages/agent", name: "@spotpatch/agent" },

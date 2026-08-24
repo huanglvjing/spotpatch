@@ -19,6 +19,11 @@ import type { ResolvedSpotPatchOptions } from "../options.js";
 import type { SourceRegistry } from "../registry/source-registry.js";
 import type { SpotPatchSession } from "../session/session.js";
 import type { AgentJobManager } from "../agent/job-manager.js";
+import {
+  handleExternalHandoffBrowserRequest,
+  matchExternalHandoffBrowserPath,
+} from "../external-handoff/browser-http.js";
+import type { ExternalHandoffService } from "../external-handoff/service.js";
 import { handleAgentRequest, matchAgentRequestPath } from "./agent-http.js";
 import { type EditorLauncher, launchConfiguredEditor } from "./editor.js";
 import {
@@ -51,6 +56,7 @@ export interface CreateMiddlewareOptions {
   readonly agentManager?: AgentJobManager;
   readonly bootstrap?: RuntimeBootstrapOptions;
   readonly editorLauncher?: EditorLauncher;
+  readonly externalHandoffService?: ExternalHandoffService;
   readonly logger?: SpotPatchServerLogger;
   readonly options: ResolvedSpotPatchOptions;
   readonly registry: SourceRegistry;
@@ -79,6 +85,24 @@ const STATUS_BY_ERROR = Object.freeze({
   [ERROR_CODES.AGENT_BUSY]: 409,
   [ERROR_CODES.AGENT_LIMIT_EXCEEDED]: 413,
   [ERROR_CODES.AGENT_CANCELLED]: 409,
+  [ERROR_CODES.EXTERNAL_HANDOFF_DISABLED]: 404,
+  [ERROR_CODES.EXTERNAL_HANDOFF_UNAVAILABLE]: 503,
+  [ERROR_CODES.HANDOFF_VALIDATION_FAILED]: 422,
+  [ERROR_CODES.HANDOFF_SOURCE_STALE]: 409,
+  [ERROR_CODES.HANDOFF_NOT_FOUND]: 404,
+  [ERROR_CODES.HANDOFF_EXPIRED]: 410,
+  [ERROR_CODES.HANDOFF_CURSOR_INVALID]: 409,
+  [ERROR_CODES.HANDOFF_RESPONSE_TOO_LARGE]: 413,
+  [ERROR_CODES.BRIDGE_UNAUTHORIZED]: 401,
+  [ERROR_CODES.BRIDGE_PROTOCOL_MISMATCH]: 409,
+  [ERROR_CODES.BRIDGE_BUSY]: 429,
+  [ERROR_CODES.EXTERNAL_AGENT_BUSY]: 409,
+  [ERROR_CODES.ACTIVE_ADAPTER_CONFLICT]: 409,
+  [ERROR_CODES.ACTIVE_ADAPTER_LEASE_INVALID]: 409,
+  [ERROR_CODES.ACTIVE_DISPATCH_INVALID]: 409,
+  [ERROR_CODES.SESSION_NOT_FOUND]: 404,
+  [ERROR_CODES.SESSION_AMBIGUOUS]: 409,
+  [ERROR_CODES.SESSION_CLOSED]: 410,
   [ERROR_CODES.WORKTREE_DIRTY]: 409,
   [ERROR_CODES.WORKTREE_NOT_REPOSITORY]: 409,
   [ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS]: 409,
@@ -120,6 +144,27 @@ const PUBLIC_MESSAGES = Object.freeze({
   [ERROR_CODES.AGENT_BUSY]: "Another Agent job is already running.",
   [ERROR_CODES.AGENT_LIMIT_EXCEEDED]: "The Agent job exceeded a safety limit.",
   [ERROR_CODES.AGENT_CANCELLED]: "The Agent job was cancelled.",
+  [ERROR_CODES.EXTERNAL_HANDOFF_DISABLED]: "External Agent handoff is not enabled.",
+  [ERROR_CODES.EXTERNAL_HANDOFF_UNAVAILABLE]:
+    "External Agent handoff is temporarily unavailable.",
+  [ERROR_CODES.HANDOFF_VALIDATION_FAILED]: "The handoff content is invalid.",
+  [ERROR_CODES.HANDOFF_SOURCE_STALE]: "The selected source is stale.",
+  [ERROR_CODES.HANDOFF_NOT_FOUND]: "No current handoff is available.",
+  [ERROR_CODES.HANDOFF_EXPIRED]: "The handoff has expired.",
+  [ERROR_CODES.HANDOFF_CURSOR_INVALID]: "The handoff cursor is invalid.",
+  [ERROR_CODES.HANDOFF_RESPONSE_TOO_LARGE]: "The handoff exceeds the size limit.",
+  [ERROR_CODES.BRIDGE_UNAUTHORIZED]: "The local bridge request is unauthorized.",
+  [ERROR_CODES.BRIDGE_PROTOCOL_MISMATCH]: "The local bridge protocol is incompatible.",
+  [ERROR_CODES.BRIDGE_BUSY]: "The local bridge is busy.",
+  [ERROR_CODES.EXTERNAL_AGENT_BUSY]: "The connected external Agent is busy.",
+  [ERROR_CODES.ACTIVE_ADAPTER_CONFLICT]: "Another active Agent adapter is connected.",
+  [ERROR_CODES.ACTIVE_ADAPTER_LEASE_INVALID]:
+    "The active Agent adapter lease is invalid.",
+  [ERROR_CODES.ACTIVE_DISPATCH_INVALID]:
+    "The active Agent dispatch transition is invalid.",
+  [ERROR_CODES.SESSION_NOT_FOUND]: "No active SpotPatch session was found.",
+  [ERROR_CODES.SESSION_AMBIGUOUS]: "More than one SpotPatch session matches.",
+  [ERROR_CODES.SESSION_CLOSED]: "The SpotPatch session has closed.",
   [ERROR_CODES.WORKTREE_DIRTY]: "Local changes require explicit inclusion consent.",
   [ERROR_CODES.WORKTREE_NOT_REPOSITORY]: "The project root is not a Git repository.",
   [ERROR_CODES.WORKTREE_OPERATION_IN_PROGRESS]:
@@ -254,6 +299,7 @@ export function createSpotPatchMiddleware(
   return (request, response, next) => {
     const path = requestPath(request);
     const agentRoute = matchAgentRequestPath(path);
+    const externalHandoffRoute = matchExternalHandoffBrowserPath(path);
 
     if (
       path !== SPOTPATCH_ENDPOINTS.sourceContext &&
@@ -261,6 +307,7 @@ export function createSpotPatchMiddleware(
       path !== SPOTPATCH_ENDPOINTS.dataFlowComponentReport &&
       path !== SPOTPATCH_ENDPOINTS.dataFlowPageReport &&
       agentRoute === undefined &&
+      externalHandoffRoute === undefined &&
       !path.startsWith(`${SPOTPATCH_API_BASE}/`)
     ) {
       next();
@@ -321,6 +368,26 @@ export function createSpotPatchMiddleware(
         }
         const data = await handlePageDataFlowReport(request, dataFlowAnalyzer, options);
         writeJson(response, 200, { ok: true, data });
+        return;
+      }
+
+      if (externalHandoffRoute !== undefined) {
+        await handleExternalHandoffBrowserRequest(
+          request,
+          response,
+          externalHandoffRoute,
+          {
+            options: options.options,
+            registry: options.registry,
+            root: options.root,
+            ...(options.externalHandoffService === undefined
+              ? {}
+              : { service: options.externalHandoffService }),
+          },
+          (target, status, data) => {
+            writeJson(target, status, { ok: true, data });
+          },
+        );
         return;
       }
 

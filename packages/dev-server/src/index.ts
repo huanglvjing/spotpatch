@@ -5,6 +5,11 @@ export {
   type CreateAgentJobManagerOptions,
 } from "./agent/job-manager.js";
 export {
+  createExternalHandoffService,
+  type CreateExternalHandoffServiceOptions,
+  type ExternalHandoffService,
+} from "./external-handoff/service.js";
+export {
   resolveCredentialEnvironment,
   resolveEnvironmentAiConfiguration,
   type EnvironmentAiConfiguration,

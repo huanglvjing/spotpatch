@@ -26,7 +26,7 @@
   <a href="./LICENSE"><img src="https://img.shields.io/github/license/huanglvjing/spotpatch" alt="MIT license" /></a>
 </p>
 
-SpotPatch turns rendered React UI into precise, reusable development context. Select one or more elements in the browser, trace each target to its JSX/TSX source, inspect the component and its proven data flow, then open the exact location in Cursor or VS Code, copy a structured prompt, or run an optional AI coding workflow that defaults to Review.
+SpotPatch turns rendered React UI into precise, reusable development context. Select one or more elements in the browser, trace each target to its JSX/TSX source, inspect the component and its proven data flow, then open the exact location in Cursor or VS Code, copy a structured prompt, run the guarded built-in AI workflow, or explicitly hand the request to a connected external Agent.
 
 <p align="center">
   <img src="./docs/assets/readme/en-US/spotpatch-source-diff.png" alt="SpotPatch connects a selected React UI element to the exact source change" width="790" />
@@ -39,7 +39,7 @@ SpotPatch turns rendered React UI into precise, reusable development context. Se
 > [!IMPORTANT]
 > `@spotpatch/vite` is the supported public integration. The installable [Next.js adapter](./packages/next/README.md) is a **0.x public preview**, not yet part of the public support matrix.
 
-**Start here:** [Vite quick start](#quick-start-vite) · [Visual workflow](#visual-workflow) · [Data flow Beta](#component-data-flow-beta) · [Optional AI](#optional-ai-agent)
+**Start here:** [Vite quick start](#quick-start-vite) · [Visual workflow](#visual-workflow) · [External Agents](#external-agent-handoff-local-validation) · [Data flow Beta](#component-data-flow-beta) · [Optional AI](#optional-ai-agent)
 
 ## Why SpotPatch
 
@@ -47,6 +47,7 @@ SpotPatch turns rendered React UI into precise, reusable development context. Se
 - **Evidence-first component data flow** — inspect proven APIs, parameter keys, consumed response fields, destinations, and current-page unassigned requests without opening DevTools.
 - **Multi-target feedback** — keep independent instructions and context for up to eight targets by default.
 - **Useful without AI** — inspect context, open Cursor or VS Code, preview a structured prompt, and copy it to any coding assistant.
+- **Explicit external-Agent handoff** — publish reviewed targets to a generic MCP Inbox, or actively dispatch them through narrow Claude Code and Codex adapters when those hosts are connected.
 - **A guarded AI path when you want it** — use an explicitly configured OpenAI-compatible provider, bounded tools, an isolated Git worktree, project checks, Diff review, Apply, and conflict-safe Revert.
 - **Local-first and development-only** — switch between Chinese and English, while production builds retain no SpotPatch Runtime, source markers, or local protocol endpoints.
 
@@ -137,6 +138,40 @@ Click **Select element** in the bottom-right corner or press `Mod+Shift+S`. Sele
 </table>
 
 > The screenshots show SpotPatch in `en-US`; the example host application keeps its own locale. Switching the SpotPatch interface language does not discard the current draft or review state.
+
+## External Agent handoff (local validation)
+
+Enable the development-only handoff UI explicitly:
+
+```ts
+// Vite
+spotPatch({ externalAgent: true });
+
+// Next.js
+export default withSpotPatch({ externalAgent: true })(nextConfig);
+```
+
+Start the ordinary SpotPatch development server first, then run an active connector from that exact project root. The Codex connector owns a headless App Server process, reuses the user's existing Codex authentication, and requires no separately opened Codex window:
+
+```bash
+# Next.js; use spotpatch-vite in a Vite project
+pnpm exec spotpatch-next connect codex --allow-workspace-write
+```
+
+Keep the connector running. Each explicit **Send to Agent** action is projected into a bounded source-aware task, starts one Codex turn, reports protocol-backed working/terminal state, and returns to idle after the terminal event. SpotPatch does not relay approvals, enable sandbox-command network access, or treat a completed turn as proof that the requested code change is correct.
+
+Claude Code uses its experimental Channel capability and must already be running with that Channel enabled. Cursor and generic MCP clients use the project Inbox because they do not share the same verified active-delivery protocol:
+
+```bash
+pnpm exec spotpatch-next bridge setup --client claude --scope project --mode active --write
+MCP_PROTOCOL_NEGOTIATION=legacy claude --dangerously-load-development-channels server:spotpatch
+
+pnpm exec spotpatch-next bridge setup --client cursor --scope project --write
+```
+
+No `nvm` step is required; the running Node.js process must satisfy `>=20.19.0`. Commands are project-root scoped so discovery cannot silently attach to another repository. When multiple SpotPatch sessions exist for one root, select the opaque ID reported by `bridge sessions --json` with `--session <id>`.
+
+This integration remains **local validation**, not stable host support. Automated two-handoff tests pass, and a two-revision Codex flow has been manually validated on the recorded macOS/Next.js/Codex environment. Claude's real two-click flow, Cursor active delivery, Windows process-tree cleanup, and the full cross-platform matrix remain unverified or unsupported. See the [external Agent status and evidence](./docs/技术方案/外部Agent连接/00-索引与决策摘要.md).
 
 ## Component data flow (Beta)
 
@@ -290,6 +325,7 @@ The Vite entry exports `spotPatch(options)`. Important defaults are:
 | `maxTargets`      | `8`                                            | Maximum targets in one task by default.                                   |
 | `ai`              | `false` or detected complete environment       | Optional provider and Agent configuration.                                |
 | `dataFlow`        | `false`                                        | Opt-in dispatch-only component data-flow Beta.                            |
+| `externalAgent`   | `false`                                        | Opt-in external Agent Inbox and active-connector UI; local validation.    |
 | `trustedFastMode` | `false`                                        | Expose Review/Trusted direct; discovered TypeScript protects Review only. |
 
 See [`@spotpatch/vite`](./packages/vite/README.md) and the [public API specification](./docs/技术方案/03-公共API与数据模型.md) for complete types and constraints.
@@ -317,6 +353,7 @@ Applications should normally install only a framework adapter.
 | `@spotpatch/compiler`                                              | Framework-neutral JSX/TSX marker compiler                     | Adapter infrastructure                  |
 | `@spotpatch/analyzer`                                              | Node-only component/request semantic analyzer                 | Adapter infrastructure; Node only       |
 | `@spotpatch/dev-server`                                            | Local sessions, source access, editor and Agent orchestration | Adapter infrastructure; Node only       |
+| `@spotpatch/bridge`                                                | External-Agent Inbox, CLI, event pump and host adapters       | Adapter infrastructure; Node only       |
 | `@spotpatch/runtime`                                               | Browser picker, collectors, workbench and prompt composer     | Installed through an adapter            |
 | `@spotpatch/react-adapter`                                         | Isolated React/Fiber compatibility boundary                   | Installed through an adapter            |
 | `@spotpatch/agent`                                                 | Provider, bounded tools, worktree and validation engine       | Installed through an adapter; Node only |
@@ -351,6 +388,7 @@ The CI workflow also runs its quality matrix on Ubuntu, macOS, and Windows with 
 - [Security model](./docs/技术方案/09-本地协议与安全.md)
 - [Testing and acceptance](./docs/技术方案/12-测试与验收.md)
 - [Component data-flow Beta status](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)
+- [External Agent handoff status](./docs/技术方案/外部Agent连接/00-索引与决策摘要.md)
 - [Next.js adapter status](./docs/技术方案/Next适配/00-索引与架构摘要.md)
 
 ## Feedback

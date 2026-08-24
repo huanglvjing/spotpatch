@@ -124,7 +124,7 @@ function insertStaticImport(
   const offset = importInsertionOffset(program);
 
   if (offset === 0) {
-    magicString.prepend(`${statement}\n\n`);
+    magicString.prepend(`${statement}${program.body.length === 0 ? "\n" : "\n\n"}`);
     return;
   }
 

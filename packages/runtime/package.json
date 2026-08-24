@@ -59,6 +59,16 @@
         "types": "./dist/data-flow-panel.d.cts",
         "default": "./dist/data-flow-panel.cjs"
       }
+    },
+    "./external-handoff-panel": {
+      "import": {
+        "types": "./dist/external-handoff-panel.d.ts",
+        "default": "./dist/external-handoff-panel.js"
+      },
+      "require": {
+        "types": "./dist/external-handoff-panel.d.cts",
+        "default": "./dist/external-handoff-panel.cjs"
+      }
     }
   },
   "typesVersions": {
@@ -68,6 +78,9 @@
       ],
       "data-flow-panel": [
         "dist/data-flow-panel.d.ts"
+      ],
+      "external-handoff-panel": [
+        "dist/external-handoff-panel.d.ts"
       ]
     }
   },

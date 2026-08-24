@@ -9,6 +9,7 @@
     "tsup.runtime-client.config.ts",
     "tsup.runtime-react-adapter.config.ts",
     "tsup.runtime-data-flow-prelude.config.ts",
-    "tsup.runtime-data-flow-panel.config.ts"
+    "tsup.runtime-data-flow-panel.config.ts",
+    "tsup.runtime-external-handoff-panel.config.ts"
   ]
 }

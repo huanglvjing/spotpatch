@@ -35,6 +35,7 @@ const config = Object.freeze({
     limits: DEFAULT_RUNTIME_DATA_FLOW_LIMITS,
   }),
   editor: "auto",
+  externalAgent: Object.freeze({ enabled: false }),
   framework: "vite",
   frameworkVersion: "7.3.6",
   locale: "en-US",

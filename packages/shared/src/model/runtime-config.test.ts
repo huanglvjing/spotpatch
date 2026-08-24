@@ -22,6 +22,7 @@ const base = Object.freeze({
     limits: DEFAULT_RUNTIME_DATA_FLOW_LIMITS,
   }),
   editor: "auto",
+  externalAgent: Object.freeze({ enabled: false }),
   frameworkVersion: "16.3.0",
   locale: "auto",
   maxTargets: 8,

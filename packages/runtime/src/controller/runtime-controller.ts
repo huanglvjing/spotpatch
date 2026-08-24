@@ -48,6 +48,7 @@ import {
   type SelectionTargetView,
 } from "../ui/runtime-view.js";
 import { getDataFlowExtension } from "../ui/data-flow-panel-contract.js";
+import { getExternalHandoffExtension } from "../ui/external-handoff-contract.js";
 import {
   createSelectionSummary,
   type ApiConnectionStatus,
@@ -176,6 +177,9 @@ export function createController(
       config.ai,
       config.locale,
       config.dataFlow.enabled,
+      config.externalAgent.enabled,
+      config.framework,
+      config.sessionId,
     );
   const api =
     dependencies.api ??
@@ -602,6 +606,7 @@ export function createController(
     sessionRevision += 1;
     api.cancelPending();
     agentWorkflow.disposeSelection();
+    externalHandoffWorkflow?.cancelPending();
     clearCollectionTimers();
     resizeObserver?.disconnect();
     targets = [];
@@ -737,6 +742,16 @@ export function createController(
     },
     view,
   });
+  const externalHandoffWorkflow =
+    config.externalAgent.enabled && view.externalHandoffPanel !== undefined
+      ? getExternalHandoffExtension()?.createWorkflow(
+          browser.window.fetch.bind(browser.window),
+          view.externalHandoffPanel,
+          selectedAnnotation,
+          config.sessionToken,
+          browser.window,
+        )
+      : undefined;
 
   async function loadSourceContext(
     target: SelectedTarget,
@@ -1315,6 +1330,7 @@ export function createController(
     }
 
     mounted = true;
+    externalHandoffWorkflow?.mount();
     view.renderStatus(state.status);
     browser.document.addEventListener("pointermove", handlePointerMove, true);
     browser.document.addEventListener("click", handleClick, true);
@@ -1386,6 +1402,7 @@ export function createController(
       api.cancelPending();
       api.dispose();
       agentWorkflow.disposeSelection();
+      externalHandoffWorkflow?.dispose();
       sourceResolver.dispose();
       return;
     }
@@ -1452,6 +1469,7 @@ export function createController(
     api.cancelPending();
     api.dispose();
     agentWorkflow.disposeSelection();
+    externalHandoffWorkflow?.dispose();
     sourceResolver.dispose();
     view.dispose();
     state = INITIAL_RUNTIME_STATE;

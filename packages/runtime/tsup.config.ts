@@ -10,6 +10,7 @@ export default defineConfig({
     index: "src/index.ts",
     "data-flow": "src/data-flow-entry.ts",
     "data-flow-panel": "src/data-flow-panel-entry.ts",
+    "external-handoff-panel": "src/external-handoff-panel-entry.ts",
   },
   format: ["esm", "cjs"],
   sourcemap: true,

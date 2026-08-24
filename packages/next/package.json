@@ -93,6 +93,7 @@
     "verify:loader": "node scripts/verify-loader.cjs"
   },
   "dependencies": {
+    "@spotpatch/bridge": "workspace:^",
     "@spotpatch/compiler": "workspace:^",
     "@spotpatch/dev-server": "workspace:^",
     "@spotpatch/runtime": "workspace:^",

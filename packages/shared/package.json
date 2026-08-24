@@ -49,17 +49,43 @@
         "types": "./dist/data-flow-runtime.d.cts",
         "default": "./dist/data-flow-runtime.cjs"
       }
+    },
+    "./external-agent-node": {
+      "import": {
+        "types": "./dist/external-agent-node.d.ts",
+        "default": "./dist/external-agent-node.js"
+      },
+      "require": {
+        "types": "./dist/external-agent-node.d.cts",
+        "default": "./dist/external-agent-node.cjs"
+      }
+    },
+    "./external-handoff-browser": {
+      "import": {
+        "types": "./dist/external-handoff-browser.d.ts",
+        "default": "./dist/external-handoff-browser.js"
+      },
+      "require": {
+        "types": "./dist/external-handoff-browser.d.cts",
+        "default": "./dist/external-handoff-browser.cjs"
+      }
     }
   },
   "typesVersions": {
     "*": {
       "data-flow-runtime": [
         "dist/data-flow-runtime.d.ts"
+      ],
+      "external-agent-node": [
+        "dist/external-agent-node.d.ts"
+      ],
+      "external-handoff-browser": [
+        "dist/external-handoff-browser.d.ts"
       ]
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/data-flow-runtime.ts --format esm,cjs --dts --sourcemap --clean",
+    "build": "tsup src/index.ts src/data-flow-runtime.ts src/external-agent-node.ts src/external-handoff-browser.ts --format esm,cjs --dts --sourcemap --clean",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },

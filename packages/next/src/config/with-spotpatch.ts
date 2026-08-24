@@ -405,9 +405,14 @@ function mergeProductionConfig(
   appRoot: string,
   paths: AdapterModulePaths,
 ): NextConfig {
+  const turbopackRoot = mergeTurbopackRoot(config, [appRoot, paths.noop]);
+
   return {
     ...config,
-    turbopack: mergeTurbopackAlias(config, paths.turbopackNoop),
+    turbopack: {
+      ...mergeTurbopackAlias(config, paths.turbopackNoop),
+      root: turbopackRoot,
+    },
     webpack: createWebpackWrapper({
       appRoot,
       development: false,
@@ -425,7 +430,7 @@ function mergeDevelopmentConfig(
   registryEpoch: string,
   sidecarOrigin: string,
 ): NextConfig {
-  const turbopackRoot = mergeTurbopackRoot(config, [appRoot, paths.turbopackLoader]);
+  const turbopackRoot = mergeTurbopackRoot(config, [appRoot, paths.loader]);
   const existingRules = config.turbopack?.rules ?? {};
   const spotPatchRules: TurbopackRules = {};
 

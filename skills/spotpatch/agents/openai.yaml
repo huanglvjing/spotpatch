@@ -1,0 +1,8 @@
+interface:
+  display_name: "SpotPatch"
+  short_description: "把 React 页面元素连接到精确源码与可审阅修改"
+  default_prompt: "使用 $spotpatch 为这个 React 项目建立安全的页面元素到源码工作流。"
+  brand_color: "#7C3AED"
+
+policy:
+  allow_implicit_invocation: true

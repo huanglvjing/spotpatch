@@ -1,6 +1,8 @@
 import { createRequire } from "node:module";
 import path from "node:path";
 
+import { runSpotPatchBridgeCli } from "@spotpatch/bridge";
+
 import { runNextDevelopment } from "./cli-owner.js";
 import {
   applyNextIntegrationPlan,
@@ -11,10 +13,12 @@ import { inspectNextProject } from "./project.js";
 
 function writeUsage(): void {
   process.stderr.write(
-    "Usage: spotpatch-next <dev|init|check>\n" +
+    "Usage: spotpatch-next <dev|init|check|connect|bridge>\n" +
       "  dev [next dev options]  Start the local Next.js development server.\n" +
       "  init                    Preview and apply safe integration changes.\n" +
-      "  check                   Verify the integration without writing files.\n",
+      "  check                   Verify the integration without writing files.\n" +
+      "  connect codex           Start the zero-setup Codex Agent connector.\n" +
+      "  bridge                  Run external-Agent MCP, CLI, or setup commands.\n",
   );
 }
 
@@ -125,6 +129,14 @@ async function main(arguments_: readonly string[]): Promise<number> {
 
   if (command === "check") {
     return runCheck(rest);
+  }
+
+  if (command === "bridge") {
+    return runSpotPatchBridgeCli(rest, { adapter: "next" });
+  }
+
+  if (command === "connect") {
+    return runSpotPatchBridgeCli(arguments_, { adapter: "next" });
   }
 
   writeUsage();

@@ -1,6 +1,6 @@
 {
   "name": "@spotpatch/bridge",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Local MCP inbox and explicit active Agent connectors for SpotPatch handoffs.",
   "license": "MIT",
   "repository": {

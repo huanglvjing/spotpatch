@@ -1,6 +1,6 @@
 {
   "name": "@spotpatch/analyzer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Node-only static component data-flow analyzer for SpotPatch.",
   "license": "MIT",
   "repository": {

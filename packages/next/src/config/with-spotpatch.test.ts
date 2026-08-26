@@ -1,5 +1,6 @@
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server } from "node:http";
-import { fileURLToPath } from "node:url";
+import os from "node:os";
 import path from "node:path";
 
 import type { NextConfig } from "next";
@@ -20,13 +21,39 @@ import {
   type NextConfigFactory,
 } from "./with-spotpatch.js";
 
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const originalCwd = process.cwd();
 const configurationSecret = "configuration_secret_for_spotpatch_tests_01";
 const launchNonce = "launch_nonce_for_tests_001";
 const registryEpoch = "registry_epoch_for_tests_01";
+let appRoot = "";
 let configurationCount = 0;
 let server: Server;
+
+async function createApplicationFixture(): Promise<string> {
+  const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-next-config-"));
+  const adapterRoot = path.join(root, "node_modules", "@spotpatch", "next");
+  const distributionRoot = path.join(adapterRoot, "dist");
+  await mkdir(distributionRoot, { recursive: true });
+  await Promise.all([
+    writeFile(path.join(root, "package.json"), '{"private":true}\n'),
+    writeFile(
+      path.join(adapterRoot, "package.json"),
+      `${JSON.stringify({
+        name: "@spotpatch/next",
+        exports: {
+          "./client": { require: "./dist/client.cjs" },
+          "./loader": "./loader.cjs",
+        },
+      })}\n`,
+    ),
+    writeFile(path.join(adapterRoot, "loader.cjs"), "module.exports = {};\n"),
+    writeFile(path.join(distributionRoot, "client.cjs"), "module.exports = {};\n"),
+    writeFile(path.join(distributionRoot, "client.js"), "export {};\n"),
+    writeFile(path.join(distributionRoot, "noop.cjs"), "module.exports = {};\n"),
+    writeFile(path.join(distributionRoot, "noop.js"), "export {};\n"),
+  ]);
+  return realpath(root);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -68,7 +95,8 @@ function createFactory(
 }
 
 beforeAll(async () => {
-  process.chdir(packageRoot);
+  appRoot = await createApplicationFixture();
+  process.chdir(appRoot);
   const handler = createConfigurationRequestHandler({
     configurationSecret,
     onConfiguration(value) {
@@ -89,7 +117,7 @@ beforeAll(async () => {
     handler(request, response);
   });
   const origin = await listen(server);
-  vi.stubEnv(NEXT_ENVIRONMENT_KEYS.appRoot, packageRoot);
+  vi.stubEnv(NEXT_ENVIRONMENT_KEYS.appRoot, appRoot);
   vi.stubEnv(NEXT_ENVIRONMENT_KEYS.bundler, "webpack");
   vi.stubEnv(NEXT_ENVIRONMENT_KEYS.configurationSecret, configurationSecret);
   vi.stubEnv(NEXT_ENVIRONMENT_KEYS.internalOrigin, origin);
@@ -103,6 +131,7 @@ afterAll(async () => {
   vi.unstubAllEnvs();
   process.chdir(originalCwd);
   await closeServer(server);
+  await rm(appRoot, { recursive: true, force: true });
 });
 
 describe("withSpotPatch", () => {
@@ -137,7 +166,7 @@ describe("withSpotPatch", () => {
       afterFiles: [hostRewrite],
       fallback: [],
     });
-    expect(objectConfig.turbopack?.root).toBe(packageRoot);
+    expect(objectConfig.turbopack?.root).toBe(appRoot);
     expect(objectConfig.turbopack?.resolveAlias?.[NEXT_CLIENT_MODULE_ID]).toContain(
       "client",
     );
@@ -168,7 +197,7 @@ describe("withSpotPatch", () => {
     expect(webpackConfig.module.rules).toHaveLength(1);
     expect(webpackConfig.module.rules[0]).toMatchObject({
       enforce: "pre",
-      include: packageRoot,
+      include: appRoot,
       use: [{ options: { registryEpoch } }],
     });
 
@@ -224,7 +253,7 @@ describe("withSpotPatch", () => {
     const config = await createFactory({})(PHASE_PRODUCTION_BUILD, context);
     const turbopackAlias = config.turbopack?.resolveAlias?.[NEXT_CLIENT_MODULE_ID];
 
-    expect(config.turbopack?.root).toBe(packageRoot);
+    expect(config.turbopack?.root).toBe(appRoot);
     expect(typeof turbopackAlias).toBe("string");
     expect(turbopackAlias).toContain("noop");
 

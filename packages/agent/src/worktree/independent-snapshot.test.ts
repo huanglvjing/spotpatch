@@ -1,4 +1,4 @@
-import { lstat, readFile, writeFile } from "node:fs/promises";
+import { lstat, open, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { ERROR_CODES } from "@spotpatch/shared";
@@ -58,7 +58,12 @@ describe("independent Git snapshot", () => {
     });
 
     try {
-      await writeFile(path.join(snapshot.root, ".git"), "gitdir: /tmp/untrusted\n");
+      const gitPointer = await open(path.join(snapshot.root, ".git"), "r+");
+      try {
+        await gitPointer.write("!", 0, "utf8");
+      } finally {
+        await gitPointer.close();
+      }
       await expect(
         snapshot.assertIntegrity(new AbortController().signal),
       ).rejects.toMatchObject({

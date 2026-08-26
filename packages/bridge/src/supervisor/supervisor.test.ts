@@ -33,34 +33,6 @@ let runtimeRoot = "";
 let service: ExternalHandoffService | undefined;
 const supervisors: ExternalAgentSupervisor[] = [];
 
-beforeEach(async () => {
-  configBase = await mkdtemp(path.join(os.tmpdir(), "spotpatch-supervisor-config-"));
-  projectRoot = await mkdtemp(path.join(os.tmpdir(), "spotpatch-supervisor-project-"));
-  runtimeRoot = await mkdtemp(path.join(os.tmpdir(), "spotpatch-supervisor-runtime-"));
-  await Promise.all([chmod(configBase, 0o700), chmod(runtimeRoot, 0o700)]);
-  vi.stubEnv("XDG_RUNTIME_DIR", runtimeRoot);
-  service = createExternalHandoffService({
-    framework: "vite",
-    root: projectRoot,
-    sessionId,
-  });
-  await service.start();
-});
-
-afterEach(async () => {
-  await Promise.all(
-    supervisors.splice(0).map(async (supervisor) => supervisor.dispose()),
-  );
-  await service?.close();
-  service = undefined;
-  vi.unstubAllEnvs();
-  await Promise.all([
-    rm(configBase, { recursive: true, force: true }),
-    rm(projectRoot, { recursive: true, force: true }),
-    rm(runtimeRoot, { recursive: true, force: true }),
-  ]);
-});
-
 function fakeConnector(): ConnectManagedAdapter {
   return vi.fn(() => {
     const adapter: AgentAdapter = {
@@ -94,7 +66,42 @@ async function createSupervisor(
   return supervisor;
 }
 
-describe("external Agent Supervisor", () => {
+const describeExternalAgentSupervisor =
+  process.platform === "win32" ? describe.skip : describe;
+
+describeExternalAgentSupervisor("external Agent Supervisor", () => {
+  beforeEach(async () => {
+    configBase = await mkdtemp(path.join(os.tmpdir(), "spotpatch-supervisor-config-"));
+    projectRoot = await mkdtemp(
+      path.join(os.tmpdir(), "spotpatch-supervisor-project-"),
+    );
+    runtimeRoot = await mkdtemp(
+      path.join(os.tmpdir(), "spotpatch-supervisor-runtime-"),
+    );
+    await Promise.all([chmod(configBase, 0o700), chmod(runtimeRoot, 0o700)]);
+    vi.stubEnv("XDG_RUNTIME_DIR", runtimeRoot);
+    service = createExternalHandoffService({
+      framework: "vite",
+      root: projectRoot,
+      sessionId,
+    });
+    await service.start();
+  });
+
+  afterEach(async () => {
+    await Promise.all(
+      supervisors.splice(0).map(async (supervisor) => supervisor.dispose()),
+    );
+    await service?.close();
+    service = undefined;
+    vi.unstubAllEnvs();
+    await Promise.all([
+      rm(configBase, { recursive: true, force: true }),
+      rm(projectRoot, { recursive: true, force: true }),
+      rm(runtimeRoot, { recursive: true, force: true }),
+    ]);
+  });
+
   it("keeps Inbox mode when out-of-browser consent is declined", async () => {
     const connector = fakeConnector();
     const supervisor = await createSupervisor(connector, () => Promise.resolve(false));
@@ -247,3 +254,49 @@ describe("external Agent Supervisor", () => {
     expect(connector).toHaveBeenCalledTimes(2);
   });
 });
+
+it.runIf(process.platform === "win32")(
+  "keeps managed execution unavailable until private Windows discovery is implemented",
+  async () => {
+    const windowsConfigBase = await mkdtemp(
+      path.join(os.tmpdir(), "spotpatch-supervisor-windows-config-"),
+    );
+    const windowsProjectRoot = await mkdtemp(
+      path.join(os.tmpdir(), "spotpatch-supervisor-windows-project-"),
+    );
+    const connector = fakeConnector();
+    const confirmManagedAccess = vi.fn(() => Promise.resolve(true));
+    let supervisor: ExternalAgentSupervisor | undefined;
+
+    try {
+      supervisor = await createExternalAgentSupervisor({
+        bridgeAdapter: "vite",
+        configBase: windowsConfigBase,
+        confirmManagedAccess,
+        connectManagedAdapter: connector,
+        root: windowsProjectRoot,
+        sessionId,
+      });
+      await expect(
+        supervisor.connect(request, new AbortController().signal),
+      ).resolves.toMatchObject({
+        mode: "inbox",
+        connectionState: "degraded",
+        grantState: "missing",
+        error: {
+          code: "MANAGED_PLATFORM_UNSUPPORTED",
+          stage: "integration",
+          action: "use-inbox",
+        },
+      });
+      expect(confirmManagedAccess).not.toHaveBeenCalled();
+      expect(connector).not.toHaveBeenCalled();
+    } finally {
+      await supervisor?.dispose();
+      await Promise.all([
+        rm(windowsConfigBase, { recursive: true, force: true }),
+        rm(windowsProjectRoot, { recursive: true, force: true }),
+      ]);
+    }
+  },
+);

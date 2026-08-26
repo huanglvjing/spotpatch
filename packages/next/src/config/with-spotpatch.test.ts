@@ -138,6 +138,9 @@ describe("withSpotPatch", () => {
       fallback: [],
     });
     expect(objectConfig.turbopack?.root).toBe(packageRoot);
+    expect(objectConfig.turbopack?.resolveAlias?.[NEXT_CLIENT_MODULE_ID]).toContain(
+      "client",
+    );
 
     for (const key of NEXT_SOURCE_RULE_KEYS) {
       expect(objectConfig.turbopack?.rules?.[key]).toMatchObject({

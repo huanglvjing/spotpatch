@@ -18,6 +18,7 @@ const execFileAsync = promisify(execFile);
 async function fixture(input?: {
   readonly config?: string;
   readonly instrumentation?: string;
+  readonly proxy?: string;
   readonly script?: string;
   readonly trustedFastMode?: boolean;
 }): Promise<string> {
@@ -52,6 +53,10 @@ async function fixture(input?: {
       path.join(root, "src", "instrumentation-client.ts"),
       input.instrumentation,
     );
+  }
+
+  if (input?.proxy !== undefined) {
+    await writeFile(path.join(root, "src", "proxy.ts"), input.proxy);
   }
 
   if (input?.trustedFastMode) {
@@ -103,7 +108,7 @@ describe("Next integration initializer", () => {
       'import { withSpotPatch } from "@spotpatch/next";',
     );
     expect(await readFile(path.join(root, "next.config.ts"), "utf8")).toContain(
-      "export default withSpotPatch()(config);",
+      "export default withSpotPatch({ externalAgent: true })(config);",
     );
     expect(
       await readFile(path.join(root, "src", "instrumentation-client.ts"), "utf8"),
@@ -134,7 +139,9 @@ describe("Next integration initializer", () => {
     expect(config).toContain(
       'import { withSpotPatch as withSpotPatch1 } from "@spotpatch/next";',
     );
-    expect(config).toContain("export default withSpotPatch1()(config);");
+    expect(config).toContain(
+      "export default withSpotPatch1({ externalAgent: true })(config);",
+    );
     expect(JSON.parse(manifest ?? "{}")).toMatchObject({
       scripts: { dev: "spotpatch-next dev --webpack --port=3100" },
     });
@@ -167,7 +174,64 @@ describe("Next integration initializer", () => {
     )?.nextContent;
 
     expect(plan.trustedFastModeAvailable).toBe(true);
-    expect(config).toContain("withSpotPatch({ trustedFastMode: true })(config)");
+    expect(config).toContain(
+      "withSpotPatch({ externalAgent: true, trustedFastMode: true })(config)",
+    );
+  });
+
+  it("enables external Agent on existing static options without losing host settings", async () => {
+    const root = await fixture({
+      config:
+        'import { withSpotPatch } from "@spotpatch/next";\nconst config = {};\nexport default withSpotPatch({ ai: false, externalAgent: false })(config);\n',
+    });
+    const config = (await planNextIntegration(root)).changes.find(
+      (change) => change.relativePath === "next.config.ts",
+    )?.nextContent;
+
+    expect(config).toContain("externalAgent: true");
+    expect(config).toContain("ai: false");
+  });
+
+  it("excludes SpotPatch from the canonical next-intl proxy matcher", async () => {
+    const root = await fixture({
+      proxy:
+        'import createMiddleware from "next-intl/middleware";\n\nexport default createMiddleware({ locales: ["en"] });\n\nexport const config = { matcher: ["/((?!api|trpc|_next|_vercel|.*\\\\..*).*)"] };\n',
+    });
+    const plan = await planNextIntegration(root);
+    const proxy = plan.changes.find(
+      (change) => change.relativePath === "src/proxy.ts",
+    )?.nextContent;
+
+    expect(proxy).toContain(
+      'matcher: ["/((?!__spotpatch(?:/|$)|api|trpc|_next|_vercel|.*\\\\..*).*)"]',
+    );
+    await applyNextIntegrationPlan(plan);
+    await expect(planNextIntegration(root)).resolves.toMatchObject({ changes: [] });
+  });
+
+  it("adds a static matcher when Proxy has no config export", async () => {
+    const root = await fixture({
+      proxy:
+        "export default function proxy() {\n  return new Response(null, { status: 204 });\n}\n",
+    });
+    const proxy = (await planNextIntegration(root)).changes.find(
+      (change) => change.relativePath === "src/proxy.ts",
+    )?.nextContent;
+
+    expect(proxy).toContain(
+      'export const config = { matcher: ["/((?!__spotpatch(?:/|$)).*)"] };',
+    );
+  });
+
+  it("fails closed for a dynamic Proxy matcher", async () => {
+    const root = await fixture({
+      proxy:
+        "const matcher = process.env.MATCHER;\nexport default function proxy() {}\nexport const config = { matcher };\n",
+    });
+
+    await expect(planNextIntegration(root)).rejects.toThrow(
+      /SPOTPATCH_PROXY_MATCHER_UNSAFE/u,
+    );
   });
 
   it("rejects a static component data-flow option that Next cannot execute", async () => {

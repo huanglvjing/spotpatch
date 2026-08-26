@@ -46,8 +46,10 @@ export type NextConfigEnhancer = <
 ) => NextConfigFactory<Config>;
 
 interface AdapterModulePaths {
+  readonly client: string;
   readonly loader: string;
   readonly noop: string;
+  readonly turbopackClient: string;
   readonly turbopackLoader: string;
   readonly turbopackNoop: string;
 }
@@ -153,34 +155,39 @@ function findLogicalAdapterRoot(
   return undefined;
 }
 
+function relativeModulePath(appRoot: string, target: string): string {
+  const relative = path.relative(appRoot, target).split(path.sep).join("/");
+  return relative.startsWith(".") ? relative : `./${relative}`;
+}
+
 function resolveAdapterModulePaths(appRoot: string): AdapterModulePaths {
   const resolveFromApplication = createRequire(path.join(appRoot, "package.json"));
+  const client = resolveFromApplication.resolve("@spotpatch/next/client");
   const loader = resolveFromApplication.resolve("@spotpatch/next/loader");
   const resolvedAdapterRoot = path.dirname(loader);
   const noop = path.join(resolvedAdapterRoot, "dist", "noop.cjs");
   const logicalAdapterRoot = findLogicalAdapterRoot(appRoot, resolvedAdapterRoot);
+  const logicalClient =
+    logicalAdapterRoot === undefined
+      ? undefined
+      : path.join(logicalAdapterRoot, "dist", "client.js");
   const logicalNoop =
     logicalAdapterRoot === undefined
       ? undefined
       : path.join(logicalAdapterRoot, "dist", "noop.js");
-  const relativeNoop =
-    logicalNoop === undefined
-      ? undefined
-      : path.relative(appRoot, logicalNoop).split(path.sep).join("/");
 
   return Object.freeze({
+    client,
     loader,
     noop,
+    turbopackClient:
+      logicalClient === undefined ? client : relativeModulePath(appRoot, logicalClient),
     turbopackLoader:
       logicalAdapterRoot === undefined
         ? loader
         : path.join(logicalAdapterRoot, "loader.cjs"),
     turbopackNoop:
-      relativeNoop === undefined
-        ? noop
-        : relativeNoop.startsWith(".")
-          ? relativeNoop
-          : `./${relativeNoop}`,
+      logicalNoop === undefined ? noop : relativeModulePath(appRoot, logicalNoop),
   });
 }
 
@@ -430,7 +437,11 @@ function mergeDevelopmentConfig(
   registryEpoch: string,
   sidecarOrigin: string,
 ): NextConfig {
-  const turbopackRoot = mergeTurbopackRoot(config, [appRoot, paths.loader]);
+  const turbopackRoot = mergeTurbopackRoot(config, [
+    appRoot,
+    paths.client,
+    paths.loader,
+  ]);
   const existingRules = config.turbopack?.rules ?? {};
   const spotPatchRules: TurbopackRules = {};
 
@@ -456,7 +467,7 @@ function mergeDevelopmentConfig(
     ...config,
     rewrites: createRewrites(config, sidecarOrigin),
     turbopack: {
-      ...config.turbopack,
+      ...mergeTurbopackAlias(config, paths.turbopackClient),
       root: turbopackRoot,
       rules: { ...existingRules, ...spotPatchRules },
     },

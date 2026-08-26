@@ -1,5 +1,7 @@
 import type {
   ErrorCode,
+  ExternalAgentControlStatus,
+  ExternalAgentManagedResult,
   ExternalHandoffCapability,
   ExternalHandoffPublishResult,
   ExternalHandoffStatusResult,
@@ -9,6 +11,9 @@ import type {
 } from "@spotpatch/shared/external-handoff-browser";
 
 export interface ExternalHandoffPanel {
+  readonly cancelManagedButton: HTMLButtonElement;
+  readonly connectButton: HTMLButtonElement;
+  readonly disconnectButton: HTMLButtonElement;
   readonly refreshButton: HTMLButtonElement;
   readonly root: HTMLElement;
   readonly sendButton: HTMLButtonElement;
@@ -16,12 +21,17 @@ export interface ExternalHandoffPanel {
   readonly confirmDisclosure: (annotation: SpotAnnotation) => Promise<boolean>;
   readonly dispose: () => void;
   readonly renderCapability: (capability: ExternalHandoffCapability) => void;
+  readonly renderControlUnavailable: () => void;
+  readonly renderControlStatus: (status: ExternalAgentControlStatus) => void;
   readonly renderError: (code?: ErrorCode, retryable?: boolean) => void;
   readonly renderPublishResult: (result: ExternalHandoffPublishResult) => void;
   readonly renderPublishing: () => void;
+  readonly renderManagedResult: (result: ExternalAgentManagedResult) => void;
   readonly renderStatus: (result: ExternalHandoffStatusResult) => void;
   readonly resolveButton: HTMLButtonElement;
+  readonly revokeButton: HTMLButtonElement;
   readonly setBusy: (busy: boolean) => void;
+  readonly setControlBusy: (busy: boolean) => void;
   readonly setContextReady: (ready: boolean) => void;
   readonly setSelectionVisible: (visible: boolean) => void;
 }

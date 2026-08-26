@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
+    "@spotpatch/agent": "workspace:^",
     "@spotpatch/shared": "workspace:^",
     "zod": "4.4.3"
   },

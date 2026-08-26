@@ -4,6 +4,7 @@ import {
   EXTERNAL_HANDOFF_BROKER_PROTOCOL_VERSION,
   SPOTPATCH_ENDPOINTS,
   SPOTPATCH_TOKEN_HEADER,
+  type ExternalAgentControlStatus,
   type SpotAnnotation,
 } from "@spotpatch/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -136,6 +137,27 @@ function dispatch(
   } as const;
 }
 
+function managedControlStatus(
+  sequence = 1,
+  connectionState: ExternalAgentControlStatus["connectionState"] = "ready",
+): ExternalAgentControlStatus {
+  return Object.freeze({
+    schemaVersion: 1,
+    sequence,
+    mode: "managed",
+    adapter: Object.freeze({
+      kind: "codex",
+      maturity: "experimental",
+      availability: "available",
+    }),
+    connectionState,
+    authReadiness: "authenticated",
+    grantState: "valid",
+    effectiveModel: "gpt-5.6-codex",
+    updatedAt: "2026-08-23T00:00:02.000Z",
+  });
+}
+
 afterEach(() => {
   Reflect.deleteProperty(globalThis, EXTENSION_KEY);
   document.querySelectorAll("spotpatch-root").forEach((host) => {
@@ -173,12 +195,8 @@ describe("external handoff Runtime extension", () => {
         ) ?? [],
         (command) => command.textContent,
       ),
-    ).toEqual([
-      "node ./node_modules/@spotpatch/vite/dist/cli.js bridge setup --client claude --scope project --mode active",
-      "MCP_PROTOCOL_NEGOTIATION=legacy claude --dangerously-load-development-channels server:spotpatch",
-      "node ./node_modules/@spotpatch/vite/dist/cli.js connect codex --allow-workspace-write",
-      "node ./node_modules/@spotpatch/vite/dist/cli.js bridge setup --client cursor --scope project",
-    ]);
+    ).toEqual([]);
+    expect(view.host.shadowRoot?.textContent).toContain("Connect Codex");
     view.renderStatus("selected");
     view.showSelection("Summary", true, true);
     expect(view.externalHandoffPanel?.sendButton.hidden).toBe(false);
@@ -314,9 +332,83 @@ describe("external handoff Runtime extension", () => {
     panel.sendButton.remove();
   });
 
+  it("renders managed connection evidence and an audited result", () => {
+    const panel = createExternalHandoffPanel(
+      document,
+      "next",
+      () => "en-US",
+      `${SESSION_ID}-managed`,
+      () => () => undefined,
+      () => undefined,
+    );
+    document.body.append(panel.root, panel.sendButton);
+    panel.setSelectionVisible(true);
+    panel.renderControlStatus(managedControlStatus());
+
+    expect(panel.root.textContent).toContain("Connection: ready");
+    expect(panel.root.textContent).toContain("Model: gpt-5.6-codex");
+    expect(panel.connectButton.disabled).toBe(true);
+    expect(panel.disconnectButton.disabled).toBe(false);
+    expect(panel.revokeButton.disabled).toBe(false);
+
+    panel.renderControlStatus({
+      ...managedControlStatus(2, "degraded"),
+      authReadiness: "signed-out",
+      error: {
+        code: "AGENT_AUTH_REQUIRED",
+        stage: "auth",
+        recoverability: "user-action",
+        action: "sign-in",
+      },
+    });
+    expect(panel.root.textContent).toContain("Codex requires an authenticated account");
+    expect(panel.root.textContent).toContain("Sign in with Codex, then retry");
+
+    panel.renderManagedResult({
+      revision: 4,
+      diff: "diff --git a/src/Button.tsx b/src/Button.tsx",
+      files: [{ path: "src/Button.tsx", additions: 2, deletions: 1 }],
+      checks: [{ id: "typecheck", outcome: "passed", durationMs: 42, exitCode: 0 }],
+      timings: { total: 900 },
+      validationOutcome: "passed",
+      expiresAt: "2026-08-23T00:15:00.000Z",
+    });
+
+    expect(panel.root.textContent).toContain("Revision 4 · Validation passed");
+    expect(panel.root.textContent).toContain("Applied to the project");
+    expect(panel.root.textContent).toContain("src/Button.tsx +2 -1");
+    expect(panel.root.textContent).toContain("Timing total: 900 ms");
+    expect(panel.root.textContent).toContain("diff --git");
+
+    panel.renderManagedResult({
+      revision: 5,
+      diff: "diff --git a/src/Button.tsx b/src/Button.tsx",
+      files: [{ path: "src/Button.tsx", additions: 1, deletions: 1 }],
+      checks: [],
+      timings: { total: 500 },
+      validationOutcome: "not-configured",
+      expiresAt: "2026-08-23T00:15:00.000Z",
+    });
+    expect(panel.root.textContent).toContain(
+      "Candidate only; it was not applied because validation is not-configured.",
+    );
+    panel.dispose();
+    panel.root.remove();
+    panel.sendButton.remove();
+  });
+
   it("recovers capability probing when selection cleanup cancels the first request", async () => {
     let capabilityRequests = 0;
-    const fetchMock = vi.fn<typeof fetch>(async (_input, init) => {
+    const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+      const endpoint =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (endpoint !== SPOTPATCH_ENDPOINTS.externalHandoffCapability) {
+        return new Response(null, { status: 404 });
+      }
       capabilityRequests += 1;
 
       if (capabilityRequests === 1) {
@@ -361,6 +453,116 @@ describe("external handoff Runtime extension", () => {
     await vi.waitFor(() => {
       expect(panel.sendButton.disabled).toBe(false);
     });
+    workflow.dispose();
+    panel.dispose();
+    panel.root.remove();
+    panel.sendButton.remove();
+  });
+
+  it("uses fixed managed profiles for page connect, disconnect, and revoke actions", async () => {
+    const controlBodies: unknown[] = [];
+    let control: ExternalAgentControlStatus = {
+      ...managedControlStatus(1, "disconnected"),
+      mode: "inbox" as const,
+    };
+    const fetchMock = vi.fn<typeof fetch>((input, init) => {
+      const endpoint =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      if (endpoint === SPOTPATCH_ENDPOINTS.externalHandoffCapability) {
+        return Promise.resolve(envelope(capability()));
+      }
+      if (endpoint === SPOTPATCH_ENDPOINTS.externalAgentControlStatus) {
+        return Promise.resolve(envelope(control));
+      }
+      if (endpoint === SPOTPATCH_ENDPOINTS.externalAgentEvents) {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => {
+              reject(new DOMException("Aborted", "AbortError"));
+            },
+            { once: true },
+          );
+        });
+      }
+      if (
+        endpoint === SPOTPATCH_ENDPOINTS.externalAgentControlConnect ||
+        endpoint === SPOTPATCH_ENDPOINTS.externalAgentControlDisconnect
+      ) {
+        if (typeof init?.body !== "string") {
+          return Promise.reject(new Error("Expected a JSON body."));
+        }
+        const body = JSON.parse(init.body) as Record<string, unknown>;
+        controlBodies.push(body);
+        control =
+          endpoint === SPOTPATCH_ENDPOINTS.externalAgentControlConnect
+            ? { ...managedControlStatus(control.sequence + 1, "ready") }
+            : {
+                ...managedControlStatus(control.sequence + 1, "disconnected"),
+                mode: "inbox" as const,
+                grantState: body.revokeGrant === true ? ("missing" as const) : "valid",
+              };
+        return Promise.resolve(envelope(control));
+      }
+      return Promise.reject(new Error(`Unexpected endpoint: ${endpoint}`));
+    });
+    const panel = createExternalHandoffPanel(
+      document,
+      "vite",
+      () => "en-US",
+      `${SESSION_ID}-managed-actions`,
+      () => () => undefined,
+      () => undefined,
+    );
+    const workflow = createExternalHandoffWorkflow(
+      fetchMock,
+      panel,
+      annotation,
+      "runtime-session-token",
+      window,
+    );
+    document.body.append(panel.root, panel.sendButton);
+    panel.setSelectionVisible(true);
+    workflow.mount();
+
+    await vi.waitFor(() => {
+      expect(panel.connectButton.disabled).toBe(false);
+    });
+    panel.connectButton.click();
+    await vi.waitFor(() => {
+      expect(panel.disconnectButton.disabled).toBe(false);
+    });
+    panel.disconnectButton.click();
+    await vi.waitFor(() => {
+      expect(panel.connectButton.disabled).toBe(false);
+    });
+    panel.connectButton.click();
+    await vi.waitFor(() => {
+      expect(panel.revokeButton.disabled).toBe(false);
+    });
+    panel.revokeButton.click();
+    await vi.waitFor(() => {
+      expect(panel.connectButton.disabled).toBe(false);
+    });
+
+    expect(controlBodies).toHaveLength(4);
+    expect(controlBodies[0]).toMatchObject({
+      adapterKind: "codex",
+      profile: "managed-apply-v1",
+    });
+    expect(controlBodies[1]).toMatchObject({
+      adapterKind: "codex",
+      revokeGrant: false,
+    });
+    expect(controlBodies[3]).toMatchObject({
+      adapterKind: "codex",
+      revokeGrant: true,
+    });
+    expect(JSON.stringify(controlBodies)).toMatch(/"requestId":"[a-f0-9]{48}"/u);
     workflow.dispose();
     panel.dispose();
     panel.root.remove();

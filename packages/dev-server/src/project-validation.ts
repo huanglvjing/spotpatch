@@ -4,7 +4,12 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { promisify } from "node:util";
 
-import type { ResolvedAgentCheckDefinition } from "@spotpatch/shared";
+import {
+  DEFAULT_AGENT_LIMITS,
+  type AgentLimits,
+  type ResolvedAgentCheckDefinition,
+  type ResolvedAiOptions,
+} from "@spotpatch/shared";
 
 const execFileAsync = promisify(execFile);
 const TYPESCRIPT_CHECK_ID = "spotpatch-typecheck";
@@ -19,6 +24,20 @@ interface ProjectManifest {
 export interface DiscoverProjectValidationCheckOptions {
   readonly appRoot: string;
   readonly timeoutMs: number;
+}
+
+export interface ResolveProjectValidationChecksOptions extends DiscoverProjectValidationCheckOptions {
+  readonly checks: Readonly<Record<string, ResolvedAgentCheckDefinition>>;
+}
+
+export interface ResolveManagedExecutionValidationOptions {
+  readonly ai: false | ResolvedAiOptions;
+  readonly appRoot: string;
+}
+
+export interface ResolvedManagedExecutionValidation {
+  readonly checks: Readonly<Record<string, ResolvedAgentCheckDefinition>>;
+  readonly limits: Readonly<AgentLimits>;
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -103,6 +122,23 @@ function portableRelativePath(from: string, to: string): string {
   return path.relative(from, to).split(path.sep).join("/");
 }
 
+function hasRequiredCheck(
+  checks: Readonly<Record<string, ResolvedAgentCheckDefinition>>,
+): boolean {
+  return Object.values(checks).some((check) => check.required);
+}
+
+function availableCheckId(
+  checks: Readonly<Record<string, ResolvedAgentCheckDefinition>>,
+  preferred: string,
+): string {
+  if (checks[preferred] === undefined) return preferred;
+
+  let suffix = 2;
+  while (checks[`${preferred}-${String(suffix)}`] !== undefined) suffix += 1;
+  return `${preferred}-${String(suffix)}`;
+}
+
 export async function discoverProjectValidationCheck(
   options: DiscoverProjectValidationCheckOptions,
 ): Promise<ResolvedAgentCheckDefinition | undefined> {
@@ -144,10 +180,44 @@ export async function discoverProjectValidationCheck(
       "--noEmit",
       "--pretty",
       "false",
+      "--incremental",
+      "false",
       "--project",
       projectPath,
     ]),
     required: true,
     timeoutMs: options.timeoutMs,
+  });
+}
+
+export async function resolveProjectValidationChecks(
+  options: ResolveProjectValidationChecksOptions,
+): Promise<Readonly<Record<string, ResolvedAgentCheckDefinition>>> {
+  if (hasRequiredCheck(options.checks)) return options.checks;
+
+  const discovered = await discoverProjectValidationCheck(options);
+  if (discovered === undefined) return options.checks;
+
+  const id = availableCheckId(options.checks, discovered.id);
+  return Object.freeze({
+    ...options.checks,
+    [id]: Object.freeze({ ...discovered, id }),
+  });
+}
+
+export async function resolveManagedExecutionValidation(
+  options: ResolveManagedExecutionValidationOptions,
+): Promise<ResolvedManagedExecutionValidation> {
+  const checks = options.ai === false ? Object.freeze({}) : options.ai.execution.checks;
+  const limits =
+    options.ai === false ? DEFAULT_AGENT_LIMITS : options.ai.execution.limits;
+
+  return Object.freeze({
+    checks: await resolveProjectValidationChecks({
+      appRoot: options.appRoot,
+      checks,
+      timeoutMs: limits.checkTimeoutMs,
+    }),
+    limits,
   });
 }

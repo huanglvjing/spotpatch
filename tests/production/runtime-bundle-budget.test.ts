@@ -10,7 +10,10 @@ import { describe, expect, it } from "vitest";
 const RUNTIME_GZIP_BUDGET_BYTES = 44 * 1024;
 const DATA_FLOW_PRELUDE_GZIP_BUDGET_BYTES = 8 * 1024;
 const DATA_FLOW_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;
-const EXTERNAL_HANDOFF_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;
+// ADR-038 keeps the managed-control UI in its existing dev-only lazy bundle.
+// macOS Node 26 measured 14,366 bytes after strict protocol/result parsing;
+// 16 KiB preserves a narrow cross-platform zlib margin without affecting core Runtime.
+const EXTERNAL_HANDOFF_PANEL_GZIP_BUDGET_BYTES = 16 * 1024;
 const serverOnlySignatures = [
   "launch-editor",
   "magic-string",

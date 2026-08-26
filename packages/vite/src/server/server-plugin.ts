@@ -4,11 +4,17 @@ import {
   createAgentJobManager,
   createExternalHandoffService,
   createSpotPatchMiddleware,
+  resolveManagedExecutionValidation,
   type AgentJobManager,
   type ExternalHandoffService,
   type SourceRegistry,
   type SpotPatchSession,
+  type SpotPatchMiddleware,
 } from "@spotpatch/dev-server";
+import {
+  createExternalAgentSupervisor,
+  type ExternalAgentSupervisor,
+} from "@spotpatch/bridge";
 import type { Plugin, ResolvedConfig } from "vite";
 
 import type { SpotPatchPluginContext } from "../plugin-context.js";
@@ -22,10 +28,16 @@ interface ServerPluginInput {
 export function createServerPlugin(input: ServerPluginInput): Plugin {
   let agentManager: AgentJobManager | undefined;
   let externalHandoffService: ExternalHandoffService | undefined;
+  let externalAgentSupervisor: ExternalAgentSupervisor | undefined;
+  let middleware: SpotPatchMiddleware | undefined;
   let config: ResolvedConfig | undefined;
 
   const closeResources = async (): Promise<void> => {
     input.registry.clear();
+    middleware?.dispose();
+    middleware = undefined;
+    await externalAgentSupervisor?.dispose();
+    externalAgentSupervisor = undefined;
     await externalHandoffService?.close();
     externalHandoffService = undefined;
     await agentManager?.close();
@@ -72,19 +84,42 @@ export function createServerPlugin(input: ServerPluginInput): Plugin {
             "[spotpatch:vite] External Agent handoff is unavailable; core tools remain active.",
           );
         }
+
+        if (externalHandoffService.capability().brokerReady) {
+          try {
+            const validation = await resolveManagedExecutionValidation({
+              ai: options.ai,
+              appRoot: root,
+            });
+            externalAgentSupervisor = await createExternalAgentSupervisor({
+              bridgeAdapter: "vite",
+              checks: validation.checks,
+              limits: validation.limits,
+              root,
+              sessionId: input.session.id,
+              projectLabel: path.basename(root),
+            });
+          } catch {
+            config.logger.warn(
+              "[spotpatch:vite] Managed Agent control is unavailable; Inbox remains active.",
+            );
+          }
+        }
       }
 
-      server.middlewares.use(
-        createSpotPatchMiddleware({
-          ...(agentManager === undefined ? {} : { agentManager }),
-          ...(externalHandoffService === undefined ? {} : { externalHandoffService }),
-          options,
-          registry: input.registry,
-          root,
-          session: input.session,
-          logger: config.logger,
-        }),
-      );
+      middleware = createSpotPatchMiddleware({
+        ...(agentManager === undefined ? {} : { agentManager }),
+        ...(externalAgentSupervisor === undefined
+          ? {}
+          : { externalAgentControl: externalAgentSupervisor }),
+        ...(externalHandoffService === undefined ? {} : { externalHandoffService }),
+        options,
+        registry: input.registry,
+        root,
+        session: input.session,
+        logger: config.logger,
+      });
+      server.middlewares.use(middleware);
 
       server.httpServer?.once("close", () => {
         void closeResources();

@@ -1,41 +1,15 @@
-import type {
-  ResolvedAgentCheckDefinition,
-  ResolvedAiOptions,
-} from "@spotpatch/shared";
-
 import {
   resolveOptions,
   type ResolvedSpotPatchOptions,
   type SimpleAiOptions,
   type SpotPatchOptions,
 } from "./options.js";
-import { discoverProjectValidationCheck } from "./project-validation.js";
+import { resolveProjectValidationChecks } from "./project-validation.js";
 
 export interface ResolveProjectOptionsInput {
   readonly appRoot: string;
   readonly environmentAi?: false | SimpleAiOptions;
   readonly options?: SpotPatchOptions;
-}
-
-function hasRequiredCheck(ai: ResolvedAiOptions): boolean {
-  return Object.values(ai.execution.checks).some((check) => check.required);
-}
-
-function availableCheckId(
-  checks: Readonly<Record<string, ResolvedAgentCheckDefinition>>,
-  preferred: string,
-): string {
-  if (checks[preferred] === undefined) {
-    return preferred;
-  }
-
-  let suffix = 2;
-
-  while (checks[`${preferred}-${String(suffix)}`] !== undefined) {
-    suffix += 1;
-  }
-
-  return `${preferred}-${String(suffix)}`;
 }
 
 export async function resolveProjectOptions(
@@ -54,25 +28,16 @@ export async function resolveProjectOptions(
     );
   }
 
-  let checks = resolved.ai.execution.checks;
+  const checks = await resolveProjectValidationChecks({
+    appRoot: input.appRoot,
+    checks: resolved.ai.execution.checks,
+    timeoutMs: resolved.ai.execution.limits.checkTimeoutMs,
+  });
 
-  if (!hasRequiredCheck(resolved.ai)) {
-    const discovered = await discoverProjectValidationCheck({
-      appRoot: input.appRoot,
-      timeoutMs: resolved.ai.execution.limits.checkTimeoutMs,
-    });
-
-    if (discovered === undefined) {
-      throw new RangeError(
-        "SpotPatch trustedFastMode requires a configured required check or a local TypeScript project with tsconfig.json.",
-      );
-    }
-
-    const id = availableCheckId(checks, discovered.id);
-    checks = Object.freeze({
-      ...checks,
-      [id]: Object.freeze({ ...discovered, id }),
-    });
+  if (!Object.values(checks).some((check) => check.required)) {
+    throw new RangeError(
+      "SpotPatch trustedFastMode requires a configured required check or a local TypeScript project with tsconfig.json.",
+    );
   }
 
   const ai = Object.freeze({

@@ -5,14 +5,23 @@ import { spawn } from "node:child_process";
 
 import { CODEX_ADAPTER_ERROR_CODES, CodexAdapterError } from "./errors.js";
 
-export const SUPPORTED_CODEX_VERSION = "0.149.0";
+export const SUPPORTED_CODEX_VERSION_RANGE = ">=0.149.0 <0.150.0" as const;
 
 const VERSION_OUTPUT_LIMIT_BYTES = 8 * 1_024;
 const VERSION_PROBE_TIMEOUT_MS = 5_000;
 
 export interface ResolvedCodexExecutable {
   readonly path: string;
-  readonly version: typeof SUPPORTED_CODEX_VERSION;
+  readonly version: string;
+}
+
+function supportedVersion(value: string): string | undefined {
+  const match = /^codex-cli (0)\.(149)\.(\d+)$/u.exec(value);
+  if (match === null) return undefined;
+  const patchVersion = Number(match[3]);
+  return Number.isSafeInteger(patchVersion)
+    ? `0.149.${String(patchVersion)}`
+    : undefined;
 }
 
 export interface ResolveCodexExecutableOptions {
@@ -143,13 +152,13 @@ export async function resolveCodexExecutable(
   }
 
   const output = await readCodexVersion(executable);
-  const expectedOutput = `codex-cli ${SUPPORTED_CODEX_VERSION}`;
-  if (output !== expectedOutput) {
+  const version = supportedVersion(output);
+  if (version === undefined) {
     throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.UNSUPPORTED_VERSION);
   }
 
   return Object.freeze({
     path: executable,
-    version: SUPPORTED_CODEX_VERSION,
+    version,
   });
 }

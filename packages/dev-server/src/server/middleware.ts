@@ -24,6 +24,11 @@ import {
   matchExternalHandoffBrowserPath,
 } from "../external-handoff/browser-http.js";
 import type { ExternalHandoffService } from "../external-handoff/service.js";
+import {
+  createExternalAgentBrowserController,
+  matchExternalAgentBrowserPath,
+} from "../external-agent/browser-http.js";
+import type { ExternalAgentControlPort } from "../external-agent/control-port.js";
 import { handleAgentRequest, matchAgentRequestPath } from "./agent-http.js";
 import { type EditorLauncher, launchConfiguredEditor } from "./editor.js";
 import {
@@ -42,11 +47,10 @@ import { readSourceContext } from "./source-context.js";
 import { resolveSourceFile } from "./source-file.js";
 
 export type SpotPatchNext = (error?: unknown) => void;
-export type SpotPatchMiddleware = (
-  request: IncomingMessage,
-  response: ServerResponse,
-  next: SpotPatchNext,
-) => void;
+export interface SpotPatchMiddleware {
+  (request: IncomingMessage, response: ServerResponse, next: SpotPatchNext): void;
+  dispose(): void;
+}
 
 export interface SpotPatchServerLogger {
   warn(message: string): void;
@@ -56,6 +60,7 @@ export interface CreateMiddlewareOptions {
   readonly agentManager?: AgentJobManager;
   readonly bootstrap?: RuntimeBootstrapOptions;
   readonly editorLauncher?: EditorLauncher;
+  readonly externalAgentControl?: ExternalAgentControlPort;
   readonly externalHandoffService?: ExternalHandoffService;
   readonly logger?: SpotPatchServerLogger;
   readonly options: ResolvedSpotPatchOptions;
@@ -295,10 +300,19 @@ export function createSpotPatchMiddleware(
       ? undefined
       : resolveRuntimeBootstrapOptions(options.bootstrap);
   const dataFlowAnalyzer = createDataFlowAnalyzer(options);
+  const externalAgentController =
+    options.externalAgentControl === undefined
+      ? undefined
+      : createExternalAgentBrowserController(options.externalAgentControl);
 
-  return (request, response, next) => {
+  const middleware = (
+    request: IncomingMessage,
+    response: ServerResponse,
+    next: SpotPatchNext,
+  ): void => {
     const path = requestPath(request);
     const agentRoute = matchAgentRequestPath(path);
+    const externalAgentRoute = matchExternalAgentBrowserPath(path);
     const externalHandoffRoute = matchExternalHandoffBrowserPath(path);
 
     if (
@@ -307,6 +321,7 @@ export function createSpotPatchMiddleware(
       path !== SPOTPATCH_ENDPOINTS.dataFlowComponentReport &&
       path !== SPOTPATCH_ENDPOINTS.dataFlowPageReport &&
       agentRoute === undefined &&
+      externalAgentRoute === undefined &&
       externalHandoffRoute === undefined &&
       !path.startsWith(`${SPOTPATCH_API_BASE}/`)
     ) {
@@ -371,6 +386,24 @@ export function createSpotPatchMiddleware(
         return;
       }
 
+      if (externalAgentRoute !== undefined) {
+        if (
+          !options.options.externalAgent.enabled ||
+          externalAgentController === undefined
+        ) {
+          throw new SpotPatchError(ERROR_CODES.EXTERNAL_HANDOFF_DISABLED);
+        }
+        await externalAgentController.handle(
+          request,
+          response,
+          externalAgentRoute,
+          (target, status, data) => {
+            writeJson(target, status, { ok: true, data });
+          },
+        );
+        return;
+      }
+
       if (externalHandoffRoute !== undefined) {
         await handleExternalHandoffBrowserRequest(
           request,
@@ -410,4 +443,10 @@ export function createSpotPatchMiddleware(
       writeError(response, error, options.logger);
     });
   };
+
+  return Object.assign(middleware, {
+    dispose(): void {
+      externalAgentController?.dispose();
+    },
+  });
 }

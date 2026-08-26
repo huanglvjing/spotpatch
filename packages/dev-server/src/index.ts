@@ -9,6 +9,7 @@ export {
   type CreateExternalHandoffServiceOptions,
   type ExternalHandoffService,
 } from "./external-handoff/service.js";
+export type { ExternalAgentControlPort } from "./external-agent/control-port.js";
 export {
   resolveCredentialEnvironment,
   resolveEnvironmentAiConfiguration,
@@ -42,7 +43,12 @@ export {
 } from "./project-options.js";
 export {
   discoverProjectValidationCheck,
+  resolveManagedExecutionValidation,
+  resolveProjectValidationChecks,
   type DiscoverProjectValidationCheckOptions,
+  type ResolvedManagedExecutionValidation,
+  type ResolveManagedExecutionValidationOptions,
+  type ResolveProjectValidationChecksOptions,
 } from "./project-validation.js";
 export {
   createSourceRegistry,

@@ -2,8 +2,8 @@
 doc-id: "external-agent-09-active-dispatch-adapters"
 title: "外部 Agent 连接：主动派发与 Agent 适配器"
 status: "active"
-version: "0.4.1"
-last-updated: "2026-08-24"
+version: "0.5.0"
+last-updated: "2026-08-25"
 source-range: "点击发送后的主动唤醒、常驻事件泵、Claude Channel、Codex App Server 与扩展适配器边界"
 参考文献/依赖:
   - "external-agent-00-index"
@@ -14,6 +14,7 @@ source-range: "点击发送后的主动唤醒、常驻事件泵、Claude Channel
   - "external-agent-06-security"
   - "external-agent-07-ux-performance-observability"
   - "external-agent-08-testing-delivery"
+  - "external-agent-10-convergence"
   - "15-risks-adr"
 ---
 
@@ -27,6 +28,8 @@ source-range: "点击发送后的主动唤醒、常驻事件泵、Claude Channel
 2. **Agent 唤醒/执行入口**：常驻 Connector 通过宿主正式提供的入站能力，把新交接变成一次真实 Agent 事件或 turn。
 
 标准 MCP tool 仍负责跨宿主的上下文读取和回退，不再被当成通用唤醒协议。主动适配只在宿主有可验证的入站事件或 turn API 时成立；没有该能力的工具继续使用 MCP/CLI Inbox，UI 必须明示为“发布待取件”而不是“已触发执行”。
+
+本文的 Codex 章节记录 ADR-036 当前 `local-validation` 基线和厂商适配细节。ADR-037 已接受的目标会把 Codex 改为 dev Supervisor 托管、每 revision 独立快照/新 thread、显式 checks 后回写；发生冲突时以 (见 doc-id:external-agent-10-convergence) 为准。Claude Channel 仍是 attached adapter，不继承 managed 保证。
 
 ## 产品不可违背的事实
 
@@ -135,11 +138,11 @@ Claude Code 会话必须正在运行，且用户已对本会话显式启用 Spot
 
 `mcp.notification()` resolve 只能记为 `dispatched`，其含义仅是 bytes 已写入 stdio transport；官方协议没有 Channel notification ACK，也没有 completion ACK，未注册 Channel 或策略阻断仍可能静默丢弃。只有 active server 中 exact-cursor 的 `spotpatch_get_current_handoff` 才记 `working`；Generic MCP get 不改变主动状态。任务结束必须调用只在 active mode 暴露的 `spotpatch_report_handoff_result({ cursor, outcome: "completed" | "failed" })`，该 tool 是当前 Claude terminal 证据的唯一来源，不接受 phase、路径、summary、message 或 lease。Agent 未调用该结果 tool 时不能推断完成，达到集中 30 分钟上限后进入 `delivery-unknown`、停止 writer 并等待用户核对。
 
-## Codex App Server Adapter
+## Codex App Server Adapter（ADR-036 legacy attached 基线）
 
 ### 进程与线程
 
-- 用户在 dev Session 的精确 canonical 项目根运行一条 `connect codex --allow-workspace-write` 即可显式启动 SpotPatch Codex Connector；不要求 nvm 或预先 setup。多个精确匹配 Session 时用 `--session <id>`，不按时间猜测。主动 Connector 不读取或写入 `.codex/config.toml`，而从受信的框架 adapter enum 生成固定 MCP command/args，并只通过 `thread/start.config` 注入专用 thread。
+- legacy attached 路径允许用户在 dev Session 的精确 canonical 项目根运行 `connect codex --allow-workspace-write`；它只保留一个迁移发布周期作为高级诊断/回退，不是 managed 默认流程。多个精确匹配 Session 时仍用 `--session <id>`，不按时间猜测；Connector 不读取或写入 `.codex/config.toml`。
 - Connector 从可信终端 PATH 解析、realpath 并验证绝对 Codex executable，当前只接受 `codex-cli 0.149.0`，默认拒绝项目 root 内二进制，再以固定 argv `["app-server"]`、`shell: false` 启动 stdio 子进程。
 - 不尝试接管一个未知 Codex UI 会话；该 Connector 拥有一个专用 thread，一个项目一次连接只创建一个 thread。
 - 连接先完成 `initialize` / `initialized`，再以 inline `mcp_servers.spotpatch` 执行 `thread/start`。inline 配置与持久 Codex Inbox 共用固定 `XDG_RUNTIME_DIR` / `TMPDIR` / `TMP` / `TEMP` 名称白名单，只请求 Codex 转发当前进程中的值，不传递完整环境。MCP command 内部追加已选定的 `--session`，配置把 `enabled_tools` 锁定为 `spotpatch_list_sessions` 并标记 server required。随后用 `mcpServerStatus/list(threadId)` 验证仅该 tool 对模型可见，并用 `mcpServer/tool/call(spotpatch_list_sessions)` 验证绑定后只返回精确选定 Session；只有两步都成功后才 claim。每个空闲 Handoff 用 `turn/start`。首版不用 `turn/steer`：忙时禁止新的主动写任务，避免两个独立组件修改被隐式合并。
@@ -165,6 +168,17 @@ Codex Connector 默认不能安静地获得写权。MCP 入口由 Connector 临�
 - MCP 环境白名单只包含上述四个运行目录变量名；不包含 `HOME`、`PATH`、token 或浏览器字段，其名称和值都不进入 Handoff；
 - Codex 既有配置中的其他已启用 MCP server 仍可能按正常分层启动；inline 同名 `spotpatch` entry 已有真实覆盖 POC，Connector 不把 sandbox network 约束误述为对独立 MCP 进程的限制；
 - `thread/start` 对可写 cwd 可能持久化 Codex project trust，终端 `--allow-workspace-write` 必须披露并由真实 POC 记录前后配置，Browser 不得静默触发。
+
+### ADR-037 已落实的 managed 迁移（`local-validation`）
+
+managed 工作区实现保留本节的 stdio JSONL、严格 Schema、匹配 thread/turn 事件和进程树清理，并替换以下内容；发布状态仍受真实宿主与跨平台 Gate 阻断：
+
+- `connect codex --allow-workspace-write` 每次手工启动 → `pnpm dev` 内唯一 Supervisor + dev 终端一次 `managed-apply-v1` grant；
+- canonical 业务 root 可写 → 系统临时独立 Git 快照与任务临时目录可写；
+- 单一持久 thread → 每 revision 新 thread，终态删除并带 crash cleanup journal；
+- 允许用户其他 MCP → project-keyed 私有空白 `CODEX_HOME` + 固定 process/thread config + turn 前 hooks/MCP 零结果证明；`mcp_servers={}` 不单独作为隔离证据，无法证明时 fail closed；
+- 精确 `0.149.0` 散落门禁 → 集中 semver 策略 + 生成 Schema + capability preflight；
+- App Server terminal → `executionStatus` 证据；只有 diff 审计、required checks 和 apply 后复验可产生 `managedPhase: completed`。
 
 ## 其他 Agent 的适配规则
 
@@ -203,7 +217,8 @@ Cursor 当前继续使用 MCP Inbox；在没有经官方文档与真实宿主测
 | 宿主 | Connector 形态 | 启动方式 | 点击后的可验证语义 |
 | --- | --- | --- | --- |
 | Claude Code | Channel-aware MCP Connector | 项目 active MCP 配置 + 宿主 legacy env + 显式 Channel 会话参数 | 事件写入 Channel transport；无 notification/completion ACK，terminal 依赖 result tool |
-| Codex | SpotPatch-owned App Server Connector | 精确项目根一条 zero-setup connect 命令，thread 级注入 MCP，并显式保持常驻 | `turn/start` 被接受；匹配 turn 事件可证明 working/terminal |
+| Codex（当前 ADR-036） | SpotPatch-owned App Server Connector | 精确项目根一条 zero-setup connect 命令，thread 级注入 MCP，并显式保持常驻 | `turn/start` 被接受；匹配 turn 事件可证明 working/terminal |
+| Codex managed（ADR-037，local-validation） | dev Supervisor + managed runner | `init` 后随 `pnpm dev` 托管；首次 grant 在当前 dev 终端确认 | 独立报告 delivery/execution/managed；checks 全过并回写复验后才 completed |
 | Cursor | Generic MCP Inbox-only | 项目 MCP 配置 | 只能证明发布/取件，不主动唤醒 |
 | 其他 MCP Agent | Generic MCP Inbox-only | 项目 MCP 配置 | 同上 |
 | 其他有正式入站 API 的宿主 | 新建独立 adapter | 通过本页 Gate | 以该宿主合同测试为准 |

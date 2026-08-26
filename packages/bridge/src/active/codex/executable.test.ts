@@ -13,12 +13,9 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CODEX_ADAPTER_ERROR_CODES } from "./errors.js";
-import { resolveCodexExecutable, SUPPORTED_CODEX_VERSION } from "./executable.js";
+import { resolveCodexExecutable } from "./executable.js";
 
-async function executable(
-  directory: string,
-  version = SUPPORTED_CODEX_VERSION,
-): Promise<string> {
+async function executable(directory: string, version = "0.149.0"): Promise<string> {
   await mkdir(directory, { recursive: true });
   const target = path.join(directory, "codex-bin");
   await writeFile(
@@ -45,15 +42,15 @@ describe.skipIf(process.platform === "win32")("Codex executable resolution", () 
     await rm(temporaryRoot, { force: true, recursive: true });
   });
 
-  it("returns the absolute realpath of an executable with the locked version", async () => {
+  it("returns the absolute realpath and detected version inside the supported range", async () => {
     const bin = path.join(temporaryRoot, "trusted-bin");
-    const target = await executable(bin);
+    const target = await executable(bin, "0.149.7");
 
     await expect(
       resolveCodexExecutable(projectRoot, { pathValue: bin }),
     ).resolves.toEqual({
       path: await realpath(target),
-      version: SUPPORTED_CODEX_VERSION,
+      version: "0.149.7",
     });
   });
 
@@ -92,7 +89,7 @@ describe.skipIf(process.platform === "win32")("Codex executable resolution", () 
     });
   });
 
-  it("rejects a version outside the single supported version", async () => {
+  it("rejects a version outside the supported semantic range", async () => {
     const bin = path.join(temporaryRoot, "wrong-version-bin");
     await executable(bin, "0.150.0");
 

@@ -7,7 +7,10 @@ import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { resolveProjectOptions } from "./project-options.js";
-import { discoverProjectValidationCheck } from "./project-validation.js";
+import {
+  discoverProjectValidationCheck,
+  resolveManagedExecutionValidation,
+} from "./project-validation.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -73,6 +76,8 @@ describe("project Agent options", () => {
       "--noEmit",
       "--pretty",
       "false",
+      "--incremental",
+      "false",
       "--project",
       "tsconfig.json",
     ]);
@@ -94,6 +99,20 @@ describe("project Agent options", () => {
         required: true,
       });
     }
+  });
+
+  it("discovers managed validation without built-in AI configuration", async () => {
+    const root = await projectFixture();
+    const validation = await resolveManagedExecutionValidation({
+      ai: false,
+      appRoot: root,
+    });
+
+    expect(validation.checks["spotpatch-typecheck"]).toMatchObject({
+      label: "TypeScript",
+      required: true,
+    });
+    expect(validation.limits.checkTimeoutMs).toBeGreaterThan(0);
   });
 
   it("fails clearly when quick mode has no configured or discoverable check", async () => {

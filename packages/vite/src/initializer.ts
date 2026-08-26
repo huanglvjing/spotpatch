@@ -399,6 +399,7 @@ function childIndent(source: string, object: ObjectExpression): string {
 function initializedPluginCall(pluginName: string, trustedFastMode: boolean): string {
   const options = [
     "dataFlow: {}",
+    "externalAgent: true",
     ...(trustedFastMode ? ["trustedFastMode: true"] : []),
   ];
   return `${pluginName}({ ${options.join(", ")} })`;
@@ -456,6 +457,7 @@ function enableInitializedOptions(
   }
 
   const dataFlowProperty = findProperty(value, "dataFlow");
+  const externalAgentProperty = findProperty(value, "externalAgent");
   const trustedFastModeProperty = findProperty(value, "trustedFastMode");
   const missingProperties: string[] = [];
 
@@ -470,6 +472,20 @@ function enableInitializedOptions(
       throw new Error(
         "SpotPatch init requires dataFlow to be false or an options object.",
       );
+    }
+  }
+
+  if (externalAgentProperty === undefined) {
+    missingProperties.push("externalAgent: true");
+  } else {
+    const propertyValue = unwrapExpression(externalAgentProperty.value);
+
+    if (propertyValue.type !== "Literal" || typeof propertyValue.value !== "boolean") {
+      throw new Error("SpotPatch init requires externalAgent to be a boolean literal.");
+    }
+
+    if (!propertyValue.value) {
+      magicString.overwrite(propertyValue.start, propertyValue.end, "true");
     }
   }
 

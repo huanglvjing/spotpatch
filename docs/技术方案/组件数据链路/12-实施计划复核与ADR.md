@@ -215,27 +215,27 @@ POC 临时代码必须在 D2 前删除或逐段迁移并证明旧路径无引用
 
 通过评审后，应把以下摘要加入 (见 doc-id:15-risks-adr)，编号以合并时中央文档为准：
 
-### ADR-035：准确率优先，未知优于误归属
+### 候选决策 A：准确率优先，未知优于误归属
 
 只有稳定 ID/符号/调用/数据边或 invocation evidence 才能建立确定关联。URL、时间、stack 和 AI 仅为候选诊断。
 
-### ADR-036：request-origin 与 data-fed-by 分离
+### 候选决策 B：request-origin 与 data-fed-by 分离
 
 请求触发者和数据消费者是两类边，分别计算、展示和验收。
 
-### ADR-037：静态图与运行时 observation 混合
+### 候选决策 C：静态图与运行时 observation 混合
 
 静态图负责 declared/来源，runtime 负责 executed；任一单独都不构成完整产品。
 
-### ADR-038：Node-only analyzer + adapter registry
+### 候选决策 D：Node-only analyzer + adapter registry
 
 图、AST 和缓存不进入浏览器；框架/数据层差异通过版本化 adapter 贡献标准 evidence。
 
-### ADR-039：最早期小型 prelude，完整 Inspector 惰性加载
+### 候选决策 E：最早期小型 prelude，完整 Inspector 惰性加载
 
 从页面加载起捕获与核心 Runtime 包体分离；production/disabled 构建零残留。
 
-### ADR-040：shape-first、no-value、内存短驻留
+### 候选决策 F：shape-first、no-value、内存短驻留
 
 公共报告没有原始 value 字段；不持久化 observation，不提供显示 secret 的开关。
 

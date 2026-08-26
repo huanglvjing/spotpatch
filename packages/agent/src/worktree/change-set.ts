@@ -22,6 +22,23 @@ export interface AgentChangeSet {
   readonly touchedPaths: readonly string[];
 }
 
+export async function assertNoIgnoredAgentArtifacts(
+  worktreeRoot: string,
+  limits: Readonly<AgentLimits>,
+  signal: AbortSignal,
+): Promise<void> {
+  const ignored = await runGitCommand({
+    cwd: worktreeRoot,
+    args: ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"],
+    signal,
+    maxOutputCharacters: limits.maxDiffBytes + 1,
+  });
+
+  if (ignored.length > 0) {
+    throw new SpotPatchError(ERROR_CODES.PATCH_REJECTED);
+  }
+}
+
 function parseNumstat(value: string): ReadonlyMap<string, readonly [number, number]> {
   const result = new Map<string, readonly [number, number]>();
 

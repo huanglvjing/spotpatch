@@ -1,5 +1,7 @@
 import {
   ERROR_CODES,
+  EXTERNAL_AGENT_CONTROL_LIMITS,
+  EXTERNAL_AGENT_MANAGED_PROFILE,
   EXTERNAL_HANDOFF_BROKER_PROTOCOL_VERSION,
   EXTERNAL_HANDOFF_LIMITS,
   EXTERNAL_HANDOFF_SNAPSHOT_SCHEMA_VERSION,
@@ -9,6 +11,8 @@ import {
   type ErrorCode,
   type ActiveAdapterSummary,
   type DispatchSummary,
+  type ExternalAgentControlStatus,
+  type ExternalAgentEvent,
   type ExternalHandoffCapability,
   type ExternalHandoffPublishResult,
   type ExternalHandoffStatusResult,
@@ -20,6 +24,14 @@ import type {
   ExternalHandoffPanel,
   ExternalHandoffWorkflow,
 } from "../ui/external-handoff-contract.js";
+import {
+  exactKeys,
+  readBoundedJson,
+  record,
+  successData,
+  validTimestamp,
+} from "./browser-api.js";
+import { createExternalAgentControlClient } from "./external-agent-control-client.js";
 
 interface WorkflowOptions {
   readonly fetch: typeof globalThis.fetch;
@@ -37,26 +49,6 @@ class ExternalHandoffApiError extends Error {
     super("SpotPatch external handoff API request failed.");
     this.name = "ExternalHandoffApiError";
   }
-}
-
-function record(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function exactKeys(
-  value: Readonly<Record<string, unknown>>,
-  keys: readonly string[],
-): boolean {
-  const actual = Object.keys(value).sort();
-  const expected = [...keys].sort();
-  return (
-    actual.length === expected.length &&
-    actual.every((key, index) => key === expected[index])
-  );
-}
-
-function validTimestamp(value: unknown): value is string {
-  return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
 function parseActiveAdapter(value: unknown): ActiveAdapterSummary | null {
@@ -271,53 +263,6 @@ function parseSummary(value: unknown): ExternalHandoffSummary {
   });
 }
 
-async function boundedJson(response: Response): Promise<unknown> {
-  const declaredLength = Number(response.headers.get("content-length"));
-
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_SUMMARY_RESPONSE_BYTES) {
-    await response.body?.cancel();
-    throw new ExternalHandoffApiError();
-  }
-
-  if (response.body === null) throw new ExternalHandoffApiError();
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-
-  try {
-    for (;;) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      total += chunk.value.byteLength;
-
-      if (total > MAX_SUMMARY_RESPONSE_BYTES) {
-        await reader.cancel();
-        throw new ExternalHandoffApiError();
-      }
-
-      chunks.push(chunk.value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
-  const payload = new Uint8Array(total);
-  let offset = 0;
-
-  for (const chunk of chunks) {
-    payload.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-
-  try {
-    return JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(payload),
-    ) as unknown;
-  } catch {
-    throw new ExternalHandoffApiError();
-  }
-}
-
 function failureCode(value: unknown): ErrorCode | undefined {
   return record(value) &&
     value.ok === false &&
@@ -325,14 +270,6 @@ function failureCode(value: unknown): ErrorCode | undefined {
     isErrorCode(value.error.code)
     ? value.error.code
     : undefined;
-}
-
-function successData(value: unknown): unknown {
-  if (!record(value) || !exactKeys(value, ["data", "ok"]) || value.ok !== true) {
-    throw new ExternalHandoffApiError();
-  }
-
-  return value.data;
 }
 
 function omitBrowserCode(annotation: SpotAnnotation): SpotAnnotation {
@@ -382,10 +319,19 @@ function api(options: WorkflowOptions) {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
-      const envelope = await boundedJson(response);
+      let envelope: unknown;
+      try {
+        envelope = await readBoundedJson(response, MAX_SUMMARY_RESPONSE_BYTES);
+      } catch {
+        throw new ExternalHandoffApiError();
+      }
 
       if (!response.ok) throw new ExternalHandoffApiError(failureCode(envelope));
-      return successData(envelope);
+      try {
+        return successData(envelope);
+      } catch {
+        throw new ExternalHandoffApiError();
+      }
     } finally {
       pending.delete(controller);
     }
@@ -443,6 +389,7 @@ export function createExternalHandoffWorkflow(
     window,
   };
   const client = api(options);
+  const controlClient = createExternalAgentControlClient(fetch, sessionToken);
   const timers = new Set<number>();
   const lifecycle = {
     disposed: false,
@@ -451,13 +398,176 @@ export function createExternalHandoffWorkflow(
     userActionPending: false,
   };
   let capability: ExternalHandoffCapability | undefined;
+  let controlStatus: ExternalAgentControlStatus | undefined;
+  let controlEventController: AbortController | undefined;
+  let controlReconnectDelay: number =
+    EXTERNAL_AGENT_CONTROL_LIMITS.eventReconnectMinimumMs;
+  let controlReconnectTimer: number | undefined;
+  let controlActionPending = false;
+  let managedResultRevision: number | undefined;
+  let managedResultLoadingRevision: number | undefined;
   let current: ExternalHandoffStatusResult | undefined;
   let retryablePublish:
     Readonly<{ annotation: SpotAnnotation; requestId: string }> | undefined;
+  const isDisposed = (): boolean => lifecycle.disposed;
 
   const clearTimers = (): void => {
     for (const timer of timers) options.window.clearTimeout(timer);
     timers.clear();
+  };
+  const clearControlReconnect = (): void => {
+    if (controlReconnectTimer === undefined) return;
+    options.window.clearTimeout(controlReconnectTimer);
+    controlReconnectTimer = undefined;
+  };
+  const renderManagedResult = async (revision: number): Promise<void> => {
+    if (
+      lifecycle.disposed ||
+      managedResultRevision === revision ||
+      managedResultLoadingRevision === revision
+    ) {
+      return;
+    }
+    managedResultLoadingRevision = revision;
+    try {
+      const result = await controlClient.result(revision);
+      if (isDisposed() || controlStatus?.task?.revision !== revision) return;
+      managedResultRevision = revision;
+      options.panel.renderManagedResult(result);
+    } catch {
+      // The status remains authoritative. A later status event or reconnect retries
+      // the bounded result read while it is still retained by the Supervisor.
+    } finally {
+      if (managedResultLoadingRevision === revision) {
+        managedResultLoadingRevision = undefined;
+      }
+    }
+  };
+  const applyControlStatus = (value: ExternalAgentControlStatus): void => {
+    if (controlStatus !== undefined && value.sequence < controlStatus.sequence) return;
+    controlStatus = value;
+    controlReconnectDelay = EXTERNAL_AGENT_CONTROL_LIMITS.eventReconnectMinimumMs;
+    options.panel.renderControlStatus(value);
+    const resultRevision =
+      value.task?.resultExpiresAt === undefined ? undefined : value.task.revision;
+    if (resultRevision !== undefined) void renderManagedResult(resultRevision);
+  };
+  const handleControlEvent = (event: ExternalAgentEvent): void => {
+    if (event.type === "status") {
+      applyControlStatus(event.data);
+      return;
+    }
+    const resultRevision =
+      controlStatus?.task?.resultExpiresAt === undefined
+        ? undefined
+        : controlStatus.task.revision;
+    if (resultRevision !== undefined) void renderManagedResult(resultRevision);
+  };
+  const startControlEventStream = (): void => {
+    if (
+      lifecycle.disposed ||
+      !lifecycle.mounted ||
+      controlEventController !== undefined
+    ) {
+      return;
+    }
+    clearControlReconnect();
+    const controller = new AbortController();
+    controlEventController = controller;
+    void controlClient
+      .events(controlStatus?.sequence, controller.signal, handleControlEvent)
+      .catch((error: unknown) => {
+        if (
+          lifecycle.disposed ||
+          (error instanceof DOMException && error.name === "AbortError")
+        ) {
+          return;
+        }
+        if (controlStatus === undefined) options.panel.renderControlUnavailable();
+      })
+      .finally(() => {
+        if (controlEventController === controller) {
+          controlEventController = undefined;
+        }
+        if (lifecycle.disposed || !lifecycle.mounted) return;
+        const delay = controlReconnectDelay;
+        controlReconnectDelay = Math.min(
+          delay * 2,
+          EXTERNAL_AGENT_CONTROL_LIMITS.eventReconnectMaximumMs,
+        );
+        controlReconnectTimer = options.window.setTimeout(() => {
+          controlReconnectTimer = undefined;
+          startControlEventStream();
+        }, delay);
+      });
+  };
+  const refreshControlStatus = async (): Promise<void> => {
+    applyControlStatus(await controlClient.status());
+  };
+  const bootstrapControl = async (): Promise<void> => {
+    try {
+      await refreshControlStatus();
+    } catch {
+      if (!lifecycle.disposed) options.panel.renderControlUnavailable();
+    } finally {
+      if (!lifecycle.disposed) startControlEventStream();
+    }
+  };
+  const performControlAction = async (
+    action: () => Promise<ExternalAgentControlStatus>,
+  ): Promise<void> => {
+    if (lifecycle.disposed || controlActionPending) return;
+    controlActionPending = true;
+    options.panel.setControlBusy(true);
+    try {
+      applyControlStatus(await action());
+    } catch {
+      try {
+        await refreshControlStatus();
+      } catch {
+        if (!isDisposed()) options.panel.renderControlUnavailable();
+      }
+    } finally {
+      controlActionPending = false;
+      if (!isDisposed()) options.panel.setControlBusy(false);
+    }
+  };
+  const handleConnectClick = (): void => {
+    void performControlAction(() =>
+      controlClient.connect({
+        requestId: createRequestId(options.window),
+        adapterKind: "codex",
+        profile: EXTERNAL_AGENT_MANAGED_PROFILE,
+      }),
+    );
+  };
+  const handleDisconnectClick = (): void => {
+    void performControlAction(() =>
+      controlClient.disconnect({
+        requestId: createRequestId(options.window),
+        adapterKind: "codex",
+        revokeGrant: false,
+      }),
+    );
+  };
+  const handleRevokeClick = (): void => {
+    void performControlAction(() =>
+      controlClient.disconnect({
+        requestId: createRequestId(options.window),
+        adapterKind: "codex",
+        revokeGrant: true,
+      }),
+    );
+  };
+  const handleManagedCancelClick = (): void => {
+    const revision = controlStatus?.task?.revision;
+    if (revision === undefined) return;
+    void performControlAction(() =>
+      controlClient.cancel({
+        requestId: createRequestId(options.window),
+        revision,
+      }),
+    );
   };
   const errorCode = (error: unknown): ErrorCode | undefined =>
     error instanceof ExternalHandoffApiError ? error.code : undefined;
@@ -682,7 +792,15 @@ export function createExternalHandoffWorkflow(
       options.panel.sendButton.addEventListener("click", handleSendClick);
       options.panel.refreshButton.addEventListener("click", handleRefreshClick);
       options.panel.resolveButton.addEventListener("click", handleResolveClick);
+      options.panel.connectButton.addEventListener("click", handleConnectClick);
+      options.panel.disconnectButton.addEventListener("click", handleDisconnectClick);
+      options.panel.revokeButton.addEventListener("click", handleRevokeClick);
+      options.panel.cancelManagedButton.addEventListener(
+        "click",
+        handleManagedCancelClick,
+      );
       void refreshCapability(lifecycle.operation);
+      void bootstrapControl();
     },
     cancelPending,
     dispose(): void {
@@ -692,10 +810,23 @@ export function createExternalHandoffWorkflow(
       lifecycle.userActionPending = false;
       retryablePublish = undefined;
       clearTimers();
+      clearControlReconnect();
+      controlEventController?.abort("workflow-disposed");
+      controlEventController = undefined;
       client.cancel();
       options.panel.sendButton.removeEventListener("click", handleSendClick);
       options.panel.refreshButton.removeEventListener("click", handleRefreshClick);
       options.panel.resolveButton.removeEventListener("click", handleResolveClick);
+      options.panel.connectButton.removeEventListener("click", handleConnectClick);
+      options.panel.disconnectButton.removeEventListener(
+        "click",
+        handleDisconnectClick,
+      );
+      options.panel.revokeButton.removeEventListener("click", handleRevokeClick);
+      options.panel.cancelManagedButton.removeEventListener(
+        "click",
+        handleManagedCancelClick,
+      );
     },
   });
 }

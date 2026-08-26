@@ -239,6 +239,7 @@ export interface AgentCheckResult {
   readonly label: string;
   readonly status: AgentCheckStatus;
   readonly durationMs: number;
+  readonly exitCode?: number;
   readonly output: string;
 }
 

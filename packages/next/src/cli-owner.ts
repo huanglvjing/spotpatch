@@ -2,7 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 
 import { serializeResolvedSpotPatchOptions } from "@spotpatch/dev-server";
-import type { SpotPatchNextBundler } from "@spotpatch/shared";
+import { SPOTPATCH_API_BASE, type SpotPatchNextBundler } from "@spotpatch/shared";
 
 import { parseNextDevArguments } from "./cli-args.js";
 import {
@@ -15,10 +15,16 @@ import {
   type ParsedNextConfigureMessage,
 } from "./internal/ipc.js";
 import { inspectNextProject } from "./project.js";
-import { createNextSidecar, type NextSidecar } from "./sidecar.js";
+import {
+  createNextSidecar,
+  type NextPublicRouteCanaryResult,
+  type NextSidecar,
+} from "./sidecar.js";
 
 const CONFIGURATION_STARTUP_TIMEOUT_MS = 60_000;
 const FORCED_TERMINATION_TIMEOUT_MS = 5_000;
+const PUBLIC_ROUTE_CANARY_RETRY_MS = 250;
+const PUBLIC_ROUTE_CANARY_TIMEOUT_MS = 60_000;
 const MAX_CONFIGURATION_REQUESTS = 32;
 const ID_PATTERN = /^[A-Za-z0-9_-]{16,128}$/u;
 
@@ -117,6 +123,68 @@ function waitForChild(child: ChildProcess): Promise<ChildResult> {
   });
 }
 
+function waitForDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(
+        signal.reason instanceof Error
+          ? signal.reason
+          : new Error("SpotPatch public-route wait was aborted."),
+      );
+      return;
+    }
+
+    const timer = setTimeout(resolve, milliseconds);
+    timer.unref();
+    signal.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        reject(
+          signal.reason instanceof Error
+            ? signal.reason
+            : new Error("SpotPatch public-route wait was aborted."),
+        );
+      },
+      { once: true },
+    );
+  });
+}
+
+function publicRouteCanaryError(result: NextPublicRouteCanaryResult): Error {
+  if (result.ok) {
+    throw new TypeError("A successful public route canary has no error.");
+  }
+
+  const status = result.status === undefined ? "unavailable" : String(result.status);
+  return new Error(
+    `SpotPatch public-route canary failed at ${result.finalUrl} (stage=${result.kind}, status=${status}). Check Proxy/Middleware matcher exclusions for ${SPOTPATCH_API_BASE}.`,
+  );
+}
+
+async function waitForPublicRoute(
+  sidecar: NextSidecar,
+  signal: AbortSignal,
+): Promise<void> {
+  const deadline = Date.now() + PUBLIC_ROUTE_CANARY_TIMEOUT_MS;
+
+  while (!signal.aborted) {
+    const result = await sidecar.checkPublicRoute();
+
+    if (result.ok) {
+      return;
+    }
+
+    if (result.kind !== "unreachable" || Date.now() >= deadline) {
+      throw publicRouteCanaryError(result);
+    }
+
+    await waitForDelay(PUBLIC_ROUTE_CANARY_RETRY_MS, signal);
+  }
+
+  throw signal.reason;
+}
+
 async function closeSidecar(sidecar: NextSidecar): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -163,6 +231,8 @@ export async function runNextDevelopment(
   let configured = false;
   let failureCode: string | undefined;
   let configurationQueue: Promise<void> = Promise.resolve();
+  const publicRouteCanaryAbort = new AbortController();
+  let publicRouteCanary: Promise<void> | undefined;
 
   const handleConfiguration = async (
     value: unknown,
@@ -245,9 +315,29 @@ export async function runNextDevelopment(
       configured = true;
       clearTimeout(startupTimer);
 
-      process.stdout.write(
-        `[spotpatch:next] ready for Next.js ${project.nextVersion} (${dev.bundler}) at ${dev.publicOrigin}\n`,
-      );
+      if (message.options.enabled) {
+        publicRouteCanary = waitForPublicRoute(
+          sidecar,
+          publicRouteCanaryAbort.signal,
+        ).then(
+          () => {
+            process.stdout.write(
+              `[spotpatch:next] ready for Next.js ${project.nextVersion} (${dev.bundler}) at ${dev.publicOrigin}\n`,
+            );
+          },
+          (error: unknown) => {
+            if (publicRouteCanaryAbort.signal.aborted) {
+              return;
+            }
+
+            failureCode = "PUBLIC_ROUTE_CANARY_FAILED";
+            process.stderr.write(
+              `[spotpatch:next] ${error instanceof Error ? error.message : "SpotPatch public-route canary failed."}\n`,
+            );
+            lifecycle.child?.kill("SIGTERM");
+          },
+        );
+      }
     }
 
     return createAck(message, { ok: true });
@@ -331,6 +421,7 @@ export async function runNextDevelopment(
   process.once("SIGTERM", onSigterm);
 
   const result = await waitForChild(child);
+  publicRouteCanaryAbort.abort();
   clearTimeout(startupTimer);
 
   process.off("SIGINT", onSigint);
@@ -341,6 +432,7 @@ export async function runNextDevelopment(
   }
 
   await configurationQueue;
+  await publicRouteCanary;
 
   try {
     await closeSidecar(sidecar);

@@ -66,7 +66,7 @@ describe("Vite integration initializer", () => {
       'import { spotPatch } from "@spotpatch/vite";',
     );
     expect(plan.changes[0]?.nextContent).toContain(
-      "plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }),",
+      "plugins: [spotPatch({ dataFlow: {}, externalAgent: true, trustedFastMode: true }),",
     );
 
     await applyViteIntegrationPlan(plan);
@@ -82,7 +82,9 @@ describe("Vite integration initializer", () => {
     const config = plan.changes[0]?.nextContent ?? "";
 
     expect(config.match(/spotPatch\(/gu)).toHaveLength(1);
-    expect(config).toContain("spotPatch({ dataFlow: {}, trustedFastMode: true })");
+    expect(config).toContain(
+      "spotPatch({ dataFlow: {}, externalAgent: true, trustedFastMode: true })",
+    );
   });
 
   it("uses a collision-free import and supports an identifier export", async () => {
@@ -95,7 +97,7 @@ describe("Vite integration initializer", () => {
       'import { spotPatch as spotPatch1 } from "@spotpatch/vite";',
     );
     expect(config).toContain(
-      "plugins: [spotPatch1({ dataFlow: {}, trustedFastMode: true })]",
+      "plugins: [spotPatch1({ dataFlow: {}, externalAgent: true, trustedFastMode: true })]",
     );
   });
 
@@ -108,7 +110,7 @@ describe("Vite integration initializer", () => {
 
     expect(config).toContain('import { spotPatch } from "@spotpatch/vite";');
     expect(config).toContain(
-      "plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }),",
+      "plugins: [spotPatch({ dataFlow: {}, externalAgent: true, trustedFastMode: true }),",
     );
     expect(config).toContain("define: { __MODE__: JSON.stringify(env.MODE) }");
 
@@ -124,7 +126,7 @@ describe("Vite integration initializer", () => {
 
     expect(config).toContain("import { spotPatch } from '@spotpatch/vite';");
     expect(config).toContain(
-      "plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true }), react()]",
+      "plugins: [spotPatch({ dataFlow: {}, externalAgent: true, trustedFastMode: true }), react()]",
     );
   });
 
@@ -135,7 +137,7 @@ describe("Vite integration initializer", () => {
     const config = (await planViteIntegration(root)).changes[0]?.nextContent ?? "";
 
     expect(config).toContain(
-      "plugins: [spotPatch({ dataFlow: {}, trustedFastMode: true })]",
+      "plugins: [spotPatch({ dataFlow: {}, externalAgent: true, trustedFastMode: true })]",
     );
   });
 
@@ -162,7 +164,7 @@ describe("Vite integration initializer", () => {
 
     expect(plan.trustedFastModeAvailable).toBe(false);
     expect(plan.changes[0]?.nextContent).toContain(
-      "plugins: [spotPatch({ dataFlow: {} })]",
+      "plugins: [spotPatch({ dataFlow: {}, externalAgent: true })]",
     );
   });
 
@@ -173,6 +175,7 @@ describe("Vite integration initializer", () => {
     const config = (await planViteIntegration(root)).changes[0]?.nextContent ?? "";
 
     expect(config).toContain("dataFlow: {},");
+    expect(config).toContain("externalAgent: true,");
     expect(config).toContain("trustedFastMode: true,");
     expect(config).toContain('ai: false, locale: "zh-CN"');
   });
@@ -185,6 +188,7 @@ describe("Vite integration initializer", () => {
     const config = plan.changes[0]?.nextContent ?? "";
 
     expect(config).toContain("dataFlow: {}");
+    expect(config).toContain("externalAgent: true");
     expect(config).toContain("trustedFastMode: true");
     await applyViteIntegrationPlan(plan);
     await expect(planViteIntegration(root)).resolves.toMatchObject({ changes: [] });

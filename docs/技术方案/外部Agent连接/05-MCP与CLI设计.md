@@ -2,8 +2,8 @@
 doc-id: "external-agent-05-mcp-cli"
 title: "外部 Agent 连接：MCP 与 CLI 设计"
 status: "active"
-version: "0.4.1"
-last-updated: "2026-08-24"
+version: "0.5.1"
+last-updated: "2026-08-26"
 source-range: "MCP stdio tools/resources/prompts、CLI JSON、客户端配置与厂商增强边界"
 参考文献/依赖:
   - "external-agent-02-research-compatibility"
@@ -12,6 +12,7 @@ source-range: "MCP stdio tools/resources/prompts、CLI JSON、客户端配置与
   - "external-agent-06-security"
   - "external-agent-08-testing-delivery"
   - "external-agent-09-active-dispatch-adapters"
+  - "external-agent-10-convergence"
 ---
 
 # 外部 Agent 连接：MCP 与 CLI 设计
@@ -132,12 +133,14 @@ CLI 与 MCP 复用同一 discovery reader、Broker client、Schema、errors 和 
 <spotpatch-framework-cli> bridge setup --client <claude|cursor|codex> --scope project [--mode <inbox|active>] [--write]
 ```
 
-`sessions/current/wait/ack/mcp/setup` 是 Inbox 基线；`channel/connect` 与其共享 Event Pump 已有工作区实现、假宿主合同测试和确定性连续两任务集成测试，当前只是 `local-validation`。框架 CLI 把顶层 `connect` 直接转发给同一 Bridge CLI；旧的 `bridge connect` 仍兼容，但不作为首选文案维护第二套实现。`spotpatch-bridge` 仅供显式直接安装 `@spotpatch/bridge` 的高级/内部场景使用。Claude 真实连续双次 E2E 仍为 `not-tested`；Codex 已在记录的 macOS/Next.js/Codex 0.149.0 环境人工完成连续两 revision，跨平台和可重复真实宿主自动化尚未完成。所有命令都不构成跨宿主或跨平台稳定支持声明。
+`sessions/current/wait/ack/mcp/setup` 是 Inbox 基线；`channel/connect` 与其共享 Event Pump 已有工作区实现、假宿主合同测试和确定性连续两任务集成测试，当前只是 `local-validation`。框架 CLI 把顶层 legacy `connect` 转发给同一 Bridge CLI；旧的 `bridge connect` 仍兼容，但两者都不是 managed 默认路径，也不维护第二套实现。`spotpatch-bridge` 仅供显式直接安装 `@spotpatch/bridge` 的高级/内部场景使用。Claude 真实连续双次 E2E 仍为 `not-tested`；旧 attached Codex 已在记录的 macOS/Next.js/Codex 0.149.0 环境人工完成连续两 revision，该证据不适用于 managed。所有命令都不构成跨宿主或跨平台稳定支持声明。
 
-### 主动命令生命周期
+当前 ADR-037 managed 产品路径不再要求用户运行 `connect codex`：该命令只在一个迁移发布周期内保留为高级诊断/回退，并明确标记 legacy direct-workspace。正常路径由 `init` 配置后随 `pnpm dev` 启动 Supervisor；Browser control API 也不接收或拼接本节命令。
+
+### 主动命令生命周期（ADR-036 legacy attached 基线）
 
 - `channel claude` 由 Claude Code 作为项目 MCP stdio server 启动；它在真实 initialize 完成后注册读取/结果上报 tools，确认 Channel 兼容协议，再 claim 原子 baseline；MCP 连接关闭时终止 Event Pump、心跳和 lease。当前锁定 Claude Code 组合必须把 legacy 协商环境设置在**宿主 Claude 进程**上：`MCP_PROTOCOL_NEGOTIATION=legacy claude --dangerously-load-development-channels server:spotpatch`；只修改 MCP server 子进程环境不能改变宿主的握手选择。
-- `connect codex --allow-workspace-write` 是主动 Codex 的单命令入口，不要求 nvm 或预先 setup，也不创建、读取或修改项目 `.codex/config.toml`。Connector 从唯一的框架适配配置生成器取得当前安装版本的 SpotPatch MCP command/args，内部追加精确 `--session`，并把它作为 `thread/start.config.mcp_servers.spotpatch` 仅注入 Connector 拥有的 thread。inline 配置同时引用固定 `XDG_RUNTIME_DIR` / `TMPDIR` / `TMP` / `TEMP` 名称白名单，不写入值也不传递完整环境；`enabled_tools` 只允许 `spotpatch_list_sessions`，禁止模型在主动 turn 中获取/整体序列化完整 snapshot。连接先用 `mcpServerStatus/list` 验证该 Session-list tool，再通过 `mcpServer/tool/call(spotpatch_list_sessions)` 验证 MCP 实际只能发现用户选定的 Broker Session；两者均成功后才 claim。连接命令缺少写权限参数直接拒绝启动。它在可信终端 PATH 解析并 realpath 一个绝对 `codex` 可执行文件，验证可执行权限、精确支持版本 `codex-cli 0.149.0` 且默认拒绝项目 root 内的二进制，然后仅以固定 argv `app-server`、`shell: false` 启动；浏览器/交接不能提供 executable、args、cwd、MCP command、模型、sandbox、approval 或环境变量。
+- legacy `connect codex --allow-workspace-write` 曾是主动 Codex 的单命令入口，现只保留一个迁移发布周期作为高级诊断/回退。它不创建、读取或修改项目 `.codex/config.toml`，并继续使用固定 MCP、会话、版本、cwd、sandbox、approval 和环境白名单；Browser/交接不能提供这些字段。managed 默认路径的完整固定 profile 见 (见 doc-id:external-agent-10-convergence)。
 - 两个主动命令都必须从 dev Session 的精确 canonical 项目根启动；子目录或祖先目录不会被自动升格为可写根。若该根有多个活跃 dev Session，先用 `sessions --json` 取得 opaque ID，再向 `channel claude` 或 `connect codex` 传 `--session <id>`；不指定时 fail-fast，不猜测最新 Session。
 - 两种模式都必须先让 adapter 真正 ready，再原子 claim 并取得 `baselineCursor`，不执行启动前已存在的写任务；随后持续使用同一个 Broker client 的 wait/自动取件回执，每次任务进入明确 `completed/failed` 后回到 idle。多个匹配 dev Session 时主动连接 fail-fast，要求用户显式选择。
 - SIGINT/SIGTERM、stdio 关闭、App Server 退出或 lease 失效进入同一幂等清理链；信号在 Session discovery 和 App Server initialize/preflight 阶段同样生效，不能等到 Event Pump 启动后才可取消。
@@ -210,9 +213,9 @@ implement the request, then call spotpatch_report_handoff_result.
 
 `mcp.notification()` resolve 只更新为 `dispatched`，不能直接更新为 `working/completed`。Channel 协议没有 completion ACK；当前实现只能依赖 exact-cursor 取件 tool 作为 working 证据，并依赖 `spotpatch_report_handoff_result` 作为 terminal 证据。Agent 未调用结果 tool 时不得猜测完成，超时进入 `delivery-unknown`。首版不声明 permission relay，也不使用 `--dangerously-skip-permissions`。真实双次点击 E2E 未通过前，只能标 experimental/local-validation。
 
-### Codex App Server adapter
+### Codex App Server adapter（ADR-036 legacy attached 基线）
 
-在精确项目根只需运行 `connect codex --allow-workspace-write [--session <id>]`，即可启动一个 SpotPatch-owned、项目作用域、常驻的 Codex App Server client；不需要 nvm，也不需要预先 setup。CLI 的运行时要求仅为包声明的 Node.js `>=20.19.0`，Node 版本管理器属于用户可选工具。Connector 当前硬锁 `codex-cli 0.149.0`。App Server 是官方 deep-integration interface，但当前 command 仍为 experimental，不用于 production workload。协议顺序固定为：
+legacy attached 路径可在精确项目根运行 `connect codex --allow-workspace-write [--session <id>]` 启动 SpotPatch-owned App Server client；它不是 managed 默认安装步骤。CLI 的运行时要求为 Node.js `>=20.19.0`。该历史实现锁定 `codex-cli 0.149.0`，只用于迁移诊断；managed 使用集中 semver 范围和 capability preflight。App Server 是官方 deep-integration interface，但 command 仍为 experimental。legacy 协议顺序为：
 
 ```text
 resolve/verify absolute codex executable and version
@@ -231,6 +234,8 @@ resolve/verify absolute codex executable and version
 首版不使用 `turn/steer`，不接管未知 Codex UI thread，不持久化 threadId，不自动重放进程重启前的任务。`mcpServerStatus/list` 只证明该 thread 中名为 `spotpatch` 的 server/tool 已注册；还必须由 App Server 直接调用 `spotpatch_list_sessions`，并在严格解析的结构化结果中确认只有用户选定 Session，才可 claim，避免 MCP 启动在不同运行目录时把“工具可见”误报为“Broker 可读”。状态页同时必须证明 SpotPatch server 仅暴露 Session-list，出现额外 tool 即 fail closed。`turn/start` 的用户输入包含 revision、经清洗且规范化的项目相对路径/行列、仅标签名的元素标识、逐目标 instruction 以及固定执行约束；绝对路径、反斜杠路径、`.`/`..` 段、空路径段和控制字符均在厂商写入前拒绝。输入不包含 DOM selector、CSS、源码摘录、页面 URL 或 token。全部目标必须有可执行源码位置，且“位置 + 安全标签”投影在本次多目标内唯一；缺失或碰撞都在厂商写入前报告 failed，避免让模型猜目标。主动 Codex 配置已从模型工具面移除 get/wait/ack，并有额外工具拒绝的自动化证据，从而针对“整体序列化约 225 KiB result”的已知失败路径实施协议级阻断；修复后已在记录的 macOS/Next.js/Codex 0.149.0 环境人工完成连续两 revision，但仍缺少跨平台和可重复真实宿主自动化。项目当前源码是执行权威。Client 只接受有界 JSONL，按 request ID 关联响应：成功 response → `dispatched`，匹配 `turn/started` → `working`，匹配 `turn/completed.params.turn.status` → 协议终态。`completed` 只表示 model turn 正常结束，不证明要求已实现。开发 Session 结束或重启时 exact-session Connector 必须停止并要求重跑，不能用旧 ID 无限退避或静默切换新 Session。已知反向 request 按各自 Schema 返回 `decline`/`cancel` 等有效结果；未知 method 才返回协议错误，任何情况都不自动审批。
 
 写权限只来自启动时显式参数：canonical cwd、workspace-write、network disabled、approval 固定为 `never`；不使用 danger-full-access。`never` 表示不弹 approval prompt，Codex 在 sandbox 内 best effort，不表示所有越界行为都以同一种错误失败。workspace-write 主要约束写入，不等于只能读取项目目录；`networkAccess: false` 只约束 sandbox 内模型生成命令的网络，不关闭 App Server 模型 API 或独立 MCP server 所需网络。Codex 会按自身配置分层继续加载用户已启用的其他 MCP server；thread 级同名 `spotpatch` 配置已用 0.149.0 POC 验证会覆盖项目层同名 entry，但 Connector 不尝试禁用无关 MCP。当前 App Server 在 `thread/start` 解析可写项目时可能把 project trust 写入用户 Codex `config.toml`；`--allow-workspace-write` 的终端披露必须明确该外部副作用，不能由浏览器静默触发。POSIX 上 App Server 以独立进程组启动，关闭时先向整组发 `SIGTERM`、超时再发 `SIGKILL`，并有子孙进程清理测试；Windows 当前只回退到直接终止 child，进程树清理证据仍为 `not-tested`。通知 envelope 只接受锁定 Schema 的 `method`、`params` 和可选非负安全整数 `emittedAtMs`；有效工作区策略只接受 canonical cwd 及无额外 root 或同一 root，畸形/超限输出、未知 envelope 字段、外部可写 root 或 App Server 退出均 fail closed。
+
+ADR-037 managed 的 Supervisor、grant、独立快照、新 thread、固定命名 permission profile、配置隔离、四状态轴、required checks 与安全回写完全以 (见 doc-id:external-agent-10-convergence) 为准；不得从上述 legacy 命令复制 direct-workspace、单 thread、其他 MCP 或精确版本字符串。
 
 ### Cursor 与其他工具
 

@@ -99,6 +99,7 @@ export async function runConfiguredCheck(
     label: options.check.label,
     status,
     durationMs: Math.max(0, now() - startedAt),
+    ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
     output,
   });
 }

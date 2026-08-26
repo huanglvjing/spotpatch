@@ -23,4 +23,13 @@ export {
   revertPreparedAgentChange,
   type PreparedAgentChange,
 } from "./worktree/prepared-change.js";
+export {
+  createManagedExecutionRunner,
+  type AuthorizedManagedTask,
+  type CreateManagedExecutionRunnerOptions,
+  type ManagedExecutionPort,
+  type ManagedExecutionPhaseObserver,
+  type ManagedExecutionResult,
+  type PreparedManagedTask,
+} from "./managed/managed-execution.js";
 export { inspectAgentWorkspace } from "./worktree/workspace-health.js";

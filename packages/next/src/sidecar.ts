@@ -14,11 +14,17 @@ import {
   createSourceRegistrationService,
   createSourceRegistry,
   createSpotPatchMiddleware,
+  resolveManagedExecutionValidation,
   type AgentJobManager,
   type ExternalHandoffService,
   type ResolvedSpotPatchOptions,
   type SourceRegistry,
+  type SpotPatchMiddleware,
 } from "@spotpatch/dev-server";
+import {
+  createExternalAgentSupervisor,
+  type ExternalAgentSupervisor,
+} from "@spotpatch/bridge";
 import {
   SPOTPATCH_API_BASE,
   SPOTPATCH_ENDPOINTS,
@@ -41,6 +47,15 @@ import {
 const SIDECAR_SELF_CHECK_LIMIT_BYTES = 16_384;
 const SIDECAR_SELF_CHECK_TIMEOUT_MS = 3_000;
 
+export type NextPublicRouteCanaryResult =
+  | Readonly<{ ok: true }>
+  | Readonly<{
+      finalUrl: string;
+      kind: "unreachable" | "http" | "response-invalid";
+      ok: false;
+      status?: number;
+    }>;
+
 interface ActivateSidecarInput {
   readonly appRoot: string;
   readonly bundler: SpotPatchNextBundler;
@@ -59,6 +74,7 @@ type RequestHandler = (request: IncomingMessage, response: ServerResponse) => vo
 export interface NextSidecar {
   readonly origin: string;
   activate(input: ActivateSidecarInput): Promise<void>;
+  checkPublicRoute(): Promise<NextPublicRouteCanaryResult>;
   close(): Promise<void>;
 }
 
@@ -106,21 +122,50 @@ function validateCredentialEnvironment(
   }
 }
 
-async function selfCheckSidecar(
-  sidecarOrigin: string,
-  publicOrigin: string,
+function diagnosticUrl(value: string, fallbackOrigin: string): string {
+  try {
+    const url = new URL(value, fallbackOrigin);
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return fallbackOrigin;
+  }
+}
+
+async function checkBootstrapRoute(
+  routeOrigin: string,
+  expectedOrigin: string,
   expectedConfig: SpotPatchRuntimeConfig,
-): Promise<void> {
-  const response = await fetch(new URL(SPOTPATCH_ENDPOINTS.bootstrap, sidecarOrigin), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Origin: publicOrigin,
-      "Sec-Fetch-Site": "same-origin",
-    },
-    body: "{}",
-    signal: AbortSignal.timeout(SIDECAR_SELF_CHECK_TIMEOUT_MS),
-  });
+): Promise<NextPublicRouteCanaryResult> {
+  const requestUrl = new URL(SPOTPATCH_ENDPOINTS.bootstrap, routeOrigin);
+  let response: Response;
+
+  try {
+    response = await fetch(requestUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: expectedOrigin,
+        "Sec-Fetch-Site": "same-origin",
+      },
+      body: "{}",
+      redirect: "manual",
+      signal: AbortSignal.timeout(SIDECAR_SELF_CHECK_TIMEOUT_MS),
+    });
+  } catch {
+    return Object.freeze({
+      finalUrl: diagnosticUrl(requestUrl.href, routeOrigin),
+      kind: "unreachable",
+      ok: false,
+    });
+  }
+
+  const redirectLocation = response.headers.get("location");
+  const finalUrl = diagnosticUrl(
+    redirectLocation === null
+      ? response.url || requestUrl.href
+      : new URL(redirectLocation, response.url || requestUrl.href).href,
+    routeOrigin,
+  );
   const declaredLength = Number(response.headers.get("content-length"));
 
   if (
@@ -128,25 +173,48 @@ async function selfCheckSidecar(
     declaredLength > SIDECAR_SELF_CHECK_LIMIT_BYTES
   ) {
     await response.body?.cancel();
-    throw new Error("SpotPatch Sidecar self-check failed.");
+    return Object.freeze({
+      finalUrl,
+      kind: "response-invalid",
+      ok: false,
+      status: response.status,
+    });
   }
 
   const text = await response.text();
 
+  if (!response.ok) {
+    return Object.freeze({
+      finalUrl,
+      kind: "http",
+      ok: false,
+      status: response.status,
+    });
+  }
+
   if (
-    !response.ok ||
     !response.headers.get("cache-control")?.toLowerCase().includes("no-store") ||
     Buffer.byteLength(text, "utf8") > SIDECAR_SELF_CHECK_LIMIT_BYTES
   ) {
-    throw new Error("SpotPatch Sidecar self-check failed.");
+    return Object.freeze({
+      finalUrl,
+      kind: "response-invalid",
+      ok: false,
+      status: response.status,
+    });
   }
 
   let value: unknown;
 
   try {
     value = JSON.parse(text) as unknown;
-  } catch (error: unknown) {
-    throw new Error("SpotPatch Sidecar self-check failed.", { cause: error });
+  } catch {
+    return Object.freeze({
+      finalUrl,
+      kind: "response-invalid",
+      ok: false,
+      status: response.status,
+    });
   }
 
   if (
@@ -158,7 +226,12 @@ async function selfCheckSidecar(
     value.ok !== true ||
     !("data" in value)
   ) {
-    throw new Error("SpotPatch Sidecar self-check failed.");
+    return Object.freeze({
+      finalUrl,
+      kind: "response-invalid",
+      ok: false,
+      status: response.status,
+    });
   }
 
   const parsed = runtimeConfigSchema.safeParse(value.data);
@@ -169,6 +242,25 @@ async function selfCheckSidecar(
     !parsedExpected.success ||
     JSON.stringify(parsed.data) !== JSON.stringify(parsedExpected.data)
   ) {
+    return Object.freeze({
+      finalUrl,
+      kind: "response-invalid",
+      ok: false,
+      status: response.status,
+    });
+  }
+
+  return Object.freeze({ ok: true });
+}
+
+async function selfCheckSidecar(
+  sidecarOrigin: string,
+  publicOrigin: string,
+  expectedConfig: SpotPatchRuntimeConfig,
+): Promise<void> {
+  const result = await checkBootstrapRoute(sidecarOrigin, publicOrigin, expectedConfig);
+
+  if (!result.ok) {
     throw new Error("SpotPatch Sidecar self-check failed.");
   }
 }
@@ -197,6 +289,14 @@ export async function createNextSidecar(
   let registry: SourceRegistry | undefined;
   let agentManager: AgentJobManager | undefined;
   let externalHandoffService: ExternalHandoffService | undefined;
+  let externalAgentSupervisor: ExternalAgentSupervisor | undefined;
+  let spotPatchMiddleware: SpotPatchMiddleware | undefined;
+  let publicRouteCheck:
+    | Readonly<{
+        expectedConfig: SpotPatchRuntimeConfig;
+        publicOrigin: string;
+      }>
+    | undefined;
   let handler: RequestHandler = (_request, response) => {
     writeUnavailable(response, 503);
   };
@@ -293,10 +393,12 @@ export async function createNextSidecar(
             sessionId: session.id,
           })
         : undefined;
+      let handoffReady = false;
 
       if (handoffService !== undefined) {
         try {
           await handoffService.start();
+          handoffReady = true;
         } catch {
           process.stderr.write(
             "[spotpatch:next] External Agent handoff is unavailable; core tools remain active.\n",
@@ -304,11 +406,34 @@ export async function createNextSidecar(
         }
       }
       externalHandoffService = handoffService;
+      let supervisor: ExternalAgentSupervisor | undefined;
+      if (handoffReady) {
+        try {
+          const validation = await resolveManagedExecutionValidation({
+            ai: input.options.ai,
+            appRoot: input.appRoot,
+          });
+          supervisor = await createExternalAgentSupervisor({
+            bridgeAdapter: "next",
+            checks: validation.checks,
+            limits: validation.limits,
+            root: input.appRoot,
+            sessionId: session.id,
+            projectLabel: input.appRoot.split(/[\\/]/u).at(-1) ?? "project",
+          });
+        } catch {
+          process.stderr.write(
+            "[spotpatch:next] Managed Agent control is unavailable; Inbox remains active.\n",
+          );
+        }
+      }
+      externalAgentSupervisor = supervisor;
       const middleware = createSpotPatchMiddleware({
         ...(manager === undefined ? {} : { agentManager: manager }),
         ...(handoffService === undefined
           ? {}
           : { externalHandoffService: handoffService }),
+        ...(supervisor === undefined ? {} : { externalAgentControl: supervisor }),
         bootstrap: {
           expectedOrigin: input.publicOrigin,
           runtimeConfig,
@@ -333,6 +458,7 @@ export async function createNextSidecar(
 
       registry = sourceRegistry;
       agentManager = manager;
+      spotPatchMiddleware = middleware;
       handler = (request, response) => {
         if (requestPath(request.url) === NEXT_INTERNAL_REGISTRATION_PATH) {
           registration.handler(request, response);
@@ -344,7 +470,26 @@ export async function createNextSidecar(
         });
       };
       await selfCheckSidecar(sidecarOrigin, input.publicOrigin, runtimeConfig);
+      publicRouteCheck = Object.freeze({
+        expectedConfig: runtimeConfig,
+        publicOrigin: input.publicOrigin,
+      });
       active = true;
+    },
+    async checkPublicRoute(): Promise<NextPublicRouteCanaryResult> {
+      if (closed || !active || publicRouteCheck === undefined) {
+        return Object.freeze({
+          finalUrl: sidecarOrigin,
+          kind: "unreachable",
+          ok: false,
+        });
+      }
+
+      return await checkBootstrapRoute(
+        publicRouteCheck.publicOrigin,
+        publicRouteCheck.publicOrigin,
+        publicRouteCheck.expectedConfig,
+      );
     },
     async close(): Promise<void> {
       if (closed) {
@@ -356,6 +501,10 @@ export async function createNextSidecar(
         writeUnavailable(response, 503);
       };
       registry?.clear();
+      spotPatchMiddleware?.dispose();
+      spotPatchMiddleware = undefined;
+      await externalAgentSupervisor?.dispose();
+      externalAgentSupervisor = undefined;
       await externalHandoffService?.close();
       externalHandoffService = undefined;
       await agentManager?.close();

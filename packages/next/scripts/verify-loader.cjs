@@ -55,7 +55,7 @@ async function main() {
           warnings.push(warning);
         },
         getOptions() {
-          return { registryEpoch: epoch };
+          return { mode: "source", registryEpoch: epoch };
         },
       },
       source,

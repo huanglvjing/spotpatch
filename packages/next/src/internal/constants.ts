@@ -18,6 +18,8 @@ export const NEXT_ENVIRONMENT_KEYS = Object.freeze({
 } as const);
 
 export const NEXT_SOURCE_RULE_KEYS = Object.freeze(["*.jsx", "*.tsx"] as const);
+export const NEXT_DATA_FLOW_RULE_KEYS = Object.freeze(["*.js", "*.ts"] as const);
 export const NEXT_CLIENT_MODULE_ID = "@spotpatch/next/client" as const;
+export const NEXT_DATA_FLOW_MODULE_ID = "@spotpatch/next/data-flow-runtime" as const;
 
-export const NEXT_DEFAULT_INCLUDE = Object.freeze([/\.(?:jsx|tsx)$/u]);
+export const NEXT_DEFAULT_INCLUDE = Object.freeze([/\.(?:js|jsx|ts|tsx)$/u]);

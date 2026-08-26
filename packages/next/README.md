@@ -16,18 +16,18 @@
 > [!WARNING]
 > This package is a **0.x public preview**, not a formally supported Next.js integration. Its peer dependency range must not be interpreted as a completed compatibility or production-support claim.
 
-The preview connects SpotPatch's element picker, source-aware context, bilingual multi-target requests, and optional review-gated AI Agent to a Next.js development server.
+The preview connects SpotPatch's element picker, source-aware context, evidence-first component data flow, bilingual multi-target requests, and optional review-gated AI Agent to a Next.js development server.
 
-Component `dataFlow` is not part of the Next.js preview yet. `spotpatch-next init` intentionally does not write that option, and `withSpotPatch({ dataFlow: {} })` is rejected instead of displaying a non-functional or misleading panel. The currently implemented data-flow Beta remains Vite + React 18 only.
+Component `dataFlow` uses the same compiler, analyzer, recorder, merger, protocol, and panel as Vite; Next owns only the bundler and Sidecar integration. Browser Client Components support the `fetch`, Axios, React Query/TanStack Query, and experimental tRPC evidence described by the shared Beta guide. RSC, Server Actions, and Route Handlers can contribute statically proven `declared-not-observed` evidence, but their server-side dispatch is not observable in the browser.
 
 ### Implemented preview path
 
 - `withSpotPatch()` composes an existing `next.config` without evaluating it twice.
 - `spotpatch-next dev` owns the loopback-only Next child process and Sidecar lifecycle.
-- Development-only Turbopack and webpack Loader paths register source and inject JSX/TSX markers.
-- `@spotpatch/next/client` installs the React hook from `instrumentation-client`, then bootstraps one Runtime.
+- Development-only Turbopack and webpack Loader paths atomically register source/data-flow anchors, inject JSX/TSX markers, and instrument eligible browser `.js/.jsx/.ts/.tsx` modules.
+- `@spotpatch/next/client` installs the React hook and dispatch-only data-flow prelude from `instrumentation-client`, then bootstraps one Runtime and the shared data-flow panel.
 - Private API rewrites use a randomized loopback Sidecar origin and per-launch secrets.
-- Production configuration aliases the client to a side-effect-free no-op and does not add the Loader, Sidecar, source registry, or private rewrite.
+- Production configuration aliases both browser entries to a side-effect-free no-op and does not add the Loader, recorder, panel, Sidecar, source registry, or private rewrite.
 - `spotpatch-next init` previews and applies supported integration edits with rollback on failure.
 - `spotpatch-next check` diagnoses the package graph and generated integration without starting development.
 
@@ -51,7 +51,10 @@ import { withSpotPatch } from "@spotpatch/next";
 
 const nextConfig: NextConfig = {};
 
-export default withSpotPatch({ trustedFastMode: true })(nextConfig);
+export default withSpotPatch({
+  dataFlow: {},
+  trustedFastMode: true,
+})(nextConfig);
 ```
 
 ```ts
@@ -109,11 +112,14 @@ The public preview has passed:
 - a locked Loader POC covering selected Next 15/React 18 and Next 16/React 19 combinations;
 - one private Next 16 App Router host with Turbopack and webpack development startup;
 - authenticated Runtime bootstrap, source registration, source-context lookup, and Runtime singleton checks in that host;
+- shared data-flow compiler/runtime/HTTP unit gates, atomic Next registration, React 19 registration-only identity policy, cross-module renderer discovery, and browser/server Loader partitioning;
+- one packed Next 16 App Router/Turbopack browser report showing direct `fetch` plus Axios/TanStack Query transitive static evidence;
+- one packed Next 16 App Router webpack development build preserving `"use client"` and excluding `.next`/`node_modules` before the Loader;
 - Turbopack and webpack Fast Refresh in the private Runtime POC;
 - webpack production isolation in the private host;
-- a separate historical Turbopack production Loader POC for the locked host.
+- a clean packed Next 16 App Router/Turbopack production build/start with page 200, private bootstrap 404, and no executable SpotPatch data-flow residue in business output.
 
-Formal public support remains blocked on the complete required Next/React/router/Node/OS matrix, Pages and hybrid router coverage, broader RSC navigation cases, fresh browser interaction evidence, complex rewrite/base path fixtures, and a full Turbopack production zero-residual fixture.
+Formal public support remains blocked on the complete required Next/React/router/Node/OS matrix, Pages and hybrid router coverage, broader RSC navigation cases, a final React 19 identity browser recheck, complex rewrite/base path fixtures, and webpack/Turbopack production scans for Pages, standalone, static export, and multiple operating systems.
 
 Read the [implementation status](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E6%9E%B6%E6%9E%84%E6%91%98%E8%A6%81.md) and [required release matrix](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/08-%E6%B5%8B%E8%AF%95%E9%AA%8C%E6%94%B6%E4%B8%8E%E5%AE%9E%E6%96%BD%E8%AE%A1%E5%88%92.md) before drawing compatibility conclusions.
 
@@ -149,18 +155,18 @@ If React reports only a removed body attribute such as `cz-shortcut-listen="true
 > [!WARNING]
 > 本包是 **0.x 公共预览版**，不是正式支持的 Next.js 接入。peer dependency 范围不能解释成兼容矩阵或生产支持已经完成。
 
-当前预览把 SpotPatch 的元素选择、源码上下文、中英文多目标修改要求和可选审阅式 AI Agent 接入 Next.js 开发服务器。
+当前预览把 SpotPatch 的元素选择、源码上下文、证据优先的组件数据链路、中英文多目标修改要求和可选审阅式 AI Agent 接入 Next.js 开发服务器。
 
-组件 `dataFlow` 尚未进入 Next.js 预览范围。`spotpatch-next init` 会有意不写入该选项；`withSpotPatch({ dataFlow: {} })` 会直接拒绝，而不是显示一个不能工作的误导性面板。当前已实现的数据链路 Beta 仍仅限 Vite + React 18。
+组件 `dataFlow` 复用 Vite 的同一 compiler、analyzer、recorder、merger、协议和面板；Next 只承载构建器与 Sidecar。浏览器 Client Component 支持共享 Beta 指南列出的 `fetch`、Axios、React Query/TanStack Query 和实验性 tRPC 证据；RSC、Server Action、Route Handler 只能提供静态可证明的 `declared-not-observed` 关系，浏览器不能观测其服务端 dispatch。
 
 ### 已实现的预览链路
 
 - `withSpotPatch()` 组合现有 `next.config`，不会重复执行宿主配置。
 - `spotpatch-next dev` 管理只监听 loopback 的 Next 子进程与 Sidecar 生命周期。
-- 仅开发期启用的 Turbopack/webpack Loader 注册源码并注入 JSX/TSX 标记。
-- `@spotpatch/next/client` 从 `instrumentation-client` 安装 React hook，再启动唯一 Runtime。
+- 仅开发期启用的 Turbopack/webpack Loader 原子注册源码/data-flow anchors、注入 JSX/TSX 标记，并转换符合条件的浏览器 `.js/.jsx/.ts/.tsx` 模块。
+- `@spotpatch/next/client` 从 `instrumentation-client` 安装 React hook 与 dispatch-only data-flow prelude，再启动唯一 Runtime和共享数据链路面板。
 - 私有 API rewrite 使用随机 loopback Sidecar origin 和每次启动生成的秘密。
-- 生产配置把客户端入口替换为无副作用 no-op，不添加 Loader、Sidecar、源码注册或私有 rewrite。
+- 生产配置把两个浏览器入口替换为无副作用 no-op，不添加 Loader、recorder、面板、Sidecar、源码注册或私有 rewrite。
 - `spotpatch-next init` 预览并应用受支持的接入修改，失败时执行回滚。
 - `spotpatch-next check` 在不启动开发服务器的情况下诊断包依赖和接入文件。
 
@@ -184,7 +190,10 @@ import { withSpotPatch } from "@spotpatch/next";
 
 const nextConfig: NextConfig = {};
 
-export default withSpotPatch({ trustedFastMode: true })(nextConfig);
+export default withSpotPatch({
+  dataFlow: {},
+  trustedFastMode: true,
+})(nextConfig);
 ```
 
 ```ts
@@ -242,11 +251,14 @@ Claude legacy 环境变量必须设置在 Claude 宿主进程。Claude Channels 
 - 锁定范围的 Loader POC，覆盖选定的 Next 15/React 18 和 Next 16/React 19 组合；
 - 一个私有 Next 16 App Router 宿主的 Turbopack 与 webpack 开发启动；
 - 该宿主中的认证 Runtime bootstrap、源码注册、源码上下文读取和 Runtime 单例检查；
+- 共享 data-flow compiler/runtime/HTTP 单测门禁、Next 原子注册、React 19 registration-only 身份策略、跨模块 renderer 发现和 browser/server Loader 分层；
+- 一个 packed Next 16 App Router/Turbopack 浏览器报告，展示直接 `fetch` 与 Axios/TanStack Query transitive 静态证据；
+- 一个 packed Next 16 App Router webpack development 构建，保持 `"use client"` 并在 Loader 前排除 `.next`/`node_modules`；
 - 私有 Runtime POC 的 Turbopack 与 webpack Fast Refresh；
 - 私有宿主的 webpack 生产隔离；
-- 锁定宿主独立的历史 Turbopack 生产 Loader POC。
+- packed Next 16 App Router/Turbopack 干净 production build/start，页面 200、私有 bootstrap 404，且业务产物无可执行 SpotPatch data-flow 残留。
 
-正式公共支持仍被以下项目阻断：完整 Next/React/router/Node/OS required matrix、Pages 与 hybrid Router、更广泛的 RSC 导航、全新浏览器交互证据、复杂 rewrite/basePath fixture，以及完整的 Turbopack 生产零残留 fixture。
+正式公共支持仍被以下项目阻断：完整 Next/React/router/Node/OS required matrix、Pages 与 hybrid Router、更广泛的 RSC 导航、React 19 身份最终浏览器复验、复杂 rewrite/basePath fixture，以及 Pages/standalone/static export/多操作系统的 webpack/Turbopack 生产扫描。
 
 判断兼容性前必须阅读[实现状态](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/00-%E7%B4%A2%E5%BC%95%E4%B8%8E%E6%9E%B6%E6%9E%84%E6%91%98%E8%A6%81.md)与[发布 required matrix](https://github.com/huanglvjing/spotpatch/blob/main/docs/%E6%8A%80%E6%9C%AF%E6%96%B9%E6%A1%88/Next%E9%80%82%E9%85%8D/08-%E6%B5%8B%E8%AF%95%E9%AA%8C%E6%94%B6%E4%B8%8E%E5%AE%9E%E6%96%BD%E8%AE%A1%E5%88%92.md)。
 

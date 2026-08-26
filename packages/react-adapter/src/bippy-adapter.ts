@@ -8,7 +8,7 @@ import {
   toSafeRelativeSourcePath,
 } from "./source/safe-source-path.js";
 
-const SUPPORTED_REACT_VERSION = /^18\.(?:2|3)\./;
+const SUPPORTED_REACT_18_VERSION = /^18\.(?:2|3)\./;
 const NOISE_COMPONENT_NAMES = new Set([
   "Fragment",
   "StrictMode",
@@ -42,8 +42,12 @@ export interface CreateReact18AdapterOptions {
   readonly maxComponentDepth: number;
 }
 
-function isSupportedVersion(version: string | undefined): version is string {
-  return version !== undefined && SUPPORTED_REACT_VERSION.test(version);
+function isReact18Version(version: string | undefined): version is string {
+  return version !== undefined && SUPPORTED_REACT_18_VERSION.test(version);
+}
+
+function isReact19Version(version: string | undefined): version is string {
+  return version?.startsWith("19.") === true;
 }
 
 function isNoiseName(name: string): boolean {
@@ -58,6 +62,7 @@ function collectComponents(
   bridge: FiberBridge,
   node: unknown,
   maxDepth: number,
+  allowFiberSource: boolean,
   getComponentRegistration?: CreateReact18AdapterOptions["getComponentRegistration"],
 ): CollectedComponents {
   const stack: string[] = [];
@@ -76,7 +81,7 @@ function collectComponents(
       continue;
     }
 
-    const source = bridge.getSource(ancestor);
+    const source = allowFiberSource ? bridge.getSource(ancestor) : undefined;
     const componentType = bridge.getComponentType?.(ancestor);
     const registration =
       componentType === undefined
@@ -161,7 +166,10 @@ export function createReact18Adapter(
 
     const match = bridge.find(element);
 
-    if (match === undefined || !isSupportedVersion(match.version)) {
+    if (
+      match === undefined ||
+      (!isReact18Version(match.version) && !isReact19Version(match.version))
+    ) {
       return Object.freeze({
         supported: false,
         ...(match?.version === undefined ? {} : { version: match.version }),
@@ -173,8 +181,19 @@ export function createReact18Adapter(
       bridge,
       match.node,
       options.maxComponentDepth,
+      isReact18Version(match.version),
       options.getComponentRegistration,
     );
+    if (
+      isReact19Version(match.version) &&
+      components.businessComponent?.registration === undefined
+    ) {
+      return Object.freeze({
+        supported: false,
+        version: match.version,
+        componentStack: [],
+      });
+    }
     const componentName =
       components.businessComponent?.name ?? components.firstComponent?.name;
     const source = toProbableSource(components.businessComponent?.source);
@@ -198,7 +217,19 @@ export function createReact18Adapter(
         return false;
       }
 
-      return isSupportedVersion(bridge.find(element)?.version);
+      const match = bridge.find(element);
+      if (match === undefined) return false;
+      if (isReact18Version(match.version)) return true;
+      if (!isReact19Version(match.version)) return false;
+      return (
+        collectComponents(
+          bridge,
+          match.node,
+          options.maxComponentDepth,
+          false,
+          options.getComponentRegistration,
+        ).businessComponent?.registration !== undefined
+      );
     },
 
     inspect,

@@ -29,6 +29,7 @@ function invokeLoader(input: {
   readonly epoch: string;
   readonly inputMap?: unknown;
   readonly metadata?: unknown;
+  readonly mode?: "data-flow" | "source" | "source-and-data-flow";
   readonly resourcePath: string;
   readonly source: string;
 }): LoaderInvocation {
@@ -48,7 +49,7 @@ function invokeLoader(input: {
     async: () => callback,
     cacheable,
     emitWarning,
-    getOptions: () => ({ registryEpoch: input.epoch }),
+    getOptions: () => ({ mode: input.mode ?? "source", registryEpoch: input.epoch }),
   };
 
   spotPatchNextLoader.call(context, input.source, input.inputMap, input.metadata);
@@ -128,6 +129,93 @@ describe("Next source Loader", () => {
     ]);
     expect(invocation.callback).toHaveBeenCalledTimes(1);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("registers prepared component anchors and instruments plain browser modules", async () => {
+    const epoch = "epoch_loader_data_flow_01";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(registrationResponse(epoch, "file_data_flow_01"));
+    vi.stubGlobal("fetch", fetchMock);
+    configureEnvironment(epoch);
+    const source = `export function AccountPanel() {
+  async function loadAccount() { return fetch("/api/account"); }
+  return loadAccount;
+}`;
+    const invocation = invokeLoader({
+      epoch,
+      mode: "data-flow",
+      resourcePath: "/project/src/account.ts",
+      source,
+    });
+    const result = await invocation.completion;
+    const request = fetchMock.mock.calls[0]?.[1];
+    if (typeof request?.body !== "string") {
+      throw new Error("Expected a JSON source registration body.");
+    }
+    const body = JSON.parse(request.body) as {
+      dataFlow: { components: readonly unknown[]; sourceVersion: string };
+    };
+
+    expect(result[1]).toContain("@spotpatch/next/data-flow-runtime");
+    expect(result[1]).not.toContain("data-spotpatch-source");
+    expect(body.dataFlow.sourceVersion).toMatch(/^source_/u);
+    expect(body.dataFlow.components).toHaveLength(1);
+  });
+
+  it("preserves the client directive before the data-flow helper import", async () => {
+    const epoch = "epoch_loader_directive_01";
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(registrationResponse(epoch, "file_directive_01"));
+    vi.stubGlobal("fetch", fetchMock);
+    configureEnvironment(epoch);
+    const invocation = invokeLoader({
+      epoch,
+      mode: "source-and-data-flow",
+      resourcePath: "/project/src/AccountPanel.tsx",
+      source: `"use client";
+
+export function AccountPanel() {
+  return <button onClick={() => fetch("/api/account")}>Load</button>;
+}`,
+    });
+    const result = await invocation.completion;
+
+    expect(result[1]).toMatch(
+      /^"use client";\nimport \{ dataFlowRuntime as __spotpatchDataFlow \}/u,
+    );
+    expect(result[1]).toContain("data-spotpatch-source");
+    expect(invocation.emitWarning).not.toHaveBeenCalled();
+  });
+
+  it("falls back to registered source markers when data-flow registration fails", async () => {
+    const epoch = "epoch_loader_fallback_001";
+    const rejectedBody = JSON.stringify({ ok: false });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(rejectedBody, {
+          status: 409,
+          headers: { "Content-Length": String(Buffer.byteLength(rejectedBody)) },
+        }),
+      )
+      .mockResolvedValueOnce(registrationResponse(epoch, "file_fallback_01"));
+    vi.stubGlobal("fetch", fetchMock);
+    configureEnvironment(epoch);
+    const source = `export function Profile() { return <button>Load</button>; }`;
+    const invocation = invokeLoader({
+      epoch,
+      mode: "source-and-data-flow",
+      resourcePath: "/project/src/Profile.tsx",
+      source,
+    });
+    const result = await invocation.completion;
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result[1]).toContain("data-spotpatch-source");
+    expect(result[1]).not.toContain("@spotpatch/next/data-flow-runtime");
+    expect(invocation.emitWarning).toHaveBeenCalledOnce();
   });
 
   it("fails open before registration when an upstream source map is present", async () => {

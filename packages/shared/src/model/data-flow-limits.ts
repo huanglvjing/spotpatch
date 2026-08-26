@@ -12,6 +12,7 @@ export const DEFAULT_DATA_FLOW_LIMITS = Object.freeze({
   graphMaxCallsites: 100,
   analysisTimeoutMs: 2_000,
   reportMaxFields: 100,
+  sourceMaxComponents: 256,
 } as const);
 
 export type DataFlowLimits = Readonly<{

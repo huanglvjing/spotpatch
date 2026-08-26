@@ -15,15 +15,16 @@ import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
 
 import {
   NEXT_CLIENT_MODULE_ID,
+  NEXT_DATA_FLOW_MODULE_ID,
+  NEXT_DATA_FLOW_RULE_KEYS,
   NEXT_DEFAULT_INCLUDE,
   NEXT_SOURCE_RULE_KEYS,
 } from "../internal/constants.js";
 import { configureNextRuntime } from "./handshake.js";
 
-export type NextSpotPatchOptions = Omit<SpotPatchOptions, "allowLan" | "dataFlow"> &
+export type NextSpotPatchOptions = Omit<SpotPatchOptions, "allowLan"> &
   Readonly<{
     allowLan?: false;
-    dataFlow?: false;
   }>;
 
 export interface NextConfigContext<
@@ -47,9 +48,11 @@ export type NextConfigEnhancer = <
 
 interface AdapterModulePaths {
   readonly client: string;
+  readonly dataFlow: string;
   readonly loader: string;
   readonly noop: string;
   readonly turbopackClient: string;
+  readonly turbopackDataFlow: string;
   readonly turbopackLoader: string;
   readonly turbopackNoop: string;
 }
@@ -59,11 +62,13 @@ type WebpackHandler = (config: unknown, context: unknown) => unknown;
 
 interface WebpackContext extends Readonly<Record<string, unknown>> {
   readonly dev: boolean;
+  readonly isServer: boolean;
 }
 
 type TurbopackRules = NonNullable<NonNullable<NextConfig["turbopack"]>["rules"]>;
 
 const configuredWebpackConfigs = new WeakSet();
+const WEBPACK_EXCLUDED_DIRECTORY_PATTERN = /[\\/](?:\.next|node_modules)[\\/]/u;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -92,7 +97,11 @@ function requireWebpackConfig(value: unknown): WebpackConfig {
 }
 
 function requireWebpackContext(value: unknown): WebpackContext {
-  if (!isRecord(value) || typeof value.dev !== "boolean") {
+  if (
+    !isRecord(value) ||
+    typeof value.dev !== "boolean" ||
+    typeof value.isServer !== "boolean"
+  ) {
     throw new TypeError("SpotPatch received an invalid webpack context.");
   }
 
@@ -163,6 +172,7 @@ function relativeModulePath(appRoot: string, target: string): string {
 function resolveAdapterModulePaths(appRoot: string): AdapterModulePaths {
   const resolveFromApplication = createRequire(path.join(appRoot, "package.json"));
   const client = resolveFromApplication.resolve("@spotpatch/next/client");
+  const dataFlow = resolveFromApplication.resolve("@spotpatch/next/data-flow-runtime");
   const loader = resolveFromApplication.resolve("@spotpatch/next/loader");
   const resolvedAdapterRoot = path.dirname(loader);
   const noop = path.join(resolvedAdapterRoot, "dist", "noop.cjs");
@@ -171,6 +181,10 @@ function resolveAdapterModulePaths(appRoot: string): AdapterModulePaths {
     logicalAdapterRoot === undefined
       ? undefined
       : path.join(logicalAdapterRoot, "dist", "client.js");
+  const logicalDataFlow =
+    logicalAdapterRoot === undefined
+      ? undefined
+      : path.join(logicalAdapterRoot, "dist", "data-flow-runtime.js");
   const logicalNoop =
     logicalAdapterRoot === undefined
       ? undefined
@@ -178,10 +192,15 @@ function resolveAdapterModulePaths(appRoot: string): AdapterModulePaths {
 
   return Object.freeze({
     client,
+    dataFlow,
     loader,
     noop,
     turbopackClient:
       logicalClient === undefined ? client : relativeModulePath(appRoot, logicalClient),
+    turbopackDataFlow:
+      logicalDataFlow === undefined
+        ? dataFlow
+        : relativeModulePath(appRoot, logicalDataFlow),
     turbopackLoader:
       logicalAdapterRoot === undefined
         ? loader
@@ -212,27 +231,29 @@ function mergeTurbopackRoot(
 
 function mergeTurbopackAlias(
   config: NextConfig,
-  noopPath: string,
+  desired: Readonly<Record<string, string>>,
 ): NonNullable<NextConfig["turbopack"]> {
   const aliases = config.turbopack?.resolveAlias ?? {};
-  const existing = aliases[NEXT_CLIENT_MODULE_ID];
-
-  if (existing !== undefined && existing !== noopPath) {
-    throw new Error(
-      `SpotPatch cannot replace turbopack.resolveAlias[${NEXT_CLIENT_MODULE_ID}].`,
-    );
+  for (const [moduleId, target] of Object.entries(desired)) {
+    const existing = aliases[moduleId];
+    if (existing !== undefined && existing !== target) {
+      throw new Error(`SpotPatch cannot replace turbopack.resolveAlias[${moduleId}].`);
+    }
   }
 
   return {
     ...config.turbopack,
     resolveAlias: {
       ...aliases,
-      [NEXT_CLIENT_MODULE_ID]: noopPath,
+      ...desired,
     },
   };
 }
 
-function mergeWebpackAlias(config: WebpackConfig, noopPath: string): void {
+function mergeWebpackAlias(
+  config: WebpackConfig,
+  desired: Readonly<Record<string, string>>,
+): void {
   const resolveValue = config.resolve;
 
   if (resolveValue !== undefined && !isRecord(resolveValue)) {
@@ -246,15 +267,14 @@ function mergeWebpackAlias(config: WebpackConfig, noopPath: string): void {
     throw new Error("SpotPatch requires webpack resolve.alias to be an object.");
   }
 
-  const existing = alias[NEXT_CLIENT_MODULE_ID];
-
-  if (existing !== undefined && existing !== noopPath) {
-    throw new Error(
-      `SpotPatch cannot replace webpack resolve.alias[${NEXT_CLIENT_MODULE_ID}].`,
-    );
+  for (const [moduleId, target] of Object.entries(desired)) {
+    const existing = alias[moduleId];
+    if (existing !== undefined && existing !== target) {
+      throw new Error(`SpotPatch cannot replace webpack resolve.alias[${moduleId}].`);
+    }
   }
 
-  resolve.alias = { ...alias, [NEXT_CLIENT_MODULE_ID]: noopPath };
+  resolve.alias = { ...alias, ...desired };
   config.resolve = resolve;
 }
 
@@ -278,6 +298,7 @@ function appendWebpackLoader(
   loaderPath: string,
   registryEpoch: string,
   appRoot: string,
+  dataFlowEnabled: boolean,
 ): void {
   if (!context.dev) {
     return;
@@ -294,18 +315,37 @@ function appendWebpackLoader(
   }
 
   scopeWebpackFilesystemCache(config, registryEpoch);
-  const rule = {
+  const sourceRule = {
     enforce: "pre" as const,
+    exclude: WEBPACK_EXCLUDED_DIRECTORY_PATTERN,
     include: appRoot,
     test: /\.(?:jsx|tsx)$/u,
     use: [
       {
         loader: loaderPath,
-        options: { registryEpoch },
+        options: {
+          mode:
+            dataFlowEnabled && !context.isServer ? "source-and-data-flow" : "source",
+          registryEpoch,
+        },
       },
     ],
   };
-  module.rules.push(rule);
+  module.rules.push(sourceRule);
+  if (dataFlowEnabled && !context.isServer) {
+    module.rules.push({
+      enforce: "pre" as const,
+      exclude: WEBPACK_EXCLUDED_DIRECTORY_PATTERN,
+      include: appRoot,
+      test: /\.(?:js|ts)$/u,
+      use: [
+        {
+          loader: loaderPath,
+          options: { mode: "data-flow", registryEpoch },
+        },
+      ],
+    });
+  }
   configuredWebpackConfigs.add(config);
 }
 
@@ -375,6 +415,8 @@ function createRewrites(
 function createWebpackWrapper(input: {
   readonly appRoot: string;
   readonly development: boolean;
+  readonly dataFlowEnabled: boolean;
+  readonly dataFlowPath: string;
   readonly loaderPath: string;
   readonly noopPath: string;
   readonly original: WebpackHandler | undefined;
@@ -398,9 +440,21 @@ function createWebpackWrapper(input: {
         input.loaderPath,
         input.registryEpoch,
         input.appRoot,
+        input.dataFlowEnabled,
       );
     } else {
-      mergeWebpackAlias(configured, input.noopPath);
+      mergeWebpackAlias(configured, {
+        [NEXT_CLIENT_MODULE_ID]: input.noopPath,
+        [NEXT_DATA_FLOW_MODULE_ID]: input.noopPath,
+      });
+    }
+
+    if (input.development) {
+      mergeWebpackAlias(configured, {
+        [NEXT_DATA_FLOW_MODULE_ID]: input.dataFlowEnabled
+          ? input.dataFlowPath
+          : input.noopPath,
+      });
     }
 
     return configured;
@@ -417,11 +471,16 @@ function mergeProductionConfig(
   return {
     ...config,
     turbopack: {
-      ...mergeTurbopackAlias(config, paths.turbopackNoop),
+      ...mergeTurbopackAlias(config, {
+        [NEXT_CLIENT_MODULE_ID]: paths.turbopackNoop,
+        [NEXT_DATA_FLOW_MODULE_ID]: paths.turbopackNoop,
+      }),
       root: turbopackRoot,
     },
     webpack: createWebpackWrapper({
       appRoot,
+      dataFlowEnabled: false,
+      dataFlowPath: paths.dataFlow,
       development: false,
       loaderPath: paths.loader,
       noopPath: paths.noop,
@@ -436,10 +495,12 @@ function mergeDevelopmentConfig(
   paths: AdapterModulePaths,
   registryEpoch: string,
   sidecarOrigin: string,
+  dataFlowEnabled: boolean,
 ): NextConfig {
   const turbopackRoot = mergeTurbopackRoot(config, [
     appRoot,
     paths.client,
+    paths.dataFlow,
     paths.loader,
   ]);
   const existingRules = config.turbopack?.rules ?? {};
@@ -452,27 +513,77 @@ function mergeDevelopmentConfig(
       );
     }
 
-    spotPatchRules[key] = {
-      condition: { all: ["development", { not: "foreign" }] },
+    const sourceRule = {
+      condition: {
+        all: [
+          "development" as const,
+          { not: "foreign" as const },
+          ...(dataFlowEnabled ? [{ not: "browser" as const }] : []),
+        ],
+      },
       loaders: [
         {
           loader: paths.turbopackLoader,
-          options: { registryEpoch },
+          options: { mode: "source", registryEpoch },
         },
       ],
     };
+    spotPatchRules[key] = dataFlowEnabled
+      ? [
+          {
+            condition: {
+              all: ["development", { not: "foreign" }, "browser"],
+            },
+            loaders: [
+              {
+                loader: paths.turbopackLoader,
+                options: { mode: "source-and-data-flow", registryEpoch },
+              },
+            ],
+          },
+          sourceRule,
+        ]
+      : sourceRule;
+  }
+
+  if (dataFlowEnabled) {
+    for (const key of NEXT_DATA_FLOW_RULE_KEYS) {
+      if (existingRules[key] !== undefined) {
+        throw new Error(
+          `SpotPatch cannot replace turbopack.rules[${JSON.stringify(key)}].`,
+        );
+      }
+      spotPatchRules[key] = {
+        condition: {
+          all: ["development", { not: "foreign" }, "browser"],
+        },
+        loaders: [
+          {
+            loader: paths.turbopackLoader,
+            options: { mode: "data-flow", registryEpoch },
+          },
+        ],
+      };
+    }
   }
 
   return {
     ...config,
     rewrites: createRewrites(config, sidecarOrigin),
     turbopack: {
-      ...mergeTurbopackAlias(config, paths.turbopackClient),
+      ...mergeTurbopackAlias(config, {
+        [NEXT_CLIENT_MODULE_ID]: paths.turbopackClient,
+        [NEXT_DATA_FLOW_MODULE_ID]: dataFlowEnabled
+          ? paths.turbopackDataFlow
+          : paths.turbopackNoop,
+      }),
       root: turbopackRoot,
       rules: { ...existingRules, ...spotPatchRules },
     },
     webpack: createWebpackWrapper({
       appRoot,
+      dataFlowEnabled,
+      dataFlowPath: paths.dataFlow,
       development: true,
       loaderPath: paths.loader,
       noopPath: paths.noop,
@@ -497,14 +608,6 @@ async function resolveInputConfig<Config extends object>(
 export function withSpotPatch(
   userOptions: NextSpotPatchOptions = {},
 ): NextConfigEnhancer {
-  const requestedDataFlow = (userOptions as Readonly<Record<string, unknown>>).dataFlow;
-
-  if (requestedDataFlow !== undefined && requestedDataFlow !== false) {
-    throw new RangeError(
-      "SpotPatch Next does not support component dataFlow yet; use dataFlow only with @spotpatch/vite.",
-    );
-  }
-
   return <Config extends object = Readonly<Record<string, unknown>>>(
       input?: NextConfigInput<Config>,
     ): NextConfigFactory<Config> =>
@@ -553,6 +656,7 @@ export function withSpotPatch(
         paths,
         carrier.registryEpoch,
         carrier.sidecarOrigin,
+        options.dataFlow.enabled,
       ) as unknown as Config;
     };
 }

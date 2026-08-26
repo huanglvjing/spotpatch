@@ -17,6 +17,7 @@ import {
   collectDataFlowInstrumentation,
   type CollectedDataFlowInstrumentation,
 } from "./data-flow-instrumentation.js";
+import { createDataFlowSourceVersion } from "./data-flow-id.js";
 
 export interface TransformWarning {
   readonly code: "EXISTING_SOURCE_MARKER";
@@ -29,8 +30,12 @@ export interface InjectSourceMarkersInput {
   readonly absolutePath: string;
   readonly root: string;
   readonly fileId: string;
+  readonly markers?: boolean;
   readonly onWarning?: (warning: TransformWarning) => void;
-  readonly dataFlow?: Readonly<{ helperModule: string }>;
+  readonly dataFlow?: Readonly<{
+    helperModule: string;
+    instrumentation?: CollectedDataFlowInstrumentation;
+  }>;
 }
 
 export interface InjectSourceMarkersResult {
@@ -84,6 +89,9 @@ export function injectSourceMarkers(
 
   const visitor = new Visitor({
     JSXOpeningElement(node) {
+      if (input.markers === false) {
+        return;
+      }
       if (!isIntrinsicOpeningElement(node)) {
         return;
       }
@@ -116,12 +124,20 @@ export function injectSourceMarkers(
   const dataFlow =
     input.dataFlow === undefined
       ? undefined
-      : collectDataFlowInstrumentation({
+      : (input.dataFlow.instrumentation ??
+        collectDataFlowInstrumentation({
           absolutePath: input.absolutePath,
           code: input.code,
           helperModule: input.dataFlow.helperModule,
           root: input.root,
-        });
+        }));
+
+  if (
+    dataFlow !== undefined &&
+    dataFlow.sourceVersion !== createDataFlowSourceVersion(input.code)
+  ) {
+    throw new TypeError("Prepared data-flow instrumentation is stale.");
+  }
 
   for (const edit of dataFlow?.edits ?? []) {
     if (edit.placement === "left") {

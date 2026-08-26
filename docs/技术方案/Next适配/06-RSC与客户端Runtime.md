@@ -2,9 +2,9 @@
 doc-id: "next-06-rsc-runtime"
 title: "Next.js RSC 与客户端 Runtime"
 status: "active"
-version: "0.4.0"
-last-updated: "2026-08-23"
-source-range: "Next.js Server/Client Components 与 instrumentation-client；SpotPatch Runtime 公共预览；React Adapter 现状审计；严格 CSP nonce 继承"
+version: "0.5.0"
+last-updated: "2026-08-26"
+source-range: "Next.js Server/Client Components、数据链路 prelude、共享面板、React 18/19 身份与生产隔离"
 implementation-status: "public-preview"
 参考文献/依赖:
   - "03-public-api-models"
@@ -25,13 +25,14 @@ Next 官方 `instrumentation-client` 在 HTML 加载后、React hydration 前执
 ```text
 instrumentation-client import
   → sync import "bippy/install-hook-only"
+  → sync install dispatch-only data-flow prelude（仅 development + enabled）
   → async bootstrap config/token
-  → load Runtime + React Adapter
+  → load Runtime + React Adapter + shared data-flow panel extension
   → create singleton controller/UI
   → React hydration/commit events continue feeding installed hook
 ```
 
-同步入口只静态导入最小 hook，不读取配置、等待网络、DOM ready 或创建 UI；随后以动态 import 启动 bootstrap。入口记录同步初始化耗时，bootstrap 的请求、响应大小、`no-store`、schema 和 mount 都 fail-closed 为稳定诊断码，失败不会抛出未捕获异常阻断业务 hydration。16 ms 性能预算仍需进入 required browser matrix。
+同步入口只静态导入最小 hook和可被生产 alias 为 no-op 的 data-flow helper，不读取 bootstrap、等待网络、DOM ready 或创建 UI。prelude 使用共享 `installDataFlowPrelude`，只包装 browser dispatch；面板仍随异步 bootstrap 按能力加载。入口记录同步初始化耗时，bootstrap 的请求、响应大小、`no-store`、schema 和 mount 都 fail-closed 为稳定诊断码，失败不会抛出未捕获异常阻断业务 hydration。同步总路径必须在 required browser matrix 中满足 16 ms 预算。
 
 ## RSC 事实边界
 
@@ -60,14 +61,16 @@ Runtime 本身不依赖 `next/router`、`next/navigation` 或宿主 React Contex
 
 - App/Pages 共用同一个 singleton key、picker、collectors、Prompt 和 Agent UI。
 - 路由变化通过 DOM 生命周期和可选的 `onRouterTransitionStart` 触发几何/目标有效性检查，不读取业务 route state。
-- Next 路由预取、RSC fetch 和业务网络请求不得被 SpotPatch 代理或记录。
+- Next 路由预取和 SpotPatch 自身请求必须在 recorder 入口排除。浏览器业务 `fetch`/XHR 只记录 dispatch 元数据；RSC/server fetch 不可见，也不得从 Next 内部 transport 反推。
 - 多 root、Strict Mode、Fast Refresh 和 error overlay 不能创建第二个 Runtime。
 
 状态机、picker、几何和 HMR 清理由既有规范管理 (见 doc-id:05-runtime-lifecycle)，Next 文档只规定框架事件如何触发现有入口。
 
 ## React 18/19
 
-- 当前 `@spotpatch/react-adapter` 的 package peer 范围允许 React 18/19，但实现中的 Fiber 语义版本门禁只识别 React 18.2/18.3；因此“包可安装”不等于 React 19 组件栈已支持。Next 16/React 19 本地宿主依靠 exact source marker、DOM/CSS 和 Runtime UI 工作，React Adapter 明确返回 `supported: false` 并降级，不得把这一结果描述为完整 React 19 语义支持。
+- React 18.2/18.3 可以使用已验证的 Fiber 语义和 compiler component registration。
+- React 19 只允许 registration-backed 身份：Adapter 从选中 DOM 沿可见 owner 链查找已由 compiler 登记到 WeakMap 的业务 component type；不得读取或信任 `_debugSource` 等版本私有坐标。
+- React 19 没有登记身份时必须回退 marker 坐标或 unknown，不能用 displayName、URL、时间或相邻 Fiber 猜组件。该受限路径不等于完整 React 19 Fiber 语义支持。
 - 不要求宿主把 `jsxImportSource` 改为 Bippy；这会改变整个项目编译语义并与其他 JSX runtime 冲突。
 - React 19 不能提供 Fiber source 时，组件名/栈仍可在安全 adapter 支持范围内展示，源码坐标继续取 marker。
 - hook 或私有 Fiber API 不兼容时，Adapter 返回 `supported: false`，不得让 Runtime、marker、DOM/CSS 和 Prompt 失效。
@@ -75,7 +78,7 @@ Runtime 本身不依赖 `next/router`、`next/navigation` 或宿主 React Contex
 
 ## Runtime Config
 
-Next client entry 从 Sidecar bootstrap 取得与 Vite 等价的非敏感配置。公共字段和默认值不得在 Next client 中复制 (见 doc-id:03-public-api-models)。框架诊断只增加：
+Next client entry 从 Sidecar bootstrap 取得与 Vite 相同 schema 的非敏感配置。公共字段、data-flow limits 和默认值不得在 Next client 中复制 (见 doc-id:03-public-api-models)。data-flow panel 的注册函数属于 `@spotpatch/runtime` 共享子入口；Vite 与 Next 都只调用这一函数，不能各自拼装 extension。框架诊断只增加：
 
 - framework = Next.js
 - 已校验的 Next 版本
@@ -106,4 +109,6 @@ DOM/CSS、源码片段和 Prompt 仍分别引用既有规则 (见 doc-id:07-dom-
 
 不能用“面板能打开”作为 Runtime 适配成功。必须分别证明：预 hydration hook、Server host marker、Client Fiber 降级、RSC 导航、Fast Refresh、Portal/Suspense、双语多目标、打开编辑器、Agent review 和生产零残留 (见 doc-id:next-08-testing-delivery)。
 
-当前本地证据已覆盖 Server/Client host marker、bootstrap schema、Runtime singleton、英文/中文按钮 DOM与点击、Next 16 双 bundler、webpack Fast Refresh、source-context 读取和 webpack 生产零残留。本轮没有可用的产品内浏览器连接，因此没有新增目视点击证据；RSC 导航、Portal/Suspense、React 19 Fiber 语义、编辑器/Agent 全链路和正式浏览器矩阵仍未完成。
+当前本地证据已覆盖 Server/Client host marker、bootstrap schema、Runtime singleton、Next 16 双 bundler development 编译、webpack directive/import 顺序、source-context 读取和 Turbopack 干净生产 build/start。此前同一 packed App Router fixture 的真实页面已展示直接 `fetch` 与 Axios/TanStack Query transitive 静态报告；本轮后续浏览器连接不可用，因此 React 19 全局 renderer 修复后的组件身份尚未完成最终交互复验。RSC 导航、Portal/Suspense、编辑器/Agent 全链路和正式浏览器矩阵仍未完成。
+
+数据链路代码已经进入公共预览，但只有以下证据同时存在时才可把产品状态提升为正式支持：浏览器 module 的 fetch/Axios/React Query 静态与 dispatch 证据、React 19 registration-backed 最近业务组件、同 URL 多组件不误归属、页面 unassigned、HMR 旧版本拒绝、App/Pages 双 bundler，以及 HTML/RSC/client/server/static/standalone 无可执行残留。

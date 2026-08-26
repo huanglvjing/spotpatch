@@ -76,6 +76,7 @@ npm exec -- spotpatch-next check
 - 已存在正确接入时幂等退出；不得重复 import、重复包装或重复改 script。
 - 不覆盖动态/不可证明安全的 next.config，不使用正则替换 TypeScript。
 - 不写 `.env`、Key、模型或 URL；不创建 Git commit。
+- 使用共享公开字段写入 `dataFlow: {}`；不得生成 Next 专属 data-flow 开关或要求额外 `.env.local`。
 - `check` 只读验证接入、版本、Sidecar launcher、生产 noop 和冲突配置，可用于 CI。
 
 初始化器能安全支持的配置语法范围必须通过 fixture 明示；超出范围时 fail-closed，不以“尽量改一下”破坏宿主配置。
@@ -127,7 +128,7 @@ Next 会把非 `NEXT_PUBLIC_*` 环境变量留在服务端，但项目自身的�
 ## 非开发生命周期
 
 - `next build`、`next start` 与 `output: "export"` 静态导出不启动 Sidecar、不解析 AI Key、不注册 Loader、不注入 marker。
-- `instrumentation-client` 中的静态 import 会在所有构建阶段存在，因此 `withSpotPatch` 在非开发 phase 仍须分别为 webpack 与 Turbopack组合 side-effect-free noop alias；package manifest 必须保留真实开发 client 的副作用语义并允许 noop 被消除，禁止把整个包粗暴标为 `sideEffects: false`。除此之外不解析 Key、不注册 Loader/rewrite 或服务。只在运行时判断 `NODE_ENV` 不满足零残留。
+- `instrumentation-client` 中的静态 import 会在所有构建阶段存在，因此 `withSpotPatch` 在非开发 phase 仍须分别为 webpack 与 Turbopack给 client 和 data-flow helper 组合 side-effect-free noop alias；package manifest 必须保留两个真实开发入口的副作用语义并允许 noop 被消除，禁止把整个包粗暴标为 `sideEffects: false`。除此之外不解析 Key、不注册 Loader/rewrite 或服务。只在运行时判断 `NODE_ENV` 不满足生产隔离。
 - 用户误用 `spotpatch-next build` 应拒绝并提示直接使用 Next 原命令；SpotPatch CLI 只承载 `dev`，避免成为通用命令代理。
 - 直接运行 `next dev` 且缺少受控 Sidecar 握手时必须给出确定诊断；不能静默生成半可用 UI，也不能在配置求值时偷偷启动常驻服务。
 
@@ -137,11 +138,11 @@ Next 会把非 `NEXT_PUBLIC_*` 环境变量留在服务端，但项目自身的�
 
 ### webpack
 
-调用宿主原有 `webpack(config, context)` 后，对其返回值追加 SpotPatch配置；如果宿主回调返回 `undefined`，按 Next 约定继续使用传入 config。开发 phase 追加 pre-loader；真实 client 由官方 `instrumentation-client` 静态 import 进入。非开发 phase 只为该 client module id 追加 noop alias。包装器不得覆盖宿主 alias、rules、plugins 或 devtool，且除该可审计 alias 外不得改变生产配置。
+调用宿主原有 `webpack(config, context)` 后，对其返回值追加 SpotPatch配置；如果宿主回调返回 `undefined`，按 Next 约定继续使用传入 config。开发 phase 追加 pre-loader，并在 rule 入口排除所有层级的 `node_modules` 与 `.next`；真实 client 由官方 `instrumentation-client` 静态 import 进入。非开发 phase 只为 client/data-flow 两个 module id 追加 noop alias。包装器不得覆盖宿主 alias、rules、plugins 或 devtool，且除该可审计 alias 外不得改变生产配置。
 
 ### Turbopack
 
-开发只合并 SpotPatch 拥有的 rule key；生产只合并 client/noop alias。用户已有相同 rule/alias 时，如果不能证明等价，启动失败并指出冲突位置；禁止后写覆盖。Loader options 只能包含可序列化、非敏感值，不能包含函数、`RegExp`、token、Key 或内部注册 secret。
+开发只合并 SpotPatch 拥有的 rule key；生产只合并 client/data-flow 到 noop 的 alias。用户已有相同 rule/alias 时，如果不能证明等价，启动失败并指出冲突位置；禁止后写覆盖。Loader options 只能包含可序列化、非敏感值，不能包含函数、`RegExp`、token、Key 或内部注册 secret。
 
 ### rewrites
 

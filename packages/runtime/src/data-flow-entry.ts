@@ -4,6 +4,7 @@ export {
   installDataFlowPrelude,
   type DataFlowComponentRegistration,
   type DataFlowInvocationToken,
+  type DataFlowObservationPolicy,
   type DataFlowRequestFrame,
   type DataFlowRequestMetadata,
   type DataFlowRuntime,

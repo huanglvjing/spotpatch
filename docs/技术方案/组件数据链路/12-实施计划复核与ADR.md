@@ -2,8 +2,8 @@
 doc-id: "data-flow-12-delivery-adr"
 title: "组件数据链路实施计划、复核与 ADR"
 status: "active"
-version: "1.1.0"
-last-updated: "2026-08-13"
+version: "1.2.0"
+last-updated: "2026-08-26"
 source-range: "POC 与 Beta 实施结果、剩余里程碑、技术选型、退出条件、重新审视结论与 ADR"
 参考文献/依赖:
   - "data-flow-00-index"
@@ -19,9 +19,9 @@ source-range: "POC 与 Beta 实施结果、剩余里程碑、技术选型、退�
 
 本计划以专题交付边界和架构 (见 doc-id:data-flow-00-index)、(见 doc-id:data-flow-03-architecture-packages) 为前提，优先验证静态归属、运行时观测和硬验收 (见 doc-id:data-flow-04-static-attribution)、(见 doc-id:data-flow-05-runtime-observation)、(见 doc-id:data-flow-11-testing-acceptance)；通过后再并入现有实施计划和 ADR (见 doc-id:14-implementation-plan)、(见 doc-id:15-risks-adr)。
 
-## 2026-08-13 实施复核
+## 2026-08-26 实施复核
 
-当前工作区已完成 D1 核心证明并迁移为 Vite + React 18 Beta 产品代码；可丢弃 `experiments/data-flow-poc` 已删除，未保留重复实现或兼容 flag。实际状态如下：
+当前工作区已完成 D1 核心证明并迁移为 Vite + React 18 Beta 产品代码；Next.js 浏览器 Client Component 已基于同一内核进入 0.x 公共预览。可丢弃 `experiments/data-flow-poc` 已删除，未保留重复实现或兼容 flag。实际状态如下：
 
 | 阶段 | 当前结果 |
 | --- | --- |
@@ -31,7 +31,7 @@ source-range: "POC 与 Beta 实施结果、剩余里程碑、技术选型、退�
 | D4 | 严格只读 endpoint、组件数据链路/页面接口 UI、自动加载与刷新已实现；完整目标 UI 的观测窗口、源码证据展开和专项 a11y 仍待补 |
 | D5 | 未实现；不公开无行为 AI 开关，capability 为 disabled |
 | D6 | 认证、生命周期轮询、表格 oracle、Vite 5/6 真宿主、AntD E2E、性能与生产扫描已加入；大规模公开 fixture 与全部发布矩阵尚未完成 |
-| D7 | 未开始；Next 不继承 Vite Beta 声明 |
+| D7 | 0.x 公共预览链路已实现：Next Loader/Sidecar、原子 source + data-flow 登记、pre-hydration recorder、共享面板、Webpack/Turbopack 开发组合和干净生产验证已有证据；Pages/hybrid、完整 OS/Node/浏览器矩阵与服务端 dispatch 观测未完成，不宣称正式支持 |
 
 当前实现、配置和不支持项以 (见 doc-id:data-flow-13-beta-implementation) 为准。下文保留原 Gate 的理由和后续工作，不能把阶段标题误读为全部完成。
 
@@ -165,18 +165,19 @@ POC 不能因“演示看起来可以”直接搬进 runtime。
 - secret、协议、memory、performance、production leakage、package validation。
 - 更新核心活动规范、ADR、README/Changeset 和支持声明。
 
-### D7 Next 增量（5–8 日，条件项）
+### D7 Next 增量（公共预览已实现，正式门禁未完成）
 
-- 只有 Vite D6 通过且 Next 现有公共预览边界不被破坏时开始。
-- instrumentation-client/Loader/Sidecar、server/client 双图、RSC/Server Action 分别证明。
-- webpack/Turbopack、App/Pages Router 和生产零残留独立门禁；未通过不影响 Vite，也不扩大 Next 声明。
+- 已完成：`instrumentation-client`/Loader/Sidecar、browser/server 转换分流、source + data-flow 原子登记、React 19 registration-only 组件身份、共享 recorder/merger/DTO/panel。
+- 已完成的当前证据：Next 15/React 18 与 Next 16/React 19 的 Webpack/Turbopack Loader POC；单一 packed Next 16 App Router 宿主的开发链路和干净 production build/start 扫描。
+- 待正式门禁：Pages/hybrid Router、required OS/Node/浏览器矩阵、RSC 导航与复杂 Portal/Suspense 交互。RSC/Server Action/Route Handler 的服务端 dispatch 不能从浏览器 recorder 推导，只能显示静态可证明的 `declared-not-observed` 证据。
+- 未通过的正式矩阵不影响 Vite Beta，也不得把 Next 0.x 公共预览扩大为正式支持。
 
 ## 工期判断
 
 - 核心 Vite Beta（D0–D4 + D6）：约 **25–40 工程日**。
 - AI Explain + Assist Find（D5）：增加 **3–5 工程日**。
 - 用户本次描述的完整 Vite 方案：约 **28–45 工程日**。
-- Next 公共预览增量（D7）：再增加 **5–8 工程日**。
+- Next 0.x 公共预览的核心增量（D7）已实现；正式支持剩余矩阵不沿用原 **5–8 工程日** 估算，需按 Pages/hybrid、OS/Node/浏览器与复杂宿主 fixture 数量单独评估。
 
 这是单名熟悉仓库的高级工程师估算，不包含产品视觉多轮反复、目标项目大规模改版、支持矩阵外适配器或 POC 推翻架构后的重做。不能把 Apollo/Redux/SWR/tRPC/Prisma/Drizzle 等全部压入同一估算；每个 adapter 都要单独 fixture 和版本矩阵。
 

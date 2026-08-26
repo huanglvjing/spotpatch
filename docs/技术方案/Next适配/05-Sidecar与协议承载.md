@@ -2,9 +2,9 @@
 doc-id: "next-05-sidecar-protocol"
 title: "Next.js Sidecar 与本地协议承载"
 status: "active"
-version: "0.4.0"
-last-updated: "2026-08-09"
-source-range: "Next.js rewrites/phase、CLI 与 Custom Server 官方约束；SpotPatch Sidecar 公共预览与信任复核"
+version: "0.5.0"
+last-updated: "2026-08-26"
+source-range: "Next.js rewrites/phase、CLI、数据链路 HTTP、原子源码注册与 Sidecar 信任边界"
 implementation-status: "public-preview"
 参考文献/依赖:
   - "09-local-protocol-security"
@@ -55,8 +55,9 @@ terminal
 
 - 路径与公共 API 前缀完全不同，不加入 Next rewrite。
 - 只接受 launcher 为本次 Next 子进程生成的独立内部凭据和 `registryEpoch`；不得复用浏览器 session token 或 provider Key。
-- 只提供 source registration，不提供文件内容、编辑器、Agent、任意 RPC 或状态枚举。
+- 只提供 source registration；同一请求可携带 compiler 生成的有界 data-flow component anchors，但不提供文件内容、编辑器、Agent、任意 RPC 或状态枚举。
 - 每次请求重新验证 root、普通文件、扩展名和规范化路径；拒绝 browser-like Origin 和缺失内部认证。
+- data-flow 注册还必须验证请求 `sourceVersion` 等于当前授权文件内容的公共 hash，组件数量和 body 大小不超过共享上限；校验失败不改变现有 Registry。
 - 内部 endpoint、凭据与 epoch 通过 CLI 创建的子进程私有环境交给 Next/Loader worker；凭据只存在进程环境/内存，不写 `.next`、日志、source map、Loader options 或浏览器 bundle。epoch 可进入 Loader cache key，但它不具备认证能力。
 
 当前真实宿主已证明 Loader worker 能取得私有环境，且 Loader options 只含非敏感 epoch；生产扫描未发现内部 secret 名称。完整版本/OS cache 泄漏矩阵仍是正式支持门禁；若后续出现落盘，必须重新设计为受控本地 socket/IPC broker，禁止把 secret 降级放入 `turbopack.rules` options。
@@ -74,6 +75,14 @@ Next 无 Vite 虚拟模块可安全内联每次会话配置。当前公共预览
 5. 响应不包含 provider URL、真实模型名、Key 环境变量名、root、绝对路径、命令、Sidecar端口或内部 secret。
 
 bootstrap 是公共协议唯一“取得当前 session token”的入口，因此它不能要求请求预先携带 session token。它以同源浏览器请求证明、一次启动状态和严格请求校验签发 token，必须返回 `Cache-Control: no-store`，客户端也不得写 Cache Storage。已有同源 Service Worker 可以观察或改写同源请求，属于宿主页面信任边界；SpotPatch不能对恶意宿主前端代码承诺 token隔离。CSRF/DNS rebinding、无 Origin、错误 Host、跨站 fetch、Service Worker和重复调用行为是安全 POC；未完成前不得实现为无约束 GET。
+
+## 数据链路协议承载
+
+`component-report` 与 `page-report` 继续由 `@spotpatch/dev-server` 的同一 middleware、shared schema、预算和 analyzer 实现，Next Sidecar 不复制 endpoint。启用条件只有：development、`dataFlow` opt-in、配置完成。禁用时返回公共 disabled 语义；production 不创建 Sidecar，因此私有路由必须由业务 Next 直接返回 404。
+
+公共请求只接受 `componentSourceId + sourceVersion` 或已登记 `fileId + line + column`，从不接受绝对路径、root、include/exclude 或分析预算。RSC/Server Action/Route Handler 的服务端 dispatch 不进入浏览器 observation；静态分析可证明的调用仍可显示为 `declared-not-observed`，不能根据 RSC 网络流量猜测归属。
+
+analyzer 的项目文件集合必须复用共享 data-flow filter，并排除 `.next`、`node_modules`、生成类型和构建产物。Next Adapter 不能把整个仓库或 `.next/types` 无差别加入 TypeScript Program。
 
 ## Rewrite 组合
 

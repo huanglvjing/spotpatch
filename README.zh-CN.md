@@ -178,7 +178,11 @@ pnpm exec spotpatch-next bridge setup --client cursor --scope project --write
 手工接入时，需要显式启用这个仅在开发期生效的检查器：
 
 ```ts
+// Vite
 spotPatch({ dataFlow: {} });
+
+// Next.js 公共预览
+export default withSpotPatch({ dataFlow: {} })(nextConfig);
 ```
 
 选择元素后，使用 **数据链路** 查看当前业务组件的可证明报告，使用 **页面接口** 查看当前已选页面范围以及实际发生但尚未归属组件的请求。
@@ -202,7 +206,7 @@ spotPatch({ dataFlow: {} });
 
 当前适配器覆盖已支持的组件直接调用与 Service `fetch`、Axios、React Query/TanStack Query 回调形态，以及实验性的 tRPC 逻辑 procedure 链路。tRPC procedure 与物理 batch HTTP 请求保持为两层证据。
 
-只有稳定组件、源码、callsite 与 invocation 证据一致时，Beta 才报告组件关联。范围外或存在歧义的流量保持 partial、unknown 或 unassigned，绝不因为 URL 相同或时间接近就猜测。当前范围是 Vite + React 18，不包含 data-flow AI、JSON 响应读取或 Next.js 支持。完整事实见 [Beta 实现状态与支持矩阵](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)。
+只有稳定组件、源码、callsite 与 invocation 证据一致时，Beta 才报告组件关联。范围外或存在歧义的流量保持 partial、unknown 或 unassigned，绝不因为 URL 相同或时间接近就猜测。Vite + React 18 是已验证基线；Next.js 公共预览复用同一证据模型，浏览器 Client Component 支持共享语法，RSC/Server Action/Route Handler 的服务端执行保持不可观测。React 19 只接受 compiler 登记的组件身份，不信任 Fiber 私有源码坐标。完整事实见 [Beta 实现状态与支持矩阵](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md)。
 
 ## 可选 AI Agent
 
@@ -293,7 +297,7 @@ spotPatch({ trustedFastMode: true });
 > [!WARNING]
 > `@spotpatch/next` 是 **0.x 公共预览版**，可以从 npm 安装；但 peer 范围只是候选测试范围，不能解释成完整兼容或生产支持声明。
 
-该预览包含 CLI、Sidecar、Turbopack 与 webpack Loader、源码注册、Runtime bootstrap 和生产 no-op 隔离。它已经通过锁定范围 POC 和一个私有 Next 16 App Router 宿主，但完整的 Next/React/router/Node/OS/浏览器支持矩阵仍未完成。
+该预览包含 CLI、Sidecar、Turbopack 与 webpack Loader、原子源码/data-flow 注册、pre-hydration recorder、共享数据链路面板、Runtime bootstrap 和生产 no-op 隔离。它已经通过锁定范围 POC 和一个私有 Next 16 App Router 宿主，但完整的 Next/React/router/Node/OS/浏览器支持矩阵仍未完成。
 
 ```bash
 pnpm add -D @spotpatch/next
@@ -302,7 +306,7 @@ pnpm exec spotpatch-next check
 pnpm dev
 ```
 
-`init` 会安全组合 `next.config`、在正确的 `instrumentation-client` 文件中增加 `@spotpatch/next/client`，并把简单的 `next dev` 脚本改为 `spotpatch-next dev`。`check` 只读检查这些接入点。开发时必须通过 package script 启动；直接运行 `next dev` 不存在 SpotPatch Sidecar 生命周期所有者。
+`init` 会安全组合 `next.config` 并写入 `dataFlow: {}`、在正确的 `instrumentation-client` 文件中增加 `@spotpatch/next/client`，再把简单的 `next dev` 脚本改为 `spotpatch-next dev`。`check` 只读检查这些接入点。开发时必须通过 package script 启动；直接运行 `next dev` 不存在 SpotPatch Sidecar 生命周期所有者。
 
 启动成功后，终端会打印一行以 `[spotpatch:next] ready` 开头的信息。打开其中的 loopback 地址，即可使用 **选择元素** / **Select element**。可选 AI 流程复用上文的服务端 `SPOTPATCH_AI_*` 变量，绝不能改成带 `NEXT_PUBLIC_` 前缀的变量。
 

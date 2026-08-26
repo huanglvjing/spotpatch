@@ -2,9 +2,9 @@
 doc-id: "data-flow-13-beta-implementation"
 title: "组件数据链路 Beta 实现状态与使用手册"
 status: "active"
-version: "1.1.0"
-last-updated: "2026-08-13"
-source-range: "SpotPatch 当前工作区中的 Vite + React 18 Beta 实现、真实支持边界、配置、UI、验证证据与后续 Gate"
+version: "1.3.0"
+last-updated: "2026-08-26"
+source-range: "SpotPatch 组件数据链路共享实现、Vite 已验证基线、Next.js 0.x 公共预览与发布 Gate"
 参考文献/依赖:
   - "data-flow-00-index"
   - "data-flow-02-repository-audit"
@@ -26,6 +26,8 @@ source-range: "SpotPatch 当前工作区中的 Vite + React 18 Beta 实现、真
 
 当前工作区已完成一个可运行的 **Vite + React 18 开发环境 Beta**：用户选中真实 DOM 后，SpotPatch 能优先定位最近的已登记业务 React 组件，静态分析该组件可证明的请求链，展示接口 method/origin/path、参数键、条件、源码实际读取的响应字段和可证明的数据去向；页面会话内真实发生的 `fetch`/XHR dispatch 会通过稳定 callsite、sourceVersion 和 invocation 证据合并为“本次会话已实际请求”。
 
+Next.js 适配已按该契约进入 **0.x 公共预览实现**。Next 不另建 analyzer、recorder、merger、DTO 或面板；它只负责把同一个 compiler/runtime/dev-server 实现接入 Turbopack、webpack、Sidecar 和 `instrumentation-client`。这意味着“Next 与 Vite 功能一致”指相同的证据模型、支持语法、接口卡片和安全边界，不表示浏览器能够观测 RSC、Server Action 或 Route Handler 的服务端执行，也不表示 Next required 兼容矩阵已经完成。
+
 本轮进一步补齐组件 render 内直接 `fetch`、concise JSX handler、React Query v3/TanStack QueryFn trigger，以及实验性 tRPC logical operation adapter。tRPC 的“已观测”表示 procedure 已进入透明 tRPC Link，不表示某个独立 HTTP 请求已成功；batch、stream、WebSocket、proxy upstream 和后端接收事实必须分层显示。完整边界见 (见 doc-id:data-flow-14-special-adapters)。
 
 准确性承诺是“**有证据才归属，无法证明就不归属**”，不是“任何项目任何写法均自动命中”：
@@ -41,7 +43,7 @@ source-range: "SpotPatch 当前工作区中的 Vite + React 18 Beta 实现、真
 
 ## 启用方式
 
-底层公共配置仍采用 opt-in 默认值，但当前 Vite `setup/init` 会自动写入启用项；该能力只在 Vite development server 中生效：
+底层公共配置采用 opt-in 默认值。Vite `setup/init` 与 Next `init` 都会写入同一公开启用项；手工接入时两端配置语义保持一致：
 
 ```ts
 import { spotPatch } from "@spotpatch/vite";
@@ -51,6 +53,9 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [spotPatch({ dataFlow: {} }), react()],
 });
+
+// next.config.ts（Next 0.x 公共预览，由 init 生成）
+export default withSpotPatch({ dataFlow: {} })(nextConfig);
 ```
 
 当前唯一公开运行模式是安全的 dispatch-only 模式；下面两类选项故意没有公开：
@@ -58,7 +63,9 @@ export default defineConfig({
 - `safe-json-shape`：未通过不干扰宿主 Promise/stream/rejection 的完整门禁，因此不读取响应体，也不提供假开关。
 - `aiAssistance`：当前没有实现 data-flow 专用的准确上下文、只读任务和证据校验闭环，因此没有一个只能显示“未配置”的死配置。AI 设计继续由 `09` 约束，正式实现前保持 disabled。
 
-手工配置时，关闭方式为省略 `dataFlow` 或显式传入 `dataFlow: false`。再次运行当前 Vite `setup/init` 代表要求恢复完整初始化状态，因此会把字面量 `dataFlow: false` 升级为 `dataFlow: {}`；关闭后若不希望初始化器恢复该能力，不应再次运行初始化命令。关闭状态不注入 recorder、不启用 analyzer、不显示数据链路页签。
+手工配置时，关闭方式为省略 `dataFlow` 或显式传入 `dataFlow: false`。初始化器只能写公开的共享 `DataFlowOptions`，不能发明框架专属字段。关闭状态不注入 recorder、不启用 analyzer、不显示数据链路页签；生产构建无论配置值如何都必须完全关闭。
+
+数据链路不依赖 `.env.local`。该文件只用于可选 AI Provider；要求用户为了静态接口分析或浏览器 dispatch 观测配置本地密钥属于实现错误。
 
 ## 用户操作与界面
 
@@ -121,8 +128,8 @@ merger 只有在 freshness 为 current，且 request callsite、sourceVersion、
 
 | 维度 | 当前 Beta 支持 | 明确边界 |
 | --- | --- | --- |
-| 宿主 | Vite 5、6、7 development server | production 不注入；Next 未接入本能力 |
-| React | 18.2、18.3；函数组件 | React 19、class component 不在该 Beta 声明内 |
+| 宿主 | Vite 5、6、7 development server；Next 0.x 公共预览的浏览器 Client Component | Next 16 App Router 单一 packed fixture 已有实现证据；Next 15、Pages/hybrid、完整 OS/browser 矩阵未完成；production 不注入 |
+| React | 18.2、18.3；函数组件 | React 19 仅允许 compiler registration-backed 组件身份；不信任 Fiber 私有源码字段；class component 不在声明内 |
 | 源文件 | `src` 下 `.js/.jsx/.ts/.tsx`，受统一 include/exclude 管理 | 项目根外、未登记、排除文件不分析 |
 | 组件形态 | 命名函数、命名函数表达式/箭头；React 命名 import 的 `memo`/`forwardRef`（含别名） | `React.memo` namespace 写法、匿名 default、generator 未声明支持 |
 | trigger | render、块体/concise/导入 JSX handler、`useEffect/useLayoutEffect`、Query queryFn、同步/`await` 调用 | module scope、任意第三方 scheduler、选择目标到具体 trigger 的报告过滤尚未完整接入 |
@@ -190,8 +197,9 @@ observation 只在当前页面内存的双上限 ring buffer 中短驻留，并�
 | `packages/runtime/src/data-flow-entry.ts` | recorder/merger 独立浏览器子入口 |
 | `packages/runtime/src/data-flow-panel-entry.ts` | 面板与 Runtime 之间的窄扩展契约入口 |
 | `packages/runtime/src/ui/data-flow-panel.ts` | 现有 Shadow DOM 工作台的数据链路投影与页签导航 |
-| `packages/react-adapter` | DOM/Fiber 到已登记业务 component type 的隔离桥 |
-| `packages/vite` | development-only client、React Adapter、prelude、panel 四入口注入与 HMR Registry 对接 |
+| `packages/react-adapter` | DOM/Fiber 到已登记业务 component type 的隔离桥；React 19 只接受 compiler 注册身份 |
+| `packages/vite` | Vite development-only 构建与服务承载，不拥有数据链路算法 |
+| `packages/next` | Next development-only Loader、原子注册、pre-hydration 入口和生产 no-op，不拥有数据链路算法 |
 
 默认值和 Node 限额只由 options resolver 与 `DEFAULT_DATA_FLOW_LIMITS` 维护；`createRuntimeDataFlowConfig` 显式投影浏览器实际需要的 observation/report 四项预算，避免把 graph、协议请求或未来能力字段发送到页面。endpoint 只由 shared 常量派生；ID/sourceVersion 使用 compiler 公共 helper；UI 不重新实现关联算法。测试 oracle 使用中性可移植源码，产品路径和测试均没有第三方项目硬编码。
 
@@ -209,9 +217,23 @@ observation 只在当前页面内存的双上限 ring buffer 中短驻留，并�
 - dev-server disabled/stale/boundary/body limit/敏感值与绝对路径不泄漏。
 - 聚合报告、嵌套条件 URL 与运行时 observation 溢出均返回符合公共 Schema 的确定性前缀和显式诊断。
 - Vite 5 + React 18.2、Vite 6 + React 18.3 的真实开发服务器接口兼容验证。
+- Next 15 + React 18 与 Next 16 + React 19 的 App/Pages、Turbopack/webpack 真实开发服务器验证；两端必须对同一中性 fixture 产生等价静态 DTO。
+- Next browser module 的 `fetch`、Axios、React Query/TanStack Query dispatch 观测；RSC/Server Action/Route Handler 只保留 declared/unknown，不得伪装 observed。
+- Next HMR 原子替换 component anchor，旧 `sourceVersion` 不得覆盖当前 Registry。
+- Next 生产构建对 HTML、RSC、client、server、static、standalone 和 source map 做零残留扫描，并证明 Sidecar/data-flow endpoint 未启动。
 - Playwright 真 AntD Button 选择、静态报告、实际 fetch 观测、敏感 query value 不显示、内部 endpoint 不进入页面接口。
 - 独立 prelude gzip 预算、Runtime 客户端预算、transform 性能预算和 production leakage 扫描。
 - `publint` 与 Are The Types Wrong 对所有发布包和 `data-flow-runtime`、`data-flow`、`data-flow-panel` 子路径的 Node 10/16、CJS、ESM、bundler 解析验证。
+
+### 2026-08-26 当前 Next 实现证据
+
+以下证据只支持“0.x 公共预览已实现”，不能替代上面的 required matrix：
+
+- 从本工作区打包全部 `@spotpatch/*` tarball 后，在独立 Next 16.3/React 19.2 App Router fixture 冷安装，未读取 workspace 私有源码路径。
+- Turbopack 真实页面中，选中 Client Component host 元素后可见同一数据链路/页面接口面板；静态报告同时列出直接 `fetch` 与经 Axios service、TanStack Query 到达的 transitive 请求，包含 query key、源码消费字段与 React state 去向。
+- webpack 真实 development 编译已证明 helper import 保持在 `"use client"` directive 之后，并在 rule 入口排除 `.next`/`node_modules`，不再向 Sidecar发送第三方模块注册请求。
+- Turbopack 干净 production build/start 已证明页面 200、SpotPatch 私有 bootstrap 404；业务 HTML、RSC、client/server/static/source map 未发现 marker、recorder、panel、私有路由或 secret。Next 序列化配置只允许保留两个指向 side-effect-free noop 的模块 alias，不把这种审计元数据误报为可执行 Runtime。
+- React 19 的独立 bippy 模块实例问题已由全局 DevTools renderer 发现逻辑与单测修复；修复后的最终浏览器组件身份复验、Next 15、Pages/hybrid、standalone/static export 和跨 OS 矩阵仍待完成。
 
 2026-08-13 发布候选首次本地验证曾全部通过，但远端 Linux 揭示了外部目录测试依赖和 gzip 跨平台差异；这两项已改为自包含 oracle 与带实测平台余量的 42 KiB 核心 Runtime 上限。当前是否可发布必须以最新提交的完整本地验证和远端 CI 结果为准，本文不记录会随测试增减而失真的文件/用例总数。
 
@@ -223,7 +245,7 @@ observation 只在当前页面内存的双上限 ring buffer 中短驻留，并�
 
 - AI Explain/Assist Find 的准确上下文预览、只读工具与证据回验。
 - safe JSON response shape/result tap、status/duration/success 观测。
-- Next.js、RSC、Server Action、Worker、GraphQL 和其他 RPC 专用链路。
+- RSC、Server Action、Route Handler、Worker、GraphQL 和其他服务端/RPC 运行时观测。Next 浏览器 Client Component 接入不扩大这一边界。
 - parent-prop 跨组件 `upstream/data-fed-by` 的通用完整算法。
 - Query `useQueries`/QueryClient 全矩阵、Redux、SWR、Apollo 等版本化 adapter。
 - tRPC 真实 v10/v11、batch/stream/WebSocket host 矩阵与逻辑 operation/物理 transport 批组协议。

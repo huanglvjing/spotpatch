@@ -357,8 +357,20 @@ function uniqueBinding(base: string, used: Set<string>): string {
   return candidate;
 }
 
-function importOffset(code: string): number {
-  return code.startsWith("#!") ? code.indexOf("\n") + 1 || code.length : 0;
+function importOffset(sourceFile: ts.SourceFile, code: string): number {
+  let offset = code.startsWith("#!") ? code.indexOf("\n") + 1 || code.length : 0;
+
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isExpressionStatement(statement) ||
+      !ts.isStringLiteral(statement.expression)
+    ) {
+      break;
+    }
+    offset = statement.end;
+  }
+
+  return offset;
 }
 
 function identifierSuffix(id: string): string {
@@ -575,10 +587,11 @@ export function collectDataFlowInstrumentation(
   collectTriggers(sourceFile);
 
   const helper = uniqueBinding("__spotpatchDataFlow", usedBindings);
+  const helperImportOffset = importOffset(sourceFile, input.code);
   edits.push(
     Object.freeze({
-      content: `import { dataFlowRuntime as ${helper} } from ${JSON.stringify(input.helperModule)};\n`,
-      offset: importOffset(input.code),
+      content: `${helperImportOffset === 0 || input.code[helperImportOffset - 1] === "\n" ? "" : "\n"}import { dataFlowRuntime as ${helper} } from ${JSON.stringify(input.helperModule)};\n`,
+      offset: helperImportOffset,
       placement: "left",
     }),
   );

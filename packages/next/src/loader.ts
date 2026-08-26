@@ -1,12 +1,15 @@
 import path from "node:path";
 
 import {
+  collectDataFlowInstrumentation,
   injectSourceMarkers,
+  type CollectedDataFlowInstrumentation,
   type InjectSourceMarkersResult,
 } from "@spotpatch/compiler";
 
 import {
   NEXT_ENVIRONMENT_KEYS,
+  NEXT_DATA_FLOW_MODULE_ID,
   NEXT_INTERNAL_REGISTRATION_PATH,
 } from "./internal/constants.js";
 
@@ -29,6 +32,7 @@ const SAFE_FAILURE_CODES = new Set([
 ]);
 
 interface LoaderOptions {
+  readonly mode: "data-flow" | "source" | "source-and-data-flow";
   readonly registryEpoch: string;
 }
 
@@ -66,11 +70,12 @@ function safeFailureCode(error: unknown): string {
 }
 
 function warnOnce(context: LoaderContext, code: string): void {
-  if (warnedCodes.has(code)) {
+  const key = `${context.resourcePath}\0${code}`;
+  if (warnedCodes.has(key)) {
     return;
   }
 
-  warnedCodes.add(code);
+  warnedCodes.add(key);
   context.emitWarning(
     new Error(`[spotpatch:next:loader] ${code}; the original module was preserved.`),
   );
@@ -93,15 +98,19 @@ function parseOptions(context: LoaderContext): LoaderOptions {
     typeof value !== "object" ||
     value === null ||
     Array.isArray(value) ||
-    Object.keys(value).length !== 1 ||
+    Object.keys(value).length !== 2 ||
     !("registryEpoch" in value) ||
     typeof value.registryEpoch !== "string" ||
-    !ID_PATTERN.test(value.registryEpoch)
+    !ID_PATTERN.test(value.registryEpoch) ||
+    !("mode" in value) ||
+    (value.mode !== "data-flow" &&
+      value.mode !== "source" &&
+      value.mode !== "source-and-data-flow")
   ) {
     throw failure("options-invalid");
   }
 
-  return Object.freeze({ registryEpoch: value.registryEpoch });
+  return Object.freeze({ mode: value.mode, registryEpoch: value.registryEpoch });
 }
 
 function pruneCache(): void {
@@ -161,6 +170,7 @@ async function parseRegistrationResponse(
 async function requestRegistration(
   resourcePath: string,
   options: LoaderOptions,
+  dataFlow?: CollectedDataFlowInstrumentation,
 ): Promise<string> {
   const internalOrigin = readRequiredEnvironment(NEXT_ENVIRONMENT_KEYS.internalOrigin);
   const internalSecret = readRequiredEnvironment(NEXT_ENVIRONMENT_KEYS.internalSecret);
@@ -193,6 +203,24 @@ async function requestRegistration(
       body: JSON.stringify({
         epoch: options.registryEpoch,
         resourcePath,
+        ...(dataFlow === undefined
+          ? {}
+          : {
+              dataFlow: {
+                sourceVersion: dataFlow.sourceVersion,
+                components: dataFlow.anchors.flatMap((anchor) =>
+                  anchor.kind === "component"
+                    ? [
+                        {
+                          componentSourceId: anchor.id,
+                          line: anchor.line,
+                          column: anchor.column,
+                        },
+                      ]
+                    : [],
+                ),
+              },
+            }),
       }),
       signal: AbortSignal.timeout(REGISTRATION_TIMEOUT_MS),
     });
@@ -227,6 +255,44 @@ function registerSource(resourcePath: string, options: LoaderOptions): Promise<s
   return pending;
 }
 
+function prepareDataFlow(
+  sourceText: string,
+  resourcePath: string,
+  root: string,
+): CollectedDataFlowInstrumentation {
+  return collectDataFlowInstrumentation({
+    absolutePath: resourcePath,
+    code: sourceText,
+    helperModule: NEXT_DATA_FLOW_MODULE_ID,
+    root,
+  });
+}
+
+function transformSource(input: {
+  readonly dataFlow?: CollectedDataFlowInstrumentation;
+  readonly fileId: string;
+  readonly mode: LoaderOptions["mode"];
+  readonly resourcePath: string;
+  readonly root: string;
+  readonly sourceText: string;
+}): InjectSourceMarkersResult | undefined {
+  return injectSourceMarkers({
+    absolutePath: input.resourcePath,
+    code: input.sourceText,
+    fileId: input.fileId,
+    markers: input.mode !== "data-flow",
+    root: input.root,
+    ...(input.dataFlow === undefined
+      ? {}
+      : {
+          dataFlow: {
+            helperModule: NEXT_DATA_FLOW_MODULE_ID,
+            instrumentation: input.dataFlow,
+          },
+        }),
+  });
+}
+
 function adaptSourceMap(
   sourceMap: InjectSourceMarkersResult["map"],
   resourcePath: string,
@@ -256,11 +322,6 @@ export default function spotPatchNextLoader(
   const callback = this.async();
   const sourceText = typeof source === "string" ? source : source.toString("utf8");
 
-  if (!sourceText.includes("<")) {
-    callback(null, sourceText, inputMap, metadata);
-    return;
-  }
-
   if (inputMap !== null && inputMap !== undefined) {
     warnOnce(this, "upstream-source-map-unsupported");
     callback(null, sourceText, inputMap, metadata);
@@ -277,14 +338,41 @@ export default function spotPatchNextLoader(
     return;
   }
 
-  void registerSource(this.resourcePath, options).then(
+  if (options.mode === "source" && !sourceText.includes("<")) {
+    callback(null, sourceText, inputMap, metadata);
+    return;
+  }
+
+  let root: string;
+  let dataFlow: CollectedDataFlowInstrumentation | undefined;
+
+  try {
+    root = readRequiredEnvironment(NEXT_ENVIRONMENT_KEYS.appRoot);
+    dataFlow =
+      options.mode === "source"
+        ? undefined
+        : prepareDataFlow(sourceText, this.resourcePath, root);
+  } catch {
+    warnOnce(this, "transform-failed");
+    callback(null, sourceText, inputMap, metadata);
+    return;
+  }
+
+  const registration =
+    dataFlow === undefined
+      ? registerSource(this.resourcePath, options)
+      : requestRegistration(this.resourcePath, options, dataFlow);
+
+  void registration.then(
     (fileId) => {
       try {
-        const result = injectSourceMarkers({
-          absolutePath: this.resourcePath,
-          code: sourceText,
+        const result = transformSource({
           fileId,
-          root: readRequiredEnvironment(NEXT_ENVIRONMENT_KEYS.appRoot),
+          mode: options.mode,
+          resourcePath: this.resourcePath,
+          root,
+          sourceText,
+          ...(dataFlow === undefined ? {} : { dataFlow }),
         });
 
         callback(
@@ -301,8 +389,41 @@ export default function spotPatchNextLoader(
       }
     },
     (error: unknown) => {
-      warnOnce(this, safeFailureCode(error));
-      callback(null, sourceText, inputMap, metadata);
+      if (options.mode !== "source-and-data-flow") {
+        warnOnce(this, safeFailureCode(error));
+        callback(null, sourceText, inputMap, metadata);
+        return;
+      }
+
+      void registerSource(this.resourcePath, options).then(
+        (fileId) => {
+          try {
+            const result = transformSource({
+              fileId,
+              mode: "source",
+              resourcePath: this.resourcePath,
+              root,
+              sourceText,
+            });
+            warnOnce(this, safeFailureCode(error));
+            callback(
+              null,
+              result?.code ?? sourceText,
+              result === undefined
+                ? inputMap
+                : adaptSourceMap(result.map, this.resourcePath),
+              metadata,
+            );
+          } catch {
+            warnOnce(this, "transform-failed");
+            callback(null, sourceText, inputMap, metadata);
+          }
+        },
+        (fallbackError: unknown) => {
+          warnOnce(this, safeFailureCode(fallbackError));
+          callback(null, sourceText, inputMap, metadata);
+        },
+      );
     },
   );
 }

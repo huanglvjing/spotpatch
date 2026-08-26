@@ -21,7 +21,9 @@
   "type": "module",
   "sideEffects": [
     "./dist/client.cjs",
-    "./dist/client.js"
+    "./dist/client.js",
+    "./dist/data-flow-runtime.cjs",
+    "./dist/data-flow-runtime.js"
   ],
   "engines": {
     "node": ">=20.19.0"
@@ -62,6 +64,16 @@
       "types": "./loader.d.cts",
       "default": "./loader.cjs"
     },
+    "./data-flow-runtime": {
+      "import": {
+        "types": "./dist/data-flow-runtime.d.ts",
+        "default": "./dist/data-flow-runtime.js"
+      },
+      "require": {
+        "types": "./dist/data-flow-runtime.d.cts",
+        "default": "./dist/data-flow-runtime.cjs"
+      }
+    },
     "./noop": {
       "import": {
         "types": "./dist/noop.d.ts",
@@ -77,6 +89,9 @@
     "*": {
       "client": [
         "dist/client.d.ts"
+      ],
+      "data-flow-runtime": [
+        "dist/data-flow-runtime.d.ts"
       ],
       "loader": [
         "loader.d.cts"

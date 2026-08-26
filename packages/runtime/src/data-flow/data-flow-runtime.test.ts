@@ -88,6 +88,24 @@ describe("data-flow runtime", () => {
     expect(JSON.stringify(observation)).not.toContain("hidden");
   });
 
+  it("applies an adapter observation policy without changing dispatch", () => {
+    const expected = successfulResponse();
+    const target = {
+      fetch: vi.fn<typeof fetch>(() => expected),
+      location: { href: "https://example.test/page" } as Location,
+      performance: { now: () => 1 } as Performance,
+    };
+    const runtime = createDataFlowRuntime(config, target, {
+      shouldObserveFetch: (input) =>
+        typeof input !== "string" || input !== "/framework-internal",
+    });
+
+    expect(target.fetch("/framework-internal")).toBe(expected);
+    expect(target.fetch("/api/business")).toBe(expected);
+    expect(runtime.observations()).toHaveLength(1);
+    expect(runtime.observations()[0]?.url.pathname).toBe("/api/business");
+  });
+
   it("does not let metadata failures or read-only transports affect fetch", () => {
     const expected = successfulResponse();
     const originalFetch: typeof fetch = vi.fn(() => expected);

@@ -1,9 +1,14 @@
 import { timingSafeEqual } from "node:crypto";
-import { lstat, realpath } from "node:fs/promises";
+import { lstat, readFile, realpath } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 
-import { createSourceFilter } from "@spotpatch/compiler";
+import {
+  createDataFlowSourceFilter,
+  createDataFlowSourceVersion,
+  createSourceFilter,
+} from "@spotpatch/compiler";
+import { DEFAULT_DATA_FLOW_LIMITS } from "@spotpatch/shared";
 import { z } from "zod";
 
 import type { ResolvedSpotPatchOptions } from "../options.js";
@@ -11,13 +16,28 @@ import type { SourceRegistry } from "../registry/source-registry.js";
 import { readJsonRequestBody } from "./request-body.js";
 import { isLoopbackHostname } from "./request-security.js";
 
-const REGISTRATION_BODY_LIMIT_BYTES = 4_096;
+const REGISTRATION_BODY_LIMIT_BYTES = DEFAULT_DATA_FLOW_LIMITS.protocolRequestMaxBytes;
 const REGISTRATION_IDENTITY_PATTERN = /^[A-Za-z0-9_-]{16,128}$/u;
+const DATA_FLOW_IDENTITY_PATTERN = /^[A-Za-z0-9_-]{1,128}$/u;
 const INTERNAL_SECRET_HEADER = "x-spotpatch-internal";
 const FORBIDDEN_SOURCE_SEGMENTS = new Set([".next", "node_modules"]);
 const registrationRequestSchema = z.strictObject({
   epoch: z.string().regex(REGISTRATION_IDENTITY_PATTERN),
   resourcePath: z.string().min(1).max(3_072),
+  dataFlow: z
+    .strictObject({
+      sourceVersion: z.string().regex(DATA_FLOW_IDENTITY_PATTERN),
+      components: z
+        .array(
+          z.strictObject({
+            componentSourceId: z.string().regex(DATA_FLOW_IDENTITY_PATTERN),
+            line: z.number().int().positive().max(10_000_000),
+            column: z.number().int().positive().max(10_000_000),
+          }),
+        )
+        .max(DEFAULT_DATA_FLOW_LIMITS.sourceMaxComponents),
+    })
+    .optional(),
 });
 
 export interface SourceRegistrationServiceOptions {
@@ -144,6 +164,41 @@ export async function createSourceRegistrationService(
 
   const root = await realpath(input.root);
   const sourceFilter = createSourceFilter(root, input.options);
+  const dataFlowFilter = createDataFlowSourceFilter(root, input.options);
+  const registrationQueues = new Map<string, Promise<void>>();
+
+  async function registerCurrentSource(
+    sourcePath: string,
+    dataFlow: z.infer<typeof registrationRequestSchema>["dataFlow"],
+  ): Promise<string | undefined> {
+    if (dataFlow === undefined) {
+      return input.registry.register(sourcePath);
+    }
+
+    let fileId: string | undefined;
+    const previous = registrationQueues.get(sourcePath) ?? Promise.resolve();
+    const current = previous
+      .catch(() => undefined)
+      .then(async () => {
+        const currentSource = await readFile(sourcePath, "utf8");
+        if (createDataFlowSourceVersion(currentSource) !== dataFlow.sourceVersion) {
+          return;
+        }
+        fileId = input.registry.registerDataFlowComponents(
+          sourcePath,
+          dataFlow.sourceVersion,
+          dataFlow.components,
+        );
+      });
+    registrationQueues.set(sourcePath, current);
+    await current.finally(() => {
+      if (registrationQueues.get(sourcePath) === current) {
+        registrationQueues.delete(sourcePath);
+      }
+    });
+    return fileId;
+  }
+
   const handler: SourceRegistrationHandler = (request, response) => {
     const handle = async (): Promise<void> => {
       const contentType = getSingleHeader(request, "content-type")
@@ -176,7 +231,10 @@ export async function createSourceRegistrationService(
       const sourcePath = await resolveAuthorizedSource(
         root,
         parsed.data.resourcePath,
-        (absolutePath) => sourceFilter.shouldTransform(absolutePath, "<"),
+        (absolutePath) =>
+          parsed.data.dataFlow === undefined
+            ? sourceFilter.shouldTransform(absolutePath, "<")
+            : dataFlowFilter.shouldTransform(absolutePath, ""),
       );
 
       if (sourcePath === undefined) {
@@ -184,10 +242,13 @@ export async function createSourceRegistrationService(
         return;
       }
 
-      writeJson(response, 200, {
-        epoch: input.registryEpoch,
-        fileId: input.registry.register(sourcePath),
-      });
+      const fileId = await registerCurrentSource(sourcePath, parsed.data.dataFlow);
+      if (fileId === undefined) {
+        writeJson(response, 409, { ok: false });
+        return;
+      }
+
+      writeJson(response, 200, { epoch: input.registryEpoch, fileId });
     };
 
     void handle().catch(() => {

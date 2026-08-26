@@ -190,7 +190,7 @@ describe("React 18 Bippy adapter", () => {
     });
   });
 
-  it.each(["17.0.2", "18.1.0", "19.0.0", undefined])(
+  it.each(["17.0.2", "18.1.0", undefined])(
     "does not inspect private fields for unsupported version %s",
     (version) => {
       const bridge = createBridge(version, [{ composite: true, name: "App" }]);
@@ -207,6 +207,59 @@ describe("React 18 Bippy adapter", () => {
       expect(getAncestors).not.toHaveBeenCalled();
     },
   );
+
+  it("uses only compiler registration for React 19 component identity", () => {
+    const businessType = function AccountPanel(): undefined {
+      return undefined;
+    };
+    const bridge = createBridge("19.2.0", [
+      {
+        composite: true,
+        componentType: businessType,
+        name: "AccountPanel",
+        source: { fileName: "/project/src/wrong.tsx", line: 99 },
+      },
+    ]);
+    const getSource = vi.spyOn(bridge, "getSource");
+    const adapter = createReact18Adapter({
+      bridge,
+      getComponentRegistration: (component) =>
+        component === businessType
+          ? {
+              componentSourceId: "component_account_panel",
+              sourceVersion: "source_current",
+            }
+          : undefined,
+      maxComponentDepth: 8,
+    });
+    const element = document.createElement("div");
+
+    expect(adapter.supports(element)).toBe(true);
+    expect(adapter.inspect(element)).toMatchObject({
+      supported: true,
+      version: "19.2.0",
+      componentName: "AccountPanel",
+      componentSourceId: "component_account_panel",
+      sourceVersion: "source_current",
+    });
+    expect(adapter.inspect(element).source).toBeUndefined();
+    expect(getSource).not.toHaveBeenCalled();
+  });
+
+  it("fails closed for React 19 without compiler registration", () => {
+    const bridge = createBridge("19.2.0", [{ composite: true, name: "AccountPanel" }]);
+    const getSource = vi.spyOn(bridge, "getSource");
+    const adapter = createReact18Adapter({ bridge, maxComponentDepth: 8 });
+    const element = document.createElement("div");
+
+    expect(adapter.supports(element)).toBe(false);
+    expect(adapter.inspect(element)).toEqual({
+      supported: false,
+      version: "19.2.0",
+      componentStack: [],
+    });
+    expect(getSource).not.toHaveBeenCalled();
+  });
 
   it("stops inspecting after disposal", () => {
     const bridge = createBridge("18.3.1", [{ composite: true, name: "App" }]);

@@ -178,7 +178,11 @@ This integration remains **local validation**, not stable host support. Automate
 Enable the development-only inspector explicitly when integrating manually:
 
 ```ts
+// Vite
 spotPatch({ dataFlow: {} });
+
+// Next.js public preview
+export default withSpotPatch({ dataFlow: {} })(nextConfig);
 ```
 
 After selecting an element, use **Data flow** for the proven component report and **Page APIs** for the selected page scope plus actually observed but unassigned requests.
@@ -202,7 +206,7 @@ Reports include HTTP method/path, parameter keys and positions, source-consumed 
 
 The current adapters cover supported direct and component-service `fetch`, Axios, React Query/TanStack Query callback forms, and an experimental tRPC logical-procedure path. A tRPC procedure and its physical batch HTTP request remain separate evidence layers.
 
-This Beta reports a relationship only when stable component, source, callsite, and invocation evidence agree. Unsupported or ambiguous traffic remains partial, unknown, or unassigned; URL or timing similarity alone is never treated as proof. The current scope is Vite + React 18 and does not include data-flow AI, JSON response inspection, or Next.js. See the [implementation status and exact support matrix](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md).
+This Beta reports a relationship only when stable component, source, callsite, and invocation evidence agree. Unsupported or ambiguous traffic remains partial, unknown, or unassigned; URL or timing similarity alone is never treated as proof. Vite + React 18 is the validated baseline. The Next.js public preview uses the same evidence model for browser Client Components; server-side RSC, Server Action, and Route Handler dispatch remains unobservable. React 19 accepts only compiler-registered component identity and never trusts private Fiber source coordinates. See the [implementation status and exact support matrix](./docs/技术方案/组件数据链路/13-Beta实现状态与使用手册.md).
 
 ## Optional AI Agent
 
@@ -293,7 +297,7 @@ Other combinations may work, but they are not part of the current public promise
 > [!WARNING]
 > `@spotpatch/next` is a **0.x public preview**. It is installable from npm, but its peer range is a candidate test range—not a completed compatibility or production-support claim.
 
-The preview contains a CLI, Sidecar, Turbopack and webpack Loader paths, source registration, Runtime bootstrap, and production no-op isolation. It has passed the locked POC and a private Next 16 App Router host, but the complete Next/React/router/Node/OS/browser support matrix is unfinished.
+The preview contains a CLI, Sidecar, Turbopack and webpack Loader paths, atomic source/data-flow registration, a pre-hydration recorder, the shared data-flow panel, Runtime bootstrap, and production no-op isolation. It has passed the locked POC and a private Next 16 App Router host, but the complete Next/React/router/Node/OS/browser support matrix is unfinished.
 
 ```bash
 pnpm add -D @spotpatch/next
@@ -302,7 +306,7 @@ pnpm exec spotpatch-next check
 pnpm dev
 ```
 
-`init` safely composes `next.config`, adds the `@spotpatch/next/client` import to the correct `instrumentation-client` file, and changes a simple `next dev` script to `spotpatch-next dev`. `check` verifies those integration points without writing files. Always start development through the package script; a direct `next dev` has no SpotPatch Sidecar lifecycle owner.
+`init` safely composes `next.config` with `dataFlow: {}`, adds the `@spotpatch/next/client` import to the correct `instrumentation-client` file, and changes a simple `next dev` script to `spotpatch-next dev`. `check` verifies those integration points without writing files. Always start development through the package script; a direct `next dev` has no SpotPatch Sidecar lifecycle owner.
 
 A successful startup prints a line beginning with `[spotpatch:next] ready`. Open the printed loopback URL and use **Select element** / **选择元素**. The optional AI workflow uses the same server-only `SPOTPATCH_AI_*` variables described above; never rename them with a `NEXT_PUBLIC_` prefix.
 

@@ -19,6 +19,18 @@ function transform(code: string) {
 }
 
 describe("data-flow instrumentation", () => {
+  it("keeps module directives before the injected helper import", () => {
+    const result = transform(`"use client";
+
+      export function Login() {
+        return <button onClick={() => fetch("/login")}>Login</button>;
+      }`);
+
+    expect(result?.code).toMatch(
+      /^"use client";\nimport \{ dataFlowRuntime as __spotpatchDataFlow \}/u,
+    );
+  });
+
   it("uses one original source coordinate space for DOM and request anchors", () => {
     const code = `export function Login() {
       async function onFinish(values: unknown) {

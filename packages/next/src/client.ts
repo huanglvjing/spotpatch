@@ -1,4 +1,5 @@
 import "bippy/install-hook-only";
+import "@spotpatch/next/data-flow-runtime";
 
 import type { NextClientBootstrapFailureCode } from "./client/bootstrap.js";
 

@@ -5,6 +5,7 @@ import {
   getFiberStack,
   isCompositeFiber,
   type Fiber,
+  type ReactRenderer,
 } from "bippy";
 
 import type { FiberBridge, FiberMatch, FiberSourceLocation } from "./fiber-bridge.js";
@@ -42,8 +43,21 @@ function readDebugSource(fiber: Fiber): FiberSourceLocation | undefined {
   });
 }
 
+function activeRenderers(): readonly ReactRenderer[] {
+  const renderers = new Set(_renderers);
+  const hook = globalThis.__REACT_DEVTOOLS_GLOBAL_HOOK__;
+
+  if (hook?.renderers instanceof Map) {
+    for (const renderer of hook.renderers.values()) {
+      renderers.add(renderer);
+    }
+  }
+
+  return [...renderers];
+}
+
 function findRendererFiber(element: Element): FiberMatch | undefined {
-  for (const renderer of _renderers) {
+  for (const renderer of activeRenderers()) {
     try {
       const fiber = renderer.findFiberByHostInstance?.(element);
 

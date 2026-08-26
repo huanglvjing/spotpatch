@@ -305,7 +305,7 @@ function childIndent(source: string, object: ObjectExpression): string {
 }
 
 function initializedNextOptions(trustedFastModeAvailable: boolean): string {
-  return `{ externalAgent: true${trustedFastModeAvailable ? ", trustedFastMode: true" : ""} }`;
+  return `{ dataFlow: {}, externalAgent: true${trustedFastModeAvailable ? ", trustedFastMode: true" : ""} }`;
 }
 
 function enableNextOptions(
@@ -340,26 +340,27 @@ function enableNextOptions(
 
   if (options.properties.some((property) => property.type === "SpreadElement")) {
     throw new Error(
-      "SpotPatch init cannot prove externalAgent through spread withSpotPatch options.",
+      "SpotPatch init cannot prove required options through spread withSpotPatch options.",
     );
   }
 
+  const missing: string[] = [];
   const dataFlowProperty = findObjectProperty(options, "dataFlow");
   const dataFlowValue =
     dataFlowProperty === undefined
       ? undefined
       : unwrapExpression(dataFlowProperty.value);
 
-  if (
-    dataFlowValue !== undefined &&
-    !(dataFlowValue.type === "Literal" && dataFlowValue.value === false)
-  ) {
+  if (dataFlowProperty === undefined) {
+    missing.push("dataFlow: {}");
+  } else if (dataFlowValue?.type === "Literal" && dataFlowValue.value === false) {
+    magicString.overwrite(dataFlowValue.start, dataFlowValue.end, "{}");
+  } else if (dataFlowValue?.type !== "ObjectExpression") {
     throw new Error(
-      "SpotPatch Next does not support component dataFlow yet; remove dataFlow or set it to false.",
+      "SpotPatch init requires dataFlow to be false or an options object.",
     );
   }
 
-  const missing: string[] = [];
   const externalAgentProperty = findObjectProperty(options, "externalAgent");
 
   if (externalAgentProperty === undefined) {

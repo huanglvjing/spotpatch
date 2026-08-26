@@ -9,6 +9,8 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   NEXT_CLIENT_MODULE_ID,
+  NEXT_DATA_FLOW_MODULE_ID,
+  NEXT_DATA_FLOW_RULE_KEYS,
   NEXT_ENVIRONMENT_KEYS,
   NEXT_IPC_PROTOCOL_VERSION,
   NEXT_SOURCE_RULE_KEYS,
@@ -42,6 +44,7 @@ async function createApplicationFixture(): Promise<string> {
         name: "@spotpatch/next",
         exports: {
           "./client": { require: "./dist/client.cjs" },
+          "./data-flow-runtime": { require: "./dist/data-flow-runtime.cjs" },
           "./loader": "./loader.cjs",
         },
       })}\n`,
@@ -49,6 +52,11 @@ async function createApplicationFixture(): Promise<string> {
     writeFile(path.join(adapterRoot, "loader.cjs"), "module.exports = {};\n"),
     writeFile(path.join(distributionRoot, "client.cjs"), "module.exports = {};\n"),
     writeFile(path.join(distributionRoot, "client.js"), "export {};\n"),
+    writeFile(
+      path.join(distributionRoot, "data-flow-runtime.cjs"),
+      "module.exports = {};\n",
+    ),
+    writeFile(path.join(distributionRoot, "data-flow-runtime.js"), "export {};\n"),
     writeFile(path.join(distributionRoot, "noop.cjs"), "module.exports = {};\n"),
     writeFile(path.join(distributionRoot, "noop.js"), "export {};\n"),
   ]);
@@ -91,7 +99,7 @@ function listen(value: Server): Promise<string> {
 function createFactory(
   input: NextConfig | NextConfigFactory<NextConfig>,
 ): NextConfigFactory<NextConfig> {
-  return withSpotPatch({ ai: false })<NextConfig>(input);
+  return withSpotPatch({ ai: false, dataFlow: {} })<NextConfig>(input);
 }
 
 beforeAll(async () => {
@@ -135,10 +143,45 @@ afterAll(async () => {
 });
 
 describe("withSpotPatch", () => {
-  it("rejects component data flow instead of exposing a non-functional panel", () => {
-    expect(() =>
-      withSpotPatch({ dataFlow: {} } as unknown as Parameters<typeof withSpotPatch>[0]),
-    ).toThrow(/does not support component dataFlow/u);
+  it("adds disjoint browser and server data-flow rules when enabled", async () => {
+    const context = Object.freeze({
+      defaultConfig: {},
+    }) satisfies NextConfigContext<NextConfig>;
+    const config = await withSpotPatch({ ai: false, dataFlow: {} })<NextConfig>({})(
+      PHASE_DEVELOPMENT_SERVER,
+      context,
+    );
+
+    expect(config.turbopack?.resolveAlias?.[NEXT_DATA_FLOW_MODULE_ID]).toContain(
+      "data-flow-runtime",
+    );
+    for (const key of NEXT_SOURCE_RULE_KEYS) {
+      const rules = config.turbopack?.rules?.[key];
+      expect(Array.isArray(rules)).toBe(true);
+      expect(rules).toMatchObject([
+        { loaders: [{ options: { mode: "source-and-data-flow", registryEpoch } }] },
+        { loaders: [{ options: { mode: "source", registryEpoch } }] },
+      ]);
+    }
+    for (const key of NEXT_DATA_FLOW_RULE_KEYS) {
+      expect(config.turbopack?.rules?.[key]).toMatchObject({
+        loaders: [{ options: { mode: "data-flow", registryEpoch } }],
+      });
+    }
+
+    const invokeWebpack = config.webpack as unknown as (
+      config: Record<string, unknown>,
+      context: Readonly<{ dev: boolean; isServer: boolean }>,
+    ) => Record<string, unknown>;
+    const clientConfig = { module: { rules: [] } };
+    const serverConfig = { module: { rules: [] } };
+    invokeWebpack(clientConfig, { dev: true, isServer: false });
+    invokeWebpack(serverConfig, { dev: true, isServer: true });
+    expect(clientConfig.module.rules).toHaveLength(2);
+    expect(serverConfig.module.rules).toHaveLength(1);
+    expect(serverConfig.module.rules[0]).toMatchObject({
+      use: [{ options: { mode: "source", registryEpoch } }],
+    });
   });
 
   it("composes object, synchronous, and asynchronous development configs once", async () => {
@@ -172,34 +215,57 @@ describe("withSpotPatch", () => {
     );
 
     for (const key of NEXT_SOURCE_RULE_KEYS) {
-      expect(objectConfig.turbopack?.rules?.[key]).toMatchObject({
-        condition: { all: ["development", { not: "foreign" }] },
-        loaders: [
-          {
-            options: { registryEpoch },
-          },
-        ],
-      });
+      expect(objectConfig.turbopack?.rules?.[key]).toMatchObject([
+        {
+          loaders: [
+            {
+              options: { mode: "source-and-data-flow", registryEpoch },
+            },
+          ],
+        },
+        {
+          loaders: [{ options: { mode: "source", registryEpoch } }],
+        },
+      ]);
     }
 
     const invokeWebpack = objectConfig.webpack as unknown as (
       config: Record<string, unknown>,
-      context: Readonly<{ dev: boolean }>,
+      context: Readonly<{ dev: boolean; isServer: boolean }>,
     ) => Record<string, unknown>;
     const webpackConfig = {
       cache: { type: "filesystem", version: "host" },
       module: { rules: [] },
     };
-    const webpackResult = invokeWebpack(webpackConfig, { dev: true });
+    const webpackResult = invokeWebpack(webpackConfig, {
+      dev: true,
+      isServer: false,
+    });
 
     expect(webpackResult).toBe(webpackConfig);
     expect(webpackConfig.cache.version).toBe(`host|spotpatch:${registryEpoch}`);
-    expect(webpackConfig.module.rules).toHaveLength(1);
+    expect(webpackConfig.module.rules).toHaveLength(2);
     expect(webpackConfig.module.rules[0]).toMatchObject({
       enforce: "pre",
       include: appRoot,
-      use: [{ options: { registryEpoch } }],
+      use: [{ options: { mode: "source-and-data-flow", registryEpoch } }],
     });
+    const sourceRule: unknown = webpackConfig.module.rules[0];
+    if (
+      typeof sourceRule !== "object" ||
+      sourceRule === null ||
+      !("exclude" in sourceRule) ||
+      !(sourceRule.exclude instanceof RegExp)
+    ) {
+      throw new Error("Expected the SpotPatch webpack exclusion rule.");
+    }
+    expect(sourceRule.exclude.test(path.join(appRoot, "node_modules", "next.js"))).toBe(
+      true,
+    );
+    expect(sourceRule.exclude.test(path.join(appRoot, ".next", "server.js"))).toBe(
+      true,
+    );
+    expect(sourceRule.exclude.test(path.join(appRoot, "src", "page.tsx"))).toBe(false);
 
     const syncInput = vi.fn(
       (phase: string, receivedContext: NextConfigContext<NextConfig>): NextConfig => {
@@ -256,16 +322,22 @@ describe("withSpotPatch", () => {
     expect(config.turbopack?.root).toBe(appRoot);
     expect(typeof turbopackAlias).toBe("string");
     expect(turbopackAlias).toContain("noop");
+    expect(config.turbopack?.resolveAlias?.[NEXT_DATA_FLOW_MODULE_ID]).toContain(
+      "noop",
+    );
 
     const invokeWebpack = config.webpack as unknown as (
       config: Record<string, unknown>,
-      context: Readonly<{ dev: boolean }>,
+      context: Readonly<{ dev: boolean; isServer: boolean }>,
     ) => Record<string, unknown>;
     const webpackConfig: Record<string, unknown> = {
       module: { rules: [] },
       resolve: { alias: { host: "/host/module.js" } },
     };
-    const webpackResult = invokeWebpack(webpackConfig, { dev: false });
+    const webpackResult = invokeWebpack(webpackConfig, {
+      dev: false,
+      isServer: false,
+    });
     const resolve = webpackResult.resolve;
 
     expect(isRecord(resolve)).toBe(true);
@@ -276,6 +348,7 @@ describe("withSpotPatch", () => {
 
     expect(resolve.alias.host).toBe("/host/module.js");
     expect(resolve.alias[NEXT_CLIENT_MODULE_ID]).toContain("noop");
+    expect(resolve.alias[NEXT_DATA_FLOW_MODULE_ID]).toContain("noop");
     expect((webpackResult.module as { rules: unknown[] }).rules).toHaveLength(0);
   });
 });

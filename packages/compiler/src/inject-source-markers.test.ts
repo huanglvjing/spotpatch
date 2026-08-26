@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { collectDataFlowInstrumentation } from "./data-flow-instrumentation.js";
 import { injectSourceMarkers, type TransformWarning } from "./inject-source-markers.js";
 
 const root = path.resolve("/project");
@@ -93,5 +94,51 @@ describe("injectSourceMarkers", () => {
 
   it("throws a parser error for the plugin boundary to handle fail-open", () => {
     expect(() => transform("const view = <div>;")).toThrow(SyntaxError);
+  });
+
+  it("applies prepared data-flow instrumentation without collecting a second identity", () => {
+    const code = `export function Example() { return <button onClick={() => fetch("/api")}>Load</button>; }`;
+    const instrumentation = collectDataFlowInstrumentation({
+      absolutePath,
+      code,
+      helperModule: "@spotpatch/next/data-flow-runtime",
+      root,
+    });
+    const result = injectSourceMarkers({
+      absolutePath,
+      code,
+      dataFlow: {
+        helperModule: "@spotpatch/next/data-flow-runtime",
+        instrumentation,
+      },
+      fileId: "Q7k3pA9vL2s",
+      root,
+    });
+
+    expect(result?.dataFlow).toBe(instrumentation);
+    expect(result?.code).toContain("@spotpatch/next/data-flow-runtime");
+  });
+
+  it("rejects stale prepared data-flow instrumentation", () => {
+    const code = `export function Example() { return <main />; }`;
+    const instrumentation = collectDataFlowInstrumentation({
+      absolutePath,
+      code,
+      helperModule: "@spotpatch/next/data-flow-runtime",
+      root,
+    });
+
+    expect(() =>
+      injectSourceMarkers({
+        absolutePath,
+        code: `${code}\n`,
+        dataFlow: {
+          helperModule: "@spotpatch/next/data-flow-runtime",
+          instrumentation,
+        },
+        fileId: "Q7k3pA9vL2s",
+        root,
+      }),
+    ).toThrow(/stale/u);
   });
 });

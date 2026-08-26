@@ -13,6 +13,7 @@ export {
   type SourceFilterOptions,
 } from "./source-filter.js";
 export { createDataFlowAnchorId, createDataFlowSourceVersion } from "./data-flow-id.js";
+export { collectDataFlowInstrumentation } from "./data-flow-instrumentation.js";
 export type {
   CollectedDataFlowInstrumentation,
   CollectDataFlowInstrumentationInput,

@@ -108,7 +108,7 @@ describe("Next integration initializer", () => {
       'import { withSpotPatch } from "@spotpatch/next";',
     );
     expect(await readFile(path.join(root, "next.config.ts"), "utf8")).toContain(
-      "export default withSpotPatch({ externalAgent: true })(config);",
+      "export default withSpotPatch({ dataFlow: {}, externalAgent: true })(config);",
     );
     expect(
       await readFile(path.join(root, "src", "instrumentation-client.ts"), "utf8"),
@@ -140,7 +140,7 @@ describe("Next integration initializer", () => {
       'import { withSpotPatch as withSpotPatch1 } from "@spotpatch/next";',
     );
     expect(config).toContain(
-      "export default withSpotPatch1({ externalAgent: true })(config);",
+      "export default withSpotPatch1({ dataFlow: {}, externalAgent: true })(config);",
     );
     expect(JSON.parse(manifest ?? "{}")).toMatchObject({
       scripts: { dev: "spotpatch-next dev --webpack --port=3100" },
@@ -175,7 +175,7 @@ describe("Next integration initializer", () => {
 
     expect(plan.trustedFastModeAvailable).toBe(true);
     expect(config).toContain(
-      "withSpotPatch({ externalAgent: true, trustedFastMode: true })(config)",
+      "withSpotPatch({ dataFlow: {}, externalAgent: true, trustedFastMode: true })(config)",
     );
   });
 
@@ -234,15 +234,17 @@ describe("Next integration initializer", () => {
     );
   });
 
-  it("rejects a static component data-flow option that Next cannot execute", async () => {
+  it("preserves a static component data-flow option", async () => {
     const root = await fixture({
       config:
         'import { withSpotPatch } from "@spotpatch/next";\nconst config = {};\nexport default withSpotPatch({ dataFlow: {} })(config);\n',
     });
 
-    await expect(planNextIntegration(root)).rejects.toThrow(
-      /does not support component dataFlow/u,
-    );
+    const plan = await planNextIntegration(root);
+    expect(
+      plan.changes.find((change) => change.relativePath === "next.config.ts")
+        ?.nextContent,
+    ).toContain("dataFlow: {}");
   });
 
   it("fails closed before writes for unsupported config and shell scripts", async () => {

@@ -75,6 +75,15 @@ export interface DataFlowRuntime {
   ) => Result;
 }
 
+export interface DataFlowObservationPolicy {
+  readonly shouldObserveFetch?: (
+    input: RequestInfo | URL,
+    init: RequestInit | undefined,
+    baseUrl: string,
+  ) => boolean;
+  readonly shouldObserveXhr?: (url: string, baseUrl: string) => boolean;
+}
+
 export interface DataFlowTrpcOperation {
   readonly path: unknown;
   readonly type: unknown;
@@ -308,6 +317,7 @@ function recordWithoutAffectingHost(record: () => void): void {
 export function createDataFlowRuntime(
   config: RuntimeDataFlowConfig,
   target: MutableDataFlowGlobal = globalThis,
+  policy: DataFlowObservationPolicy = {},
 ): DataFlowRuntime {
   const componentRegistry = new WeakMap<object, DataFlowComponentRegistration>();
   const xhrMetadata = new WeakMap<object, XhrMetadata>();
@@ -346,7 +356,12 @@ export function createDataFlowRuntime(
         isSpotPatchInternalUrl(
           rawUrl,
           target.location?.href ?? "http://spotpatch.invalid/",
-        )
+        ) ||
+        policy.shouldObserveFetch?.(
+          input,
+          init,
+          target.location?.href ?? "http://spotpatch.invalid/",
+        ) === false
       ) {
         return;
       }
@@ -430,7 +445,11 @@ export function createDataFlowRuntime(
         isSpotPatchInternalUrl(
           metadata.url,
           target.location?.href ?? "http://spotpatch.invalid/",
-        )
+        ) ||
+        policy.shouldObserveXhr?.(
+          metadata.url,
+          target.location?.href ?? "http://spotpatch.invalid/",
+        ) === false
       ) {
         return;
       }
@@ -659,9 +678,10 @@ export function createDataFlowRuntime(
 export function installDataFlowPrelude(
   config: RuntimeDataFlowConfig,
   target: GlobalWithDataFlow = globalThis,
+  policy: DataFlowObservationPolicy = {},
 ): DataFlowRuntime | undefined {
   if (!config.enabled) return undefined;
-  const runtime = target[RUNTIME_KEY] ?? createDataFlowRuntime(config, target);
+  const runtime = target[RUNTIME_KEY] ?? createDataFlowRuntime(config, target, policy);
   target[RUNTIME_KEY] = runtime;
   return runtime;
 }

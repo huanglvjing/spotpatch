@@ -8,7 +8,7 @@ export interface SourceRegistry {
     absolutePath: string,
     sourceVersion: string,
     components: readonly DataFlowComponentAnchorInput[],
-  ): void;
+  ): string;
   resolve(fileId: string): string | undefined;
   resolveDataFlowComponent(
     componentSourceId: string,
@@ -68,7 +68,7 @@ export function createSourceRegistry(
       absolutePath: string,
       sourceVersion: string,
       components: readonly DataFlowComponentAnchorInput[],
-    ): void {
+    ): string {
       const normalizedPath = normalizeAbsolutePath(absolutePath);
       const previousIds = componentIdsByPath.get(normalizedPath);
       for (const componentSourceId of previousIds ?? []) {
@@ -85,6 +85,7 @@ export function createSourceRegistry(
         );
       }
       componentIdsByPath.set(normalizedPath, currentIds);
+      return fileId;
     },
 
     resolve(fileId: string): string | undefined {

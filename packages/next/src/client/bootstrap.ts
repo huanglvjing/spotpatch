@@ -125,6 +125,11 @@ async function executeBootstrap(): Promise<void> {
       );
     }
 
+    if (config.dataFlow.enabled) {
+      const extension = await import("@spotpatch/runtime/data-flow-panel");
+      extension.installDataFlowPanelExtension();
+    }
+
     bootstrapSpotPatch(config);
   } catch {
     throw new BootstrapError("MOUNT_FAILED");

@@ -21,10 +21,10 @@
     "build": "pnpm --filter './packages/*' build",
     "changeset": "changeset",
     "clean": "pnpm --filter './packages/*' clean",
-    "dev": "pnpm --filter @spotpatch/playground dev",
+    "dev": "node scripts/dev.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "eslint packages playgrounds experiments/next-adapter tests *.ts --max-warnings 0",
+    "lint": "eslint packages playgrounds experiments/next-adapter scripts tests *.ts --max-warnings 0",
     "package:validate": "pnpm build && pnpm --filter './packages/*' exec publint && pnpm --filter './packages/*' exec attw --pack .",
     "release": "pnpm build && changeset publish",
     "test": "pnpm test:unit",
@@ -36,7 +36,7 @@
     "test:next-runtime-real-host": "pnpm --filter @spotpatch/next-adapter-experiments test:runtime-real-host",
     "test:performance": "vitest run tests/performance",
     "test:production-leakage": "pnpm build && vitest run tests/production",
-    "test:unit": "vitest run packages tests/unit",
+    "test:unit": "vitest run packages scripts tests/unit",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present typecheck"
   },
   "devDependencies": {

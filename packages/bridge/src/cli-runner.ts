@@ -73,6 +73,7 @@ function exitCode(error: unknown): number {
     if (
       error.code === CODEX_ADAPTER_ERROR_CODES.MCP_NOT_READY ||
       error.code === CODEX_ADAPTER_ERROR_CODES.PROTOCOL ||
+      error.code === CODEX_ADAPTER_ERROR_CODES.SCHEMA_INCOMPATIBLE ||
       error.code === CODEX_ADAPTER_ERROR_CODES.UNSUPPORTED_VERSION
     ) {
       return 6;

@@ -397,6 +397,44 @@ describe("external handoff Runtime extension", () => {
     panel.sendButton.remove();
   });
 
+  it("explains the out-of-browser consent step in both supported locales", () => {
+    const awaitingConsent: ExternalAgentControlStatus = Object.freeze({
+      schemaVersion: 1,
+      sequence: 1,
+      mode: "inbox",
+      adapter: Object.freeze({
+        kind: "codex",
+        maturity: "experimental",
+        availability: "unavailable",
+      }),
+      connectionState: "awaiting-consent",
+      authReadiness: "unknown",
+      grantState: "missing",
+      updatedAt: "2026-08-23T00:00:02.000Z",
+    });
+
+    for (const [locale, expected] of [
+      ["en-US", 'type "yes" in the terminal that started `pnpm dev`'],
+      ["zh-CN", "请在启动 `pnpm dev` 的终端输入“yes”"],
+    ] as const) {
+      const panel = createExternalHandoffPanel(
+        document,
+        "vite",
+        () => locale,
+        `${SESSION_ID}-${locale}`,
+        () => () => undefined,
+        () => undefined,
+      );
+      document.body.append(panel.root, panel.sendButton);
+      panel.renderControlStatus(awaitingConsent);
+
+      expect(panel.root.textContent).toContain(expected);
+      panel.dispose();
+      panel.root.remove();
+      panel.sendButton.remove();
+    }
+  });
+
   it("recovers capability probing when selection cleanup cancels the first request", async () => {
     let capabilityRequests = 0;
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {

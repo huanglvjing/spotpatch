@@ -215,7 +215,7 @@ implement the request, then call spotpatch_report_handoff_result.
 
 ### Codex App Server adapter（ADR-036 legacy attached 基线）
 
-legacy attached 路径可在精确项目根运行 `connect codex --allow-workspace-write [--session <id>]` 启动 SpotPatch-owned App Server client；它不是 managed 默认安装步骤。CLI 的运行时要求为 Node.js `>=20.19.0`。该历史实现锁定 `codex-cli 0.149.0`，只用于迁移诊断；managed 使用集中 semver 范围和 capability preflight。App Server 是官方 deep-integration interface，但 command 仍为 experimental。legacy 协议顺序为：
+legacy attached 路径可在精确项目根运行 `connect codex --allow-workspace-write [--session <id>]` 启动 SpotPatch-owned App Server client；它不是 managed 默认安装步骤。CLI 的运行时要求为 Node.js `>=20.19.0`。attached 与 managed 共用集中兼容政策：最低稳定版 `0.149.0`，不设未来上限，但当前 absolute executable 生成的 Schema 与真实 capability preflight 必须同时通过；该历史入口仍只用于迁移诊断。App Server 是官方 deep-integration interface，但 command 仍为 experimental。legacy 协议顺序为：
 
 ```text
 resolve/verify absolute codex executable and version

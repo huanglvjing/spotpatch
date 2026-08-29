@@ -22,6 +22,7 @@ import type {
 } from "../types.js";
 import { connectCodexAppServer, type CodexAppServerAdapter } from "./adapter.js";
 import { CODEX_ADAPTER_ERROR_CODES } from "./errors.js";
+import { fakeSchemaCommandSource } from "./test-schema-fixture.js";
 
 interface FakeScenario {
   readonly exitDuringInitialize?: boolean;
@@ -64,6 +65,7 @@ if (process.argv[2] === "--version") {
   process.stdout.write("codex-cli 0.149.0\n");
   process.exit(0);
 }
+${fakeSchemaCommandSource()}
 if (process.argv[2] !== "app-server") process.exit(64);
 
 const scenario = JSON.parse(fs.readFileSync(path.join(__dirname, "scenario.json"), "utf8"));

@@ -143,7 +143,7 @@ Claude Code 会话必须正在运行，且用户已对本会话显式启用 Spot
 ### 进程与线程
 
 - legacy attached 路径允许用户在 dev Session 的精确 canonical 项目根运行 `connect codex --allow-workspace-write`；它只保留一个迁移发布周期作为高级诊断/回退，不是 managed 默认流程。多个精确匹配 Session 时仍用 `--session <id>`，不按时间猜测；Connector 不读取或写入 `.codex/config.toml`。
-- Connector 从可信终端 PATH 解析、realpath 并验证绝对 Codex executable，当前只接受 `codex-cli 0.149.0`，默认拒绝项目 root 内二进制，再以固定 argv `["app-server"]`、`shell: false` 启动 stdio 子进程。
+- Connector 从可信终端 PATH 解析、realpath 并验证绝对 Codex executable，最低接受稳定 `codex-cli 0.149.0` 且不设置未来上限；当前 executable 必须先生成 experimental App Server Schema 并满足 SpotPatch 固定协议子集，随后真实握手与能力 preflight 仍需全部通过。默认拒绝项目 root 内二进制，再以固定 argv `["app-server"]`、`shell: false` 启动 stdio 子进程。
 - 不尝试接管一个未知 Codex UI 会话；该 Connector 拥有一个专用 thread，一个项目一次连接只创建一个 thread。
 - 连接先完成 `initialize` / `initialized`，再以 inline `mcp_servers.spotpatch` 执行 `thread/start`。inline 配置与持久 Codex Inbox 共用固定 `XDG_RUNTIME_DIR` / `TMPDIR` / `TMP` / `TEMP` 名称白名单，只请求 Codex 转发当前进程中的值，不传递完整环境。MCP command 内部追加已选定的 `--session`，配置把 `enabled_tools` 锁定为 `spotpatch_list_sessions` 并标记 server required。随后用 `mcpServerStatus/list(threadId)` 验证仅该 tool 对模型可见，并用 `mcpServer/tool/call(spotpatch_list_sessions)` 验证绑定后只返回精确选定 Session；只有两步都成功后才 claim。每个空闲 Handoff 用 `turn/start`。首版不用 `turn/steer`：忙时禁止新的主动写任务，避免两个独立组件修改被隐式合并。
 - Codex `turn/start` 临时输入已验证 snapshot 的有界任务投影：revision、规范化的项目相对源码位置、仅标签名的元素标识和逐目标 instruction。它拒绝绝对路径、反斜杠路径、`.`/`..` 段、空路径段和控制字符，也不含 DOM selector/CSS/源码摘录、页面 URL、token 或厂商 ID。全部目标必须有可执行源码位置，且“位置 + 安全标签”投影在本次请求内唯一；缺失、非法路径或碰撞在写入 App Server 前直接 failed。主动配置将 full-context get/wait/ack 从模型工具面移除，状态预检还会拒绝任何额外 tool；项目当前源码是执行权威，固定指令要求不调试 SpotPatch 自身。这为约 225 KiB full result 的已知整体序列化路径建立了协议级阻断和自动化证据；修复后已在记录的 macOS/Next.js/Codex 0.149.0 环境人工完成连续两 revision，跨平台和可重复真实宿主自动化仍未完成。
@@ -177,7 +177,7 @@ managed 工作区实现保留本节的 stdio JSONL、严格 Schema、匹配 thre
 - canonical 业务 root 可写 → 系统临时独立 Git 快照与任务临时目录可写；
 - 单一持久 thread → 每 revision 新 thread，终态删除并带 crash cleanup journal；
 - 允许用户其他 MCP → project-keyed 私有空白 `CODEX_HOME` + 固定 process/thread config + turn 前 hooks/MCP 零结果证明；`mcp_servers={}` 不单独作为隔离证据，无法证明时 fail closed；
-- 精确 `0.149.0` 散落门禁 → 集中 semver 策略 + 生成 Schema + capability preflight；
+- 精确 `0.149.0` 散落门禁 → 已收敛为最低稳定版 `0.149.0`、无未来上限、逐 executable 生成 Schema + capability preflight；
 - App Server terminal → `executionStatus` 证据；只有 diff 审计、required checks 和 apply 后复验可产生 `managedPhase: completed`。
 
 ## 其他 Agent 的适配规则

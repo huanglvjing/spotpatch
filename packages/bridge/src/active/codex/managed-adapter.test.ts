@@ -26,6 +26,7 @@ import type {
 } from "../types.js";
 import type { ManagedThreadCleanupJournal } from "../../supervisor/thread-cleanup-journal.js";
 import { connectManagedCodexAppServer } from "./managed-adapter.js";
+import { fakeSchemaCommandSource } from "./test-schema-fixture.js";
 
 interface Scenario {
   readonly hookConfigured?: boolean;
@@ -51,6 +52,7 @@ if (process.argv[2] === "--version") {
   process.stdout.write("codex-cli 0.149.1\n");
   process.exit(0);
 }
+${fakeSchemaCommandSource()}
 if (process.argv[process.argv.length - 1] !== "app-server") process.exit(64);
 
 const scenario = JSON.parse(fs.readFileSync(path.join(__dirname, "scenario.json"), "utf8"));

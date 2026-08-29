@@ -47,6 +47,7 @@ interface ExternalHandoffMessages {
     state: ExternalAgentControlStatus["connectionState"],
     mode: ExternalAgentControlStatus["mode"],
   ) => string;
+  readonly controlConsentRequired: string;
   readonly controlErrorText: Readonly<Record<ExternalAgentErrorCode, string>>;
   readonly controlFailure: (error: string, action: string) => string;
   readonly controlModel: (model: string) => string;
@@ -114,6 +115,8 @@ const MESSAGES = Object.freeze({
       auth: ExternalAgentControlStatus["authReadiness"],
       grant: ExternalAgentControlStatus["grantState"],
     ) => `Auth: ${auth} · Grant: ${grant}`,
+    controlConsentRequired:
+      'Grant required: type "yes" in the terminal that started `pnpm dev`. If no prompt is visible, restart `pnpm dev` in an interactive terminal and connect again.',
     controlModel: (model: string) => `Model: ${model}`,
     controlRevision: (task: ControlTask) =>
       `Revision ${String(task.revision)}: ${task.deliveryStatus} / ${task.executionStatus} / ${task.managedPhase}`,
@@ -125,11 +128,13 @@ const MESSAGES = Object.freeze({
     controlErrorText: Object.freeze({
       AGENT_BINARY_NOT_FOUND: "Codex is not installed or is not on PATH.",
       AGENT_BINARY_UNTRUSTED: "The resolved Codex executable is not trusted.",
-      AGENT_VERSION_UNSUPPORTED: "The installed Codex version is unsupported.",
+      AGENT_VERSION_UNSUPPORTED:
+        "The installed Codex version is below SpotPatch's compatibility baseline.",
       APP_SERVER_HANDSHAKE_FAILED: "Codex App Server did not complete startup.",
       AGENT_AUTH_REQUIRED: "Codex requires an authenticated account.",
       AGENT_MODEL_UNAVAILABLE: "The configured Codex model is unavailable.",
-      AGENT_PROTOCOL_INCOMPATIBLE: "The Codex App Server protocol is incompatible.",
+      AGENT_PROTOCOL_INCOMPATIBLE:
+        "The generated Codex App Server schema is incompatible with SpotPatch's required protocol subset.",
       CODEX_CONFIG_ISOLATION_UNSUPPORTED:
         "This Codex version cannot prove managed configuration isolation.",
       MANAGED_GRANT_INVALID: "The saved project grant failed validation.",
@@ -141,14 +146,14 @@ const MESSAGES = Object.freeze({
       MANAGED_SCOPE_VIOLATION: "The candidate change exceeded its authorized paths.",
       MANAGED_CHANGE_LIMIT_EXCEEDED: "The candidate change exceeded safety limits.",
       MANAGED_VALIDATION_FAILED:
-        "A required check failed or changed the candidate diff.",
+        "The candidate change did not pass audit or validation.",
       MANAGED_WORKSPACE_CONFLICT: "An authorized source file changed during execution.",
       MANAGED_APPLY_FAILED: "The audited change could not be applied safely.",
       MANAGED_CLEANUP_INCOMPLETE: "Managed thread or workspace cleanup is incomplete.",
     }),
     controlActionText: Object.freeze({
       "install-agent": "Install Codex and retry.",
-      "use-supported-version": "Use a supported Codex version.",
+      "use-supported-version": "Use a schema-compatible Codex version.",
       "sign-in": "Sign in with Codex, then retry.",
       "choose-available-model": "Choose an available model in Codex configuration.",
       "use-inbox": "Continue with the Agent inbox fallback.",
@@ -256,6 +261,8 @@ const MESSAGES = Object.freeze({
       auth: ExternalAgentControlStatus["authReadiness"],
       grant: ExternalAgentControlStatus["grantState"],
     ) => `认证：${auth} · 授权：${grant}`,
+    controlConsentRequired:
+      "需要项目授权：请在启动 `pnpm dev` 的终端输入“yes”。若终端没有出现确认提示，请在可交互终端重新启动 `pnpm dev` 后再连接。",
     controlModel: (model: string) => `模型：${model}`,
     controlRevision: (task: ControlTask) =>
       `revision ${String(task.revision)}：${task.deliveryStatus} / ${task.executionStatus} / ${task.managedPhase}`,
@@ -267,11 +274,12 @@ const MESSAGES = Object.freeze({
     controlErrorText: Object.freeze({
       AGENT_BINARY_NOT_FOUND: "未安装 Codex，或 Codex 不在 PATH 中。",
       AGENT_BINARY_UNTRUSTED: "解析到的 Codex 可执行文件不可信。",
-      AGENT_VERSION_UNSUPPORTED: "已安装的 Codex 版本不受支持。",
+      AGENT_VERSION_UNSUPPORTED: "已安装的 Codex 版本低于 SpotPatch 兼容基线。",
       APP_SERVER_HANDSHAKE_FAILED: "Codex App Server 未完成启动握手。",
       AGENT_AUTH_REQUIRED: "Codex 需要已登录的账户。",
       AGENT_MODEL_UNAVAILABLE: "Codex 配置的模型当前不可用。",
-      AGENT_PROTOCOL_INCOMPATIBLE: "Codex App Server 协议不兼容。",
+      AGENT_PROTOCOL_INCOMPATIBLE:
+        "Codex 生成的 App Server Schema 不满足 SpotPatch 所需协议子集。",
       CODEX_CONFIG_ISOLATION_UNSUPPORTED: "当前 Codex 版本无法证明受管配置隔离。",
       MANAGED_GRANT_INVALID: "保存的项目授权未通过校验。",
       MANAGED_PLATFORM_UNSUPPORTED: "当前平台尚未证明可安全运行受管执行。",
@@ -279,14 +287,14 @@ const MESSAGES = Object.freeze({
       MANAGED_SNAPSHOT_FAILED: "无法创建独立工作区快照。",
       MANAGED_SCOPE_VIOLATION: "候选修改超出授权路径。",
       MANAGED_CHANGE_LIMIT_EXCEEDED: "候选修改超过安全上限。",
-      MANAGED_VALIDATION_FAILED: "required check 失败或改变了候选 diff。",
+      MANAGED_VALIDATION_FAILED: "候选修改未通过审计或验证。",
       MANAGED_WORKSPACE_CONFLICT: "执行期间授权源码发生了变化。",
       MANAGED_APPLY_FAILED: "已审计修改无法安全写入。",
       MANAGED_CLEANUP_INCOMPLETE: "受管 thread 或工作区清理不完整。",
     }),
     controlActionText: Object.freeze({
       "install-agent": "安装 Codex 后重试。",
-      "use-supported-version": "改用受支持的 Codex 版本。",
+      "use-supported-version": "改用 Schema 兼容的 Codex 版本。",
       "sign-in": "登录 Codex 后重试。",
       "choose-available-model": "在 Codex 配置中选择可用模型。",
       "use-inbox": "继续使用 Agent 收件箱降级路径。",
@@ -479,6 +487,9 @@ function controlStatusText(
   const parts = [
     messages.controlConnection(value.connectionState, value.mode),
     messages.controlAuth(value.authReadiness, value.grantState),
+    ...(value.connectionState === "awaiting-consent" && value.grantState === "missing"
+      ? [messages.controlConsentRequired]
+      : []),
     ...(model === undefined ? [] : [messages.controlModel(model)]),
     ...(task === undefined
       ? []

@@ -85,8 +85,9 @@
     }
   },
   "scripts": {
-    "build": "tsup --config tsup.config.ts",
+    "build": "pnpm clean && tsup --config tsup.config.ts",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
+    "dev": "tsup --config tsup.config.ts --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

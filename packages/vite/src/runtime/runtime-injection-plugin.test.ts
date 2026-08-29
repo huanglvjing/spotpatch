@@ -1,10 +1,15 @@
+import { EventEmitter } from "node:events";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { SPOTPATCH_API_BASE } from "@spotpatch/shared";
 import {
   resolveOptions,
   type ResolvedSpotPatchOptions,
   type SpotPatchSession,
 } from "@spotpatch/dev-server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as VITE_VERSION } from "vite";
 
 import packageMetadata from "../../package.json" with { type: "json" };
@@ -37,6 +42,13 @@ const dataFlowPreludeBundle = "export const dataFlowRuntime = {};";
 const dataFlowPanelBundle = "globalThis.__spotpatchPanelInstalled = true;";
 const externalHandoffPanelBundle =
   "globalThis.__spotpatchExternalHandoffInstalled = true;";
+const temporaryDirectories: string[] = [];
+
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) {
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
 
 function createContext(options: ResolvedSpotPatchOptions): SpotPatchPluginContext {
   return Object.freeze({
@@ -340,5 +352,71 @@ describe("runtime injection plugin", () => {
       `import ${JSON.stringify(SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID)}`,
     );
     expect(client).toContain('"externalAgent":{"enabled":true}');
+  });
+
+  it("invalidates changed runtime bundles and releases its watcher on shutdown", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "spotpatch-runtime-bundle-"));
+    temporaryDirectories.push(root);
+    const bundlePath = path.join(root, "runtime-client.js");
+    const initialBundle = "globalThis.__spotpatchBundleVersion = 'initial';";
+    const updatedBundle = "globalThis.__spotpatchBundleVersion = 'updated';";
+    writeFileSync(bundlePath, initialBundle, "utf8");
+
+    const plugin = createRuntimeInjectionPlugin({
+      bundlePaths: { client: bundlePath },
+      context: createContext(resolveOptions()),
+      session,
+      reactAdapterBundle,
+    });
+    const configureServerHook = plugin.configureServer;
+    const loadHook = plugin.load;
+    if (typeof configureServerHook !== "function" || typeof loadHook !== "function") {
+      throw new Error("Expected runtime server and load hooks.");
+    }
+
+    const watcher = Object.assign(new EventEmitter(), { add: vi.fn() });
+    const httpServer = new EventEmitter();
+    const virtualModule = Object.freeze({ id: RESOLVED_SPOTPATCH_CLIENT_MODULE_ID });
+    const getModuleById = vi.fn(() => virtualModule);
+    const invalidateModule = vi.fn();
+    const send = vi.fn();
+    await configureServerHook.call(
+      {} as never,
+      {
+        httpServer,
+        moduleGraph: { getModuleById, invalidateModule },
+        watcher,
+        ws: { send },
+      } as never,
+    );
+
+    expect(watcher.add).toHaveBeenCalledWith([bundlePath]);
+    expect(loadHook.call({} as never, RESOLVED_SPOTPATCH_CLIENT_MODULE_ID)).toContain(
+      initialBundle,
+    );
+
+    watcher.emit("change", path.join(root, "unrelated.js"));
+    expect(send).not.toHaveBeenCalled();
+
+    writeFileSync(bundlePath, updatedBundle, "utf8");
+    watcher.emit("change", bundlePath);
+    watcher.emit("change", bundlePath);
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+    expect(getModuleById).toHaveBeenCalledWith(RESOLVED_SPOTPATCH_CLIENT_MODULE_ID);
+    expect(invalidateModule).toHaveBeenCalledWith(virtualModule);
+    expect(send).toHaveBeenCalledWith({ type: "full-reload", path: "*" });
+    expect(loadHook.call({} as never, RESOLVED_SPOTPATCH_CLIENT_MODULE_ID)).toContain(
+      updatedBundle,
+    );
+
+    watcher.emit("change", bundlePath);
+    httpServer.emit("close");
+    watcher.emit("change", bundlePath);
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+    expect(send).toHaveBeenCalledTimes(1);
   });
 });

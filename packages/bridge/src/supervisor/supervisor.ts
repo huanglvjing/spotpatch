@@ -216,7 +216,10 @@ function classifyConnectionError(
         "use-inbox",
       );
     }
-    if (error.code === "CODEX_APP_SERVER_PROTOCOL_ERROR") {
+    if (
+      error.code === "CODEX_APP_SERVER_PROTOCOL_ERROR" ||
+      error.code === "CODEX_APP_SERVER_SCHEMA_INCOMPATIBLE"
+    ) {
       return managedError(
         "AGENT_PROTOCOL_INCOMPATIBLE",
         "protocol",

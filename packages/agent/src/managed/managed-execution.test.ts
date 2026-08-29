@@ -95,6 +95,26 @@ describe("managed execution runner", () => {
     }
   });
 
+  it("reports an empty or non-modifying candidate as a validation failure", async () => {
+    const repository = await createTestGitRepository();
+    const runner = createManagedExecutionRunner({ root: repository.root });
+
+    try {
+      const task = await runner.prepare(
+        { annotation, revision: 0 },
+        new AbortController().signal,
+      );
+
+      await expect(
+        runner.auditAndApply(task, new AbortController().signal),
+      ).rejects.toMatchObject({ code: ERROR_CODES.VALIDATION_FAILED });
+      expect(await repository.read("src/App.tsx")).toContain("Before");
+    } finally {
+      await runner.dispose();
+      await repository.cleanup();
+    }
+  });
+
   it("applies an audited modification only after a required check passes", async () => {
     const repository = await createTestGitRepository();
     const runner = createManagedExecutionRunner({

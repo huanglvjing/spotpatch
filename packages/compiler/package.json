@@ -45,6 +45,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm,cjs --dts --sourcemap --clean && pnpm verify:cjs",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --sourcemap --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "verify:cjs": "node scripts/verify-cjs.mjs"
   },

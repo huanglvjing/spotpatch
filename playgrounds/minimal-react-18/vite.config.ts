@@ -37,6 +37,7 @@ export default defineConfig({
   plugins: [
     spotPatch({
       dataFlow: {},
+      externalAgent: true,
       ...(e2eAi === undefined ? {} : { ai: e2eAi }),
     }),
     react(),

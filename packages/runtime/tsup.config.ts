@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  clean: true,
+  clean: false,
   define: {
     __SPOTPATCH_INLINE_BRAND_MARK__: "true",
   },

@@ -412,7 +412,7 @@ export function createManagedExecutionRunner(
           initial.diff.length === 0 ||
           initial.files.some((file) => file.kind !== "modified")
         ) {
-          throw new SpotPatchError(ERROR_CODES.PATCH_REJECTED);
+          throw new SpotPatchError(ERROR_CODES.VALIDATION_FAILED);
         }
         const validationStartedAt = performance.now();
         emitPhase(onPhase, "validating");

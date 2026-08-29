@@ -215,6 +215,10 @@ describeExternalAgentSupervisor("external Agent Supervisor", () => {
         CODEX_ADAPTER_ERROR_CODES.CONFIG_ISOLATION_UNSUPPORTED,
         { code: "CODEX_CONFIG_ISOLATION_UNSUPPORTED", stage: "protocol" },
       ],
+      [
+        CODEX_ADAPTER_ERROR_CODES.SCHEMA_INCOMPATIBLE,
+        { code: "AGENT_PROTOCOL_INCOMPATIBLE", stage: "protocol" },
+      ],
     ] as const) {
       const supervisor = await createSupervisor(
         vi.fn(() => Promise.reject(new CodexAdapterError(adapterCode))),

@@ -92,6 +92,42 @@ describe("floating surface motion controller", () => {
     expect(surface.querySelector(".spotpatch-motion-signal")).toBeNull();
   });
 
+  it("restores an active scene when a repeated projection interrupts its reveal", () => {
+    vi.spyOn(window, "matchMedia").mockReturnValue({
+      matches: false,
+    } as MediaQueryList);
+    const surface = document.createElement("div");
+    const pill = document.createElement("button");
+    const planner = document.createElement("section");
+    const execution = document.createElement("button");
+    surface.append(pill, planner, execution);
+    document.body.append(surface);
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue(
+      rect(600, 400, 180, 48),
+    );
+    const controller = createFloatingSurfaceMotionController(
+      document,
+      {
+        surface,
+        pill,
+        planner,
+        execution,
+        executionIdentity: document.createElement("span"),
+        executionTitle: document.createElement("strong"),
+        executionDetail: document.createElement("span"),
+        executionPhase: document.createElement("span"),
+      },
+      vi.fn(),
+    );
+
+    controller.render(projection("pill"));
+    controller.render(projection("pill"));
+
+    expect(pill.hidden).toBe(false);
+    expect(pill.style.visibility).not.toBe("hidden");
+    controller.dispose();
+  });
+
   it("reuses a bounded five-particle signal layer", () => {
     vi.spyOn(window, "matchMedia").mockReturnValue({
       matches: false,

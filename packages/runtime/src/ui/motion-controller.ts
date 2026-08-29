@@ -345,7 +345,10 @@ export function createFloatingSurfaceMotionController(
       signalLayer.path,
       ...signalLayer.particles,
     ]);
-    gsap.set(elements.surface, { clearProps: "transform" });
+    gsap.set(
+      [elements.surface, elements.pill, elements.planner, elements.execution],
+      { clearProps: "transform,opacity,visibility" },
+    );
     signalLayer.root.style.display = "none";
     elements.surface.dataset.agentCharging = "false";
   }
@@ -376,7 +379,9 @@ export function createFloatingSurfaceMotionController(
       !finiteRect(previousRect) ||
       !finiteRect(nextRect)
     ) {
-      gsap.set([elements.surface, activeScene], { clearProps: "transform,opacity" });
+      gsap.set([elements.surface, activeScene], {
+        clearProps: "transform,opacity,visibility",
+      });
       return;
     }
 

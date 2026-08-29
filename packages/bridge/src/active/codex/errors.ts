@@ -29,3 +29,15 @@ export class CodexAdapterError extends Error {
     this.code = code;
   }
 }
+
+export class CodexRemoteRequestError extends CodexAdapterError {
+  readonly remoteCode: number;
+  readonly remoteMessage: string;
+
+  constructor(remoteCode: number, remoteMessage: string) {
+    super(CODEX_ADAPTER_ERROR_CODES.REQUEST_FAILED);
+    this.name = "CodexRemoteRequestError";
+    this.remoteCode = remoteCode;
+    this.remoteMessage = remoteMessage.slice(0, 512);
+  }
+}

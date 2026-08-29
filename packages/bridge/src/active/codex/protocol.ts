@@ -1,6 +1,10 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 
-import { CODEX_ADAPTER_ERROR_CODES, CodexAdapterError } from "./errors.js";
+import {
+  CODEX_ADAPTER_ERROR_CODES,
+  CodexAdapterError,
+  CodexRemoteRequestError,
+} from "./errors.js";
 
 const DEFAULT_MAXIMUM_LINE_BYTES = 1_048_576;
 const DEFAULT_MAXIMUM_STDERR_BYTES = 65_536;
@@ -296,7 +300,9 @@ export class CodexJsonlClient {
         typeof value.error.code === "number" &&
         typeof value.error.message === "string"
       ) {
-        pending.reject(new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.REQUEST_FAILED));
+        pending.reject(
+          new CodexRemoteRequestError(value.error.code, value.error.message),
+        );
         return;
       }
       throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.PROTOCOL);

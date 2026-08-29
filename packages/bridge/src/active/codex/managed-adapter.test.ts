@@ -29,6 +29,7 @@ import { connectManagedCodexAppServer } from "./managed-adapter.js";
 import { fakeSchemaCommandSource } from "./test-schema-fixture.js";
 
 interface Scenario {
+  readonly cleanupThreadMissing?: boolean;
   readonly hookConfigured?: boolean;
   readonly mcpConfigured?: boolean;
   readonly noModels?: boolean;
@@ -131,6 +132,13 @@ input.on("line", (line) => {
     return;
   }
   if (message.method === "thread/delete") {
+    if (scenario.cleanupThreadMissing) {
+      send({ id: message.id, error: {
+        code: -32600,
+        message: "no rollout found for thread id " + message.params.threadId,
+      } });
+      return;
+    }
     send({ id: message.id, result: {} });
     return;
   }
@@ -600,6 +608,16 @@ describeManaged("managed Codex App Server adapter", () => {
         );
       }),
     ).toBe(true);
+  });
+
+  it("treats an absent cleanup-journal thread as already deleted", async () => {
+    const journal = cleanupJournal();
+    await journal.add("thread-from-prior-process");
+    const { connection } = await connect({ cleanupThreadMissing: true }, journal);
+
+    await connection.adapter.close();
+
+    await expect(journal.list()).resolves.toEqual([]);
   });
 
   it.each([

@@ -24,7 +24,11 @@ import {
   type AgentDeliveryLifecycle,
   type AgentHandoffSnapshot,
 } from "../types.js";
-import { CODEX_ADAPTER_ERROR_CODES, CodexAdapterError } from "./errors.js";
+import {
+  CODEX_ADAPTER_ERROR_CODES,
+  CodexAdapterError,
+  CodexRemoteRequestError,
+} from "./errors.js";
 import { resolveCodexExecutable } from "./executable.js";
 import { prepareManagedCodexRuntimeHome } from "./managed-runtime.js";
 import { CodexJsonlClient, type CodexProtocolDiagnostics } from "./protocol.js";
@@ -118,6 +122,15 @@ export interface ConnectManagedCodexAppServerOptions extends ConnectManagedAdapt
 
 function isRecord(value: unknown): value is JsonRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isMissingThreadError(error: unknown, threadId: string): boolean {
+  if (!(error instanceof CodexRemoteRequestError)) return false;
+  const message = error.remoteMessage.trim();
+  return (
+    message === `no rollout found for thread id ${threadId}` ||
+    /\bthread\b.{0,96}\b(?:not found|does not exist|unknown)\b/iu.test(message)
+  );
 }
 
 function hasOnlyKeys(value: JsonRecord, keys: readonly string[]): boolean {
@@ -705,7 +718,10 @@ export class ManagedCodexAppServerAdapter implements AgentAdapter {
   async #recoverThreadCleanup(): Promise<void> {
     try {
       for (const entry of await this.#cleanupJournal.list()) {
-        await this.#deleteThread(entry.threadId);
+        await this.#deleteThread(entry.threadId).catch((error: unknown) => {
+          if (isMissingThreadError(error, entry.threadId)) return;
+          throw error;
+        });
         await this.#cleanupJournal.remove(entry.threadId);
       }
     } catch (error: unknown) {

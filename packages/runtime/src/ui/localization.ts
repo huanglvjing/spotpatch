@@ -30,6 +30,11 @@ export interface UiMessages {
     previewTitle: string;
     previewSubtitle: string;
   }>;
+  readonly floatingSurface: Readonly<{
+    dragHandle: string;
+    resetPosition: string;
+    positionReset: string;
+  }>;
   readonly context: Readonly<{
     collecting: string;
     ready: string;
@@ -423,6 +428,11 @@ export const UI_MESSAGES = Object.freeze({
       previewTitle: "Review the request",
       previewSubtitle: "Verify the complete context before it leaves the browser.",
     }),
+    floatingSurface: Object.freeze({
+      dragHandle: "Drag to move the SpotPatch workbench",
+      resetPosition: "Reset workbench position",
+      positionReset: "SpotPatch position reset to the lower-right corner.",
+    }),
     context: Object.freeze({
       collecting: "Collecting context",
       ready: "Context ready",
@@ -578,6 +588,11 @@ export const UI_MESSAGES = Object.freeze({
       editSubtitle: "为每个选中目标分别写清楚修改要求。",
       previewTitle: "审阅修改请求",
       previewSubtitle: "发送给 AI 前，请核对完整上下文与每项目标说明。",
+    }),
+    floatingSurface: Object.freeze({
+      dragHandle: "拖拽以移动 SpotPatch 工作台",
+      resetPosition: "重置工作台位置",
+      positionReset: "SpotPatch 已恢复到右下角。",
     }),
     context: Object.freeze({
       collecting: "正在采集上下文",

@@ -298,58 +298,7 @@ describe("runtime view", () => {
     ).toBe(2_000);
   });
 
-  it("centers the workbench inside a large selected element", () => {
-    const view = createRuntimeView(document, "Mod+Shift+S");
-    const dialog =
-      view.host.shadowRoot?.querySelector<HTMLElement>(".spotpatch-dialog");
-
-    if (dialog === null || dialog === undefined) {
-      throw new Error("Expected the contextual workbench.");
-    }
-
-    vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(measuredRect(560, 500));
-    view.renderStatus("selected");
-    view.showHighlight({ x: 40, y: 70, width: 900, height: 650 }, "<main.hero>");
-    view.showSelection("Source: src/main.tsx:1:1", true, false);
-
-    expect(dialog.dataset.placement).toBe("center");
-    expect(dialog.style.left).toBe("210px");
-    expect(dialog.style.top).toBe("145px");
-  });
-
-  it("repositions when the diagnostic disclosure changes the workbench size", () => {
-    const view = createRuntimeView(document, "Mod+Shift+S");
-    const dialog =
-      view.host.shadowRoot?.querySelector<HTMLElement>(".spotpatch-dialog");
-    const diagnostics = view.host.shadowRoot?.querySelector<HTMLDetailsElement>(
-      ".spotpatch-diagnostics",
-    );
-
-    if (
-      dialog === null ||
-      dialog === undefined ||
-      diagnostics === null ||
-      diagnostics === undefined
-    ) {
-      throw new Error("Expected the contextual workbench diagnostics.");
-    }
-
-    vi.spyOn(dialog, "getBoundingClientRect").mockImplementation(() =>
-      measuredRect(560, diagnostics.open ? 620 : 480),
-    );
-    view.renderStatus("selected");
-    view.showHighlight({ x: 40, y: 70, width: 900, height: 650 }, "<main.hero>");
-    view.showSelection("Source: src/main.tsx:1:1", true, false);
-    expect(dialog.dataset.placement).toBe("center");
-
-    diagnostics.open = true;
-    diagnostics.dispatchEvent(new Event("toggle"));
-
-    expect(dialog.dataset.placement).toBe("viewport");
-    expect(dialog.style.top).toBe("85px");
-  });
-
-  it("clears stale target placement when the active element is on another page", () => {
+  it("keeps the workbench at its floating position when selections change", () => {
     const view = createRuntimeView(document, "Mod+Shift+S");
     const dialog =
       view.host.shadowRoot?.querySelector<HTMLElement>(".spotpatch-dialog");
@@ -360,6 +309,9 @@ describe("runtime view", () => {
 
     vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(measuredRect(460, 500));
     view.renderStatus("selected");
+    view.showHighlight({ x: 40, y: 70, width: 900, height: 650 }, "<main.hero>");
+    view.showSelection("Source: src/main.tsx:1:1", true, false);
+
     view.showSelectionHighlights([
       {
         id: "target-1",
@@ -368,14 +320,14 @@ describe("runtime view", () => {
         active: true,
       },
     ]);
-    view.showSelection("Source: src/page-a.tsx:1:1", true, false);
-    expect(dialog.dataset.placement).not.toBe("viewport");
+    expect(dialog.style.left).toBe("540px");
+    expect(dialog.style.top).toBe("244px");
+    expect(dialog.dataset.floatingPositioned).toBe("true");
 
     view.hideSelectionHighlights();
 
-    expect(dialog.dataset.placement).toBe("viewport");
-    expect(dialog.style.left).toBe("282px");
-    expect(dialog.style.top).toBe("134px");
+    expect(dialog.style.left).toBe("540px");
+    expect(dialog.style.top).toBe("244px");
   });
 
   it("gates Agent execution on context, capability, and explicit provider consent", () => {

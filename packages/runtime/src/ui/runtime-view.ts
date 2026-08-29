@@ -28,7 +28,6 @@ import {
   type DataFlowPanel,
   type DataFlowViewState,
 } from "./data-flow-panel-contract.js";
-import { calculateDialogPlacement } from "./dialog-placement.js";
 import { createButton, createMarkedElement } from "./dom.js";
 import {
   getExternalHandoffExtension,
@@ -39,7 +38,13 @@ import {
   type UiLocalizer,
   type UiMessages,
 } from "./localization.js";
-import { UI_MARKER_ATTRIBUTE, UI_Z_INDEX } from "./ui-constants.js";
+import { createFloatingSurfaceSession } from "../state/floating-surface-session.js";
+import { createFloatingSurfaceController } from "./floating-surface-controller.js";
+import {
+  FLOATING_SURFACE_LAYOUT,
+  UI_MARKER_ATTRIBUTE,
+  UI_Z_INDEX,
+} from "./ui-constants.js";
 
 export interface SelectionTargetView {
   readonly active: boolean;
@@ -145,13 +150,6 @@ export interface RuntimeView {
   ) => void;
 }
 
-const DIALOG_MAX_WIDTH = 460;
-const DIALOG_MAX_HEIGHT = 620;
-const DIALOG_FALLBACK_HEIGHT = Object.freeze({
-  previewing: 560,
-  selected: DIALOG_MAX_HEIGHT,
-}) satisfies Readonly<Record<"previewing" | "selected", number>>;
-
 function resolveStyleNonce(document: Document): string | undefined {
   const nonces = new Set(
     [...document.querySelectorAll<HTMLScriptElement>("script[nonce]")]
@@ -190,6 +188,9 @@ function createStyles(document: Document): HTMLStyleElement {
       --spotpatch-radius-panel: 16px;
       --spotpatch-radius-card: 10px;
       --spotpatch-shadow-panel: 0 30px 60px -20px rgb(0 0 0 / 70%);
+      --spotpatch-motion-fast: 140ms;
+      --spotpatch-motion-standard: 220ms;
+      --spotpatch-motion-ease: cubic-bezier(.2, .8, .2, 1);
       color-scheme: dark;
       color: var(--spotpatch-text);
       font-family: Inter, "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -203,8 +204,8 @@ function createStyles(document: Document): HTMLStyleElement {
     button { -webkit-tap-highlight-color: transparent; }
     .spotpatch-trigger {
       position: fixed;
-      right: 24px;
-      bottom: 24px;
+      right: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
+      bottom: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
       z-index: ${String(UI_Z_INDEX.controls)};
       display: inline-flex;
       align-items: center;
@@ -219,7 +220,10 @@ function createStyles(document: Document): HTMLStyleElement {
       cursor: pointer;
       font-size: 14px;
       font-weight: 650;
-      transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+      touch-action: none;
+      transition: border-color var(--spotpatch-motion-fast) var(--spotpatch-motion-ease), box-shadow var(--spotpatch-motion-fast) var(--spotpatch-motion-ease), transform var(--spotpatch-motion-fast) var(--spotpatch-motion-ease);
+      user-select: none;
+      will-change: transform;
     }
     .spotpatch-trigger::before {
       width: 9px;
@@ -235,6 +239,8 @@ function createStyles(document: Document): HTMLStyleElement {
       background: #24203b;
       box-shadow: 0 14px 42px rgb(76 29 149 / 24%), inset 0 1px rgb(255 255 255 / 10%);
     }
+    .spotpatch-trigger[aria-pressed="true"]::before { animation: spotpatch-island-pulse 1.5s ease-in-out infinite; }
+    .spotpatch-trigger[data-dragging="true"] { cursor: grabbing; transform: scale(.98); transition: none; }
     .spotpatch-highlight {
       position: fixed;
       top: 0;
@@ -302,59 +308,25 @@ function createStyles(document: Document): HTMLStyleElement {
       background: #5546dc;
     }
     .spotpatch-dialog {
-      --spotpatch-anchor-x: 50%;
-      --spotpatch-anchor-y: 50%;
       position: fixed;
-      top: 16px;
-      left: 16px;
+      right: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
+      bottom: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
       z-index: ${String(UI_Z_INDEX.controls)};
       box-sizing: border-box;
-      width: min(${String(DIALOG_MAX_WIDTH)}px, calc(100vw - 32px));
+      width: min(${String(FLOATING_SURFACE_LAYOUT.workbenchMaxWidth)}px, calc(100vw - ${String(FLOATING_SURFACE_LAYOUT.desktopInset * 2)}px));
       color: #edf0f7;
       outline: none;
       filter: drop-shadow(var(--spotpatch-shadow-panel));
+      transform-origin: var(--spotpatch-surface-origin, right bottom);
+      animation: spotpatch-workbench-enter var(--spotpatch-motion-standard) var(--spotpatch-motion-ease);
     }
-    .spotpatch-anchor {
-      position: absolute;
-      z-index: 0;
-      width: 14px;
-      height: 14px;
-      border: 1px solid rgb(255 255 255 / 12%);
-      background: var(--spotpatch-bg);
-      transform: rotate(45deg);
-    }
-    .spotpatch-dialog[data-placement="above"] .spotpatch-anchor {
-      bottom: -6px;
-      left: calc(var(--spotpatch-anchor-x) - 7px);
-      border-top: 0;
-      border-left: 0;
-    }
-    .spotpatch-dialog[data-placement="below"] .spotpatch-anchor {
-      top: -6px;
-      left: calc(var(--spotpatch-anchor-x) - 7px);
-      border-right: 0;
-      border-bottom: 0;
-    }
-    .spotpatch-dialog[data-placement="left"] .spotpatch-anchor {
-      top: calc(var(--spotpatch-anchor-y) - 7px);
-      right: -6px;
-      border-bottom: 0;
-      border-left: 0;
-    }
-    .spotpatch-dialog[data-placement="right"] .spotpatch-anchor {
-      top: calc(var(--spotpatch-anchor-y) - 7px);
-      left: -6px;
-      border-top: 0;
-      border-right: 0;
-    }
-    .spotpatch-dialog[data-placement="center"] .spotpatch-anchor,
-    .spotpatch-dialog[data-placement="viewport"] .spotpatch-anchor { display: none; }
+    .spotpatch-dialog[data-dragging="true"] { transition: none; }
     .spotpatch-shell {
       position: relative;
       z-index: 1;
       display: flex;
       box-sizing: border-box;
-      max-height: min(${String(DIALOG_MAX_HEIGHT)}px, calc(100vh - 32px));
+      max-height: min(${String(FLOATING_SURFACE_LAYOUT.workbenchMaxHeight)}px, calc(100vh - ${String(FLOATING_SURFACE_LAYOUT.desktopInset * 2)}px));
       overflow: hidden;
       flex-direction: column;
       border: 1px solid var(--spotpatch-border);
@@ -378,6 +350,10 @@ function createStyles(document: Document): HTMLStyleElement {
       position: relative;
       padding: 0 18px 14px;
     }
+    .spotpatch-header[data-spotpatch-drag-handle] { cursor: grab; touch-action: none; user-select: none; }
+    .spotpatch-header[data-dragging="true"] { cursor: grabbing; }
+    .spotpatch-header button,
+    .spotpatch-header a { cursor: pointer; user-select: auto; }
     .spotpatch-brand-row {
       display: flex;
       align-items: center;
@@ -421,6 +397,7 @@ function createStyles(document: Document): HTMLStyleElement {
     }
     .spotpatch-repository,
     .spotpatch-locale,
+    .spotpatch-reset-position,
     .spotpatch-close {
       height: 27px;
       border: 1px solid rgb(255 255 255 / 11%);
@@ -444,6 +421,16 @@ function createStyles(document: Document): HTMLStyleElement {
       font-size: 12px;
       font-weight: 650;
     }
+    .spotpatch-reset-position {
+      display: inline-grid;
+      width: 27px;
+      padding: 0;
+      place-items: center;
+      color: #c5cad5;
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+    }
     .spotpatch-close {
       display: inline-grid;
       width: 27px;
@@ -457,6 +444,7 @@ function createStyles(document: Document): HTMLStyleElement {
     }
     .spotpatch-close:hover,
     .spotpatch-locale:hover,
+    .spotpatch-reset-position:hover,
     .spotpatch-repository:hover { border-color: rgb(129 112 247 / 45%); color: #fff; background: rgb(109 93 246 / 10%); }
     .spotpatch-title {
       margin: 0;
@@ -835,6 +823,7 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-target-open:focus-visible,
     .spotpatch-target-remove:focus-visible,
     .spotpatch-close:focus-visible,
+    .spotpatch-reset-position:focus-visible,
     .spotpatch-trigger:focus-visible,
     .spotpatch-target-select:focus-visible,
     .spotpatch-target-editor textarea:focus-visible,
@@ -843,6 +832,14 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-diagnostics > summary:focus-visible {
       outline: 2px solid #8b7cf7;
       outline-offset: 2px;
+    }
+    @keyframes spotpatch-island-pulse {
+      0%, 100% { box-shadow: 0 0 0 4px rgb(99 102 241 / 10%); transform: scale(1); }
+      50% { box-shadow: 0 0 0 7px rgb(99 102 241 / 4%); transform: scale(1.12); }
+    }
+    @keyframes spotpatch-workbench-enter {
+      from { opacity: 0; transform: scale(.98); }
+      to { opacity: 1; transform: scale(1); }
     }
     .spotpatch-live {
       position: absolute;
@@ -857,10 +854,12 @@ function createStyles(document: Document): HTMLStyleElement {
       .spotpatch-trigger,
       .spotpatch-actions button,
       .spotpatch-diagnostics > summary::before { transition: none; }
+      .spotpatch-trigger[aria-pressed="true"]::before,
+      .spotpatch-dialog { animation: none; }
     }
     @media (max-width: 520px) {
-      .spotpatch-dialog { top: 8px; left: 8px; width: calc(100vw - 16px); }
-      .spotpatch-shell { max-height: calc(100vh - 16px); border-radius: 14px; }
+      .spotpatch-dialog { top: auto !important; right: 8px !important; bottom: 8px !important; left: 8px !important; width: auto; }
+      .spotpatch-shell { max-height: calc(100dvh - 16px); border-radius: 14px; }
       .spotpatch-header, .spotpatch-body { padding-left: 14px; padding-right: 14px; }
       .spotpatch-brand-row { margin-right: -14px; margin-left: -14px; padding-right: 14px; padding-left: 14px; }
       .spotpatch-actions { padding-right: 14px; padding-left: 14px; }
@@ -878,6 +877,17 @@ function summaryLine(summary: string, prefix: string): string | undefined {
     .split("\n")
     .find((candidate) => candidate.startsWith(`${prefix}: `));
   return line?.slice(prefix.length + 2).trim();
+}
+
+function startsOnInteractiveControl(event: PointerEvent): boolean {
+  const target = event.target;
+
+  return (
+    target instanceof Element &&
+    target.closest(
+      "a, button, input, select, textarea, summary, [contenteditable='true']",
+    ) !== null
+  );
 }
 
 function createUnavailableDataFlowPanel(
@@ -908,6 +918,17 @@ export function createRuntimeView(
   sessionId = "",
 ): RuntimeView {
   const localizer: UiLocalizer = createUiLocalizer(document, localePreference);
+  const runtimeWindow = document.defaultView;
+
+  if (runtimeWindow === null) {
+    throw new Error("SpotPatch requires a document with an associated window.");
+  }
+
+  const floatingSurface = createFloatingSurfaceController(
+    runtimeWindow,
+    createFloatingSurfaceSession(runtimeWindow, sessionId),
+    FLOATING_SURFACE_LAYOUT,
+  );
   let messages = localizer.messages();
   const host = document.createElement("spotpatch-root");
   host.setAttribute(UI_MARKER_ATTRIBUTE, "");
@@ -934,17 +955,14 @@ export function createRuntimeView(
   dialog.className = "spotpatch-dialog";
   dialog.hidden = true;
   dialog.tabIndex = -1;
-  dialog.dataset.placement = "viewport";
   dialog.setAttribute("role", "dialog");
   dialog.setAttribute("aria-labelledby", "spotpatch-selection-title");
-  const anchor = createMarkedElement(document, "span");
-  anchor.className = "spotpatch-anchor";
-  anchor.setAttribute("aria-hidden", "true");
   const shell = createMarkedElement(document, "div");
   shell.className = "spotpatch-shell";
 
   const header = createMarkedElement(document, "header");
   header.className = "spotpatch-header";
+  header.setAttribute("data-spotpatch-drag-handle", "");
   const brandRow = createMarkedElement(document, "div");
   brandRow.className = "spotpatch-brand-row";
   const brand = createMarkedElement(document, "div");
@@ -965,8 +983,9 @@ export function createRuntimeView(
   repositoryLink.target = "_blank";
   repositoryLink.rel = "noopener noreferrer";
   const localeButton = createButton(document, "", "spotpatch-locale");
+  const resetPositionButton = createButton(document, "⌖", "spotpatch-reset-position");
   const closeButton = createButton(document, "×", "spotpatch-close");
-  headerControls.append(repositoryLink, localeButton, closeButton);
+  headerControls.append(repositoryLink, localeButton, resetPositionButton, closeButton);
   brandRow.append(brand, headerControls);
   const title = createMarkedElement(document, "h2");
   title.id = "spotpatch-selection-title";
@@ -1027,6 +1046,12 @@ export function createRuntimeView(
   diagnostics.append(diagnosticsLabel, summary);
   const agentPanel = createAgentPanel(document, ai, localizer);
   const changesPanel = createMarkedElement(document, "div");
+  function requestFloatingSurfaceLayout(): void {
+    if (!dialog.hidden) {
+      floatingSurface.requestReconcile();
+    }
+  }
+
   const externalHandoffPanel = externalAgentEnabled
     ? getExternalHandoffExtension()?.createPanel(
         document,
@@ -1034,7 +1059,7 @@ export function createRuntimeView(
         localizer.locale,
         sessionId,
         localizer.subscribe,
-        placeDialog,
+        requestFloatingSurfaceLayout,
       )
     : undefined;
   changesPanel.append(
@@ -1049,7 +1074,7 @@ export function createRuntimeView(
       localizer.locale,
       changesPanel,
       diagnostics,
-      placeDialog,
+      requestFloatingSurfaceLayout,
     ) ?? createUnavailableDataFlowPanel(document, changesPanel, diagnostics);
   selectionPanel.append(dataFlowPanel.root);
 
@@ -1107,7 +1132,7 @@ export function createRuntimeView(
   );
   actions.append(editorFeedback, secondaryActions, primaryActions);
   shell.append(header, body, actions);
-  dialog.append(anchor, shell);
+  dialog.append(shell);
 
   const liveRegion = createMarkedElement(document, "div");
   liveRegion.className = "spotpatch-live";
@@ -1136,9 +1161,17 @@ export function createRuntimeView(
     liveRegion,
   );
   document.documentElement.append(host);
+  floatingSurface.registerSurface(triggerButton);
+  floatingSurface.registerSurface(dialog);
+  floatingSurface.attachDraggable(triggerButton, triggerButton, {
+    suppressClickOnDrag: true,
+  });
+  floatingSurface.attachDraggable(header, dialog, {
+    canStartDrag: (event) =>
+      !floatingSurface.isCompact() && !startsOnInteractiveControl(event),
+  });
+  floatingSurface.reconcile();
 
-  let currentRect: ElementRect | undefined;
-  let activeSelectionRect: ElementRect | undefined;
   let currentStatus: RuntimeStatus = "idle";
   let currentCanOpenEditor = false;
   let currentCanPreview = false;
@@ -1167,7 +1200,7 @@ export function createRuntimeView(
           : state === "error"
             ? messages.announcements.editorFailed
             : "";
-    placeDialog();
+    requestFloatingSurfaceLayout();
   }
 
   function statusText(target: SelectionTargetView): string {
@@ -1329,6 +1362,8 @@ export function createRuntimeView(
         replacement?.setSelectionRange(selectionStart, selectionEnd);
       }
     }
+
+    requestFloatingSurfaceLayout();
   }
 
   function updateTargetInstruction(targetId: string, instruction: string): void {
@@ -1389,8 +1424,6 @@ export function createRuntimeView(
 
   function showSelectionHighlights(targets: readonly SelectionHighlightView[]): void {
     selectionHighlights.replaceChildren();
-    activeSelectionRect = targets.find((target) => target.active)?.rect;
-    currentRect = activeSelectionRect;
 
     for (const [index, target] of targets.entries()) {
       const box = createMarkedElement(document, "div");
@@ -1405,41 +1438,6 @@ export function createRuntimeView(
       box.append(label);
       selectionHighlights.append(box);
     }
-
-    placeDialog();
-  }
-
-  function placeDialog(): void {
-    if (dialog.hidden) {
-      return;
-    }
-
-    const view = document.defaultView;
-    const viewportWidth = view?.innerWidth ?? document.documentElement.clientWidth;
-    const viewportHeight = view?.innerHeight ?? document.documentElement.clientHeight;
-    const measured = dialog.getBoundingClientRect();
-    const status = currentStatus === "previewing" ? "previewing" : "selected";
-    const dialogWidth =
-      measured.width > 0
-        ? measured.width
-        : Math.min(DIALOG_MAX_WIDTH, viewportWidth - 32);
-    const dialogHeight =
-      measured.height > 0
-        ? measured.height
-        : Math.min(DIALOG_FALLBACK_HEIGHT[status], viewportHeight - 32);
-    const placement = calculateDialogPlacement({
-      dialogWidth,
-      dialogHeight,
-      viewportWidth,
-      viewportHeight,
-      ...(currentRect === undefined ? {} : { target: currentRect }),
-    });
-
-    dialog.style.left = `${String(placement.left)}px`;
-    dialog.style.top = `${String(placement.top)}px`;
-    dialog.style.setProperty("--spotpatch-anchor-x", `${String(placement.anchorX)}px`);
-    dialog.style.setProperty("--spotpatch-anchor-y", `${String(placement.anchorY)}px`);
-    dialog.dataset.placement = placement.mode;
   }
 
   function updateContextOverview(summaryText: string): void {
@@ -1484,7 +1482,7 @@ export function createRuntimeView(
     agentPanel.setContextReady(canPreview);
     externalHandoffPanel?.setContextReady(canPreview);
     updateContextOverview(summaryText);
-    placeDialog();
+    requestFloatingSurfaceLayout();
   }
 
   function renderPanelStatus(status: RuntimeStatus): void {
@@ -1509,7 +1507,7 @@ export function createRuntimeView(
     subtitle.textContent = previewing
       ? messages.dialog.previewSubtitle
       : messages.dialog.editSubtitle;
-    placeDialog();
+    floatingSurface.reconcile();
   }
 
   function applyMessages(): void {
@@ -1522,8 +1520,14 @@ export function createRuntimeView(
     localeButton.textContent = messages.alternateLocaleName;
     localeButton.title = messages.switchLocale;
     localeButton.setAttribute("aria-label", messages.switchLocale);
+    resetPositionButton.title = messages.floatingSurface.resetPosition;
+    resetPositionButton.setAttribute(
+      "aria-label",
+      messages.floatingSurface.resetPosition,
+    );
     closeButton.setAttribute("aria-label", messages.dialog.close);
     closeButton.title = messages.dialog.close;
+    header.title = messages.floatingSurface.dragHandle;
     targetsPanel.setAttribute("aria-label", messages.targets.ariaLabel);
     targetsTitle.textContent = messages.targets.title;
     diagnosticsTitle.textContent = messages.diagnostics.title;
@@ -1563,8 +1567,19 @@ export function createRuntimeView(
     }
   }
 
-  diagnostics.addEventListener("toggle", placeDialog);
+  function announce(message: string): void {
+    liveRegion.textContent = "";
+    liveRegion.textContent = message;
+  }
+
+  function resetFloatingSurfacePosition(): void {
+    floatingSurface.reset();
+    announce(messages.floatingSurface.positionReset);
+  }
+
+  diagnostics.addEventListener("toggle", requestFloatingSurfaceLayout);
   localeButton.addEventListener("click", localizer.toggle);
+  resetPositionButton.addEventListener("click", resetFloatingSurfacePosition);
   const unsubscribeLocale = localizer.subscribe(applyMessages);
   applyMessages();
 
@@ -1608,34 +1623,27 @@ export function createRuntimeView(
     renderDataFlow(state: DataFlowViewState): void {
       currentDataFlowState = state;
       dataFlowPanel.render(state);
-      placeDialog();
+      requestFloatingSurfaceLayout();
     },
 
     showHighlight(rect: ElementRect, label: string): void {
-      currentRect = rect;
       highlight.hidden = false;
       highlight.style.transform = `translate(${String(rect.x)}px, ${String(rect.y)}px)`;
       highlight.style.width = `${String(rect.width)}px`;
       highlight.style.height = `${String(rect.height)}px`;
       highlightLabel.textContent = label;
       targetLabel.textContent = label;
-      placeDialog();
     },
 
     hideHighlight(): void {
-      currentRect = activeSelectionRect;
       highlight.hidden = true;
       highlightLabel.textContent = "";
-      placeDialog();
     },
 
     showSelectionHighlights,
 
     hideSelectionHighlights(): void {
       selectionHighlights.replaceChildren();
-      activeSelectionRect = undefined;
-      currentRect = undefined;
-      placeDialog();
     },
 
     showSelection(
@@ -1646,7 +1654,7 @@ export function createRuntimeView(
       updateSelection(summaryText, canOpenEditor, canPreview);
       triggerButton.hidden = true;
       dialog.hidden = false;
-      placeDialog();
+      floatingSurface.reconcile();
     },
 
     updateSelection,
@@ -1690,16 +1698,18 @@ export function createRuntimeView(
       agentPanel.setEditingEnabled(true);
       agentPanel.resetJob();
       dataFlowPanel.resetView();
+      floatingSurface.reconcile();
     },
 
     hideSelectionTemporarily(): void {
       dialog.hidden = true;
       triggerButton.hidden = false;
+      floatingSurface.reconcile();
     },
 
     showPreview(prompt: string): void {
       promptOutput.textContent = prompt;
-      placeDialog();
+      requestFloatingSurfaceLayout();
     },
 
     readAgentSelection(): AgentSelectionValue | undefined {
@@ -1729,7 +1739,7 @@ export function createRuntimeView(
       previewButton.disabled = !enabled || !currentCanPreview;
       externalHandoffPanel?.setContextReady(enabled && currentCanPreview);
       agentPanel.setEditingEnabled(enabled);
-      placeDialog();
+      requestFloatingSurfaceLayout();
     },
 
     renderAgentCapability(
@@ -1742,7 +1752,7 @@ export function createRuntimeView(
       const agentReady =
         state === "ready" && capabilitySnapshot?.state === "agent-ready";
       previewButton.classList.toggle("spotpatch-primary", !agentReady);
-      placeDialog();
+      requestFloatingSurfaceLayout();
     },
 
     renderAgentWorkspaceHealth(
@@ -1751,7 +1761,7 @@ export function createRuntimeView(
       errorCode?: ErrorCode,
     ): void {
       agentPanel.renderWorkspaceHealth(state, snapshot, errorCode);
-      placeDialog();
+      requestFloatingSurfaceLayout();
     },
 
     renderAgentJob(
@@ -1761,12 +1771,12 @@ export function createRuntimeView(
       errorCode?: ErrorCode,
     ): void {
       agentPanel.renderJob(snapshot, result, activities, errorCode);
-      placeDialog();
+      requestFloatingSurfaceLayout();
     },
 
     resetAgentJob(): void {
       agentPanel.resetJob();
-      placeDialog();
+      requestFloatingSurfaceLayout();
     },
 
     focusTargetInstruction(targetId?: string): void {
@@ -1777,10 +1787,7 @@ export function createRuntimeView(
       promptOutput.focus({ preventScroll: true });
     },
 
-    announce(message: string): void {
-      liveRegion.textContent = "";
-      liveRegion.textContent = message;
-    },
+    announce,
 
     locale: localizer.locale,
 
@@ -1791,12 +1798,14 @@ export function createRuntimeView(
     subscribeLocale: localizer.subscribe,
 
     dispose(): void {
-      diagnostics.removeEventListener("toggle", placeDialog);
+      diagnostics.removeEventListener("toggle", requestFloatingSurfaceLayout);
       localeButton.removeEventListener("click", localizer.toggle);
+      resetPositionButton.removeEventListener("click", resetFloatingSurfacePosition);
       unsubscribeLocale();
       dataFlowPanel.dispose();
       externalHandoffPanel?.dispose();
       agentPanel.dispose();
+      floatingSurface.dispose();
       host.remove();
     },
   });

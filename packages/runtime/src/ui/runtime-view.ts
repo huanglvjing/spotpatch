@@ -13,6 +13,10 @@ import {
   MAX_TARGET_INSTRUCTION_CHARACTERS,
   SPOTPATCH_REPOSITORY_URL,
 } from "@spotpatch/shared";
+import type {
+  DispatchSummary,
+  ExternalAgentControlStatus,
+} from "@spotpatch/shared/external-handoff-browser";
 
 import type { ElementRect } from "../picker/geometry.js";
 import type { RuntimeStatus } from "../state/runtime-state.js";
@@ -33,6 +37,13 @@ import {
   getExternalHandoffExtension,
   type ExternalHandoffPanel,
 } from "./external-handoff-contract.js";
+import {
+  getFloatingSurfaceMotionExtension,
+  type FloatingSurfaceMotionController,
+  type FloatingSurfaceProjection,
+  type FloatingSurfaceScene,
+  type FloatingSurfaceTone,
+} from "./motion-extension-contract.js";
 import {
   createUiLocalizer,
   type UiLocalizer,
@@ -185,62 +196,21 @@ function createStyles(document: Document): HTMLStyleElement {
       --spotpatch-success: #34d399;
       --spotpatch-warning: #f59e0b;
       --spotpatch-text-on-accent: #0b0b12;
-      --spotpatch-radius-panel: 16px;
       --spotpatch-radius-card: 10px;
-      --spotpatch-shadow-panel: 0 30px 60px -20px rgb(0 0 0 / 70%);
-      --spotpatch-motion-fast: 140ms;
-      --spotpatch-motion-standard: 220ms;
-      --spotpatch-motion-ease: cubic-bezier(.2, .8, .2, 1);
-      color-scheme: dark;
       color: var(--spotpatch-text);
       font-family: Inter, "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
       font-size: 14px;
       line-height: 1.5;
-      text-rendering: optimizeLegibility;
-      -webkit-font-smoothing: antialiased;
     }
     [hidden] { display: none !important; }
     button, textarea, select { font: inherit; }
-    button { -webkit-tap-highlight-color: transparent; }
-    .spotpatch-trigger {
+    .spotpatch-floating-surface {
       position: fixed;
       right: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
       bottom: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
       z-index: ${String(UI_Z_INDEX.controls)};
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      min-height: 44px;
-      border: 1px solid rgb(255 255 255 / 12%);
-      border-radius: 999px;
-      padding: 10px 17px;
-      color: #f8fafc;
-      background: #171b23;
-      box-shadow: 0 12px 34px rgb(0 0 0 / 25%), inset 0 1px rgb(255 255 255 / 5%);
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 650;
-      touch-action: none;
-      transition: border-color var(--spotpatch-motion-fast) var(--spotpatch-motion-ease), box-shadow var(--spotpatch-motion-fast) var(--spotpatch-motion-ease), transform var(--spotpatch-motion-fast) var(--spotpatch-motion-ease);
-      user-select: none;
-      will-change: transform;
+      isolation: isolate;
     }
-    .spotpatch-trigger::before {
-      width: 9px;
-      height: 9px;
-      border-radius: 999px;
-      background: var(--spotpatch-accent);
-      box-shadow: 0 0 0 4px rgb(99 102 241 / 10%);
-      content: "";
-    }
-    .spotpatch-trigger:hover { transform: translateY(-1px); border-color: rgb(129 140 248 / 52%); }
-    .spotpatch-trigger[aria-pressed="true"] {
-      border-color: rgb(124 58 237 / 55%);
-      background: #24203b;
-      box-shadow: 0 14px 42px rgb(76 29 149 / 24%), inset 0 1px rgb(255 255 255 / 10%);
-    }
-    .spotpatch-trigger[aria-pressed="true"]::before { animation: spotpatch-island-pulse 1.5s ease-in-out infinite; }
-    .spotpatch-trigger[data-dragging="true"] { cursor: grabbing; transform: scale(.98); transition: none; }
     .spotpatch-highlight {
       position: fixed;
       top: 0;
@@ -308,19 +278,11 @@ function createStyles(document: Document): HTMLStyleElement {
       background: #5546dc;
     }
     .spotpatch-dialog {
-      position: fixed;
-      right: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
-      bottom: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
-      z-index: ${String(UI_Z_INDEX.controls)};
+      position: relative;
       box-sizing: border-box;
       width: min(${String(FLOATING_SURFACE_LAYOUT.workbenchMaxWidth)}px, calc(100vw - ${String(FLOATING_SURFACE_LAYOUT.desktopInset * 2)}px));
-      color: #edf0f7;
       outline: none;
-      filter: drop-shadow(var(--spotpatch-shadow-panel));
-      transform-origin: var(--spotpatch-surface-origin, right bottom);
-      animation: spotpatch-workbench-enter var(--spotpatch-motion-standard) var(--spotpatch-motion-ease);
     }
-    .spotpatch-dialog[data-dragging="true"] { transition: none; }
     .spotpatch-shell {
       position: relative;
       z-index: 1;
@@ -329,22 +291,6 @@ function createStyles(document: Document): HTMLStyleElement {
       max-height: min(${String(FLOATING_SURFACE_LAYOUT.workbenchMaxHeight)}px, calc(100vh - ${String(FLOATING_SURFACE_LAYOUT.desktopInset * 2)}px));
       overflow: hidden;
       flex-direction: column;
-      border: 1px solid var(--spotpatch-border);
-      border-radius: var(--spotpatch-radius-panel);
-      background: var(--spotpatch-bg);
-      box-shadow: inset 0 1px rgb(255 255 255 / 5%), 0 0 60px -32px rgb(139 123 255 / 20%);
-    }
-    .spotpatch-shell::before {
-      position: absolute;
-      z-index: 2;
-      top: 0;
-      right: 20%;
-      left: 20%;
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--spotpatch-accent), var(--spotpatch-accent-cyan), transparent);
-      content: "";
-      opacity: .65;
-      pointer-events: none;
     }
     .spotpatch-header {
       position: relative;
@@ -377,18 +323,6 @@ function createStyles(document: Document): HTMLStyleElement {
       filter: drop-shadow(0 6px 12px rgb(76 29 149 / 22%));
     }
     .spotpatch-brand-copy { display: grid; min-width: 0; gap: 1px; }
-    .spotpatch-brand-name {
-      color: #fff;
-      font-size: 13.5px;
-      font-weight: 680;
-      letter-spacing: -.01em;
-    }
-    .spotpatch-brand-context {
-      color: #8e98aa;
-      font-size: 10.5px;
-      font-weight: 560;
-      letter-spacing: .02em;
-    }
     .spotpatch-header-controls {
       display: inline-flex;
       align-items: center;
@@ -446,20 +380,6 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-locale:hover,
     .spotpatch-reset-position:hover,
     .spotpatch-repository:hover { border-color: rgb(129 112 247 / 45%); color: #fff; background: rgb(109 93 246 / 10%); }
-    .spotpatch-title {
-      margin: 0;
-      color: #fff;
-      font-size: 18px;
-      font-weight: 680;
-      letter-spacing: -.015em;
-    }
-    .spotpatch-subtitle {
-      max-width: 390px;
-      margin: 4px 0 0;
-      color: var(--spotpatch-text-secondary);
-      font-size: 12.5px;
-      line-height: 1.5;
-    }
     .spotpatch-target-row {
       display: flex;
       align-items: center;
@@ -833,14 +753,6 @@ function createStyles(document: Document): HTMLStyleElement {
       outline: 2px solid #8b7cf7;
       outline-offset: 2px;
     }
-    @keyframes spotpatch-island-pulse {
-      0%, 100% { box-shadow: 0 0 0 4px rgb(99 102 241 / 10%); transform: scale(1); }
-      50% { box-shadow: 0 0 0 7px rgb(99 102 241 / 4%); transform: scale(1.12); }
-    }
-    @keyframes spotpatch-workbench-enter {
-      from { opacity: 0; transform: scale(.98); }
-      to { opacity: 1; transform: scale(1); }
-    }
     .spotpatch-live {
       position: absolute;
       width: 1px;
@@ -854,12 +766,10 @@ function createStyles(document: Document): HTMLStyleElement {
       .spotpatch-trigger,
       .spotpatch-actions button,
       .spotpatch-diagnostics > summary::before { transition: none; }
-      .spotpatch-trigger[aria-pressed="true"]::before,
-      .spotpatch-dialog { animation: none; }
     }
     @media (max-width: 520px) {
-      .spotpatch-dialog { top: auto !important; right: 8px !important; bottom: 8px !important; left: 8px !important; width: auto; }
-      .spotpatch-shell { max-height: calc(100dvh - 16px); border-radius: 14px; }
+      .spotpatch-dialog { width: calc(100vw - 16px); }
+      .spotpatch-shell { max-height: calc(100dvh - 16px); }
       .spotpatch-header, .spotpatch-body { padding-left: 14px; padding-right: 14px; }
       .spotpatch-brand-row { margin-right: -14px; margin-left: -14px; padding-right: 14px; padding-left: 14px; }
       .spotpatch-actions { padding-right: 14px; padding-left: 14px; }
@@ -930,9 +840,17 @@ export function createRuntimeView(
     FLOATING_SURFACE_LAYOUT,
   );
   let messages = localizer.messages();
+  let currentStatus: RuntimeStatus = "idle";
+  let plannerVisible = false;
+  let executionSuppressed = false;
+  let executionProjection: FloatingSurfaceProjection | undefined;
   const host = document.createElement("spotpatch-root");
   host.setAttribute(UI_MARKER_ATTRIBUTE, "");
   const shadowRoot = host.attachShadow({ mode: "open" });
+  const floatingSurfaceRoot = createMarkedElement(document, "div");
+  floatingSurfaceRoot.className = "spotpatch-floating-surface";
+  floatingSurfaceRoot.dataset.scene = "pill";
+  floatingSurfaceRoot.dataset.tone = "neutral";
   const triggerButton = createButton(
     document,
     messages.trigger.select,
@@ -940,6 +858,28 @@ export function createRuntimeView(
   );
   triggerButton.title = messages.trigger.title(shortcut);
   triggerButton.setAttribute("aria-pressed", "false");
+
+  const executionIsland = createButton(document, "", "spotpatch-execution-island");
+  executionIsland.hidden = true;
+  executionIsland.setAttribute("aria-hidden", "true");
+  const executionCopy = createMarkedElement(document, "span");
+  executionCopy.className = "spotpatch-execution-copy";
+  const executionIdentity = createMarkedElement(document, "span");
+  executionIdentity.className = "spotpatch-execution-identity";
+  const executionTitle = createMarkedElement(document, "strong");
+  executionTitle.className = "spotpatch-execution-title";
+  const executionDetail = createMarkedElement(document, "span");
+  executionDetail.className = "spotpatch-execution-detail";
+  executionCopy.append(executionIdentity, executionTitle, executionDetail);
+  const executionStatus = createMarkedElement(document, "span");
+  executionStatus.className = "spotpatch-execution-status";
+  const executionPhase = createMarkedElement(document, "span");
+  executionPhase.className = "spotpatch-execution-phase";
+  const executionOrbit = createMarkedElement(document, "span");
+  executionOrbit.className = "spotpatch-execution-orbit";
+  executionOrbit.setAttribute("aria-hidden", "true");
+  executionStatus.append(executionPhase, executionOrbit);
+  executionIsland.append(executionCopy, executionStatus);
 
   const highlight = createMarkedElement(document, "div");
   highlight.className = "spotpatch-highlight";
@@ -1047,7 +987,7 @@ export function createRuntimeView(
   const agentPanel = createAgentPanel(document, ai, localizer);
   const changesPanel = createMarkedElement(document, "div");
   function requestFloatingSurfaceLayout(): void {
-    if (!dialog.hidden) {
+    if (plannerVisible) {
       floatingSurface.requestReconcile();
     }
   }
@@ -1060,6 +1000,8 @@ export function createRuntimeView(
         sessionId,
         localizer.subscribe,
         requestFloatingSurfaceLayout,
+        renderExternalDispatch,
+        renderExternalControl,
       )
     : undefined;
   changesPanel.append(
@@ -1139,8 +1081,10 @@ export function createRuntimeView(
   liveRegion.setAttribute("aria-live", "polite");
   liveRegion.setAttribute("aria-atomic", "true");
 
+  const motionExtension = getFloatingSurfaceMotionExtension();
   const styles = [
     createStyles(document),
+    ...(motionExtension === undefined ? [] : [motionExtension.createStyles(document)]),
     dataFlowPanel.styles,
     ...(externalHandoffPanel === undefined ? [] : [externalHandoffPanel.styles]),
   ];
@@ -1156,23 +1100,39 @@ export function createRuntimeView(
     ...styles,
     selectionHighlights,
     highlight,
-    dialog,
-    triggerButton,
+    floatingSurfaceRoot,
     liveRegion,
   );
+  floatingSurfaceRoot.append(triggerButton, dialog, executionIsland);
   document.documentElement.append(host);
-  floatingSurface.registerSurface(triggerButton);
-  floatingSurface.registerSurface(dialog);
-  floatingSurface.attachDraggable(triggerButton, triggerButton, {
+  floatingSurface.registerSurface(floatingSurfaceRoot);
+  floatingSurface.attachDraggable(triggerButton, floatingSurfaceRoot, {
     suppressClickOnDrag: true,
   });
-  floatingSurface.attachDraggable(header, dialog, {
+  floatingSurface.attachDraggable(header, floatingSurfaceRoot, {
     canStartDrag: (event) =>
       !floatingSurface.isCompact() && !startsOnInteractiveControl(event),
   });
+  floatingSurface.attachDraggable(executionIsland, floatingSurfaceRoot, {
+    suppressClickOnDrag: true,
+  });
+  const motionController: FloatingSurfaceMotionController | undefined =
+    motionExtension?.createController(
+      document,
+      Object.freeze({
+        execution: executionIsland,
+        executionDetail,
+        executionIdentity,
+        executionPhase,
+        executionTitle,
+        pill: triggerButton,
+        planner: dialog,
+        surface: floatingSurfaceRoot,
+      }),
+      floatingSurface.reconcile,
+    );
   floatingSurface.reconcile();
 
-  let currentStatus: RuntimeStatus = "idle";
   let currentCanOpenEditor = false;
   let currentCanPreview = false;
   let currentSummaryText = "";
@@ -1187,6 +1147,145 @@ export function createRuntimeView(
     page: Object.freeze({ status: dataFlowEnabled ? "idle" : "disabled" }),
     observationCount: 0,
   });
+
+  function renderFloatingSurfaceMotion(): void {
+    const capturing = currentStatus === "inspecting";
+    const pillActive = !plannerVisible || capturing;
+    const projection: FloatingSurfaceProjection = pillActive
+      ? {
+          scene: capturing ? "capturing" : "pill",
+          tone: capturing ? "capturing" : "neutral",
+          identity: messages.brand.name,
+          title: triggerButton.textContent,
+          detail: "",
+          phase: "",
+        }
+      : !executionSuppressed && executionProjection !== undefined
+        ? executionProjection
+        : {
+            scene: "planner",
+            tone: "ready",
+            identity: messages.brand.name,
+            title: messages.dialog.editTitle,
+            detail: messages.dialog.editSubtitle,
+            phase: messages.context.ready,
+          };
+
+    if (motionController !== undefined) {
+      motionController.render(projection);
+      return;
+    }
+
+    floatingSurfaceRoot.dataset.scene = projection.scene;
+    floatingSurfaceRoot.dataset.tone = projection.tone;
+    const plannerActive =
+      projection.scene === "planner" || projection.scene === "agent-charging";
+    triggerButton.hidden = !pillActive;
+    triggerButton.inert = !pillActive;
+    dialog.hidden = !plannerActive;
+    dialog.inert = !plannerActive;
+    dialog.setAttribute("aria-hidden", String(!plannerActive));
+    executionIsland.hidden = pillActive || plannerActive;
+    executionIsland.inert = pillActive || plannerActive;
+    executionIsland.setAttribute("aria-hidden", String(pillActive || plannerActive));
+    executionIdentity.textContent = projection.identity;
+    executionTitle.textContent = projection.title;
+    executionDetail.textContent = projection.detail;
+    executionPhase.textContent = projection.phase;
+    floatingSurface.reconcile();
+  }
+
+  function renderExternalDispatch(dispatch: DispatchSummary | null): void {
+    if (dispatch !== null && !executionSuppressed) {
+      const failed =
+        dispatch.phase === "failed" || dispatch.phase === "delivery-unknown";
+      const completed = dispatch.phase === "completed";
+      executionProjection = {
+        scene: failed
+          ? "failed"
+          : completed
+            ? "success"
+            : dispatch.phase === "working"
+              ? "running"
+              : "handoff",
+        tone: failed ? "danger" : completed ? "success" : "running",
+        identity: dispatch.adapterKind,
+        title: completed
+          ? messages.agent.status("completed")
+          : failed
+            ? messages.agent.status("failed")
+            : dispatch.phase === "working"
+              ? messages.agent.status("running")
+              : messages.agent.status("preparing"),
+        detail: `#${String(dispatch.revision)} · ${dispatch.phase}`,
+        phase: dispatch.phase,
+      };
+    } else if (dispatch === null) {
+      executionProjection = undefined;
+    }
+    renderFloatingSurfaceMotion();
+  }
+
+  function renderExternalControl(status: ExternalAgentControlStatus | undefined): void {
+    const task = status?.task;
+    if (status === undefined || task === undefined || executionSuppressed) return;
+    const phase = task.managedPhase;
+    const failed = phase === "failed" || phase === "cleanup-warning";
+    const completed = phase === "completed" || phase === "review-required";
+    const cancelled = phase === "cancelled";
+    if (cancelled) {
+      executionProjection = undefined;
+      renderFloatingSurfaceMotion();
+      return;
+    }
+    const scene: FloatingSurfaceScene = failed
+      ? "failed"
+      : completed
+        ? "success"
+        : phase === "preparing"
+          ? "handoff"
+          : "running";
+    const tone: FloatingSurfaceTone = failed
+      ? "danger"
+      : completed
+        ? "success"
+        : "running";
+    const model = status.effectiveModel ?? status.requestedModel;
+    executionProjection = {
+      scene,
+      tone,
+      identity:
+        model === undefined ? status.adapter.kind : `${status.adapter.kind} · ${model}`,
+      title: completed
+        ? messages.agent.status("completed")
+        : failed
+          ? messages.agent.status("failed")
+          : scene === "handoff"
+            ? messages.agent.status("preparing")
+            : messages.agent.status("running"),
+      detail: `#${String(task.revision)} · ${task.deliveryStatus} / ${task.executionStatus}`,
+      phase,
+    };
+    renderFloatingSurfaceMotion();
+  }
+
+  function beginAgentRequest(target: HTMLButtonElement, agentCard: HTMLElement): void {
+    if (!plannerVisible || target.disabled) {
+      return;
+    }
+
+    executionSuppressed = false;
+    executionProjection = {
+      scene: "agent-charging",
+      tone: "running",
+      identity: messages.agent.title,
+      title: messages.agent.status("preparing"),
+      detail: messages.context.ready,
+      phase: messages.agent.status("queued"),
+    };
+    renderFloatingSurfaceMotion();
+    motionController?.signal(target, agentCard);
+  }
 
   function renderEditorStatus(state: "idle" | "opening" | "success" | "error"): void {
     currentEditorFeedbackState = state;
@@ -1489,7 +1588,6 @@ export function createRuntimeView(
     currentStatus = status;
     const selected = status === "selected";
     const previewing = status === "previewing";
-    triggerButton.hidden = selected || previewing;
     selectionPanel.hidden = !selected;
     previewPanel.hidden = !previewing;
     reselectButton.hidden = !selected;
@@ -1507,7 +1605,7 @@ export function createRuntimeView(
     subtitle.textContent = previewing
       ? messages.dialog.previewSubtitle
       : messages.dialog.editSubtitle;
-    floatingSurface.reconcile();
+    renderFloatingSurfaceMotion();
   }
 
   function applyMessages(): void {
@@ -1527,6 +1625,7 @@ export function createRuntimeView(
     );
     closeButton.setAttribute("aria-label", messages.dialog.close);
     closeButton.title = messages.dialog.close;
+    executionIsland.title = messages.dialog.editTitle;
     header.title = messages.floatingSurface.dragHandle;
     targetsPanel.setAttribute("aria-label", messages.targets.ariaLabel);
     targetsTitle.textContent = messages.targets.title;
@@ -1580,6 +1679,25 @@ export function createRuntimeView(
   diagnostics.addEventListener("toggle", requestFloatingSurfaceLayout);
   localeButton.addEventListener("click", localizer.toggle);
   resetPositionButton.addEventListener("click", resetFloatingSurfacePosition);
+  const onAgentRun = (): void => {
+    beginAgentRequest(agentPanel.runButton, agentPanel.root);
+  };
+  const onExternalSend = (): void => {
+    if (externalHandoffPanel !== undefined) {
+      beginAgentRequest(externalHandoffPanel.sendButton, externalHandoffPanel.root);
+    }
+  };
+  const onExecutionOpen = (): void => {
+    executionSuppressed = true;
+    renderFloatingSurfaceMotion();
+  };
+  const onMotionInteraction = (): void => {
+    motionController?.cancel();
+  };
+  agentPanel.runButton.addEventListener("click", onAgentRun);
+  externalHandoffPanel?.sendButton.addEventListener("click", onExternalSend);
+  executionIsland.addEventListener("click", onExecutionOpen);
+  floatingSurfaceRoot.addEventListener("pointerdown", onMotionInteraction, true);
   const unsubscribeLocale = localizer.subscribe(applyMessages);
   applyMessages();
 
@@ -1611,6 +1729,11 @@ export function createRuntimeView(
 
     renderStatus(status: RuntimeStatus): void {
       const inspecting = status === "inspecting";
+      if (status === "idle" || inspecting) {
+        plannerVisible = false;
+      } else {
+        plannerVisible = true;
+      }
       triggerButton.setAttribute("aria-pressed", String(inspecting));
       triggerButton.textContent = inspecting
         ? messages.trigger.stop
@@ -1652,9 +1775,8 @@ export function createRuntimeView(
       canPreview: boolean,
     ): void {
       updateSelection(summaryText, canOpenEditor, canPreview);
-      triggerButton.hidden = true;
-      dialog.hidden = false;
-      floatingSurface.reconcile();
+      plannerVisible = true;
+      renderPanelStatus(currentStatus === "previewing" ? "previewing" : "selected");
     },
 
     updateSelection,
@@ -1671,8 +1793,9 @@ export function createRuntimeView(
     },
 
     hideSelection(): void {
-      dialog.hidden = true;
-      triggerButton.hidden = false;
+      plannerVisible = false;
+      executionSuppressed = false;
+      executionProjection = undefined;
       targetList.replaceChildren();
       currentTargets = [];
       currentMaximum = 0;
@@ -1698,13 +1821,14 @@ export function createRuntimeView(
       agentPanel.setEditingEnabled(true);
       agentPanel.resetJob();
       dataFlowPanel.resetView();
-      floatingSurface.reconcile();
+      renderFloatingSurfaceMotion();
     },
 
     hideSelectionTemporarily(): void {
-      dialog.hidden = true;
-      triggerButton.hidden = false;
-      floatingSurface.reconcile();
+      plannerVisible = false;
+      executionSuppressed = false;
+      executionProjection = undefined;
+      renderFloatingSurfaceMotion();
     },
 
     showPreview(prompt: string): void {
@@ -1749,6 +1873,9 @@ export function createRuntimeView(
       errorCode?: ErrorCode,
     ): void {
       agentPanel.renderCapability(state, message, capabilitySnapshot, errorCode);
+      if (state === "error") {
+        renderFloatingSurfaceMotion();
+      }
       const agentReady =
         state === "ready" && capabilitySnapshot?.state === "agent-ready";
       previewButton.classList.toggle("spotpatch-primary", !agentReady);
@@ -1761,6 +1888,9 @@ export function createRuntimeView(
       errorCode?: ErrorCode,
     ): void {
       agentPanel.renderWorkspaceHealth(state, snapshot, errorCode);
+      if (state === "blocked") {
+        renderFloatingSurfaceMotion();
+      }
       requestFloatingSurfaceLayout();
     },
 
@@ -1771,11 +1901,43 @@ export function createRuntimeView(
       errorCode?: ErrorCode,
     ): void {
       agentPanel.renderJob(snapshot, result, activities, errorCode);
+      const successful =
+        snapshot.status === "awaiting-review" ||
+        snapshot.status === "applied" ||
+        snapshot.status === "completed" ||
+        snapshot.status === "reverted";
+      const failed = snapshot.status === "failed";
+      const cancelled = snapshot.status === "cancelled";
+      const scene: FloatingSurfaceScene = successful
+        ? "success"
+        : failed
+          ? "failed"
+          : snapshot.status === "queued" || snapshot.status === "preparing"
+            ? "handoff"
+            : "running";
+      if (!executionSuppressed) {
+        executionProjection = cancelled
+          ? undefined
+          : {
+              scene,
+              tone: successful ? "success" : failed ? "danger" : "running",
+              identity: `${snapshot.providerLabel} · ${snapshot.modelLabel}`,
+              title: snapshot.phaseMessage,
+              detail: result?.summary ?? messages.agent.status(snapshot.status),
+              phase: messages.agent.status(snapshot.status),
+            };
+      }
+      renderFloatingSurfaceMotion();
       requestFloatingSurfaceLayout();
     },
 
     resetAgentJob(): void {
       agentPanel.resetJob();
+      if (executionProjection !== undefined) {
+        executionProjection = undefined;
+        executionSuppressed = false;
+        renderFloatingSurfaceMotion();
+      }
       requestFloatingSurfaceLayout();
     },
 
@@ -1801,10 +1963,15 @@ export function createRuntimeView(
       diagnostics.removeEventListener("toggle", requestFloatingSurfaceLayout);
       localeButton.removeEventListener("click", localizer.toggle);
       resetPositionButton.removeEventListener("click", resetFloatingSurfacePosition);
+      agentPanel.runButton.removeEventListener("click", onAgentRun);
+      externalHandoffPanel?.sendButton.removeEventListener("click", onExternalSend);
+      executionIsland.removeEventListener("click", onExecutionOpen);
+      floatingSurfaceRoot.removeEventListener("pointerdown", onMotionInteraction, true);
       unsubscribeLocale();
       dataFlowPanel.dispose();
       externalHandoffPanel?.dispose();
       agentPanel.dispose();
+      motionController?.dispose();
       floatingSurface.dispose();
       host.remove();
     },

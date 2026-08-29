@@ -69,6 +69,16 @@
         "types": "./dist/external-handoff-panel.d.cts",
         "default": "./dist/external-handoff-panel.cjs"
       }
+    },
+    "./motion": {
+      "import": {
+        "types": "./dist/motion.d.ts",
+        "default": "./dist/motion.js"
+      },
+      "require": {
+        "types": "./dist/motion.d.cts",
+        "default": "./dist/motion.cjs"
+      }
     }
   },
   "typesVersions": {
@@ -81,6 +91,9 @@
       ],
       "external-handoff-panel": [
         "dist/external-handoff-panel.d.ts"
+      ],
+      "motion": [
+        "dist/motion.d.ts"
       ]
     }
   },
@@ -92,7 +105,8 @@
   },
   "dependencies": {
     "@spotpatch/react-adapter": "workspace:^",
-    "@spotpatch/shared": "workspace:^"
+    "@spotpatch/shared": "workspace:^",
+    "gsap": "3.15.0"
   },
   "publishConfig": {
     "access": "public",

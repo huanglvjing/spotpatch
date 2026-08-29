@@ -1,4 +1,5 @@
 import type {
+  DispatchSummary,
   ErrorCode,
   ExternalAgentControlStatus,
   ExternalAgentManagedResult,
@@ -50,6 +51,8 @@ export interface ExternalHandoffExtension {
     sessionId: string,
     subscribeLocale: (listener: () => void) => () => void,
     onViewChange: () => void,
+    onDispatchChange?: (dispatch: DispatchSummary | null) => void,
+    onControlChange?: (status: ExternalAgentControlStatus | undefined) => void,
   ) => ExternalHandoffPanel;
   readonly createWorkflow: (
     fetch: typeof globalThis.fetch,

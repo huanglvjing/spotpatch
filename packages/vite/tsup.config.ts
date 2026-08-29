@@ -68,6 +68,13 @@ export default defineConfig([
   },
   {
     ...browserBundle,
+    name: "runtime-motion",
+    entry: ["src/runtime-motion.ts"],
+    minify: true,
+    noExternal: ["@spotpatch/runtime", "gsap"],
+  },
+  {
+    ...browserBundle,
     name: "runtime-external-handoff-panel",
     entry: ["src/runtime-external-handoff-panel.ts"],
     minify: true,

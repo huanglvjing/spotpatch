@@ -147,10 +147,6 @@ export function createFloatingSurfaceController(
     surface.style.top = `${String(rect.top)}px`;
     surface.style.right = "auto";
     surface.style.bottom = "auto";
-    surface.style.setProperty(
-      "--spotpatch-surface-origin",
-      `${position.horizontal === "end" ? "right" : "left"} ${position.vertical === "end" ? "bottom" : "top"}`,
-    );
     surface.dataset.floatingPositioned = "true";
 
     return rect;

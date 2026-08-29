@@ -9,6 +9,7 @@ import { ERROR_CODES } from "@spotpatch/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createRuntimeView } from "./runtime-view.js";
+import { installDataFlowPanelExtension } from "../data-flow-panel-entry.js";
 import { UI_MARKER_ATTRIBUTE } from "./ui-constants.js";
 
 function measuredRect(width: number, height: number): DOMRect {
@@ -96,6 +97,145 @@ describe("runtime view", () => {
       view.host.shadowRoot?.querySelector<HTMLDetailsElement>(".spotpatch-diagnostics")
         ?.open,
     ).toBe(false);
+  });
+
+  it("reuses one fixed surface and projects only real Agent states", () => {
+    const view = createRuntimeView(document, "Mod+Shift+S", aiConfig);
+    const surface = view.host.shadowRoot?.querySelector<HTMLElement>(
+      ".spotpatch-floating-surface",
+    );
+    const dialog =
+      view.host.shadowRoot?.querySelector<HTMLElement>(".spotpatch-dialog");
+    const execution = view.host.shadowRoot?.querySelector<HTMLButtonElement>(
+      ".spotpatch-execution-island",
+    );
+
+    if (
+      surface === null ||
+      surface === undefined ||
+      dialog === null ||
+      dialog === undefined ||
+      execution === null ||
+      execution === undefined
+    ) {
+      throw new Error("Expected the persistent floating surface scenes.");
+    }
+
+    expect(surface.contains(view.triggerButton)).toBe(true);
+    expect(surface.contains(dialog)).toBe(true);
+    expect(surface.contains(execution)).toBe(true);
+    expect(surface.dataset.scene).toBe("pill");
+    expect(surface.dataset.tone).toBe("neutral");
+    expect(view.triggerButton.hidden).toBe(false);
+    expect(dialog.hidden).toBe(true);
+
+    view.renderStatus("selected");
+    view.showSelection("Browser context: ready", true, true);
+
+    expect(view.triggerButton.hidden).toBe(true);
+    expect(view.triggerButton.inert).toBe(true);
+    expect(dialog.hidden).toBe(false);
+    expect(dialog.inert).toBe(false);
+    expect(surface.dataset.scene).toBe("planner");
+    expect(surface.dataset.tone).toBe("ready");
+
+    view.renderAgentJob(
+      {
+        jobId: "0123456789abcdefghijklmn",
+        status: "queued",
+        providerProfileId: "relay",
+        providerLabel: "Trusted Relay",
+        modelProfileId: "coder",
+        modelLabel: "Coding Model",
+        phaseMessage: "Preparing the requested change.",
+        createdAt: "2026-08-29T00:00:00.000Z",
+        updatedAt: "2026-08-29T00:00:01.000Z",
+        canCancel: true,
+        canApply: false,
+        canRevert: false,
+      },
+      undefined,
+      [],
+    );
+
+    expect(surface.dataset.scene).toBe("handoff");
+    expect(surface.dataset.tone).toBe("running");
+    expect(execution.hidden).toBe(false);
+    expect(execution.textContent).toContain("Trusted Relay · Coding Model");
+    expect(execution.textContent).toContain("Preparing the requested change.");
+
+    view.renderAgentJob(
+      {
+        jobId: "0123456789abcdefghijklmn",
+        status: "failed",
+        providerProfileId: "relay",
+        providerLabel: "Trusted Relay",
+        modelProfileId: "coder",
+        modelLabel: "Coding Model",
+        phaseMessage: "The Agent reported a failure.",
+        createdAt: "2026-08-29T00:00:00.000Z",
+        updatedAt: "2026-08-29T00:00:02.000Z",
+        canCancel: false,
+        canApply: false,
+        canRevert: false,
+      },
+      undefined,
+      [],
+      ERROR_CODES.INTERNAL_ERROR,
+    );
+
+    expect(surface.dataset.scene).toBe("failed");
+    expect(surface.dataset.tone).toBe("danger");
+
+    execution.click();
+    expect(surface.dataset.scene).toBe("planner");
+    expect(dialog.hidden).toBe(false);
+  });
+
+  it("maps every built-in Agent status without inventing progress", () => {
+    const view = createRuntimeView(document, "Mod+Shift+S", aiConfig);
+    const surface = view.host.shadowRoot?.querySelector<HTMLElement>(
+      ".spotpatch-floating-surface",
+    );
+    view.renderStatus("selected");
+    view.showSelection("Browser context: ready", true, true);
+
+    for (const [status, expectedScene] of [
+      ["queued", "handoff"],
+      ["preparing", "handoff"],
+      ["running", "running"],
+      ["validating", "running"],
+      ["awaiting-review", "success"],
+      ["applying", "running"],
+      ["applied", "success"],
+      ["completed", "success"],
+      ["cancelling", "running"],
+      ["cancelled", "planner"],
+      ["reverting", "running"],
+      ["reverted", "success"],
+      ["failed", "failed"],
+    ] as const) {
+      view.renderAgentJob(
+        {
+          jobId: "0123456789abcdefghijklmn",
+          status,
+          providerProfileId: "relay",
+          providerLabel: "Trusted Relay",
+          modelProfileId: "coder",
+          modelLabel: "Coding Model",
+          phaseMessage: `Phase: ${status}`,
+          createdAt: "2026-08-29T00:00:00.000Z",
+          updatedAt: "2026-08-29T00:00:01.000Z",
+          canCancel: false,
+          canApply: false,
+          canRevert: false,
+        },
+        undefined,
+        [],
+      );
+      expect(surface?.dataset.scene, status).toBe(expectedScene);
+      expect(surface?.textContent).not.toMatch(/\b\d{1,3}%\b/u);
+    }
   });
 
   it("renders collected text through textContent rather than HTML", () => {
@@ -300,14 +440,15 @@ describe("runtime view", () => {
 
   it("keeps the workbench at its floating position when selections change", () => {
     const view = createRuntimeView(document, "Mod+Shift+S");
-    const dialog =
-      view.host.shadowRoot?.querySelector<HTMLElement>(".spotpatch-dialog");
+    const surface = view.host.shadowRoot?.querySelector<HTMLElement>(
+      ".spotpatch-floating-surface",
+    );
 
-    if (dialog === null || dialog === undefined) {
-      throw new Error("Expected the contextual workbench.");
+    if (surface === null || surface === undefined) {
+      throw new Error("Expected the persistent floating surface.");
     }
 
-    vi.spyOn(dialog, "getBoundingClientRect").mockReturnValue(measuredRect(460, 500));
+    vi.spyOn(surface, "getBoundingClientRect").mockReturnValue(measuredRect(460, 500));
     view.renderStatus("selected");
     view.showHighlight({ x: 40, y: 70, width: 900, height: 650 }, "<main.hero>");
     view.showSelection("Source: src/main.tsx:1:1", true, false);
@@ -320,14 +461,14 @@ describe("runtime view", () => {
         active: true,
       },
     ]);
-    expect(dialog.style.left).toBe("540px");
-    expect(dialog.style.top).toBe("244px");
-    expect(dialog.dataset.floatingPositioned).toBe("true");
+    expect(surface.style.left).toBe("540px");
+    expect(surface.style.top).toBe("244px");
+    expect(surface.dataset.floatingPositioned).toBe("true");
 
     view.hideSelectionHighlights();
 
-    expect(dialog.style.left).toBe("540px");
-    expect(dialog.style.top).toBe("244px");
+    expect(surface.style.left).toBe("540px");
+    expect(surface.style.top).toBe("244px");
   });
 
   it("gates Agent execution on context, capability, and explicit provider consent", () => {
@@ -573,5 +714,24 @@ describe("runtime view", () => {
     ).toBe(`+${hostile}`);
     expect(view.agentApplyButton.hidden).toBe(false);
     expect(view.agentRevertButton.hidden).toBe(true);
+  });
+
+  it("mounts when the full data-flow extension synchronously requests layout", () => {
+    installDataFlowPanelExtension();
+
+    const view = createRuntimeView(
+      document,
+      "Mod+Shift+S",
+      Object.freeze({ enabled: false }),
+      "auto",
+      true,
+    );
+    const surface = view.host.shadowRoot?.querySelector<HTMLElement>(
+      ".spotpatch-floating-surface",
+    );
+
+    expect(view.host.isConnected).toBe(true);
+    expect(surface?.dataset.scene).toBe("pill");
+    expect(view.triggerButton.hidden).toBe(false);
   });
 });

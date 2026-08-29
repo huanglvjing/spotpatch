@@ -19,12 +19,14 @@ import {
   RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID,
   RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID,
   RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID,
+  RESOLVED_SPOTPATCH_MOTION_MODULE_ID,
   RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID,
   RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
   SPOTPATCH_CLIENT_MODULE_ID,
   SPOTPATCH_DATA_FLOW_MODULE_ID,
   SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID,
   SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID,
+  SPOTPATCH_MOTION_MODULE_ID,
 } from "./runtime-injection-plugin.js";
 import { BRAND_MARK_CONTENT } from "./brand-mark-content.js";
 
@@ -42,6 +44,7 @@ const dataFlowPreludeBundle = "export const dataFlowRuntime = {};";
 const dataFlowPanelBundle = "globalThis.__spotpatchPanelInstalled = true;";
 const externalHandoffPanelBundle =
   "globalThis.__spotpatchExternalHandoffInstalled = true;";
+const motionBundle = "globalThis.__spotpatchMotionInstalled = true;";
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
@@ -112,6 +115,7 @@ describe("runtime injection plugin", () => {
     expect(code).toContain('"maxTargets":8');
     expect(code).toContain('"externalAgent":{"enabled":false}');
     expect(code).not.toContain(SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID);
+    expect(code).toContain(`import ${JSON.stringify(SPOTPATCH_MOTION_MODULE_ID)}`);
     expect(code).toContain("SPOTPATCH_API_BASE");
     expect(code).toContain("__SPOTPATCH_BRAND_MARK_CONTENT__");
     expect(code).toContain(JSON.stringify(BRAND_MARK_CONTENT));
@@ -126,6 +130,7 @@ describe("runtime injection plugin", () => {
       session,
       clientBundle,
       reactAdapterBundle,
+      motionBundle,
     });
     const hook = plugin.load;
 
@@ -220,6 +225,9 @@ describe("runtime injection plugin", () => {
       hook.call({} as never, SPOTPATCH_CLIENT_MODULE_ID, undefined, {} as never),
     ).toBe(RESOLVED_SPOTPATCH_CLIENT_MODULE_ID);
     expect(
+      hook.call({} as never, SPOTPATCH_MOTION_MODULE_ID, undefined, {} as never),
+    ).toBe(RESOLVED_SPOTPATCH_MOTION_MODULE_ID);
+    expect(
       hook.call(
         {} as never,
         "@spotpatch/react-adapter",
@@ -255,6 +263,31 @@ describe("runtime injection plugin", () => {
       reactAdapterBundle,
     );
     expect(hook.call({} as never, "\0virtual:other")).toBeNull();
+  });
+
+  it("serves the isolated Motion bundle before the Runtime client executes", () => {
+    const plugin = createRuntimeInjectionPlugin({
+      context: createContext(resolveOptions()),
+      session,
+      clientBundle,
+      reactAdapterBundle,
+      motionBundle,
+    });
+    const hook = plugin.load;
+    if (typeof hook !== "function") {
+      throw new Error("Expected a load hook.");
+    }
+
+    expect(hook.call({} as never, RESOLVED_SPOTPATCH_MOTION_MODULE_ID)).toBe(
+      motionBundle,
+    );
+    const client = hook.call(
+      {} as never,
+      RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
+    ) as string;
+    expect(client.indexOf(SPOTPATCH_MOTION_MODULE_ID)).toBeLessThan(
+      client.indexOf("__SPOTPATCH_RUNTIME_CONFIG__"),
+    );
   });
 
   it("prepends and serves the data-flow prelude only when explicitly enabled", () => {
@@ -367,6 +400,7 @@ describe("runtime injection plugin", () => {
       context: createContext(resolveOptions()),
       session,
       reactAdapterBundle,
+      motionBundle,
     });
     const configureServerHook = plugin.configureServer;
     const loadHook = plugin.load;

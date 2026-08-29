@@ -21,6 +21,8 @@ interface PanelOptions {
   readonly document: Document;
   readonly framework: "vite" | "next";
   readonly locale: () => SpotPatchLocale;
+  readonly onDispatchChange?: (dispatch: DispatchSummary | null) => void;
+  readonly onControlChange?: (status: ExternalAgentControlStatus | undefined) => void;
   readonly onViewChange: () => void;
   readonly sessionId: string;
   readonly subscribeLocale: (listener: () => void) => () => void;
@@ -541,11 +543,15 @@ export function createExternalHandoffPanel(
   sessionId: string,
   subscribeLocale: (listener: () => void) => () => void,
   onViewChange: () => void,
+  onDispatchChange?: (dispatch: DispatchSummary | null) => void,
+  onControlChange?: (status: ExternalAgentControlStatus | undefined) => void,
 ): ExternalHandoffPanel {
   const options: PanelOptions = {
     document,
     framework,
     locale,
+    ...(onDispatchChange === undefined ? {} : { onDispatchChange }),
+    ...(onControlChange === undefined ? {} : { onControlChange }),
     onViewChange,
     sessionId,
     subscribeLocale,
@@ -853,6 +859,7 @@ export function createExternalHandoffPanel(
     }
 
     refreshActions();
+    options.onDispatchChange?.(result.dispatch);
     options.onViewChange();
   };
 
@@ -908,6 +915,7 @@ export function createExternalHandoffPanel(
               : messages.ready
         : messages.error("EXTERNAL_HANDOFF_UNAVAILABLE");
       refreshActions();
+      options.onDispatchChange?.(capability.dispatch);
       options.onViewChange();
     },
 
@@ -944,6 +952,7 @@ export function createExternalHandoffPanel(
           ? messages.disclosureManagedGuarantee
           : messages.disclosureNoGuarantee;
       refreshControlActions();
+      options.onControlChange?.(value);
       options.onViewChange();
     },
 
@@ -953,6 +962,7 @@ export function createExternalHandoffPanel(
       controlStatus.textContent = messages.controlUnavailable;
       disclosureNoGuarantee.textContent = messages.disclosureNoGuarantee;
       refreshControlActions();
+      options.onControlChange?.(undefined);
       options.onViewChange();
     },
 
@@ -974,6 +984,7 @@ export function createExternalHandoffPanel(
         ? `${messages.error(code)} ${messages.retry}.`
         : messages.error(code);
       refreshActions();
+      options.onDispatchChange?.(null);
       options.onViewChange();
     },
 

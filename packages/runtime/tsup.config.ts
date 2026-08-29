@@ -11,6 +11,7 @@ export default defineConfig({
     "data-flow": "src/data-flow-entry.ts",
     "data-flow-panel": "src/data-flow-panel-entry.ts",
     "external-handoff-panel": "src/external-handoff-panel-entry.ts",
+    motion: "src/motion-entry.ts",
   },
   format: ["esm", "cjs"],
   sourcemap: true,

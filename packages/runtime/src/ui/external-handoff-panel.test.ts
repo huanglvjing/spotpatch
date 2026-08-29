@@ -203,6 +203,71 @@ describe("external handoff Runtime extension", () => {
     view.externalHandoffPanel?.renderCapability(capability());
     expect(view.externalHandoffPanel?.sendButton.disabled).toBe(false);
 
+    const surface = view.host.shadowRoot?.querySelector<HTMLElement>(
+      ".spotpatch-floating-surface",
+    );
+    view.externalHandoffPanel?.renderStatus({
+      handoff: summary(1),
+      activeAdapter: activeAdapter("busy"),
+      dispatch: dispatch("working"),
+    });
+    expect(surface?.dataset.scene).toBe("running");
+    expect(surface?.dataset.tone).toBe("running");
+    view.externalHandoffPanel?.renderStatus({
+      handoff: summary(1),
+      activeAdapter: activeAdapter("blocked"),
+      dispatch: dispatch("delivery-unknown"),
+    });
+    expect(surface?.dataset.scene).toBe("failed");
+    expect(surface?.dataset.tone).toBe("danger");
+
+    for (const [phase, expectedScene] of [
+      ["queued", "handoff"],
+      ["dispatching", "handoff"],
+      ["dispatched", "handoff"],
+      ["working", "running"],
+      ["completed", "success"],
+      ["failed", "failed"],
+      ["delivery-unknown", "failed"],
+    ] as const) {
+      view.externalHandoffPanel?.renderStatus({
+        handoff: summary(1),
+        activeAdapter: activeAdapter(phase === "working" ? "busy" : "blocked"),
+        dispatch: dispatch(phase),
+      });
+      expect(surface?.dataset.scene, phase).toBe(expectedScene);
+    }
+
+    for (const [managedPhase, expectedScene] of [
+      ["preparing", "handoff"],
+      ["running", "running"],
+      ["auditing", "running"],
+      ["validating", "running"],
+      ["applying", "running"],
+      ["completed", "success"],
+      ["review-required", "success"],
+      ["failed", "failed"],
+      ["cleanup-warning", "failed"],
+      ["cancelled", "planner"],
+    ] as const) {
+      view.externalHandoffPanel?.renderControlStatus({
+        ...managedControlStatus(2, "busy"),
+        task: {
+          revision: 2,
+          deliveryStatus: "accepted",
+          executionStatus:
+            managedPhase === "failed" || managedPhase === "cleanup-warning"
+              ? "terminal-failed"
+              : "started",
+          managedPhase,
+          files: [],
+          checks: [],
+          timings: {},
+        },
+      });
+      expect(surface?.dataset.scene, managedPhase).toBe(expectedScene);
+    }
+
     const confirmation = view.externalHandoffPanel?.confirmDisclosure(annotation());
     const dialog = view.host.shadowRoot?.querySelector<HTMLElement>(
       ".spotpatch-external-disclosure-card",
@@ -333,6 +398,7 @@ describe("external handoff Runtime extension", () => {
   });
 
   it("renders managed connection evidence and an audited result", () => {
+    const onControlChange = vi.fn();
     const panel = createExternalHandoffPanel(
       document,
       "next",
@@ -340,10 +406,13 @@ describe("external handoff Runtime extension", () => {
       `${SESSION_ID}-managed`,
       () => () => undefined,
       () => undefined,
+      undefined,
+      onControlChange,
     );
     document.body.append(panel.root, panel.sendButton);
     panel.setSelectionVisible(true);
     panel.renderControlStatus(managedControlStatus());
+    expect(onControlChange).toHaveBeenLastCalledWith(managedControlStatus());
 
     expect(panel.root.textContent).toContain("Connection: ready");
     expect(panel.root.textContent).toContain("Model: gpt-5.6-codex");
@@ -363,6 +432,9 @@ describe("external handoff Runtime extension", () => {
     });
     expect(panel.root.textContent).toContain("Codex requires an authenticated account");
     expect(panel.root.textContent).toContain("Sign in with Codex, then retry");
+
+    panel.renderControlUnavailable();
+    expect(onControlChange).toHaveBeenLastCalledWith(undefined);
 
     panel.renderManagedResult({
       revision: 4,

@@ -25,12 +25,15 @@ export const RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID = `\0${SPOTPATCH_DATA_
 export const SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID =
   "virtual:spotpatch/external-handoff-panel";
 export const RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID = `\0${SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID}`;
+export const SPOTPATCH_MOTION_MODULE_ID = "virtual:spotpatch/motion";
+export const RESOLVED_SPOTPATCH_MOTION_MODULE_ID = `\0${SPOTPATCH_MOTION_MODULE_ID}`;
 
 const RUNTIME_BUNDLE_NAMES = [
   "client",
   "dataFlowPanel",
   "dataFlowPrelude",
   "externalHandoffPanel",
+  "motion",
   "reactAdapter",
 ] as const;
 
@@ -77,6 +80,12 @@ const RUNTIME_BUNDLE_DEFINITIONS: Readonly<
     publicId: SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID,
     resolvedId: RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID,
   },
+  motion: {
+    enabled: () => true,
+    fileName: "runtime-motion.js",
+    publicId: SPOTPATCH_MOTION_MODULE_ID,
+    resolvedId: RESOLVED_SPOTPATCH_MOTION_MODULE_ID,
+  },
   reactAdapter: {
     enabled: () => true,
     fileName: "runtime-react-adapter.js",
@@ -93,6 +102,7 @@ interface RuntimeInjectionPluginInput {
   readonly dataFlowPreludeBundle?: string;
   readonly dataFlowPanelBundle?: string;
   readonly externalHandoffPanelBundle?: string;
+  readonly motionBundle?: string;
   readonly reactAdapterBundle?: string;
   readonly session: SpotPatchSession;
 }
@@ -163,6 +173,7 @@ function createClientModule(
   };
 
   return [
+    `import ${JSON.stringify(SPOTPATCH_MOTION_MODULE_ID)};`,
     ...(options.dataFlow.enabled
       ? [`import ${JSON.stringify(SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID)};`]
       : []),
@@ -186,6 +197,7 @@ export function createRuntimeInjectionPlugin(
     dataFlowPanel: createBundleState(input.dataFlowPanelBundle),
     dataFlowPrelude: createBundleState(input.dataFlowPreludeBundle),
     externalHandoffPanel: createBundleState(input.externalHandoffPanelBundle),
+    motion: createBundleState(input.motionBundle),
     reactAdapter: createBundleState(input.reactAdapterBundle),
   };
 

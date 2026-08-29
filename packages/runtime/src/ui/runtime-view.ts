@@ -870,6 +870,13 @@ export function createRuntimeView(
   let plannerVisible = false;
   let executionSuppressed = false;
   let executionProjection: FloatingSurfaceProjection | undefined;
+  let pendingAgentMotion:
+    | Readonly<{
+        identity: string;
+        source: HTMLButtonElement;
+        target: HTMLElement;
+      }>
+    | undefined;
   let successSettleKey: string | undefined;
   let settledSuccessKey: string | undefined;
   let successSettleTimer: number | undefined;
@@ -1269,6 +1276,21 @@ export function createRuntimeView(
   }
 
   function renderExternalDispatch(dispatch: DispatchSummary | null): void {
+    if (dispatch === null) {
+      pendingAgentMotion = undefined;
+    } else if (
+      pendingAgentMotion !== undefined &&
+      dispatch.phase !== "failed" &&
+      dispatch.phase !== "delivery-unknown"
+    ) {
+      startStagedAgentRequest();
+    } else if (
+      dispatch.phase === "failed" ||
+      dispatch.phase === "delivery-unknown"
+    ) {
+      pendingAgentMotion = undefined;
+    }
+
     if (dispatch !== null && !executionSuppressed) {
       const failed =
         dispatch.phase === "failed" || dispatch.phase === "delivery-unknown";
@@ -1335,6 +1357,11 @@ export function createRuntimeView(
     const failed = phase === "failed" || phase === "cleanup-warning";
     const completed = phase === "completed" || phase === "review-required";
     const cancelled = phase === "cancelled";
+    if (failed || cancelled) {
+      pendingAgentMotion = undefined;
+    } else if (pendingAgentMotion !== undefined) {
+      startStagedAgentRequest();
+    }
     if (cancelled) {
       executionProjection = undefined;
       renderFloatingSurfaceMotion();
@@ -1439,7 +1466,7 @@ export function createRuntimeView(
     agentCard: HTMLElement,
     identity: string,
   ): void {
-    if (!plannerVisible || target.disabled) {
+    if (!plannerVisible) {
       return;
     }
 
@@ -1461,6 +1488,24 @@ export function createRuntimeView(
     };
     renderFloatingSurfaceMotion();
     motionController?.dispatch(target, agentCard);
+  }
+
+  function stageAgentRequest(
+    source: HTMLButtonElement,
+    target: HTMLElement,
+    identity: string,
+  ): void {
+    if (!plannerVisible || source.disabled) return;
+    pendingAgentMotion = Object.freeze({ identity, source, target });
+  }
+
+  function startStagedAgentRequest(): void {
+    const pending = pendingAgentMotion;
+    pendingAgentMotion = undefined;
+    if (pending === undefined || !pending.source.isConnected || !pending.target.isConnected) {
+      return;
+    }
+    beginAgentRequest(pending.source, pending.target, pending.identity);
   }
 
   function renderEditorStatus(state: "idle" | "opening" | "success" | "error"): void {
@@ -1856,7 +1901,7 @@ export function createRuntimeView(
   localeButton.addEventListener("click", localizer.toggle);
   resetPositionButton.addEventListener("click", resetFloatingSurfacePosition);
   const onAgentRun = (): void => {
-    beginAgentRequest(
+    stageAgentRequest(
       agentPanel.runButton,
       agentPanel.root,
       agentPanel.selectedIdentity() ?? messages.agent.title,
@@ -1864,7 +1909,7 @@ export function createRuntimeView(
   };
   const onExternalSend = (): void => {
     if (externalHandoffPanel !== undefined) {
-      beginAgentRequest(
+      stageAgentRequest(
         externalHandoffPanel.sendButton,
         externalHandoffPanel.root,
         messages.execution.codex,
@@ -2061,6 +2106,7 @@ export function createRuntimeView(
     ): void {
       agentPanel.renderCapability(state, message, capabilitySnapshot, errorCode);
       if (state === "error") {
+        pendingAgentMotion = undefined;
         renderFloatingSurfaceMotion();
       }
       const agentReady =
@@ -2076,6 +2122,7 @@ export function createRuntimeView(
     ): void {
       agentPanel.renderWorkspaceHealth(state, snapshot, errorCode);
       if (state === "blocked") {
+        pendingAgentMotion = undefined;
         renderFloatingSurfaceMotion();
       }
       requestFloatingSurfaceLayout();
@@ -2088,6 +2135,16 @@ export function createRuntimeView(
       errorCode?: ErrorCode,
     ): void {
       agentPanel.renderJob(snapshot, result, activities, errorCode);
+      if (
+        pendingAgentMotion !== undefined &&
+        snapshot.status !== "failed" &&
+        snapshot.status !== "cancelled"
+      ) {
+        startStagedAgentRequest();
+      }
+      if (snapshot.status === "failed" || snapshot.status === "cancelled") {
+        pendingAgentMotion = undefined;
+      }
       const successful =
         snapshot.status === "awaiting-review" ||
         snapshot.status === "applied" ||

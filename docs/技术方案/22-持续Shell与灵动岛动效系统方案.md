@@ -160,7 +160,7 @@ interface FloatingSurfaceMotionProjection {
 | `reverted` | `success` | `REVERTED`；停留 1500ms 后收回 Pill |
 | `failed` | `failed` | 显示现有稳定错误文案；点击后返回 Planner 并保留详情 |
 
-点击 Run 时只能立即播放标准按压反馈。只有真实 workspace health/probe/job 创建状态出现后，才能改变 Agent Card 文案；只有收到 `queued/preparing` 快照后，才能把 Shell 收拢为 Handoff。Run 请求在 Job 创建前失败时留在 Planner 并展示真实错误，不能播放“Agent 已取件”。
+点击 Run/Send 时 Runtime 仅暂存本次按钮与 Agent Card 的几何来源；只有真实 workspace health/probe/job 创建状态，或 active dispatch 事件出现后，才开始方向光和 Shell 收拢。请求在 Job/dispatch 创建前失败、取消或降级为 inbox 时必须留在 Planner 并展示真实错误，不能播放“Agent 已取件”。
 
 ### 5.4 外部 Agent 交接映射
 
@@ -191,7 +191,7 @@ Codex managed 模式继续以 `managedPhase` 为更精确事实源：`preparing`
 ### 6.2 Planner → Agent Card → Handoff
 
 1. Run/Send Button 播放 100–220ms 按压反馈；
-2. 真实请求开始后，按钮压下并产生一条 1px 紫蓝青 SVG 光路；
+2. 收到真实 Job/active dispatch 确认后，按钮压下并产生一条 1px 紫蓝青 SVG 光路；
 3. 请求开始后保持 Planner 几何，并将 Scene 标记为 `agent-charging`；该状态只表示请求正在发出，不表示 Agent 已接受；
 4. 光路抵达时 Agent Card 执行一次 700–1100ms border sweep 与局部 radial glow；
 5. 收到真实 `queued/preparing/dispatched/working/managedPhase` 后先排队最新视觉投影，接收动画完成后 Shell 才通过一次可中断 FLIP 收拢；Agent identity 的矩形作为 Execution Agent Core 的 shared-element 起点；

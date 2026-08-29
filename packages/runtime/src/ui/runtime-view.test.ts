@@ -193,6 +193,29 @@ describe("runtime view", () => {
     expect(dialog.hidden).toBe(false);
   });
 
+  it("waits for a real Agent job before leaving the planner", () => {
+    const view = createRuntimeView(document, "Mod+Shift+S", aiConfig);
+    const surface = view.host.shadowRoot?.querySelector<HTMLElement>(
+      ".spotpatch-floating-surface",
+    );
+
+    view.renderStatus("selected");
+    view.showSelection("Browser context: ready", true, true);
+    view.agentRunButton.disabled = false;
+    view.agentRunButton.click();
+
+    expect(surface?.dataset.scene).toBe("planner");
+
+    view.renderAgentCapability(
+      "error",
+      "The Agent is unavailable.",
+      undefined,
+      ERROR_CODES.INTERNAL_ERROR,
+    );
+
+    expect(surface?.dataset.scene).toBe("planner");
+  });
+
   it("maps every built-in Agent status without inventing progress", () => {
     const view = createRuntimeView(document, "Mod+Shift+S", aiConfig);
     const surface = view.host.shadowRoot?.querySelector<HTMLElement>(

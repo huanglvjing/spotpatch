@@ -7,6 +7,7 @@ import {
 } from "@spotpatch/shared";
 
 import type { SelectionSummaryMessages } from "./selection-summary.js";
+import type { ExecutionActivityKind } from "./execution-island.js";
 
 export interface UiMessages {
   readonly localeName: string;
@@ -121,6 +122,18 @@ export interface UiMessages {
     noOutput: string;
     status: (status: AgentJobStatus) => string;
   }>;
+  readonly execution: Readonly<{
+    claude: string;
+    codex: string;
+    receivingTitle: (identity: string) => string;
+    runningTitle: (identity: string) => string;
+    completedTitle: (identity: string) => string;
+    failedTitle: (identity: string) => string;
+    resultReturned: string;
+    runningStatus: string;
+    activityAction: (kind: ExecutionActivityKind, detail?: string) => string;
+    activityLane: (kind: ExecutionActivityKind, detail?: string) => string;
+  }>;
   readonly announcements: Readonly<{
     adapterDisabled: string;
     selectionEnabled: string;
@@ -183,6 +196,67 @@ const STATUS_ZH: Readonly<Record<AgentJobStatus, string>> = Object.freeze({
   reverted: "已撤销",
   failed: "失败",
 });
+
+const EXECUTION_ACTIVITY_EN: Readonly<Record<ExecutionActivityKind, string>> =
+  Object.freeze({
+    prepare: "Preparing context",
+    dispatch: "Dispatching context",
+    discover: "Discovering project files",
+    search: "Searching source",
+    read: "Reading",
+    patch: "Generating a minimal patch",
+    check: "Running",
+    audit: "Auditing proposed changes",
+    apply: "Applying verified changes",
+    sync: "Returning results to SpotPatch",
+    unknown: "Processing the current task",
+  });
+
+const EXECUTION_ACTIVITY_ZH: Readonly<Record<ExecutionActivityKind, string>> =
+  Object.freeze({
+    prepare: "正在准备上下文",
+    dispatch: "正在派发上下文",
+    discover: "正在查找项目文件",
+    search: "正在搜索源码",
+    read: "正在读取",
+    patch: "正在生成最小修改补丁",
+    check: "正在运行",
+    audit: "正在审计候选修改",
+    apply: "正在应用已验证修改",
+    sync: "正在将结果回流 SpotPatch",
+    unknown: "正在处理当前任务",
+  });
+
+const EXECUTION_LANE_LABELS: Readonly<Record<ExecutionActivityKind, string>> =
+  Object.freeze({
+    prepare: "prepare",
+    dispatch: "dispatch",
+    discover: "list",
+    search: "search",
+    read: "read",
+    patch: "patch",
+    check: "check",
+    audit: "audit",
+    apply: "apply",
+    sync: "sync",
+    unknown: "agent",
+  });
+
+function executionActivityAction(
+  labels: Readonly<Record<ExecutionActivityKind, string>>,
+  kind: ExecutionActivityKind,
+  detail?: string,
+): string {
+  return detail === undefined || detail.length === 0
+    ? labels[kind]
+    : `${labels[kind]} ${detail}`;
+}
+
+function executionActivityLane(kind: ExecutionActivityKind, detail?: string): string {
+  return detail === undefined || detail.length === 0
+    ? EXECUTION_LANE_LABELS[kind]
+    : `${EXECUTION_LANE_LABELS[kind]} · ${detail}`;
+}
 
 const EXTERNAL_HANDOFF_ERROR_EN = "The external Agent handoff request failed.";
 const EXTERNAL_HANDOFF_ERROR_ZH = "外部 Agent 交接请求失败。";
@@ -530,6 +604,19 @@ export const UI_MESSAGES = Object.freeze({
       noOutput: "No output.",
       status: (status: AgentJobStatus) => STATUS_EN[status],
     }),
+    execution: Object.freeze({
+      claude: "Claude",
+      codex: "Codex",
+      receivingTitle: (identity: string) => `${identity} is receiving context`,
+      runningTitle: (identity: string) => `${identity} is modifying code`,
+      completedTitle: (identity: string) => `${identity} finished the change`,
+      failedTitle: (identity: string) => `${identity} stopped`,
+      resultReturned: "The result is back in SpotPatch",
+      runningStatus: "Running",
+      activityAction: (kind: ExecutionActivityKind, detail?: string) =>
+        executionActivityAction(EXECUTION_ACTIVITY_EN, kind, detail),
+      activityLane: executionActivityLane,
+    }),
     announcements: Object.freeze({
       adapterDisabled: "React inspection was disabled after an adapter failure.",
       selectionEnabled: "Element selection enabled.",
@@ -688,6 +775,19 @@ export const UI_MESSAGES = Object.freeze({
       diffAriaLabel: "建议的源码差异",
       noOutput: "没有输出。",
       status: (status: AgentJobStatus) => STATUS_ZH[status],
+    }),
+    execution: Object.freeze({
+      claude: "Claude",
+      codex: "Codex",
+      receivingTitle: (identity: string) => `${identity} 正在接收上下文`,
+      runningTitle: (identity: string) => `${identity} 正在执行修改`,
+      completedTitle: (identity: string) => `${identity} 修改完成`,
+      failedTitle: (identity: string) => `${identity} 执行失败`,
+      resultReturned: "结果已回流 SpotPatch",
+      runningStatus: "执行中",
+      activityAction: (kind: ExecutionActivityKind, detail?: string) =>
+        executionActivityAction(EXECUTION_ACTIVITY_ZH, kind, detail),
+      activityLane: executionActivityLane,
     }),
     announcements: Object.freeze({
       adapterDisabled: "React 适配器异常，本次会话已停用 React 检查。",

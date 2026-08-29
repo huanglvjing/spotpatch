@@ -7,6 +7,7 @@ import type {
 } from "./motion-extension-contract.js";
 
 const MOTION = Object.freeze({
+  dispatchSeconds: 1.02,
   morphSeconds: 0.68,
   revealSeconds: 0.32,
   signalSeconds: 0.58,
@@ -27,15 +28,15 @@ function setSceneVisibility(
   elements.planner.hidden = !plannerActive;
   elements.planner.inert = !plannerActive;
   elements.planner.setAttribute("aria-hidden", String(!plannerActive));
-  elements.execution.hidden = !executionActive;
-  elements.execution.inert = !executionActive;
-  elements.execution.setAttribute("aria-hidden", String(!executionActive));
+  elements.execution.root.hidden = !executionActive;
+  elements.execution.root.inert = !executionActive;
+  elements.execution.root.setAttribute("aria-hidden", String(!executionActive));
 
   return pillActive
     ? elements.pill
     : plannerActive
       ? elements.planner
-      : elements.execution;
+      : elements.execution.root;
 }
 
 function supportsMotion(document: Document): boolean {
@@ -60,18 +61,26 @@ export function createFloatingSurfaceMotionStyles(
   const style = document.createElement("style");
   style.textContent = `
     .spotpatch-floating-surface {
-      --spotpatch-island-radius: 24px;
-      --spotpatch-island-compact-width: min(430px, calc(100vw - 32px));
+      --spotpatch-island-panel: #090b10;
+      --spotpatch-island-primary: #f8f9ff;
+      --spotpatch-island-secondary: #8b91a1;
+      --spotpatch-island-violet: #8c63ff;
+      --spotpatch-island-blue: #5d71ff;
+      --spotpatch-island-cyan: #2ec3ff;
+      --spotpatch-island-mint: #50e0b6;
+      --spotpatch-island-radius: 30px;
+      --spotpatch-island-compact-width: min(590px, calc(100vw - 32px));
       --spotpatch-motion-fast: 140ms;
       --spotpatch-motion-ease: cubic-bezier(.2, .8, .2, 1);
       color-scheme: dark;
       -webkit-font-smoothing: antialiased;
-      border: 1px solid rgb(255 255 255 / 11%);
+      border: 1px solid rgb(180 187 210 / 24%);
       border-radius: var(--spotpatch-island-radius);
-      background: rgb(10 10 14 / 98%);
-      box-shadow: 0 28px 72px -28px rgb(0 0 0 / 78%), inset 0 1px rgb(255 255 255 / 6%);
+      background: var(--spotpatch-island-panel);
+      box-shadow: 0 20px 52px -26px rgb(8 10 18 / 64%), inset 0 1px rgb(255 255 255 / 8%);
       overflow: hidden;
       transform-origin: 100% 100%;
+      transition: border-color var(--spotpatch-motion-fast) var(--spotpatch-motion-ease);
     }
     .spotpatch-floating-surface[data-scene="pill"],
     .spotpatch-floating-surface[data-scene="capturing"] {
@@ -83,7 +92,8 @@ export function createFloatingSurfaceMotionStyles(
     .spotpatch-floating-surface[data-scene="success"],
     .spotpatch-floating-surface[data-scene="failed"] {
       border-radius: var(--spotpatch-island-radius);
-      width: var(--spotpatch-island-compact-width);
+      width: max-content;
+      max-width: var(--spotpatch-island-compact-width);
     }
     .spotpatch-floating-surface[data-scene="planner"],
     .spotpatch-floating-surface[data-scene="agent-charging"] {
@@ -92,27 +102,34 @@ export function createFloatingSurfaceMotionStyles(
     .spotpatch-floating-surface::before {
       position: absolute;
       z-index: 0;
-      inset: -45%;
-      background: radial-gradient(circle at 68% 86%, rgb(84 112 255 / 24%), transparent 40%), radial-gradient(circle at 35% 22%, rgb(139 92 246 / 18%), transparent 34%);
+      width: 220px;
+      height: 150px;
+      top: -82px;
+      left: -94px;
+      border-radius: 50%;
+      background: var(--spotpatch-island-violet);
       content: "";
       opacity: 0;
+      filter: blur(38px);
       pointer-events: none;
-      transform: translate3d(0, 12%, 0) scale(.92);
+      transform: translate3d(0, 0, 0) scale(.96);
     }
     .spotpatch-floating-surface[data-tone="capturing"]::before,
-    .spotpatch-floating-surface[data-tone="running"]::before { opacity: .72; }
+    .spotpatch-floating-surface[data-tone="running"]::before { opacity: .09; }
     .spotpatch-floating-surface[data-tone="success"]::before {
-      background: radial-gradient(circle at 60% 82%, rgb(52 211 153 / 22%), transparent 42%);
-      opacity: .76;
+      background: var(--spotpatch-island-mint);
+      opacity: .08;
     }
     .spotpatch-floating-surface[data-tone="danger"]::before {
-      background: radial-gradient(circle at 60% 82%, rgb(251 113 133 / 18%), transparent 42%);
-      opacity: .7;
+      background: var(--spotpatch-danger);
+      opacity: .07;
     }
     .spotpatch-floating-surface[data-scene="running"]::before {
-      animation: spotpatch-motion-breathe 2.6s ease-in-out infinite;
+      animation: spotpatch-motion-ambient 7s ease-in-out infinite;
     }
-    .spotpatch-floating-surface[data-motion-paused="true"]::before { animation-play-state: paused; }
+    .spotpatch-floating-surface[data-scene="running"]:has(.spotpatch-execution-island:hover) {
+      border-color: rgb(180 187 210 / 32%);
+    }
     .spotpatch-floating-surface > .spotpatch-trigger,
     .spotpatch-floating-surface > .spotpatch-dialog,
     .spotpatch-floating-surface > .spotpatch-execution-island { position: relative; z-index: 2; }
@@ -181,65 +198,200 @@ export function createFloatingSurfaceMotionStyles(
       line-height: 1.5;
     }
     .spotpatch-execution-island {
+      position: relative;
       display: grid;
       box-sizing: border-box;
-      width: 100%;
-      min-height: 112px;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 6px 18px;
+      width: max-content;
+      min-width: min(520px, calc(100vw - 32px));
+      max-width: var(--spotpatch-island-compact-width);
+      min-height: 92px;
+      grid-template-columns: 44px minmax(300px, 1fr) auto;
+      gap: 12px;
       align-items: center;
       border: 0;
-      padding: 18px 20px;
-      color: var(--spotpatch-text);
+      border-radius: inherit;
+      padding: 12px 16px;
+      color: var(--spotpatch-island-primary);
       background: transparent;
       cursor: pointer;
       text-align: left;
+      touch-action: none;
+      transition: min-height 220ms var(--spotpatch-motion-ease), transform var(--spotpatch-motion-fast) var(--spotpatch-motion-ease);
     }
-    .spotpatch-execution-copy { display: grid; min-width: 0; gap: 2px; }
-    .spotpatch-execution-identity,
-    .spotpatch-execution-phase {
-      color: var(--spotpatch-text-secondary);
-      font: 650 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-      letter-spacing: .035em;
-      text-transform: uppercase;
+    [data-scene="handoff"] .spotpatch-execution-island,
+    [data-scene="failed"] .spotpatch-execution-island {
+      min-width: min(500px, calc(100vw - 32px));
     }
-    .spotpatch-execution-title {
-      overflow: hidden;
-      color: #f8fafc;
-      font-size: 15px;
-      font-weight: 700;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    [data-scene="success"] .spotpatch-execution-island {
+      min-width: min(470px, calc(100vw - 32px));
     }
-    .spotpatch-execution-detail {
-      overflow: hidden;
-      color: var(--spotpatch-text-secondary);
-      font-size: 12px;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+    .spotpatch-execution-island:hover {
+      min-height: 94px;
+      transform: translateY(-1px);
     }
-    .spotpatch-execution-status { display: grid; justify-items: center; gap: 6px; }
-    .spotpatch-execution-orbit {
+    .spotpatch-execution-island[data-dragging="true"] { transform: none; transition: none; }
+    .spotpatch-agent-core {
       position: relative;
-      width: 38px;
-      height: 38px;
-      border: 1px solid rgb(139 123 255 / 38%);
+      display: grid;
+      width: 44px;
+      height: 44px;
+      place-items: center;
+      overflow: hidden;
+      border: 1px solid rgb(140 99 255 / 20%);
+      border-radius: 15px;
+      background: rgb(255 255 255 / 3%);
+      box-shadow: inset 0 1px rgb(255 255 255 / 5%);
+      transition: border-color 460ms var(--spotpatch-motion-ease), color 460ms var(--spotpatch-motion-ease), background-color 460ms var(--spotpatch-motion-ease);
+    }
+    .spotpatch-agent-core-seed {
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      box-shadow: inset 0 0 18px rgb(109 93 246 / 14%), 0 0 22px rgb(82 168 255 / 9%);
+      background: linear-gradient(135deg, var(--spotpatch-island-violet), var(--spotpatch-island-blue) 58%, var(--spotpatch-island-cyan));
+      box-shadow: 0 0 0 7px rgb(140 99 255 / 5%), 0 0 14px rgb(93 113 255 / 20%);
+      animation: spotpatch-motion-core 1.7s ease-in-out infinite;
+      transition: opacity 400ms ease, transform 400ms var(--spotpatch-motion-ease);
     }
-    .spotpatch-execution-orbit::before {
+    [data-scene="success"] .spotpatch-agent-core {
+      border-color: rgb(80 224 182 / 22%);
+      color: var(--spotpatch-island-mint);
+      background: rgb(80 224 182 / 7%);
+    }
+    [data-scene="success"] .spotpatch-agent-core-seed { opacity: 0; animation: none; }
+    [data-scene="success"] .spotpatch-agent-core::after {
+      content: "✓";
+      font-size: 18px;
+      font-weight: 700;
+      animation: spotpatch-motion-success-core 460ms var(--spotpatch-motion-ease) both;
+    }
+    [data-scene="failed"] .spotpatch-agent-core { border-color: rgb(251 113 133 / 24%); }
+    [data-scene="failed"] .spotpatch-agent-core-seed { background: var(--spotpatch-danger); animation: none; }
+    .spotpatch-execution-content { display: grid; min-width: 0; gap: 2px; }
+    .spotpatch-execution-headline {
+      overflow: hidden;
+      color: var(--spotpatch-island-primary);
+      font-size: 16px;
+      font-weight: 650;
+      letter-spacing: -.012em;
+      line-height: 1.35;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .spotpatch-execution-action {
+      overflow: hidden;
+      color: var(--spotpatch-island-secondary);
+      font-size: 11.5px;
+      line-height: 1.4;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .spotpatch-execution-meta {
+      display: inline-flex;
+      min-width: 56px;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 7px;
+      color: #cfd4df;
+      font: 600 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: nowrap;
+    }
+    .spotpatch-execution-meta-dot {
+      width: 6px;
+      height: 6px;
+      flex: none;
+      border-radius: 50%;
+      background: var(--spotpatch-island-blue);
+      box-shadow: 0 0 9px rgb(93 113 255 / 30%);
+    }
+    .spotpatch-execution-meta[data-tone="success"] .spotpatch-execution-meta-dot { background: var(--spotpatch-island-mint); }
+    .spotpatch-execution-meta[data-tone="danger"] .spotpatch-execution-meta-dot { background: var(--spotpatch-danger); }
+    .spotpatch-execution-activity {
+      position: relative;
+      display: block;
+      height: 20px;
+      margin-top: 5px;
+      overflow: hidden;
+      border: 1px solid rgb(255 255 255 / 5.5%);
+      border-radius: 7px;
+      background: rgb(255 255 255 / 2.2%);
+    }
+    .spotpatch-execution-activity[hidden],
+    .spotpatch-execution-recent[hidden] { display: none; }
+    .spotpatch-execution-activity-label {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      height: 100%;
+      align-items: center;
+      overflow: hidden;
+      padding: 0 8px;
+      color: #707786;
+      font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .spotpatch-execution-activity-outgoing {
       position: absolute;
-      inset: 8px;
-      border-radius: inherit;
-      background: linear-gradient(135deg, var(--spotpatch-accent), var(--spotpatch-accent-cyan));
-      box-shadow: 0 0 16px rgb(109 93 246 / 42%);
-      content: "";
+      z-index: 1;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      overflow: hidden;
+      padding: 0 8px;
+      color: #707786;
+      font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      opacity: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    [data-scene="running"] .spotpatch-execution-orbit { animation: spotpatch-motion-orbit 1.8s linear infinite; }
-    [data-scene="success"] .spotpatch-execution-orbit { border-color: rgb(52 211 153 / 52%); }
-    [data-scene="success"] .spotpatch-execution-orbit::before { background: var(--spotpatch-success); }
-    [data-scene="failed"] .spotpatch-execution-orbit { border-color: rgb(251 113 133 / 45%); }
-    [data-scene="failed"] .spotpatch-execution-orbit::before { background: var(--spotpatch-danger); }
+    .spotpatch-execution-activity-sheen {
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 34%;
+      background: linear-gradient(90deg, transparent, rgb(140 99 255 / 8%), rgb(46 195 255 / 7%), transparent);
+      opacity: 0;
+      transform: translate3d(-120%, 0, 0);
+    }
+    .spotpatch-execution-activity-enter .spotpatch-execution-activity-label { animation: spotpatch-motion-activity-copy 220ms var(--spotpatch-motion-ease); }
+    .spotpatch-execution-activity-enter .spotpatch-execution-activity-outgoing { animation: spotpatch-motion-activity-copy-out 220ms var(--spotpatch-motion-ease); }
+    .spotpatch-execution-activity-enter .spotpatch-execution-activity-sheen { animation: spotpatch-motion-activity-sheen 620ms ease-out; }
+    .spotpatch-execution-recent {
+      display: grid;
+      max-height: 0;
+      gap: 3px;
+      overflow: hidden;
+      opacity: 0;
+      transform: translate3d(0, 2px, 0);
+      transition: max-height 220ms var(--spotpatch-motion-ease), opacity 180ms ease, transform 220ms var(--spotpatch-motion-ease), margin 220ms var(--spotpatch-motion-ease);
+    }
+    .spotpatch-execution-island:hover:has(.spotpatch-execution-recent:not([hidden])) { min-height: 150px; }
+    .spotpatch-execution-island:hover .spotpatch-execution-recent:not([hidden]) {
+      max-height: 54px;
+      margin-top: 5px;
+      opacity: 1;
+      transform: translate3d(0, 0, 0);
+    }
+    .spotpatch-execution-recent-item {
+      overflow: hidden;
+      color: #646b79;
+      font: 500 9.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .spotpatch-island-streak {
+      position: absolute;
+      z-index: 0;
+      top: 56%;
+      left: 0;
+      width: 42%;
+      height: 1px;
+      border-radius: 99px;
+      background: linear-gradient(90deg, transparent, rgb(140 99 255 / 12%), rgb(93 113 255 / 44%), rgb(46 195 255 / 30%), transparent);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate3d(-120%, 0, 0);
+    }
+    [data-scene="running"] .spotpatch-island-streak { animation: spotpatch-motion-streak 6.8s ease-in-out infinite; }
     .spotpatch-motion-signal {
       position: absolute;
       z-index: 4;
@@ -253,22 +405,106 @@ export function createFloatingSurfaceMotionStyles(
     .spotpatch-motion-signal circle { fill: #72e6ff; filter: drop-shadow(0 0 4px #8b7bff); }
     .spotpatch-floating-surface[data-agent-charging="true"] .spotpatch-agent,
     .spotpatch-floating-surface[data-agent-charging="true"] .spotpatch-external-handoff {
+      position: relative;
+      isolation: isolate;
+      overflow: hidden;
       border-color: rgb(82 168 255 / 55%);
-      box-shadow: inset 0 0 0 1px rgb(139 123 255 / 14%), 0 0 28px -16px rgb(82 168 255 / 64%);
     }
-    @keyframes spotpatch-motion-breathe {
-      0%, 100% { opacity: .48; transform: translate3d(-2%, 11%, 0) scale(.92); }
-      50% { opacity: .88; transform: translate3d(2%, 7%, 0) scale(1.03); }
+    .spotpatch-floating-surface[data-agent-charging="true"] .spotpatch-agent::before,
+    .spotpatch-floating-surface[data-agent-charging="true"] .spotpatch-external-handoff::before {
+      position: absolute;
+      z-index: 0;
+      width: 110px;
+      height: 110px;
+      top: 8px;
+      left: -90px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgb(140 99 255 / 26%), rgb(46 195 255 / 9%) 48%, transparent 72%);
+      content: "";
+      filter: blur(14px);
+      pointer-events: none;
+      animation: spotpatch-motion-agent-receive 820ms ease-out both;
+    }
+    .spotpatch-floating-surface[data-agent-charging="true"] .spotpatch-agent::after,
+    .spotpatch-floating-surface[data-agent-charging="true"] .spotpatch-external-handoff::after {
+      position: absolute;
+      z-index: 4;
+      inset: -1px;
+      border-radius: inherit;
+      padding: 1px;
+      background: conic-gradient(from 0deg, transparent, rgb(140 99 255 / 68%), rgb(93 113 255 / 62%), rgb(46 195 255 / 48%), transparent 38%);
+      content: "";
+      opacity: 0;
+      pointer-events: none;
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      animation: spotpatch-motion-agent-border 920ms linear both;
+    }
+    @keyframes spotpatch-motion-ambient {
+      50% { transform: translate3d(20px, 14px, 0) scale(1.04); }
+    }
+    @keyframes spotpatch-motion-core {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15); }
+    }
+    @keyframes spotpatch-motion-success-core {
+      from { opacity: 0; transform: scale(.72) rotate(-8deg); }
+      to { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+    @keyframes spotpatch-motion-streak {
+      0%, 58% { opacity: 0; transform: translate3d(-120%, 0, 0); }
+      65% { opacity: .16; }
+      88% { opacity: .52; transform: translate3d(340%, 0, 0); }
+      100% { opacity: 0; transform: translate3d(340%, 0, 0); }
+    }
+    @keyframes spotpatch-motion-activity-copy {
+      from { opacity: 0; transform: translate3d(0, 2px, 0); }
+      to { opacity: 1; transform: translate3d(0, 0, 0); }
+    }
+    @keyframes spotpatch-motion-activity-copy-out {
+      from { opacity: 1; transform: translate3d(0, 0, 0); }
+      to { opacity: 0; transform: translate3d(0, -2px, 0); }
+    }
+    @keyframes spotpatch-motion-activity-sheen {
+      0% { opacity: 0; transform: translate3d(-120%, 0, 0); }
+      22% { opacity: 1; }
+      100% { opacity: 0; transform: translate3d(340%, 0, 0); }
+    }
+    @keyframes spotpatch-motion-agent-receive {
+      0% { opacity: 0; transform: translate3d(0, 0, 0); }
+      18% { opacity: .75; }
+      100% { opacity: 0; transform: translate3d(520px, 0, 0); }
+    }
+    @keyframes spotpatch-motion-agent-border {
+      0% { opacity: 0; transform: rotate(0deg); }
+      18% { opacity: 1; }
+      78% { opacity: .7; }
+      100% { opacity: 0; transform: rotate(360deg); }
     }
     @keyframes spotpatch-motion-pill-pulse {
       0%, 100% { box-shadow: 0 0 0 4px rgb(99 102 241 / 10%); transform: scale(1); }
       50% { box-shadow: 0 0 0 7px rgb(99 102 241 / 4%); transform: scale(1.12); }
     }
-    @keyframes spotpatch-motion-orbit { to { transform: rotate(360deg); } }
+    .spotpatch-floating-surface[data-motion-paused="true"]::before,
+    .spotpatch-floating-surface[data-motion-paused="true"] .spotpatch-agent-core-seed,
+    .spotpatch-floating-surface[data-motion-paused="true"] .spotpatch-island-streak { animation-play-state: paused; }
     @media (prefers-reduced-motion: reduce) {
       .spotpatch-floating-surface::before,
-      .spotpatch-execution-orbit,
+      .spotpatch-agent-core-seed,
+      .spotpatch-agent-core::after,
+      .spotpatch-island-streak,
+      .spotpatch-execution-activity-label,
+      .spotpatch-execution-activity-outgoing,
+      .spotpatch-execution-activity-sheen,
+      .spotpatch-agent::before,
+      .spotpatch-agent::after,
+      .spotpatch-external-handoff::before,
+      .spotpatch-external-handoff::after,
       .spotpatch-trigger::before { animation: none !important; }
+      .spotpatch-execution-island,
+      .spotpatch-execution-recent,
+      .spotpatch-agent-core,
+      .spotpatch-agent-core-seed { transition: none !important; }
     }
   `;
   return style;
@@ -316,8 +552,10 @@ export function createFloatingSurfaceMotionController(
   const signalLayer = createSignalLayer(document);
   elements.surface.append(signalLayer.root);
   let currentScene: FloatingSurfaceProjection["scene"] | undefined;
-  let timeline: gsap.core.Timeline | undefined;
-  let signalTimeline: gsap.core.Timeline | undefined;
+  let morphTimeline: gsap.core.Timeline | undefined;
+  let dispatchTimeline: gsap.core.Timeline | undefined;
+  let pendingProjection: FloatingSurfaceProjection | undefined;
+  let dispatchSource: HTMLElement | undefined;
   let signalTarget: HTMLElement | undefined;
   let disposed = false;
 
@@ -327,47 +565,77 @@ export function createFloatingSurfaceMotionController(
   document.addEventListener("visibilitychange", handleVisibility);
   handleVisibility();
 
-  function cancel(): void {
-    timeline?.kill();
-    timeline = undefined;
-    signalTimeline?.kill();
-    signalTimeline = undefined;
+  function clearMorph(): void {
+    morphTimeline?.kill();
+    morphTimeline = undefined;
+    gsap.killTweensOf([
+      elements.surface,
+      elements.pill,
+      elements.planner,
+      elements.execution.root,
+      elements.execution.core,
+      elements.execution.headline,
+      elements.execution.action,
+      elements.execution.meta,
+    ]);
+    gsap.set(
+      [
+        elements.surface,
+        elements.pill,
+        elements.planner,
+        elements.execution.root,
+        elements.execution.core,
+        elements.execution.headline,
+        elements.execution.action,
+        elements.execution.meta,
+      ],
+      { clearProps: "transform,opacity,visibility" },
+    );
+  }
+
+  function clearDispatch(): void {
+    dispatchTimeline?.kill();
+    dispatchTimeline = undefined;
+    if (dispatchSource !== undefined) {
+      gsap.killTweensOf(dispatchSource);
+      gsap.set(dispatchSource, { clearProps: "filter,transform" });
+      dispatchSource = undefined;
+    }
     if (signalTarget !== undefined) {
       gsap.killTweensOf(signalTarget);
       gsap.set(signalTarget, { clearProps: "boxShadow" });
       signalTarget = undefined;
     }
-    gsap.killTweensOf([
-      elements.surface,
-      elements.pill,
-      elements.planner,
-      elements.execution,
-      signalLayer.path,
-      ...signalLayer.particles,
-    ]);
-    gsap.set(
-      [elements.surface, elements.pill, elements.planner, elements.execution],
-      { clearProps: "transform,opacity,visibility" },
-    );
+    gsap.killTweensOf([signalLayer.path, ...signalLayer.particles]);
+    gsap.set(signalLayer.particles, { clearProps: "opacity,visibility" });
+    gsap.set(signalLayer.path, { clearProps: "strokeDasharray,strokeDashoffset" });
     signalLayer.root.style.display = "none";
     elements.surface.dataset.agentCharging = "false";
   }
 
-  function render(projection: FloatingSurfaceProjection): void {
+  function cancel(): void {
+    pendingProjection = undefined;
+    clearMorph();
+    clearDispatch();
+  }
+
+  function applyProjection(
+    projection: FloatingSurfaceProjection,
+    sharedIdentityRect?: DOMRect,
+  ): void {
     if (disposed) return;
     const previousRect = elements.surface.getBoundingClientRect();
     const sceneChanged = currentScene !== projection.scene;
-    cancel();
+    const sharedElementTransition =
+      currentScene === "agent-charging" &&
+      projection.scene !== "planner" &&
+      projection.scene !== "agent-charging" &&
+      sharedIdentityRect !== undefined &&
+      finiteRect(sharedIdentityRect);
+    clearMorph();
 
-    elements.executionIdentity.textContent = projection.identity;
-    elements.executionTitle.textContent = projection.title;
-    elements.executionDetail.textContent = projection.detail;
-    elements.executionPhase.textContent = projection.phase;
     elements.surface.dataset.scene = projection.scene;
     elements.surface.dataset.tone = projection.tone;
-    elements.surface.dataset.agentCharging = String(
-      projection.scene === "agent-charging",
-    );
     const activeScene = setSceneVisibility(elements, projection);
     reconcile();
     const nextRect = elements.surface.getBoundingClientRect();
@@ -385,8 +653,13 @@ export function createFloatingSurfaceMotionController(
       return;
     }
 
-    timeline = gsap.timeline({ defaults: { overwrite: "auto" } });
-    timeline.fromTo(
+    morphTimeline = gsap.timeline({
+      defaults: { overwrite: "auto" },
+      onComplete: () => {
+        morphTimeline = undefined;
+      },
+    });
+    morphTimeline.fromTo(
       elements.surface,
       {
         x: previousRect.left - nextRect.left,
@@ -404,27 +677,95 @@ export function createFloatingSurfaceMotionController(
         clearProps: "transform",
       },
     );
-    timeline.fromTo(
-      activeScene,
-      { autoAlpha: 0, y: projection.scene === "planner" ? 12 : 6 },
-      {
-        autoAlpha: 1,
-        y: 0,
-        duration: MOTION.revealSeconds,
-        ease: "power2.out",
-        clearProps: "transform,opacity,visibility",
-      },
-      "-=0.25",
-    );
+    if (sharedElementTransition) {
+      const coreRect = elements.execution.core.getBoundingClientRect();
+      const sourceCenterX = sharedIdentityRect.left + sharedIdentityRect.width / 2;
+      const sourceCenterY = sharedIdentityRect.top + sharedIdentityRect.height / 2;
+      const coreCenterX = coreRect.left + coreRect.width / 2;
+      const coreCenterY = coreRect.top + coreRect.height / 2;
+      morphTimeline.fromTo(
+        elements.execution.core,
+        {
+          autoAlpha: 0.72,
+          scale: Math.min(1, sharedIdentityRect.width / coreRect.width),
+          x: sourceCenterX - coreCenterX,
+          y: sourceCenterY - coreCenterY,
+        },
+        {
+          autoAlpha: 1,
+          scale: 1,
+          x: 0,
+          y: 0,
+          duration: MOTION.morphSeconds * 0.88,
+          ease: "expo.inOut",
+          clearProps: "transform,opacity,visibility",
+        },
+        0,
+      );
+      morphTimeline.fromTo(
+        [
+          elements.execution.headline,
+          elements.execution.action,
+          elements.execution.meta,
+        ],
+        { autoAlpha: 0, x: 6 },
+        {
+          autoAlpha: 1,
+          x: 0,
+          duration: MOTION.revealSeconds,
+          ease: "power2.out",
+          stagger: 0.035,
+          clearProps: "transform,opacity,visibility",
+        },
+        0.28,
+      );
+    } else {
+      morphTimeline.fromTo(
+        activeScene,
+        { autoAlpha: 0, y: projection.scene === "planner" ? 12 : 6 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: MOTION.revealSeconds,
+          ease: "power2.out",
+          clearProps: "transform,opacity,visibility",
+        },
+        "-=0.25",
+      );
+    }
   }
 
-  function signal(source: HTMLElement, target: HTMLElement): void {
-    if (disposed || !supportsMotion(document)) return;
-    signalTimeline?.kill();
-    if (signalTarget !== undefined) {
-      gsap.killTweensOf(signalTarget);
-      gsap.set(signalTarget, { clearProps: "boxShadow" });
+  function render(projection: FloatingSurfaceProjection): void {
+    if (disposed) return;
+    const dispatchActive = dispatchTimeline?.isActive() === true;
+    const leavesChargingScene =
+      projection.scene !== "planner" && projection.scene !== "agent-charging";
+
+    if (dispatchActive && currentScene === "agent-charging" && leavesChargingScene) {
+      pendingProjection = projection;
+      return;
     }
+
+    if (dispatchActive && projection.scene !== "agent-charging") {
+      pendingProjection = undefined;
+      clearDispatch();
+    }
+
+    applyProjection(projection);
+  }
+
+  function dispatch(source: HTMLElement, target: HTMLElement): void {
+    if (disposed || dispatchTimeline?.isActive() === true) return;
+    const pendingAtStart = pendingProjection;
+    pendingProjection = undefined;
+
+    if (!supportsMotion(document)) {
+      if (pendingAtStart !== undefined) applyProjection(pendingAtStart);
+      return;
+    }
+
+    clearDispatch();
+    dispatchSource = source;
     signalTarget = target;
     gsap.killTweensOf([signalLayer.path, ...signalLayer.particles, signalTarget]);
     const surfaceRect = elements.surface.getBoundingClientRect();
@@ -435,8 +776,13 @@ export function createFloatingSurfaceMotionController(
       !finiteRect(sourceRect) ||
       !finiteRect(targetRect)
     ) {
+      clearDispatch();
       return;
     }
+
+    const identity = target.querySelector<HTMLElement>(
+      "[data-spotpatch-agent-identity]",
+    );
 
     const start = Object.freeze({
       x: sourceRect.left - surfaceRect.left + sourceRect.width / 2,
@@ -458,25 +804,54 @@ export function createFloatingSurfaceMotionController(
       attr: { cx: start.x, cy: start.y },
       autoAlpha: 0,
     });
-    elements.surface.dataset.agentCharging = "true";
 
-    signalTimeline = gsap.timeline({
+    dispatchTimeline = gsap.timeline({
       onComplete: () => {
+        const sharedIdentityRect = identity?.getBoundingClientRect();
+        const nextProjection = pendingProjection;
+        pendingProjection = undefined;
         signalLayer.root.style.display = "none";
         if (signalTarget !== undefined) {
           gsap.set(signalTarget, { clearProps: "boxShadow" });
           signalTarget = undefined;
         }
-        signalTimeline = undefined;
+        if (dispatchSource !== undefined) {
+          gsap.set(dispatchSource, { clearProps: "filter,transform" });
+          dispatchSource = undefined;
+        }
+        elements.surface.dataset.agentCharging = "false";
+        dispatchTimeline = undefined;
+        if (nextProjection !== undefined) {
+          applyProjection(nextProjection, sharedIdentityRect);
+        }
       },
     });
-    signalTimeline.to(signalLayer.path, {
-      strokeDashoffset: 0,
-      duration: MOTION.signalSeconds,
-      ease: "power2.inOut",
-    });
+    dispatchTimeline.fromTo(
+      source,
+      { filter: "brightness(1)", scaleX: 1, scaleY: 1 },
+      {
+        filter: "brightness(1.08)",
+        scaleX: 0.995,
+        scaleY: 0.97,
+        duration: 0.12,
+        ease: "power2.out",
+        yoyo: true,
+        repeat: 1,
+        clearProps: "filter,transform",
+      },
+      0,
+    );
+    dispatchTimeline.to(
+      signalLayer.path,
+      {
+        strokeDashoffset: 0,
+        duration: MOTION.signalSeconds,
+        ease: "power2.inOut",
+      },
+      0.1,
+    );
     for (const [index, particle] of signalLayer.particles.entries()) {
-      signalTimeline.fromTo(
+      dispatchTimeline.fromTo(
         particle,
         { attr: { cx: start.x, cy: start.y }, autoAlpha: 0 },
         {
@@ -485,11 +860,18 @@ export function createFloatingSurfaceMotionController(
           duration: MOTION.signalSeconds * 0.7,
           ease: "power2.inOut",
         },
-        index * 0.045,
+        0.16 + index * 0.045,
       );
-      signalTimeline.to(particle, { autoAlpha: 0, duration: 0.12 }, "-=0.12");
+      dispatchTimeline.to(particle, { autoAlpha: 0, duration: 0.12 }, "-=0.12");
     }
-    signalTimeline.fromTo(
+    dispatchTimeline.call(
+      () => {
+        elements.surface.dataset.agentCharging = "true";
+      },
+      [],
+      0.54,
+    );
+    dispatchTimeline.fromTo(
       target,
       { boxShadow: "0 0 0 rgb(82 168 255 / 0%)" },
       {
@@ -498,14 +880,15 @@ export function createFloatingSurfaceMotionController(
         yoyo: true,
         repeat: 1,
       },
-      "-=0.3",
+      0.54,
     );
+    dispatchTimeline.to({}, { duration: MOTION.dispatchSeconds - 0.82 }, 0.82);
   }
 
   return Object.freeze({
     cancel,
+    dispatch,
     render,
-    signal,
     dispose(): void {
       if (disposed) return;
       disposed = true;

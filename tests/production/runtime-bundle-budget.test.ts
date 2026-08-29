@@ -4,20 +4,21 @@ import { gzipSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 
 // Linux and macOS Node/zlib builds differ slightly for the same bundle. The
-// base Runtime now includes the opt-in external-panel loader, floating-surface
-// controller, and status wiring, while optional panel implementations remain
-// isolated below. macOS Node 26 measured 45,946 bytes, so 45 KiB keeps the
-// observed variance bounded with narrow headroom.
-const RUNTIME_GZIP_BUDGET_BYTES = 45 * 1024;
+// Base Runtime now includes the opt-in external-panel loader, floating-surface
+// controller, status projection, and a no-motion execution fallback; the full
+// execution island remains in the isolated Motion bundle. macOS Node 26
+// measured 47,392 bytes, so 48 KiB preserves a bounded cross-platform margin.
+const RUNTIME_GZIP_BUDGET_BYTES = 48 * 1024;
 const DATA_FLOW_PRELUDE_GZIP_BUDGET_BYTES = 8 * 1024;
 const DATA_FLOW_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;
 // ADR-038 keeps the managed-control UI in its existing dev-only lazy bundle.
 // macOS Node 26 measured 14,366 bytes after strict protocol/result parsing;
 // 16 KiB preserves a narrow cross-platform zlib margin without affecting core Runtime.
 const EXTERNAL_HANDOFF_PANEL_GZIP_BUDGET_BYTES = 16 * 1024;
-// GSAP Core and the complete Shell/Scene implementation remain in a dev-only
-// browser bundle. macOS Node 26 measured 31,119 bytes after minification.
-const MOTION_GZIP_BUDGET_BYTES = 32 * 1024;
+// GSAP Core, complete Shell/Scene implementation, and the execution-island
+// renderer remain in a dev-only browser bundle. macOS Node 26 measured 34,057
+// bytes after minification, so 35 KiB leaves a bounded margin.
+const MOTION_GZIP_BUDGET_BYTES = 35 * 1024;
 const serverOnlySignatures = [
   "launch-editor",
   "magic-string",

@@ -161,7 +161,8 @@ describe("runtime view", () => {
     expect(surface.dataset.scene).toBe("handoff");
     expect(surface.dataset.tone).toBe("running");
     expect(execution.hidden).toBe(false);
-    expect(execution.textContent).toContain("Trusted Relay · Coding Model");
+    expect(execution.textContent).toContain("Trusted Relay is receiving context");
+    expect(execution.textContent).not.toContain("Coding Model");
     expect(execution.textContent).toContain("Preparing the requested change.");
 
     view.renderAgentJob(

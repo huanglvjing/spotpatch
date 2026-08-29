@@ -15,6 +15,7 @@ import {
   type RuntimeApi,
 } from "../api/runtime-api.js";
 import type { AgentActivityItem } from "../ui/agent-panel.js";
+import type { ExecutionActivityKind } from "../ui/execution-island.js";
 import type { RuntimeView } from "../ui/runtime-view.js";
 
 export interface AgentWorkflow {
@@ -43,11 +44,28 @@ function capabilityKey(providerProfileId: string, modelProfileId: string): strin
   return `${providerProfileId}:${modelProfileId}`;
 }
 
+const TOOL_ACTIVITY_KIND: Readonly<Partial<Record<string, ExecutionActivityKind>>> =
+  Object.freeze({
+    list_files: "discover",
+    search_text: "search",
+    read_file: "read",
+    replace_text: "patch",
+    apply_patch: "patch",
+    run_check: "check",
+  });
+
+function toolActivityKind(toolName: string): ExecutionActivityKind {
+  return TOOL_ACTIVITY_KIND[toolName] ?? "unknown";
+}
+
 function activityFromEvent(event: AgentJobEvent): AgentActivityItem | undefined {
   if (event.type === "tool") {
+    const detail = event.data.relativePath ?? event.data.checkLabel;
     return Object.freeze({
       key: `tool:${String(event.data.turn)}:${event.data.toolCallId}`,
-      label: `${event.data.toolName} · ${event.data.state}`,
+      kind: toolActivityKind(event.data.toolName),
+      ...(detail === undefined ? {} : { detail }),
+      label: `${event.data.toolName}${detail === undefined ? "" : ` · ${detail}`} · ${event.data.state}`,
       state:
         event.data.state === "started"
           ? "active"
@@ -60,6 +78,8 @@ function activityFromEvent(event: AgentJobEvent): AgentActivityItem | undefined 
   if (event.type === "check") {
     return Object.freeze({
       key: `check:${event.data.result.checkId}:${String(event.sequence)}`,
+      kind: "check",
+      detail: event.data.result.label,
       label: `${event.data.result.label} · ${event.data.result.status}`,
       state:
         event.data.result.status === "passed"

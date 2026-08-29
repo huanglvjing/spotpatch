@@ -29,7 +29,7 @@ source-range: "参考 Motion Demo；独立 Motion browser bundle、持续 Shell�
 Pill → Capturing → Planner → Agent Charging → Handoff → Running → Result → Planner/Pill
 ```
 
-截至 2026-08-29，本方案的代码实现已完成。Runtime 保留默认右下角、自由拖拽、边缘吸附和 Session 位置恢复；Pill、Planner 与紧凑 Execution Island 共享同一个 `position: fixed` Shell。独立 `runtime-motion.js` browser bundle 注册 Motion 扩展，GSAP Core 只负责 Shell FLIP Morph、Scene reveal、按钮至 Agent Card 的一次性光路和短命粒子。核心 Runtime 只负责把真实 Runtime、内置 `AgentJobSnapshot`、外部 `DispatchSummary` 与 Codex `managedPhase` 归一化为视觉投影。
+截至 2026-08-29，本方案的第二版产品实现已完成。Runtime 保留默认右下角、自由拖拽、边缘吸附和 Session 位置恢复；Pill、Planner 与紧凑 Execution Island 共享同一个 `position: fixed` Shell。`execution-island.ts` 独立拥有紧凑执行内容、真实计时和活动切换，独立 `runtime-motion.js` browser bundle 注册 Motion 扩展，GSAP Core 只负责 Shell FLIP Morph、共享 Agent Core reveal、按钮至 Agent Card 的一次性光路和短命粒子。核心 Runtime 只负责把真实 Runtime、内置 `AgentJobSnapshot`、外部 `DispatchSummary` 与 Codex `managedPhase` 归一化为视觉投影。
 
 当前自动化类型、DOM、注入、状态回调和包体 Gate 已通过；真实受控 Chromium 的截图、触摸、200% 缩放与 Performance trace 仍是发布前 required Gate。未取得这些证据前，不得声称视觉和性能已在真实浏览器完成验收。
 
@@ -57,7 +57,7 @@ Pill → Capturing → Planner → Agent Charging → Handoff → Running → Re
 | 固定事件数组循环展示读文件、补丁和检查 | 只展示真实有界活动 | 不能虚构工具调用、文件或检查结果 |
 | 5 秒后自动成功 | 只消费真实 terminal 状态 | 动画时间不能决定业务完成 |
 | 模拟 0–100% 捕获条 | 使用 collecting/ready/partial 阶段 | 当前协议没有可证明的完成百分比 |
-| 成功后自动清空并回 Pill | 返回 Planner 并保留结果 | 用户仍需审阅 Diff、Apply、Revert 或错误细节 |
+| 成功后自动清空并回 Pill | 仅真实 `completed/applied/reverted` 终态停留 1500ms 后回 Pill；`awaiting-review/review-required` 保持可审阅 | 既完成闭环，也不能隐藏仍需 Diff、Apply 或 Revert 的结果 |
 | 点击 Context Ready 再进入 Planner | 选中后立即开放编辑 | 现有直接输入契约不能被动画增加一步阻塞 |
 | 大范围持续 blur/filter | 只在短反馈阶段使用 | 降低持续 paint 成本并避免文字模糊 |
 
@@ -122,11 +122,16 @@ type FloatingSurfaceScene =
 interface FloatingSurfaceMotionProjection {
   readonly scene: FloatingSurfaceScene;
   readonly tone: "neutral" | "capturing" | "ready" | "running" | "success" | "danger";
-  readonly phaseLabel?: string;
+  readonly headline: string;
+  readonly action: string;
+  readonly meta: string;
+  readonly activity?: FloatingSurfaceActivity;
+  readonly recentActivities: readonly FloatingSurfaceActivity[];
+  readonly startedAt?: string;
 }
 ```
 
-该类型不进入 `@spotpatch/shared`、配置、网络协议或 Storage。`phaseLabel` 必须由本地化消息或真实协议状态生成，不保存自由文本副本。
+该类型不进入 `@spotpatch/shared`、配置、网络协议或 Storage。`headline/action/meta` 必须由本地化消息或真实协议状态生成；`startedAt` 只接受真实 Job 快照时间，外部协议没有开始时间时显示小型状态而不是计时器。
 
 ### 5.2 Runtime 状态映射
 
@@ -148,11 +153,11 @@ interface FloatingSurfaceMotionProjection {
 | `validating` | `running` | `VALIDATE` |
 | `awaiting-review` | `success` | `REVIEW READY`；点击执行岛返回 Planner 并保留 Diff |
 | `applying` | `running` | `APPLY` |
-| `applied`、`completed` | `success` | `DONE`；点击执行岛返回 Planner，并保留结果 |
+| `applied`、`completed` | `success` | `DONE`；停留 1500ms 后收回 Pill；期间点击可返回 Planner |
 | `cancelling` | `running` | `CANCELLING` |
 | `cancelled` | `planner` | 返回 Planner，并保留取消结果，不使用成功态 |
 | `reverting` | `running` | `REVERT` |
-| `reverted` | `success` | `REVERTED`；点击执行岛返回 Planner |
+| `reverted` | `success` | `REVERTED`；停留 1500ms 后收回 Pill |
 | `failed` | `failed` | 显示现有稳定错误文案；点击后返回 Planner 并保留详情 |
 
 点击 Run 时只能立即播放标准按压反馈。只有真实 workspace health/probe/job 创建状态出现后，才能改变 Agent Card 文案；只有收到 `queued/preparing` 快照后，才能把 Shell 收拢为 Handoff。Run 请求在 Job 创建前失败时留在 Planner 并展示真实错误，不能播放“Agent 已取件”。
@@ -171,7 +176,7 @@ interface FloatingSurfaceMotionProjection {
 
 内置 Agent 与外部 Agent 的原始状态先归一化为同一个视觉投影，再交给 Motion；不得在两个面板中各复制一套动画状态机。
 
-Codex managed 模式继续以 `managedPhase` 为更精确事实源：`preparing` 映射 Handoff；`running/auditing/validating/applying` 映射 Running；`completed/review-required` 映射 Success；`failed/cleanup-warning` 映射 Failed；`cancelled` 返回 Planner。Execution Island 同时显示真实 revision、deliveryStatus、executionStatus 和有效模型，不显示凭据或自由输出。
+Codex managed 模式继续以 `managedPhase` 为更精确事实源：`preparing` 映射 Handoff；`running/auditing/validating/applying` 映射 Running；`completed/review-required` 映射 Success；`failed/cleanup-warning` 映射 Failed；`cancelled` 返回 Planner。Execution Island 只显示 Agent 身份、当前真实动作和状态；revision、deliveryStatus、executionStatus、模型与审计详情继续留在 Planner，避免重复信息。
 
 ## 6. 动画编排流程
 
@@ -186,21 +191,23 @@ Codex managed 模式继续以 `managedPhase` 为更精确事实源：`preparing`
 ### 6.2 Planner → Agent Card → Handoff
 
 1. Run/Send Button 播放 100–220ms 按压反馈；
-2. 真实请求开始后，按钮与 Agent Card 显示对应 checking/preparing 文案；
+2. 真实请求开始后，按钮压下并产生一条 1px 紫蓝青 SVG 光路；
 3. 请求开始后保持 Planner 几何，并将 Scene 标记为 `agent-charging`；该状态只表示请求正在发出，不表示 Agent 已接受；
-4. Agent Card 继续根据真实快照更新既有文案；
-5. 收到真实 `queued/preparing/dispatched/working/managedPhase` 后，Shell 通过一次可中断 FLIP 从 Planner 收拢为 Execution Island；
+4. 光路抵达时 Agent Card 执行一次 700–1100ms border sweep 与局部 radial glow；
+5. 收到真实 `queued/preparing/dispatched/working/managedPhase` 后先排队最新视觉投影，接收动画完成后 Shell 才通过一次可中断 FLIP 收拢；Agent identity 的矩形作为 Execution Agent Core 的 shared-element 起点；
 6. SVG core streak 与 5 个粒子在初始化时创建并复用；每次只读取一次按钮、目标 Agent Card 与 Shell 几何，不做逐帧布局计算。
 
-当前扫光不读取页面几何；`prefers-reduced-motion` 下由现有样式移除非必要动画。后续若实现能量路径，几何无效、目标不可见或 reduced motion 时必须跳过路径并直接显示真实状态。任何视觉反馈失败都不能回滚已经发生的业务请求。
+光路只在派发开始时读取按钮、Agent Card 与 Shell 各一次几何；`prefers-reduced-motion`、几何无效或目标不可见时跳过路径并直接显示真实状态。任何视觉反馈失败都不能回滚已经发生的业务请求。
 
 ### 6.3 Running 与结果
 
-- Running Island 展示 provider/adapter 的可信 label、真实阶段和最近一条有界活动；
+- Running Island 默认约 520–590px × 92px，只展示 Agent 身份、真实当前动作和计时/状态；
+- 内置 Agent 的 elapsed timer 由真实 `AgentJobSnapshot.createdAt` 和墙钟计算，每秒更新；页面 hidden 时停止 interval，恢复后从墙钟校正；
+- activity lane 使用真实工具成功结果中的相对路径或检查 label；最近 2–3 条只在 hover 展开，不显示百分比；
 - 不循环伪造工具名称、文件路径、检查或日志；没有活动时只显示阶段；
 - 不显示 completion percentage；没有服务端开始时间时也不伪造计时器；
 - 用户点击 Running Island 可以返回 Planner 查看已有详细活动和取消入口；
-- `success/failed` 进行一次有限结果反馈并保持可检查；用户点击后回到 Planner，结果、Diff、Apply/Revert 和错误细节继续保留；
+- `awaiting-review/review-required/failed` 保持可检查；真正 terminal success 停留 1500ms 后视觉收回 Pill，计时不决定业务状态；
 - 关闭 Planner 只改变当前呈现，不取消或完成 Agent Job。
 
 ## 7. 几何与拖拽协调
@@ -239,7 +246,7 @@ Motion 不直接写 `left/top`，位置控制器不切换 Scene 内容。运行�
 | Web Animations API | 不采用 | 参考流程包含连续 timeline、路径和粒子编排；GSAP Core 已提供统一取消与收口 |
 | 新建自有 Timeline 引擎 | 禁止 | 会重复调度、插值、取消和资源清理能力 |
 
-生产预算实测：`runtime-client.js` gzip 45,946 B，继续低于原 45 KiB（46,080 B）门禁；`runtime-motion.js` gzip 31,119 B，独立门禁为 32 KiB。不得将 GSAP 合并进核心 Runtime 或只提高核心预算。
+生产预算实测：`runtime-client.js` gzip 47,392 B，`runtime-motion.js` gzip 34,057 B（macOS Node 26、gzip level 9）。完整执行岛 renderer 已从核心 Runtime 隔离到 Motion bundle；核心保留无 Motion 的即时文本降级。对应门禁为 48 KiB 与 35 KiB，均只为当前实测保留有限跨平台余量；不得将 GSAP 合并进核心 Runtime，也不得在没有再次测量与隔离评估的情况下继续提高预算。
 
 ## 9. Motion Token 与视觉约束
 
@@ -267,7 +274,7 @@ Motion 不直接写 `left/top`，位置控制器不切换 Scene 内容。运行�
 
 ## 10. 生命周期、并发与可中断性
 
-Motion Controller 维护当前 Morph timeline 与 signal timeline。每次新投影：
+Motion Controller 维护最多一条 Morph timeline 与一条 Dispatch timeline。派发期间到达的真实 Handoff/Running 投影只保留最新一份，接收动画完成后再应用；快速重复 Send 在已有 Dispatch timeline 活跃时直接忽略，不生成第二条 timeline。每次普通新投影：
 
 1. kill 旧 timeline 与所有受控 tween；
 2. 清理旧 Scene 的临时 class、`will-change` 和粒子状态；
@@ -334,6 +341,8 @@ Motion Controller 维护当前 Morph timeline 与 signal timeline。每次新投
 packages/runtime/src/ui/
 ├── floating-surface-position.ts          # 已实现：纯位置与吸附
 ├── floating-surface-controller.ts        # 扩展：唯一 Shell 几何、拖拽、Resize 协调
+├── execution-island.ts                   # 紧凑内容、真实 timer、activity lane 与清理
+├── execution-island.test.ts
 ├── motion-extension-contract.ts          # 核心：投影/元素/控制器契约与全局注册
 ├── motion-controller.ts                  # 独立入口使用：GSAP/CSS 编排和生命周期
 ├── motion-controller.test.ts
@@ -372,6 +381,8 @@ packages/vite/dist/runtime-motion.js       # 独立 browser 产物
 - reduced motion/无 WAAPI 时即时收口；
 - Scene 的 `hidden/inert/aria-hidden/pointer-events` 与焦点一致；
 - 派发路径无效时跳过、有效时粒子数量不超过上限；
+- 快速重复派发不增加 timeline、SVG layer 或粒子；派发期间只应用最后一个真实状态投影；
+- timer 只在 running 且存在真实 `startedAt` 时启动，hidden/dispose 后清理；
 - 页面 hidden 暂停装饰、visible 只恢复当前 Scene；
 - dispose 后无 Animation、Observer 和 listener；
 - Motion 不调用 Agent API、不写 Storage、不改变 Runtime 业务状态。

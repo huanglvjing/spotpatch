@@ -1,4 +1,5 @@
 import {
+  createExecutionIsland,
   createFloatingSurfaceMotionController,
   createFloatingSurfaceMotionStyles,
   registerFloatingSurfaceMotionExtension,
@@ -6,6 +7,7 @@ import {
 
 registerFloatingSurfaceMotionExtension(
   Object.freeze({
+    createExecutionIsland,
     createController: createFloatingSurfaceMotionController,
     createStyles: createFloatingSurfaceMotionStyles,
   }),

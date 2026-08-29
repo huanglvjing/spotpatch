@@ -265,7 +265,11 @@ describe("Agent execution", { timeout: GIT_PROCESS_INTEGRATION_TIMEOUT_MS }, () 
         temporaryBase,
         callbacks: {
           onTool(event) {
-            toolStates.push(`${event.toolName}:${event.state}`);
+            toolStates.push(
+              [event.toolName, event.state, event.relativePath, event.checkLabel]
+                .filter((value) => value !== undefined)
+                .join(":"),
+            );
           },
           onCheck(result) {
             checkStatuses.push(result.status);
@@ -290,11 +294,11 @@ describe("Agent execution", { timeout: GIT_PROCESS_INTEGRATION_TIMEOUT_MS }, () 
       expect(await repository.read("src/App.tsx")).toContain("Before");
       expect(toolStates).toEqual([
         "read_file:started",
-        "read_file:succeeded",
+        "read_file:succeeded:src/App.tsx",
         "replace_text:started",
-        "replace_text:succeeded",
+        "replace_text:succeeded:src/App.tsx",
         "run_check:started",
-        "run_check:succeeded",
+        "run_check:succeeded:Verify change",
       ]);
       expect(checkStatuses).toEqual(["passed"]);
       expect(await readdir(temporaryBase)).toEqual([]);

@@ -826,8 +826,8 @@ describe("runtime controller", () => {
     });
     expect(api.agentCapability).not.toHaveBeenCalled();
     expect(shadowRoot?.textContent).toContain("Typecheck: passed");
-    expect(shadowRoot?.textContent).toContain("read_file · succeeded");
-    expect(shadowRoot?.textContent).toContain("replace_text · succeeded");
+    expect(shadowRoot?.textContent).toContain("read_file · src/App.tsx · succeeded");
+    expect(shadowRoot?.textContent).toContain("replace_text · src/App.tsx · succeeded");
     expect(shadowRoot?.textContent).not.toContain("provider-model-v1");
 
     const applyButton = findShadowButton(shadowRoot, "Apply changes");

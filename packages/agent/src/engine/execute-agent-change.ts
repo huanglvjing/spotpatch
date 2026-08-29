@@ -22,6 +22,7 @@ import { createAgentToolExecutor } from "../tools/tool-executor.js";
 import {
   AGENT_TOOL_DEFINITIONS,
   AGENT_TOOL_DEFINITIONS_WITHOUT_CHECKS,
+  AGENT_TOOL_NAMES,
   isReadOnlyAgentTool,
 } from "../tools/tool-definitions.js";
 import { runConfiguredCheck } from "../validation/check-runner.js";
@@ -51,6 +52,8 @@ export interface AgentExecutionCallbacks {
       toolCallId: string;
       toolName: string;
       state: "started" | "succeeded" | "failed";
+      relativePath?: string;
+      checkLabel?: string;
     }>,
   ) => void;
 }
@@ -93,6 +96,33 @@ function throwIfCancelled(signal: AbortSignal): void {
   }
 }
 
+function completedToolActivity(
+  toolName: string,
+  output: unknown,
+): Readonly<{ relativePath?: string; checkLabel?: string }> {
+  if (typeof output !== "object" || output === null) return Object.freeze({});
+  const result = output as Readonly<Record<string, unknown>>;
+
+  if (toolName === AGENT_TOOL_NAMES.readFile && typeof result.path === "string") {
+    return Object.freeze({ relativePath: result.path });
+  }
+
+  if (
+    (toolName === AGENT_TOOL_NAMES.replaceText ||
+      toolName === AGENT_TOOL_NAMES.applyPatch) &&
+    Array.isArray(result.paths) &&
+    typeof result.paths[0] === "string"
+  ) {
+    return Object.freeze({ relativePath: result.paths[0] });
+  }
+
+  if (toolName === AGENT_TOOL_NAMES.runCheck && typeof result.label === "string") {
+    return Object.freeze({ checkLabel: result.label });
+  }
+
+  return Object.freeze({});
+}
+
 function linkSignal(source: AbortSignal, target: AbortController): () => void {
   const abort = (): void => {
     target.abort(source.reason);
@@ -133,6 +163,7 @@ async function executeToolCall(
         toolCallId: call.id,
         toolName: call.name,
         state: isRetryableToolFailure(result) ? "failed" : "succeeded",
+        ...completedToolActivity(call.name, result.output),
       }),
     );
     return result;

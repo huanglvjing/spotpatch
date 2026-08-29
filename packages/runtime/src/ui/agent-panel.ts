@@ -10,6 +10,7 @@ import type {
 } from "@spotpatch/shared";
 
 import { createButton, createMarkedElement } from "./dom.js";
+import type { ExecutionActivityKind } from "./execution-island.js";
 import type { UiLocalizer, UiMessages } from "./localization.js";
 
 export interface AgentSelectionValue {
@@ -19,7 +20,9 @@ export interface AgentSelectionValue {
 }
 
 export interface AgentActivityItem {
+  readonly detail?: string;
   readonly key: string;
+  readonly kind: ExecutionActivityKind;
   readonly label: string;
   readonly state: "active" | "success" | "failure" | "info";
 }
@@ -41,6 +44,7 @@ export interface AgentPanel {
   readonly workspaceConsentGranted: () => boolean;
   readonly dispose: () => void;
   readonly readSelection: () => AgentSelectionValue | undefined;
+  readonly selectedIdentity: () => string | undefined;
   readonly renderCapability: (
     state: "idle" | "probing" | "ready" | "error",
     message: string,
@@ -310,6 +314,7 @@ export function createAgentPanel(
   root.hidden = !ai.enabled;
   const header = createMarkedElement(document, "div");
   header.className = "spotpatch-agent-head";
+  header.setAttribute("data-spotpatch-agent-identity", "");
   const title = createMarkedElement(document, "span");
   title.className = "spotpatch-agent-title";
   const badge = createMarkedElement(document, "span");
@@ -726,6 +731,10 @@ export function createAgentPanel(
             providerProfileId: provider.id,
             modelProfileId: model.id,
           });
+    },
+
+    selectedIdentity(): string | undefined {
+      return selectedProvider()?.label;
     },
 
     renderCapability(

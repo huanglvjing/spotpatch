@@ -576,6 +576,7 @@ export function createExternalHandoffPanel(
   root.hidden = true;
   const heading = createMarkedElement(document, "div");
   heading.className = "spotpatch-external-heading";
+  heading.setAttribute("data-spotpatch-agent-identity", "");
   const title = createMarkedElement(document, "strong");
   const refreshButton = createButton(document, "", "spotpatch-external-refresh");
   heading.append(title, refreshButton);

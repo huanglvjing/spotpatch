@@ -33,16 +33,19 @@ import {
   type DataFlowViewState,
 } from "./data-flow-panel-contract.js";
 import { createButton, createMarkedElement } from "./dom.js";
+import type { ExecutionActivityKind } from "./execution-island.js";
 import {
   getExternalHandoffExtension,
   type ExternalHandoffPanel,
 } from "./external-handoff-contract.js";
 import {
   getFloatingSurfaceMotionExtension,
+  type FloatingSurfaceActivity,
   type FloatingSurfaceMotionController,
   type FloatingSurfaceProjection,
   type FloatingSurfaceScene,
   type FloatingSurfaceTone,
+  type ExecutionIslandView,
 } from "./motion-extension-contract.js";
 import {
   createUiLocalizer,
@@ -56,6 +59,8 @@ import {
   UI_MARKER_ATTRIBUTE,
   UI_Z_INDEX,
 } from "./ui-constants.js";
+
+const SUCCESS_SETTLE_MS = 1_500;
 
 export interface SelectionTargetView {
   readonly active: boolean;
@@ -800,6 +805,26 @@ function startsOnInteractiveControl(event: PointerEvent): boolean {
   );
 }
 
+function createFallbackExecutionIsland(document: Document): ExecutionIslandView {
+  const root = createButton(document, "", "spotpatch-execution-island");
+  root.hidden = true;
+  root.setAttribute("aria-hidden", "true");
+
+  return Object.freeze({
+    root,
+    render(projection: FloatingSurfaceProjection): void {
+      const text = [projection.headline, projection.action, projection.meta]
+        .filter((value) => value.length > 0)
+        .join(" · ");
+      root.textContent = text;
+      root.setAttribute("aria-label", text);
+    },
+    dispose(): void {
+      // The no-motion fallback owns no listeners or timers.
+    },
+  });
+}
+
 function createUnavailableDataFlowPanel(
   document: Document,
   changesRoot: HTMLElement,
@@ -828,11 +853,12 @@ export function createRuntimeView(
   sessionId = "",
 ): RuntimeView {
   const localizer: UiLocalizer = createUiLocalizer(document, localePreference);
-  const runtimeWindow = document.defaultView;
+  const associatedWindow = document.defaultView;
 
-  if (runtimeWindow === null) {
+  if (associatedWindow === null) {
     throw new Error("SpotPatch requires a document with an associated window.");
   }
+  const runtimeWindow: Window = associatedWindow;
 
   const floatingSurface = createFloatingSurfaceController(
     runtimeWindow,
@@ -844,6 +870,9 @@ export function createRuntimeView(
   let plannerVisible = false;
   let executionSuppressed = false;
   let executionProjection: FloatingSurfaceProjection | undefined;
+  let successSettleKey: string | undefined;
+  let settledSuccessKey: string | undefined;
+  let successSettleTimer: number | undefined;
   const host = document.createElement("spotpatch-root");
   host.setAttribute(UI_MARKER_ATTRIBUTE, "");
   const shadowRoot = host.attachShadow({ mode: "open" });
@@ -859,27 +888,11 @@ export function createRuntimeView(
   triggerButton.title = messages.trigger.title(shortcut);
   triggerButton.setAttribute("aria-pressed", "false");
 
-  const executionIsland = createButton(document, "", "spotpatch-execution-island");
-  executionIsland.hidden = true;
-  executionIsland.setAttribute("aria-hidden", "true");
-  const executionCopy = createMarkedElement(document, "span");
-  executionCopy.className = "spotpatch-execution-copy";
-  const executionIdentity = createMarkedElement(document, "span");
-  executionIdentity.className = "spotpatch-execution-identity";
-  const executionTitle = createMarkedElement(document, "strong");
-  executionTitle.className = "spotpatch-execution-title";
-  const executionDetail = createMarkedElement(document, "span");
-  executionDetail.className = "spotpatch-execution-detail";
-  executionCopy.append(executionIdentity, executionTitle, executionDetail);
-  const executionStatus = createMarkedElement(document, "span");
-  executionStatus.className = "spotpatch-execution-status";
-  const executionPhase = createMarkedElement(document, "span");
-  executionPhase.className = "spotpatch-execution-phase";
-  const executionOrbit = createMarkedElement(document, "span");
-  executionOrbit.className = "spotpatch-execution-orbit";
-  executionOrbit.setAttribute("aria-hidden", "true");
-  executionStatus.append(executionPhase, executionOrbit);
-  executionIsland.append(executionCopy, executionStatus);
+  const motionExtension = getFloatingSurfaceMotionExtension();
+  const motionExecutionIsland = motionExtension?.createExecutionIsland(document);
+  const executionIslandView: ExecutionIslandView =
+    motionExecutionIsland ?? createFallbackExecutionIsland(document);
+  const executionIsland = executionIslandView.root;
 
   const highlight = createMarkedElement(document, "div");
   highlight.className = "spotpatch-highlight";
@@ -1081,7 +1094,6 @@ export function createRuntimeView(
   liveRegion.setAttribute("aria-live", "polite");
   liveRegion.setAttribute("aria-atomic", "true");
 
-  const motionExtension = getFloatingSurfaceMotionExtension();
   const styles = [
     createStyles(document),
     ...(motionExtension === undefined ? [] : [motionExtension.createStyles(document)]),
@@ -1117,20 +1129,18 @@ export function createRuntimeView(
     suppressClickOnDrag: true,
   });
   const motionController: FloatingSurfaceMotionController | undefined =
-    motionExtension?.createController(
-      document,
-      Object.freeze({
-        execution: executionIsland,
-        executionDetail,
-        executionIdentity,
-        executionPhase,
-        executionTitle,
-        pill: triggerButton,
-        planner: dialog,
-        surface: floatingSurfaceRoot,
-      }),
-      floatingSurface.reconcile,
-    );
+    motionExtension === undefined || motionExecutionIsland === undefined
+      ? undefined
+      : motionExtension.createController(
+          document,
+          Object.freeze({
+            execution: motionExecutionIsland.elements,
+            pill: triggerButton,
+            planner: dialog,
+            surface: floatingSurfaceRoot,
+          }),
+          floatingSurface.reconcile,
+        );
   floatingSurface.reconcile();
 
   let currentCanOpenEditor = false;
@@ -1148,6 +1158,71 @@ export function createRuntimeView(
     observationCount: 0,
   });
 
+  function currentTargetContext(): string {
+    const target = currentTargets.find((candidate) => candidate.active);
+    return target === undefined
+      ? messages.context.selectedElement
+      : `${target.label} · ${target.source}`;
+  }
+
+  function clearSuccessSettle(resetKeys: boolean): void {
+    if (successSettleTimer !== undefined) {
+      runtimeWindow.clearTimeout(successSettleTimer);
+      successSettleTimer = undefined;
+    }
+    if (resetKeys) {
+      successSettleKey = undefined;
+      settledSuccessKey = undefined;
+    }
+  }
+
+  function showSuccessUntilSettled(key: string): boolean {
+    if (settledSuccessKey === key) return false;
+    if (successSettleKey === key) return true;
+
+    clearSuccessSettle(false);
+    successSettleKey = key;
+    successSettleTimer = runtimeWindow.setTimeout(() => {
+      successSettleTimer = undefined;
+      if (!host.isConnected) return;
+      settledSuccessKey = key;
+      executionProjection = undefined;
+      executionSuppressed = false;
+      plannerVisible = false;
+      renderFloatingSurfaceMotion();
+    }, SUCCESS_SETTLE_MS);
+    return true;
+  }
+
+  function externalAgentIdentity(kind: string): string {
+    return kind.startsWith("claude")
+      ? messages.execution.claude
+      : kind.startsWith("codex")
+        ? messages.execution.codex
+        : kind;
+  }
+
+  function projectAgentActivity(item: AgentActivityItem): FloatingSurfaceActivity {
+    return Object.freeze({
+      key: item.key,
+      label: messages.execution.activityLane(item.kind, item.detail),
+      state: item.state,
+    });
+  }
+
+  function motionActivity(
+    key: string,
+    kind: ExecutionActivityKind,
+    detail: string | undefined,
+    state: FloatingSurfaceActivity["state"] = "active",
+  ): FloatingSurfaceActivity {
+    return Object.freeze({
+      key,
+      label: messages.execution.activityLane(kind, detail),
+      state,
+    });
+  }
+
   function renderFloatingSurfaceMotion(): void {
     const capturing = currentStatus === "inspecting";
     const pillActive = !plannerVisible || capturing;
@@ -1155,21 +1230,23 @@ export function createRuntimeView(
       ? {
           scene: capturing ? "capturing" : "pill",
           tone: capturing ? "capturing" : "neutral",
-          identity: messages.brand.name,
-          title: triggerButton.textContent,
-          detail: "",
-          phase: "",
+          headline: triggerButton.textContent,
+          action: "",
+          meta: "",
+          recentActivities: Object.freeze([]),
         }
       : !executionSuppressed && executionProjection !== undefined
         ? executionProjection
         : {
             scene: "planner",
             tone: "ready",
-            identity: messages.brand.name,
-            title: messages.dialog.editTitle,
-            detail: messages.dialog.editSubtitle,
-            phase: messages.context.ready,
+            headline: messages.dialog.editTitle,
+            action: messages.dialog.editSubtitle,
+            meta: messages.context.ready,
+            recentActivities: Object.freeze([]),
           };
+
+    executionIslandView.render(projection);
 
     if (motionController !== undefined) {
       motionController.render(projection);
@@ -1188,10 +1265,6 @@ export function createRuntimeView(
     executionIsland.hidden = pillActive || plannerActive;
     executionIsland.inert = pillActive || plannerActive;
     executionIsland.setAttribute("aria-hidden", String(pillActive || plannerActive));
-    executionIdentity.textContent = projection.identity;
-    executionTitle.textContent = projection.title;
-    executionDetail.textContent = projection.detail;
-    executionPhase.textContent = projection.phase;
     floatingSurface.reconcile();
   }
 
@@ -1200,25 +1273,54 @@ export function createRuntimeView(
       const failed =
         dispatch.phase === "failed" || dispatch.phase === "delivery-unknown";
       const completed = dispatch.phase === "completed";
-      executionProjection = {
-        scene: failed
-          ? "failed"
+      const successKey = `dispatch:${String(dispatch.revision)}`;
+      if (completed && !showSuccessUntilSettled(successKey)) {
+        executionProjection = undefined;
+        renderFloatingSurfaceMotion();
+        return;
+      }
+      const identity = externalAgentIdentity(dispatch.adapterKind);
+      const activityKind: ExecutionActivityKind =
+        dispatch.phase === "queued" ||
+        dispatch.phase === "dispatching" ||
+        dispatch.phase === "dispatched"
+          ? "dispatch"
           : completed
-            ? "success"
-            : dispatch.phase === "working"
-              ? "running"
-              : "handoff",
+            ? "sync"
+            : "unknown";
+      const activity = motionActivity(
+        `dispatch:${String(dispatch.revision)}:${dispatch.phase}`,
+        activityKind,
+        dispatch.phase,
+        failed ? "failure" : completed ? "success" : "active",
+      );
+      const scene = failed
+        ? "failed"
+        : completed
+          ? "success"
+          : dispatch.phase === "working"
+            ? "running"
+            : "handoff";
+      executionProjection = {
+        scene,
         tone: failed ? "danger" : completed ? "success" : "running",
-        identity: dispatch.adapterKind,
-        title: completed
+        headline: completed
+          ? messages.execution.completedTitle(identity)
+          : failed
+            ? messages.execution.failedTitle(identity)
+            : scene === "running"
+              ? messages.execution.runningTitle(identity)
+              : messages.execution.receivingTitle(identity),
+        action: completed
+          ? messages.execution.resultReturned
+          : messages.execution.activityAction(activityKind),
+        meta: completed
           ? messages.agent.status("completed")
           : failed
             ? messages.agent.status("failed")
-            : dispatch.phase === "working"
-              ? messages.agent.status("running")
-              : messages.agent.status("preparing"),
-        detail: `#${String(dispatch.revision)} · ${dispatch.phase}`,
-        phase: dispatch.phase,
+            : messages.execution.runningStatus,
+        activity,
+        recentActivities: Object.freeze([activity]),
       };
     } else if (dispatch === null) {
       executionProjection = undefined;
@@ -1238,6 +1340,14 @@ export function createRuntimeView(
       renderFloatingSurfaceMotion();
       return;
     }
+    if (
+      phase === "completed" &&
+      !showSuccessUntilSettled(`managed:${String(task.revision)}`)
+    ) {
+      executionProjection = undefined;
+      renderFloatingSurfaceMotion();
+      return;
+    }
     const scene: FloatingSurfaceScene = failed
       ? "failed"
       : completed
@@ -1250,41 +1360,107 @@ export function createRuntimeView(
       : completed
         ? "success"
         : "running";
-    const model = status.effectiveModel ?? status.requestedModel;
+    const identity = messages.execution.codex;
+    const activityKind: ExecutionActivityKind =
+      phase === "preparing"
+        ? "prepare"
+        : phase === "auditing"
+          ? "audit"
+          : phase === "validating"
+            ? "check"
+            : phase === "applying"
+              ? "apply"
+              : completed
+                ? "sync"
+                : "unknown";
+    const latestCheck = task.checks.at(-1);
+    const latestFile = task.files.at(-1);
+    const activityDetail =
+      phase === "validating"
+        ? latestCheck?.id
+        : phase === "auditing" || phase === "applying"
+          ? latestFile?.path
+          : undefined;
+    const activity = motionActivity(
+      `managed:${String(task.revision)}:${phase}:${activityDetail ?? ""}`,
+      activityKind,
+      activityDetail,
+      failed ? "failure" : completed ? "success" : "active",
+    );
+    const recentActivities = Object.freeze([
+      ...task.files
+        .slice(-2)
+        .map((file) =>
+          motionActivity(
+            `managed-file:${String(task.revision)}:${file.path}`,
+            "patch",
+            file.path,
+            "success",
+          ),
+        ),
+      ...task.checks
+        .slice(-2)
+        .map((check) =>
+          motionActivity(
+            `managed-check:${String(task.revision)}:${check.id}`,
+            "check",
+            check.id,
+            check.outcome === "passed" ? "success" : "failure",
+          ),
+        ),
+      activity,
+    ]);
     executionProjection = {
       scene,
       tone,
-      identity:
-        model === undefined ? status.adapter.kind : `${status.adapter.kind} · ${model}`,
-      title: completed
+      headline: completed
+        ? messages.execution.completedTitle(identity)
+        : failed
+          ? messages.execution.failedTitle(identity)
+          : scene === "handoff"
+            ? messages.execution.receivingTitle(identity)
+            : messages.execution.runningTitle(identity),
+      action: completed
+        ? messages.execution.resultReturned
+        : messages.execution.activityAction(activityKind, activityDetail),
+      meta: completed
         ? messages.agent.status("completed")
         : failed
           ? messages.agent.status("failed")
-          : scene === "handoff"
-            ? messages.agent.status("preparing")
-            : messages.agent.status("running"),
-      detail: `#${String(task.revision)} · ${task.deliveryStatus} / ${task.executionStatus}`,
-      phase,
+          : messages.execution.runningStatus,
+      activity,
+      recentActivities,
     };
     renderFloatingSurfaceMotion();
   }
 
-  function beginAgentRequest(target: HTMLButtonElement, agentCard: HTMLElement): void {
+  function beginAgentRequest(
+    target: HTMLButtonElement,
+    agentCard: HTMLElement,
+    identity: string,
+  ): void {
     if (!plannerVisible || target.disabled) {
       return;
     }
 
+    clearSuccessSettle(true);
     executionSuppressed = false;
+    const activity = motionActivity(
+      `dispatch-start:${currentTargetContext()}`,
+      "dispatch",
+      currentTargetContext(),
+    );
     executionProjection = {
       scene: "agent-charging",
       tone: "running",
-      identity: messages.agent.title,
-      title: messages.agent.status("preparing"),
-      detail: messages.context.ready,
-      phase: messages.agent.status("queued"),
+      headline: messages.execution.receivingTitle(identity),
+      action: messages.execution.activityAction("dispatch", currentTargetContext()),
+      meta: messages.context.ready,
+      activity,
+      recentActivities: Object.freeze([activity]),
     };
     renderFloatingSurfaceMotion();
-    motionController?.signal(target, agentCard);
+    motionController?.dispatch(target, agentCard);
   }
 
   function renderEditorStatus(state: "idle" | "opening" | "success" | "error"): void {
@@ -1680,14 +1856,23 @@ export function createRuntimeView(
   localeButton.addEventListener("click", localizer.toggle);
   resetPositionButton.addEventListener("click", resetFloatingSurfacePosition);
   const onAgentRun = (): void => {
-    beginAgentRequest(agentPanel.runButton, agentPanel.root);
+    beginAgentRequest(
+      agentPanel.runButton,
+      agentPanel.root,
+      agentPanel.selectedIdentity() ?? messages.agent.title,
+    );
   };
   const onExternalSend = (): void => {
     if (externalHandoffPanel !== undefined) {
-      beginAgentRequest(externalHandoffPanel.sendButton, externalHandoffPanel.root);
+      beginAgentRequest(
+        externalHandoffPanel.sendButton,
+        externalHandoffPanel.root,
+        messages.execution.codex,
+      );
     }
   };
   const onExecutionOpen = (): void => {
+    clearSuccessSettle(false);
     executionSuppressed = true;
     renderFloatingSurfaceMotion();
   };
@@ -1697,6 +1882,8 @@ export function createRuntimeView(
   agentPanel.runButton.addEventListener("click", onAgentRun);
   externalHandoffPanel?.sendButton.addEventListener("click", onExternalSend);
   executionIsland.addEventListener("click", onExecutionOpen);
+  executionIsland.addEventListener("pointerenter", requestFloatingSurfaceLayout);
+  executionIsland.addEventListener("pointerleave", requestFloatingSurfaceLayout);
   floatingSurfaceRoot.addEventListener("pointerdown", onMotionInteraction, true);
   const unsubscribeLocale = localizer.subscribe(applyMessages);
   applyMessages();
@@ -1908,6 +2095,10 @@ export function createRuntimeView(
         snapshot.status === "reverted";
       const failed = snapshot.status === "failed";
       const cancelled = snapshot.status === "cancelled";
+      const terminalSuccess =
+        snapshot.status === "applied" ||
+        snapshot.status === "completed" ||
+        snapshot.status === "reverted";
       const scene: FloatingSurfaceScene = successful
         ? "success"
         : failed
@@ -1916,15 +2107,69 @@ export function createRuntimeView(
             ? "handoff"
             : "running";
       if (!executionSuppressed) {
+        if (
+          terminalSuccess &&
+          !showSuccessUntilSettled(`job:${snapshot.jobId}:${snapshot.status}`)
+        ) {
+          executionProjection = undefined;
+          renderFloatingSurfaceMotion();
+          requestFloatingSurfaceLayout();
+          return;
+        }
+        const identity = snapshot.providerLabel;
+        const projectedActivities = Object.freeze(activities.map(projectAgentActivity));
+        const latestActivity = activities.at(-1);
+        const phaseKind: ExecutionActivityKind =
+          snapshot.status === "queued" || snapshot.status === "preparing"
+            ? "prepare"
+            : snapshot.status === "validating"
+              ? "check"
+              : snapshot.status === "applying" || snapshot.status === "reverting"
+                ? "apply"
+                : snapshot.status === "awaiting-review" || successful
+                  ? "sync"
+                  : "unknown";
+        const phaseActivity = motionActivity(
+          `job-phase:${snapshot.jobId}:${snapshot.status}:${snapshot.updatedAt}`,
+          phaseKind,
+          undefined,
+          successful ? "success" : failed ? "failure" : "active",
+        );
+        const activity =
+          snapshot.status === "running" && latestActivity !== undefined
+            ? projectAgentActivity(latestActivity)
+            : phaseActivity;
         executionProjection = cancelled
           ? undefined
           : {
               scene,
               tone: successful ? "success" : failed ? "danger" : "running",
-              identity: `${snapshot.providerLabel} · ${snapshot.modelLabel}`,
-              title: snapshot.phaseMessage,
-              detail: result?.summary ?? messages.agent.status(snapshot.status),
-              phase: messages.agent.status(snapshot.status),
+              headline: successful
+                ? messages.execution.completedTitle(identity)
+                : failed
+                  ? messages.execution.failedTitle(identity)
+                  : scene === "handoff"
+                    ? messages.execution.receivingTitle(identity)
+                    : messages.execution.runningTitle(identity),
+              action: successful
+                ? messages.execution.resultReturned
+                : snapshot.status === "running" && latestActivity !== undefined
+                  ? messages.execution.activityAction(
+                      latestActivity.kind,
+                      latestActivity.detail,
+                    )
+                  : snapshot.phaseMessage,
+              meta: successful
+                ? messages.agent.status(snapshot.status)
+                : failed
+                  ? messages.agent.status("failed")
+                  : messages.execution.runningStatus,
+              activity,
+              recentActivities:
+                projectedActivities.length === 0
+                  ? Object.freeze([phaseActivity])
+                  : projectedActivities,
+              startedAt: snapshot.createdAt,
             };
       }
       renderFloatingSurfaceMotion();
@@ -1966,12 +2211,16 @@ export function createRuntimeView(
       agentPanel.runButton.removeEventListener("click", onAgentRun);
       externalHandoffPanel?.sendButton.removeEventListener("click", onExternalSend);
       executionIsland.removeEventListener("click", onExecutionOpen);
+      executionIsland.removeEventListener("pointerenter", requestFloatingSurfaceLayout);
+      executionIsland.removeEventListener("pointerleave", requestFloatingSurfaceLayout);
       floatingSurfaceRoot.removeEventListener("pointerdown", onMotionInteraction, true);
       unsubscribeLocale();
       dataFlowPanel.dispose();
       externalHandoffPanel?.dispose();
       agentPanel.dispose();
       motionController?.dispose();
+      executionIslandView.dispose();
+      clearSuccessSettle(true);
       floatingSurface.dispose();
       host.remove();
     },

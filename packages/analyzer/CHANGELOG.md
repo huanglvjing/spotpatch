@@ -1,5 +1,13 @@
 # @spotpatch/analyzer
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [2f961b2]
+  - @spotpatch/compiler@0.3.0
+  - @spotpatch/shared@1.12.0
+
 ## 0.1.0
 
 ### Minor Changes

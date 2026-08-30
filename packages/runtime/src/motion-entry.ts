@@ -1,8 +1,28 @@
-export {
+import {
   createFloatingSurfaceMotionController,
   createFloatingSurfaceMotionStyles,
 } from "./ui/motion-controller.js";
-export { createExecutionIsland } from "./ui/execution-island.js";
+import { createExecutionIsland } from "./ui/execution-island.js";
+import {
+  registerFloatingSurfaceMotionExtension,
+  type FloatingSurfaceMotionExtension,
+} from "./ui/motion-extension-contract.js";
+
+const FLOATING_SURFACE_MOTION_EXTENSION = Object.freeze({
+  createExecutionIsland,
+  createController: createFloatingSurfaceMotionController,
+  createStyles: createFloatingSurfaceMotionStyles,
+}) satisfies FloatingSurfaceMotionExtension;
+
+export function installFloatingSurfaceMotionExtension(): void {
+  registerFloatingSurfaceMotionExtension(FLOATING_SURFACE_MOTION_EXTENSION);
+}
+
+export {
+  createExecutionIsland,
+  createFloatingSurfaceMotionController,
+  createFloatingSurfaceMotionStyles,
+};
 export {
   getFloatingSurfaceMotionExtension,
   registerFloatingSurfaceMotionExtension,

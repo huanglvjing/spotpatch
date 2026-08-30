@@ -105,7 +105,9 @@ describe("runtime browser bundle budget", () => {
       gzipBytes,
       `runtime-motion.js gzip size was ${String(gzipBytes)} bytes`,
     ).toBeLessThan(MOTION_GZIP_BUDGET_BYTES);
-    expect(source).toContain("spotpatch-motion-signal");
+    expect(source).toContain("spotpatch-island-sweep");
+    expect(source).not.toContain("spotpatch-motion-signal");
+    expect(source).not.toContain("spotpatch-agent-core");
     expect(source).toContain("spotpatch-execution-island");
     for (const signature of serverOnlySignatures) {
       expect(source).not.toContain(signature);

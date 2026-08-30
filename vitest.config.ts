@@ -23,6 +23,7 @@ export default defineConfig({
       "@spotpatch/runtime/external-handoff-panel": fromRoot(
         "./packages/runtime/src/external-handoff-panel-entry.ts",
       ),
+      "@spotpatch/runtime/motion": fromRoot("./packages/runtime/src/motion-entry.ts"),
       "@spotpatch/shared/data-flow-runtime": fromRoot(
         "./packages/shared/src/data-flow-runtime.ts",
       ),

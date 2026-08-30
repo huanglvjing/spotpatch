@@ -15,7 +15,7 @@ import {
   type RuntimeApi,
 } from "../api/runtime-api.js";
 import type { AgentActivityItem } from "../ui/agent-panel.js";
-import type { ExecutionActivityKind } from "../ui/execution-island.js";
+import type { ExecutionActivityKind } from "../ui/motion-extension-contract.js";
 import type { RuntimeView } from "../ui/runtime-view.js";
 
 export interface AgentWorkflow {

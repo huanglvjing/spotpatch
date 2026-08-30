@@ -115,6 +115,9 @@ async function executeBootstrap(): Promise<void> {
   const config = parseEnvelope(await readBoundedJson(response));
 
   try {
+    const motionExtension = await import("@spotpatch/runtime/motion");
+    motionExtension.installFloatingSurfaceMotionExtension();
+
     if (config.externalAgent.enabled) {
       const extension = await import("@spotpatch/runtime/external-handoff-panel");
       extension.registerExternalHandoffExtension(

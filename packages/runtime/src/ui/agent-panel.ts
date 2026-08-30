@@ -44,7 +44,6 @@ export interface AgentPanel {
   readonly workspaceConsentGranted: () => boolean;
   readonly dispose: () => void;
   readonly readSelection: () => AgentSelectionValue | undefined;
-  readonly selectedIdentity: () => string | undefined;
   readonly renderCapability: (
     state: "idle" | "probing" | "ready" | "error",
     message: string,
@@ -731,10 +730,6 @@ export function createAgentPanel(
             providerProfileId: provider.id,
             modelProfileId: model.id,
           });
-    },
-
-    selectedIdentity(): string | undefined {
-      return selectedProvider()?.label;
     },
 
     renderCapability(

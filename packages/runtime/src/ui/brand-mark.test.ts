@@ -72,4 +72,13 @@ describe("SpotPatch brand mark", () => {
     expect(snapshot(runtimeRoot, true)).toEqual(snapshot(canonicalRoot, true));
     expect(snapshot(defaultRuntimeRoot, true)).toEqual(snapshot(canonicalRoot, true));
   });
+
+  it("isolates paint-server ids when multiple marks share one Shadow DOM", () => {
+    const mark = createBrandMark(document, BRAND_MARK_CONTENT, "execution-island");
+
+    expect(mark.querySelector("#execution-island-locator-gradient")).not.toBeNull();
+    expect(mark.querySelector("path")?.getAttribute("fill")).toBe(
+      "url(#execution-island-locator-gradient)",
+    );
+  });
 });

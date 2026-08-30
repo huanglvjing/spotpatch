@@ -2,8 +2,8 @@
 doc-id: "22-persistent-shell-motion-system"
 title: "持续 Shell 与灵动岛动效系统方案"
 status: "active"
-version: "1.0.0"
-last-updated: "2026-08-29"
+version: "1.1.0"
+last-updated: "2026-08-30"
 implementation-status: "implemented; automated-gates-passing; browser-visual-and-performance-validation-pending"
 source-range: "参考 Motion Demo；独立 Motion browser bundle、持续 Shell、多 Scene、真实 Agent 状态投影、性能、安全、无障碍与验收方案"
 参考文献/依赖:
@@ -29,7 +29,7 @@ source-range: "参考 Motion Demo；独立 Motion browser bundle、持续 Shell�
 Pill → Capturing → Planner → Agent Charging → Handoff → Running → Result → Planner/Pill
 ```
 
-截至 2026-08-29，本方案的第二版产品实现已完成。Runtime 保留默认右下角、自由拖拽、边缘吸附和 Session 位置恢复；Pill、Planner 与紧凑 Execution Island 共享同一个 `position: fixed` Shell。`execution-island.ts` 独立拥有紧凑执行内容、真实计时和活动切换，独立 `runtime-motion.js` browser bundle 注册 Motion 扩展，GSAP Core 只负责 Shell FLIP Morph、共享 Agent Core reveal、按钮至 Agent Card 的一次性光路和短命粒子。核心 Runtime 只负责把真实 Runtime、内置 `AgentJobSnapshot`、外部 `DispatchSummary` 与 Codex `managedPhase` 归一化为视觉投影。
+截至 2026-08-30，本方案的第三版产品实现已完成。Runtime 保留默认右下角、自由拖拽、边缘吸附和 Session 位置恢复；Pill、Planner 与 Execution Island 共享同一个 `position: fixed` Shell。`execution-island.ts` 复用现有 SpotPatch 矢量 Logo，以独立 SVG paint-server id 避免隐藏 Scene 抢占渐变引用，并拥有 62px Compact、真实计时、真实活动展开和可访问状态。独立 `runtime-motion.js` browser bundle 注册 Motion 扩展；GSAP Core 只负责可中断 Shell Geometry Morph、短时派发反馈和一次性 1px 品牌光扫。核心 Runtime 只负责把真实 Runtime、内置 `AgentJobSnapshot`、外部 `DispatchSummary` 与 Codex `managedPhase` 归一化为视觉投影。
 
 当前自动化类型、DOM、注入、状态回调和包体 Gate 已通过；真实受控 Chromium 的截图、触摸、200% 缩放与 Performance trace 仍是发布前 required Gate。未取得这些证据前，不得声称视觉和性能已在真实浏览器完成验收。
 
@@ -37,15 +37,16 @@ Pill → Capturing → Planner → Agent Charging → Handoff → Running → Re
 
 ## 2. 参考 Demo 审计
 
-本方案参考仓库根文档目录下的 `spotpatch_motion_system_reference (1).html`。该文件是非规范视觉参考，不是可直接复制的生产实现。
+本方案参考仓库文档目录下的 `spotpatch_apple_style_dynamic_island.html`。该文件是非规范视觉参考，不是可直接复制的生产实现。
 
 ### 2.1 可保留的设计语言
 
 - 外层 Shell 持续存在，内部 Scene 随信息密度变化；
-- Planner 发送前先给按钮、Agent Card 和方向光明确反馈；
+- Compact 以 62px 高度承载当前最重要的信息，并按 Receiving 430px、Handoff 448px、Running 468px、Checking 440px、Success 356px 的集中 Size Token 改变宽度；
+- Compact 与 Expanded 复用 Logo、标题、状态与同一个 Shell，看起来是同一实体；
 - 捕获使用紫色、就绪使用 Mint、派发使用紫蓝青方向光、错误使用低饱和红；
 - 大形态变化集中在唯一 Shell，微动画优先使用 `transform` 和 `opacity`；
-- 环境光、核心光纹和极少粒子形成三层反馈，不制造满屏霓虹；
+- Logo 只保留极弱品牌光，关键状态只播放一次细光扫，不制造 HUD 或持续霓虹；
 - `prefers-reduced-motion` 下保留信息，移除非必要位移和循环动画。
 
 ### 2.2 不得复制的 Demo 行为
@@ -69,7 +70,7 @@ Pill → Capturing → Planner → Agent Charging → Handoff → Running → Re
 4. **业务无等待**：动画不得延迟目标编辑、取消、复制、Apply、Revert 或错误展示。
 5. **可中断**：新业务状态、拖拽、Resize、Escape、HMR 和 dispose 都能确定性取消旧动画。
 6. **渐进增强**：Web Animations API 不可用或用户减少动画时，立即切换到最终 Scene。
-7. **有界装饰**：光纹、粒子、活动摘要和动画实例数量均有固定小上限。
+7. **有界装饰**：一次性光扫、活动摘要和动画实例数量均有固定小上限。
 8. **包体受控**：不以视觉升级为理由无条件放宽 Runtime 体积、安全或性能门禁。
 
 ## 4. 持续 Shell DOM 契约
@@ -81,7 +82,7 @@ spotpatch-root / ShadowRoot
 ├── selection-highlights
 ├── hover-highlight
 └── floating-surface                    # 唯一 fixed Shell
-    ├── surface-chrome                  # 背景、边框、Bloom、光纹
+    ├── surface-chrome                  # 背景、细边框与极弱静态品牌光
 ├── scene-pill                      # 标准 button
     ├── scene-capturing                 # 非阻塞状态
     ├── scene-planner                   # 现有 role=dialog 工作台
@@ -131,7 +132,7 @@ interface FloatingSurfaceMotionProjection {
 }
 ```
 
-该类型不进入 `@spotpatch/shared`、配置、网络协议或 Storage。`headline/action/meta` 必须由本地化消息或真实协议状态生成；`startedAt` 只接受真实 Job 快照时间，外部协议没有开始时间时显示小型状态而不是计时器。
+该类型不进入 `@spotpatch/shared`、配置、网络协议或 Storage。`headline/action/meta` 必须由本地化消息或真实协议状态生成；`startedAt` 优先使用真实 Job 快照时间。外部协议没有时间字段时，Runtime 记录真实请求开始或首次非终态观测的本地墙钟，仅作为 elapsed 起点，不伪造服务端进度。
 
 ### 5.2 Runtime 状态映射
 
@@ -160,7 +161,7 @@ interface FloatingSurfaceMotionProjection {
 | `reverted` | `success` | `REVERTED`；停留 1500ms 后收回 Pill |
 | `failed` | `failed` | 显示现有稳定错误文案；点击后返回 Planner 并保留详情 |
 
-点击 Run/Send 时 Runtime 仅暂存本次按钮与 Agent Card 的几何来源；只有真实 workspace health/probe/job 创建状态，或 active dispatch 事件出现后，才开始方向光和 Shell 收拢。请求在 Job/dispatch 创建前失败、取消或降级为 inbox 时必须留在 Planner 并展示真实错误，不能播放“Agent 已取件”。
+点击 Run/Send 时 Runtime 仅暂存本次按钮与目标 Agent Card；只有真实 workspace health/probe/job 创建状态，或 active dispatch 事件出现后，才开始短时按压反馈和 Shell 收拢。请求在 Job/dispatch 创建前失败、取消或降级为 inbox 时必须留在 Planner 并展示真实错误，不能播放“Agent 已取件”。
 
 ### 5.4 外部 Agent 交接映射
 
@@ -191,35 +192,36 @@ Codex managed 模式继续以 `managedPhase` 为更精确事实源：`preparing`
 ### 6.2 Planner → Agent Card → Handoff
 
 1. Run/Send Button 播放 100–220ms 按压反馈；
-2. 收到真实 Job/active dispatch 确认后，按钮压下并产生一条 1px 紫蓝青 SVG 光路；
+2. 收到真实 Job/active dispatch 确认后，按钮和目标 Agent Card 播放一次低强度局部反馈；
 3. 请求开始后保持 Planner 几何，并将 Scene 标记为 `agent-charging`；该状态只表示请求正在发出，不表示 Agent 已接受；
-4. 光路抵达时 Agent Card 执行一次 700–1100ms border sweep 与局部 radial glow；
-5. 收到真实 `queued/preparing/dispatched/working/managedPhase` 后先排队最新视觉投影，接收动画完成后 Shell 才通过一次可中断 FLIP 收拢；Agent identity 的矩形作为 Execution Agent Core 的 shared-element 起点；
-6. SVG core streak 与 5 个粒子在初始化时创建并复用；每次只读取一次按钮、目标 Agent Card 与 Shell 几何，不做逐帧布局计算。
+4. 收到真实 `queued/preparing/dispatched/working/managedPhase` 后只保留最新视觉投影，反馈完成后 Shell 通过一次可中断 FLIP 收拢；
+5. Execution Island 出现或真实阶段/活动改变时，底边播放一次 1px 紫→蓝→青光扫；不创建光路、粒子或 Agent Core。
 
-光路只在派发开始时读取按钮、Agent Card 与 Shell 各一次几何；`prefers-reduced-motion`、几何无效或目标不可见时跳过路径并直接显示真实状态。任何视觉反馈失败都不能回滚已经发生的业务请求。
+`prefers-reduced-motion`、页面 hidden、几何无效或目标不可见时跳过装饰并直接显示真实状态。任何视觉反馈失败都不能回滚已经发生的业务请求。
 
 ### 6.3 Running 与结果
 
-- Running Island 默认约 520–590px × 92px，只展示 Agent 身份、真实当前动作和计时/状态；
+- Running Island 默认是 468×62px 的 Compact；Receiving、Handoff、Checking 和 Success 分别使用 430、448、440 和 356px 的集中宽度 Token，窄视口统一钳制到 16px 安全边距；
 - 内置 Agent 的 elapsed timer 由真实 `AgentJobSnapshot.createdAt` 和墙钟计算，每秒更新；页面 hidden 时停止 interval，恢复后从墙钟校正；
-- activity lane 使用真实工具成功结果中的相对路径或检查 label；最近 2–3 条只在 hover 展开，不显示百分比；
+- 有真实活动时，点击 Compact 可 Morph 到 520×164px Expanded；Logo、主标题和状态仍使用同一 DOM，只切换真实 Expanded 文案并增加最近 3 条真实活动；
+- Compact ↔ Expanded 除 Shell 几何外，还对同一 Logo、文案区和右侧状态做局部 FLIP；详情层在展开后延迟 100ms 轻量揭示，收起时先淡出再隐藏，避免内容先跳到终点或瞬间消失；
 - 不循环伪造工具名称、文件路径、检查或日志；没有活动时只显示阶段；
 - 不显示 completion percentage；没有服务端开始时间时也不伪造计时器；
-- 用户点击 Running Island 可以返回 Planner 查看已有详细活动和取消入口；
+- Expanded 状态下再次点击 Running Island 可返回 Planner 查看完整活动和取消入口；Escape 只收回 Compact；
 - `awaiting-review/review-required/failed` 保持可检查；真正 terminal success 停留 1500ms 后视觉收回 Pill，计时不决定业务状态；
 - 关闭 Planner 只改变当前呈现，不取消或完成 Agent Job。
 
 ## 7. 几何与拖拽协调
 
-`floating-surface-controller.ts` 继续作为 Shell 位置的唯一写入者；它只写 `left/top` 并持久化归一化锚点。Scene CSS 决定最终宽度与圆角，Motion 在切换前后各读取一次 Shell 矩形，再以 `translate/scale` 做 FLIP，不写 `left/top`。
+`floating-surface-controller.ts` 继续作为 Shell 位置的唯一写入者；它只写 `left/top` 并持久化归一化锚点。Scene CSS 决定最终宽度与圆角，Motion 在切换前后各读取一次 Shell 矩形，并在短 Morph 内动画唯一 Shell 的 `width/height/x/y/border-radius`。CSS 的 `999px` 胶囊圆角在进入动画前会按当前可见宽高换算为有效半径，避免初次展开时从虚假的 999px 插值。Compact ↔ Expanded 额外读取三个共享内容锚点的局部位置，只动画 `transform`；普通 Agent 阶段变化不产生这组额外测量。不使用 `scaleX/scaleY` 拉伸内容和圆角，也不写 `left/top`。
 
 位置控制器负责：
 
 - 根据已提交归一化锚点计算最终 `left/top`；
 - 在唯一 Shell 上协调 `left/top`、视口钳制、边缘吸附与 Session 恢复；
 - Scene 改变、Planner 内容 Resize、VisualViewport 改变时重新钳制；
-- 用户 pointer 交互先取消当前 Motion，再以确定矩形开始 pointer capture；
+- Shell Morph 活跃时忽略由 Resize/内容更新触发的临时重定位，避免把动画中的宽高与 transform 当成最终尺寸；Morph 完成或被新投影中断后，再以最终 CSS 几何做一次确定性 reconcile；
+- 普通 pointer 点击由可中断 Motion 从当前可见几何继续；只有移动超过拖拽阈值、真正开始拖动时才取消当前 Motion，再由位置控制器接管；
 - 拖拽期间暂停大形态 Morph，只更新位置；
 - 释放后完成吸附，再允许下一次 Scene Morph；
 - 窄视口按既有底部工作台规则降级，不把 Demo 的居中大面板尺寸复制到移动端。
@@ -232,9 +234,9 @@ Motion 不直接写 `left/top`，位置控制器不切换 Scene 内容。运行�
 
 - `gsap@3.15.0` 使用精确版本并由 pnpm lockfile 固定，不使用 CDN；
 - `runtime-motion.js` 是独立开发期 browser bundle，GSAP 不进入 `runtime-client.js`；
-- GSAP 只控制 Shell/Scene 的 `transform`、`opacity`、信号路径和短时卡片反馈；浮动控制器仍唯一写入 `left/top`；
-- CSS 负责环境光、运行呼吸和视觉 token；同一属性不由 CSS 与 GSAP 同时驱动；
-- 不注册 Flip/MotionPath 等插件：当前单 Shell FLIP 与一次性信号不需要额外插件；
+- GSAP 只在短 Morph 内控制 Shell 的 `width/height/x/y/border-radius`，并控制 Scene `opacity`、一次性光扫和短时派发反馈；浮动控制器仍唯一写入 `left/top`；
+- CSS 负责静态表面、文字切换、状态点呼吸和视觉 token；同一属性不由 CSS 与 GSAP 同时驱动；
+- 不注册 Flip/MotionPath 等插件：当前单 Shell FLIP 不需要额外插件；
 - 新状态或拖拽会 kill 旧 timeline/tween 并立即应用最新最终 Scene。
 
 ### 8.2 未采用方案
@@ -243,10 +245,10 @@ Motion 不直接写 `left/top`，位置控制器不切换 Scene 内容。运行�
 | --- | --- | --- |
 | GSAP Core | 采用，独立 bundle | Timeline 适合连续 Scene 编排；精确锁定；本地打包；不污染核心 Runtime |
 | Framer Motion / Motion React | 不进入 Runtime | Runtime 不是 React；不允许两个系统控制同一 Shell transform |
-| Web Animations API | 不采用 | 参考流程包含连续 timeline、路径和粒子编排；GSAP Core 已提供统一取消与收口 |
+| Web Animations API | 不采用 | 项目已存在隔离且可取消的 GSAP Core Motion 体系；继续复用可避免并行动画所有权 |
 | 新建自有 Timeline 引擎 | 禁止 | 会重复调度、插值、取消和资源清理能力 |
 
-生产预算实测：`runtime-client.js` gzip 47,392 B，`runtime-motion.js` gzip 34,057 B（macOS Node 26、gzip level 9）。完整执行岛 renderer 已从核心 Runtime 隔离到 Motion bundle；核心保留无 Motion 的即时文本降级。对应门禁为 48 KiB 与 35 KiB，均只为当前实测保留有限跨平台余量；不得将 GSAP 合并进核心 Runtime，也不得在没有再次测量与隔离评估的情况下继续提高预算。
+生产预算实测：`runtime-client.js` gzip 48,307 B，`runtime-motion.js` gzip 35,368 B（macOS Node 26、gzip level 9）。完整执行岛 renderer 已从核心 Runtime 隔离到 Motion bundle；核心保留无 Motion 的即时文本降级。对应门禁为 48 KiB 与 35 KiB，均只为当前实测保留有限跨平台余量；不得将 GSAP 合并进核心 Runtime，也不得在没有再次测量与隔离评估的情况下继续提高预算。
 
 ## 9. Motion Token 与视觉约束
 
@@ -254,20 +256,21 @@ Motion 不直接写 `left/top`，位置控制器不切换 Scene 内容。运行�
 
 | 令牌族 | 初始校准范围 | 用途 |
 | --- | --- | --- |
-| press | 100–220ms | hover/press 与按钮回弹 |
-| copy | 180–320ms | 文案和状态替换 |
-| reveal | 260–420ms | Scene 内容揭示 |
-| morph | 520–780ms | Shell 大形态变化 |
+| press | 120ms | 按钮短反馈 |
+| copy | 220ms | 文案和状态替换 |
+| reveal | 260ms | Scene 内容揭示 |
+| morph | 480ms | Shell 与 Compact/Expanded 形态变化 |
+| sweep | 680ms | 关键状态的一次性 1px 光扫 |
 | result-hold | 1200–1800ms | 有限结果确认；不得控制业务状态 |
 
 范围不是可直接散落到代码的常量。实施时需在 `ui-constants.ts` 或单一 motion token 模块选定值，CSS 和 TypeScript 通过同一配置消费；测试断言语义和最终结果，不复制毫秒值。
 
 视觉限制：
 
-- Bloom 最多两个低透明度层；
-- Core streak 最多一条双描边 SVG 路径；
-- 粒子最多 5 个，DOM 初始化后复用；
-- 常驻光纹最多 4 条，页面失焦或 reduced motion 时暂停；
+- 表面只允许极弱、静态的品牌径向光；
+- Logo 使用现有 22px 矢量标识，不附加外层图标 Card；
+- 状态点只以 `transform + opacity` 做低强度呼吸；
+- 关键状态最多播放一条 1px 一次性光扫，页面 hidden 或 reduced motion 时跳过；
 - `will-change` 只在动画开始前设置于 Shell/活动元素，结束或取消立即清除；
 - blur/filter 仅用于短 Scene 切换或短 Agent Card 反馈，不长期动画 Planner 正文；
 - Veil 若保留，只动画 opacity；`backdrop-filter` 使用固定值且不得遮断宿主页面操作语义。
@@ -277,34 +280,33 @@ Motion 不直接写 `left/top`，位置控制器不切换 Scene 内容。运行�
 Motion Controller 维护最多一条 Morph timeline 与一条 Dispatch timeline。派发期间到达的真实 Handoff/Running 投影只保留最新一份，接收动画完成后再应用；快速重复 Send 在已有 Dispatch timeline 活跃时直接忽略，不生成第二条 timeline。每次普通新投影：
 
 1. kill 旧 timeline 与所有受控 tween；
-2. 清理旧 Scene 的临时 class、`will-change` 和粒子状态；
+2. 清理旧 Scene 的临时 class、`will-change` 和光扫状态；
 3. 应用最新目标 Scene 与最终几何；
-4. 从旧矩形到新矩形执行一次 Shell FLIP，并揭示活动 Scene。
+4. 从当前屏幕几何到新矩形执行一次可中断 Geometry Morph，并揭示活动 Scene；中断时先捕获当前可见宽高、位置和圆角，不跳回旧终点。
 
-以下事件必须使旧动画失效：Runtime 状态变化、Agent 新快照、外部交接新状态、拖拽/用户 pointer 交互、HMR dispose。timeline 的 `onComplete` 只清理装饰层，不改变业务状态，因此迟到回调不能覆盖新 Scene。
+以下事件必须使旧动画失效：Runtime 状态变化、Agent 新快照、外部交接新状态、真实拖拽开始、HMR dispose。普通点击不提前清空动画，而由随后发生的 Scene/Layout 更新捕获当前可见几何并连续接管。timeline 的 `onComplete` 只清理装饰层，不改变业务状态，因此迟到回调不能覆盖新 Scene。
 
-页面 `visibilitychange` 为 hidden 时暂停装饰性无限动画；有限业务状态转换可以直接完成到最终样式。恢复可见后只恢复当前 Scene 的环境反馈，不重播已发生的派发或成功动画。
+页面 `visibilitychange` 为 hidden 时暂停状态点呼吸并停止计时 interval；有限业务状态转换可以直接完成到最终样式。恢复可见后按墙钟校正计时，不重播已发生的派发或成功光扫。
 
 ## 11. 性能预算
 
-- Shell 大 Morph 可以动画唯一 Shell 的几何；其他元素只动画 transform/opacity/颜色；
+- Shell 大 Morph 可以短时动画唯一 Shell 的宽高、位置与圆角；其他元素只动画 transform/opacity/颜色；
 - 每个状态变更最多一组布局读取、一组批量写入，读写不能交错循环；
-- Button→Agent Card 路径只在真实派发反馈开始时计算一次；不在每帧调用 `getBoundingClientRect()`；
+- 每次形态切换只在内容更新前后各读取一次 Shell 矩形；不在每帧调用 `getBoundingClientRect()`；
 - Planner 内容使用单个 `ResizeObserver` 或现有统一 view-change 调度，单帧最多协调一次；
-- 禁止 JS interval、requestAnimationFrame 粒子循环和手写贝塞尔逐帧求值；
+- 除 1 秒一次的真实 elapsed timer 外，禁止 JS interval、requestAnimationFrame 装饰循环和手写逐帧插值；
 - 目标 scroll/ResizeObserver 只更新目标高亮，不测量 Motion Shell；
 - dispose 后 Animation、ResizeObserver、MediaQuery 和 visibility listener 全部为零；
 - Runtime gzip 继续受生产预算测试约束。新增视觉代码必须先尝试压缩结构、复用 CSS 和按需隔离，不能只提高阈值；任何预算调整需要独立测量和说明。
 
-真实 Chromium 验收必须记录至少一次：Scene Morph、派发路径和 Running 状态期间的 Layout、Paint、Long Task 与内存。肉眼流畅不能替代 Performance trace。
+真实 Chromium 验收必须记录至少一次：Scene Morph、Compact/Expanded 和 Running 状态期间的 Layout、Paint、Long Task 与内存。肉眼流畅不能替代 Performance trace。
 
 ## 12. 安全与隐私
 
 - 不加载 CDN、远程字体、远程图片、动画配置或脚本；
 - 不使用 `innerHTML` 拼接状态、Agent 活动、组件名、路径或错误；
 - Motion 只消费已本地化的固定状态和现有清洗后的有界活动摘要；
-- SVG path 只写入内部计算且通过有限数校验/视口钳制的坐标，不接受用户字符串；
-- 粒子、光纹和 `data-*` 不携带 Prompt、源码、目标说明、凭据、URL、模型真实地址或 Agent 输出；
+- 光扫和 `data-*` 不携带 Prompt、源码、目标说明、凭据、URL、模型真实地址或 Agent 输出；
 - 不新增 Storage 字段、网络请求、协议状态或权限；
 - Shadow Root style 继续继承唯一有效 CSP nonce；
 - Motion 错误只降级为即时 Scene，不进入 Agent 错误码，也不能吞掉真实业务错误。
@@ -316,7 +318,7 @@ Motion Controller 维护最多一条 Morph timeline 与一条 Dispatch timeline�
 - Planner 保持现有 `role="dialog"`、标题关联、焦点管理和原生表单；
 - Scene 过渡开始时立即从非活动 Scene 移除焦点和交互，避免透明控件可点击；
 - Planner 展开完成后再执行视觉焦点收口；reduced motion 路径立即完成；
-- Running Island 必须提供可读的“查看执行详情”操作，取消仍在 Planner 中使用现有真实按钮；
+- Running Island 是原生按钮，并以 `aria-expanded` 表达 Compact/Expanded；取消仍在 Planner 中使用现有真实按钮；
 - 状态不能只靠紫/Mint/红区分，必须同时提供文本；
 - 200% 缩放、触摸、键盘、屏幕阅读器和高对比度模式均为 required 验收。
 
@@ -327,9 +329,9 @@ Motion Controller 维护最多一条 Morph timeline 与一条 Dispatch timeline�
 | 窄视口 | Planner 使用既有底部受限布局；Pill/Execution Island 保持安全边距，不复制 Demo 的 930px 居中尺寸 |
 | 工作台内容过高 | Shell 高度钳制；正文内部滚动；标题、关闭和主操作可见 |
 | Motion 扩展未注册或 GSAP 不可用 | 核心 Runtime fallback 立即设置最终 Scene/几何，核心功能完整 |
-| `prefers-reduced-motion: reduce` | 无 Morph、粒子、扫描、呼吸或 blur；即时切换并保留文字状态 |
+| `prefers-reduced-motion: reduce` | 无 Morph、光扫、呼吸或 blur；即时切换并保留文字状态 |
 | 页面 hidden | 暂停装饰动画；有限状态切换直接收口 |
-| 路径几何无效 | 跳过方向光，显示真实状态 |
+| 几何无效 | 跳过 FLIP，直接显示真实状态 |
 | 动画中 Resize/缩放 | 取消旧 generation，基于新视口应用最新 Scene |
 | 动画中拖拽 | 几何控制器接管；Motion 收口后等待释放 |
 
@@ -341,7 +343,7 @@ Motion Controller 维护最多一条 Morph timeline 与一条 Dispatch timeline�
 packages/runtime/src/ui/
 ├── floating-surface-position.ts          # 已实现：纯位置与吸附
 ├── floating-surface-controller.ts        # 扩展：唯一 Shell 几何、拖拽、Resize 协调
-├── execution-island.ts                   # 紧凑内容、真实 timer、activity lane 与清理
+├── execution-island.ts                   # Compact/Expanded、真实 Logo、timer、活动与清理
 ├── execution-island.test.ts
 ├── motion-extension-contract.ts          # 核心：投影/元素/控制器契约与全局注册
 ├── motion-controller.ts                  # 独立入口使用：GSAP/CSS 编排和生命周期
@@ -380,9 +382,10 @@ packages/vite/dist/runtime-motion.js       # 独立 browser 产物
 - 新 generation 取消旧 Animation，迟到 Promise 不覆盖新状态；
 - reduced motion/无 WAAPI 时即时收口；
 - Scene 的 `hidden/inert/aria-hidden/pointer-events` 与焦点一致；
-- 派发路径无效时跳过、有效时粒子数量不超过上限；
-- 快速重复派发不增加 timeline、SVG layer 或粒子；派发期间只应用最后一个真实状态投影；
-- timer 只在 running 且存在真实 `startedAt` 时启动，hidden/dispose 后清理；
+- 几何无效时跳过 FLIP；快速重复派发不增加 timeline 或装饰层；
+- 派发期间只应用最后一个真实状态投影；一次真实阶段变化最多触发一次光扫；
+- Compact/Expanded 复用同一 Logo、标题、状态和 Shell，并只展示真实活动；
+- timer 只在 running 且存在 Job 快照时间或真实本地观测起点时启动，hidden/dispose 后清理；
 - 页面 hidden 暂停装饰、visible 只恢复当前 Scene；
 - dispose 后无 Animation、Observer 和 listener；
 - Motion 不调用 Agent API、不写 Storage、不改变 Runtime 业务状态。
@@ -399,7 +402,7 @@ packages/vite/dist/runtime-motion.js       # 独立 browser 产物
 
 ### 16.4 Chromium 与性能验收
 
-- Pill→Capturing→Planner、Planner→Agent Card→Handoff→Running→Result 关键截图；
+- Pill→Capturing→Planner、Handoff→Running→Result、Compact↔Expanded 关键截图；
 - 右下、左上、自由位置和边缘吸附下 Morph 均不越界；
 - 桌面、窄视口、触摸、200% 缩放、动态视口和 reduced motion；
 - 中文、英文、长组件名、长路径、长错误和真实活动摘要；
@@ -419,8 +422,8 @@ packages/vite/dist/runtime-motion.js       # 独立 browser 产物
 | P1 纯视觉投影 | 已完成 | `runtime-view.ts` 显式映射 Runtime、内置 Agent、外部 dispatch 与 Codex managed phase；无协议扩展或伪进度 |
 | P2 持续 Shell | 已完成 | `spotpatch-floating-surface` 是唯一 fixed Shell；拖拽控制器只注册该 Shell；Runtime View 测试覆盖场景复用和可访问性 |
 | P3 有限 Motion | 已完成 | 独立 GSAP Core bundle、可中断 FLIP、reduced-motion、visibility 和 dispose 清理已完成 |
-| P4 真实 Agent 动效 | 已完成 | Run/Send 光路、五个复用粒子、Agent Card 充能、独立 Execution Island 及 managedPhase 已接入 |
-| P5 全量验收 | 进行中 | 全仓 lint、typecheck、753 项单测、build、production leakage、publint 与 attw 均通过；真实 Chromium 截图、触摸、缩放与 Performance trace 待补 |
+| P4 真实 Agent 动效 | 已完成 | Run/Send 短反馈、一次性光扫、真实 Logo、Compact/Expanded、真实活动及 managedPhase 已接入 |
+| P5 全量验收 | 进行中 | 全仓 lint、typecheck、762 项单测（另 2 项按既有条件跳过）、build、bundle budget 与 production leakage 均通过；真实 Chromium 截图、触摸、缩放与 Performance trace 待补 |
 
 ### P0：规范与基线
 
@@ -454,7 +457,7 @@ Gate：没有自有逐帧引擎、无未释放 timeline/listener、Motion 不改
 
 ### P4：真实 Agent 动效
 
-- 接入 Run/Send 按压、真实派发后的方向光、Agent Card、Handoff/Running/Result；
+- 接入 Run/Send 按压、真实派发后的短反馈、Handoff/Running/Result 与 Compact/Expanded；
 - 内置 Agent 与外部 Agent 统一视觉投影；
 - 删除被替代的基础双表面动画、重复 CSS 和旧断言。
 
@@ -483,7 +486,7 @@ Gate：全部 required checks 通过；没有未解释 skip、死代码、重复
 | Agent 阶段 | 只由真实快照/交接状态驱动 |
 | 进度 | 无真实百分比就只显示阶段 |
 | 结果 | 返回 Planner 并保留结果，不自动清空 |
-| 装饰 | 最多 2 Bloom、1 路径、5 粒子、4 光纹 |
+| 装饰 | 极弱静态品牌光、状态点呼吸、关键状态一次性 1px 光扫 |
 | 安全 | 无远程资源、无新网络/Storage/权限、无用户 HTML 注入 |
 | 降级 | reduced motion 或 Motion 扩展不可用时即时切换 |
 | 实施状态 | 代码已实现；自动化与真实 Chromium 视觉/性能验收尚未全部完成 |

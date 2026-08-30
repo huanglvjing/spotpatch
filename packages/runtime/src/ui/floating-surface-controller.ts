@@ -20,6 +20,7 @@ export interface FloatingSurfaceLayout {
 
 export interface FloatingSurfaceDraggableOptions {
   readonly canStartDrag?: (event: PointerEvent) => boolean;
+  readonly onDragStart?: () => void;
   readonly suppressClickOnDrag?: boolean;
 }
 
@@ -41,6 +42,7 @@ interface DragState {
   readonly anchorOffsetX: number;
   readonly anchorOffsetY: number;
   readonly handle: HTMLElement;
+  readonly onDragStart?: () => void;
   readonly pointerId: number;
   readonly suppressClickOnDrag: boolean;
   readonly startX: number;
@@ -133,6 +135,13 @@ export function createFloatingSurfaceController(
 
   function apply(surface: HTMLElement): FloatingSurfaceRect | undefined {
     if (surface.hidden) {
+      return undefined;
+    }
+
+    if (
+      surface.dataset.motionMorphing === "true" &&
+      surface.dataset.floatingPositioned === "true"
+    ) {
       return undefined;
     }
 
@@ -241,6 +250,9 @@ export function createFloatingSurfaceController(
       return;
     }
 
+    if (current.handle.dataset.dragging !== "true") {
+      current.onDragStart?.();
+    }
     current.handle.dataset.dragging = "true";
     current.surface.dataset.dragging = "true";
     position = positionFromAnchor(
@@ -291,6 +303,9 @@ export function createFloatingSurfaceController(
         anchorOffsetX: anchorX - event.clientX,
         anchorOffsetY: anchorY - event.clientY,
         handle,
+        ...(options.onDragStart === undefined
+          ? {}
+          : { onDragStart: options.onDragStart }),
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,

@@ -73,6 +73,39 @@ describe("floating surface controller", () => {
     trigger.remove();
   });
 
+  it("does not reposition from transient geometry while a surface is morphing", () => {
+    const session = createSession();
+    const controller = createFloatingSurfaceController(
+      window,
+      session,
+      FLOATING_SURFACE_LAYOUT,
+    );
+    const surface = document.createElement("section");
+    let currentRect = rect(160, 44);
+    vi.spyOn(surface, "getBoundingClientRect").mockImplementation(() => currentRect);
+    document.body.append(surface);
+    controller.registerSurface(surface);
+    controller.reconcile();
+
+    expect(surface.style.left).toBe("840px");
+    expect(surface.style.top).toBe("700px");
+
+    surface.dataset.motionMorphing = "true";
+    currentRect = rect(520, 164);
+    controller.reconcile();
+
+    expect(surface.style.left).toBe("840px");
+    expect(surface.style.top).toBe("700px");
+
+    delete surface.dataset.motionMorphing;
+    controller.reconcile();
+
+    expect(surface.style.left).toBe("480px");
+    expect(surface.style.top).toBe("580px");
+    controller.dispose();
+    surface.remove();
+  });
+
   it("commits a dragged position, snaps it to an edge, and suppresses the drag click", () => {
     const session = createSession();
     const controller = createFloatingSurfaceController(
@@ -82,14 +115,21 @@ describe("floating surface controller", () => {
     );
     const surface = document.createElement("button");
     const onClick = vi.fn();
+    const onDragStart = vi.fn();
     vi.spyOn(surface, "getBoundingClientRect").mockReturnValue(rect(160, 44));
     surface.addEventListener("click", onClick);
     document.body.append(surface);
     controller.registerSurface(surface);
-    controller.attachDraggable(surface, surface, { suppressClickOnDrag: true });
+    controller.attachDraggable(surface, surface, {
+      onDragStart,
+      suppressClickOnDrag: true,
+    });
     controller.reconcile();
 
     surface.dispatchEvent(pointerEvent("pointerdown", 900, 720));
+    expect(onDragStart).not.toHaveBeenCalled();
+    window.dispatchEvent(pointerEvent("pointermove", 100, 100));
+    expect(onDragStart).toHaveBeenCalledOnce();
     window.dispatchEvent(pointerEvent("pointermove", 100, 100));
     window.dispatchEvent(pointerEvent("pointerup", 100, 100));
     surface.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -98,6 +138,7 @@ describe("floating surface controller", () => {
     expect(surface.style.left).toBe("24px");
     expect(surface.style.top).toBe("80px");
     expect(onClick).not.toHaveBeenCalled();
+    expect(onDragStart).toHaveBeenCalledOnce();
 
     controller.reset();
 

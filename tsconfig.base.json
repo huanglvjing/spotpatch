@@ -46,6 +46,7 @@
       "@spotpatch/runtime/external-handoff-panel": [
         "packages/runtime/src/external-handoff-panel-entry.ts"
       ],
+      "@spotpatch/runtime/motion": ["packages/runtime/src/motion-entry.ts"],
       "@spotpatch/vite": ["packages/vite/src/index.ts"]
     }
   }

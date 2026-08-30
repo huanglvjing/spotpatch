@@ -50,8 +50,35 @@ function svgElement<K extends keyof SVGElementTagNameMap>(
   return element;
 }
 
+function namespaceSvgIds(svg: SVGSVGElement, prefix: string): void {
+  const safePrefix = prefix.replace(/[^a-zA-Z0-9_-]/gu, "-");
+  const ids = new Map<string, string>();
+
+  for (const element of svg.querySelectorAll("[id]")) {
+    const id = element.id;
+    const namespacedId = `${safePrefix}-${id}`;
+    ids.set(id, namespacedId);
+    element.id = namespacedId;
+  }
+
+  for (const element of [svg, ...svg.querySelectorAll("*")]) {
+    for (const attribute of [...element.attributes]) {
+      let value = attribute.value;
+      for (const [id, namespacedId] of ids) {
+        value = value.replaceAll(`url(#${id})`, `url(#${namespacedId})`);
+        if (value === `#${id}`) value = `#${namespacedId}`;
+      }
+      if (value !== attribute.value) element.setAttribute(attribute.name, value);
+    }
+  }
+}
+
 /** Vector form of docs/assets/spotpatch-logo-mark.svg; safe to inline in Shadow DOM. */
-export function createBrandMark(document: Document, content?: string): SVGSVGElement {
+export function createBrandMark(
+  document: Document,
+  content?: string,
+  idPrefix?: string,
+): SVGSVGElement {
   const resolved = resolveBrandMarkContent(content);
   const svg = svgElement(document, "svg", {
     xmlns: SVG_NAMESPACE,
@@ -61,5 +88,6 @@ export function createBrandMark(document: Document, content?: string): SVGSVGEle
     focusable: "false",
   });
   svg.innerHTML = resolved.content;
+  if (idPrefix !== undefined) namespaceSvgIds(svg, idPrefix);
   return svg;
 }

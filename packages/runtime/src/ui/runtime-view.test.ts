@@ -10,6 +10,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createRuntimeView } from "./runtime-view.js";
 import { installDataFlowPanelExtension } from "../data-flow-panel-entry.js";
+import { createExecutionIsland } from "./execution-island.js";
+import {
+  registerFloatingSurfaceMotionExtension,
+  type FloatingSurfaceMotionController,
+  type FloatingSurfaceMotionExtension,
+} from "./motion-extension-contract.js";
 import { UI_MARKER_ATTRIBUTE } from "./ui-constants.js";
 
 function measuredRect(width: number, height: number): DOMRect {
@@ -48,6 +54,7 @@ const trustedFastAiConfig = Object.freeze({
 
 afterEach(() => {
   vi.restoreAllMocks();
+  Reflect.deleteProperty(globalThis, Symbol.for("spotpatch.motion.v1"));
   document.querySelectorAll("spotpatch-root").forEach((host) => {
     host.remove();
   });
@@ -161,9 +168,13 @@ describe("runtime view", () => {
     expect(surface.dataset.scene).toBe("handoff");
     expect(surface.dataset.tone).toBe("running");
     expect(execution.hidden).toBe(false);
-    expect(execution.textContent).toContain("Trusted Relay is receiving context");
+    expect(execution.textContent).toContain("Handing off to Trusted Relay");
     expect(execution.textContent).not.toContain("Coding Model");
-    expect(execution.textContent).toContain("Preparing the requested change.");
+    expect(execution.textContent).not.toContain("Preparing the requested change.");
+    expect(execution.querySelector(".spotpatch-execution-logo path")).not.toBeNull();
+    expect(
+      execution.querySelector("#spotpatch-fallback-execution-island-locator-gradient"),
+    ).not.toBeNull();
 
     view.renderAgentJob(
       {
@@ -214,6 +225,85 @@ describe("runtime view", () => {
     );
 
     expect(surface?.dataset.scene).toBe("planner");
+  });
+
+  it("captures the expanded geometry before returning execution to the planner", () => {
+    const expandedAtPlannerTransition: boolean[] = [];
+    const extension: FloatingSurfaceMotionExtension = {
+      createExecutionIsland,
+      createStyles(currentDocument) {
+        return currentDocument.createElement("style");
+      },
+      createController(_document, elements, reconcile) {
+        const controller: FloatingSurfaceMotionController = {
+          cancel: () => undefined,
+          dispatch: () => undefined,
+          dispose: () => undefined,
+          render(projection, renderContent) {
+            if (projection.scene === "planner") {
+              expandedAtPlannerTransition.push(
+                elements.execution.root.dataset.expanded === "true",
+              );
+            }
+            renderContent();
+            const pillActive =
+              projection.scene === "pill" || projection.scene === "capturing";
+            const plannerActive = projection.scene === "planner";
+            elements.pill.hidden = !pillActive;
+            elements.planner.hidden = !plannerActive;
+            elements.execution.root.hidden = pillActive || plannerActive;
+            elements.surface.dataset.scene = projection.scene;
+            reconcile();
+          },
+          updateLayout(updateContent) {
+            updateContent();
+            reconcile();
+          },
+        };
+        return Object.freeze(controller);
+      },
+    };
+    registerFloatingSurfaceMotionExtension(Object.freeze(extension));
+    const view = createRuntimeView(document, "Mod+Shift+S", aiConfig);
+    view.renderStatus("selected");
+    view.showSelection("Browser context: ready", true, true);
+    view.renderAgentJob(
+      {
+        jobId: "0123456789abcdefghijklmn",
+        status: "running",
+        providerProfileId: "relay",
+        providerLabel: "Trusted Relay",
+        modelProfileId: "coder",
+        modelLabel: "Coding Model",
+        phaseMessage: "Applying the requested change.",
+        createdAt: "2026-08-29T00:00:00.000Z",
+        updatedAt: "2026-08-29T00:00:01.000Z",
+        canCancel: true,
+        canApply: false,
+        canRevert: false,
+      },
+      undefined,
+      [
+        {
+          detail: "src/fixtures.tsx",
+          key: "read:fixtures",
+          kind: "read",
+          label: "Read src/fixtures.tsx",
+          state: "success",
+        },
+      ],
+    );
+    const execution = view.host.shadowRoot?.querySelector<HTMLButtonElement>(
+      ".spotpatch-execution-island",
+    );
+
+    execution?.click();
+    expect(execution?.getAttribute("aria-expanded")).toBe("true");
+    execution?.click();
+
+    expect(expandedAtPlannerTransition.at(-1)).toBe(true);
+    expect(execution?.getAttribute("aria-expanded")).toBe("false");
+    view.dispose();
   });
 
   it("maps every built-in Agent status without inventing progress", () => {

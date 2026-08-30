@@ -7,7 +7,7 @@ import {
 } from "@spotpatch/shared";
 
 import type { SelectionSummaryMessages } from "./selection-summary.js";
-import type { ExecutionActivityKind } from "./execution-island.js";
+import type { ExecutionActivityKind } from "./motion-extension-contract.js";
 
 export interface UiMessages {
   readonly localeName: string;
@@ -125,12 +125,21 @@ export interface UiMessages {
   readonly execution: Readonly<{
     claude: string;
     codex: string;
-    receivingTitle: (identity: string) => string;
-    runningTitle: (identity: string) => string;
-    completedTitle: (identity: string) => string;
-    failedTitle: (identity: string) => string;
-    resultReturned: string;
+    receivingTitle: string;
+    dispatchingTitle: (identity: string) => string;
+    runningTitle: (target: string) => string;
+    expandedRunningTitle: (identity: string) => string;
+    completedTitle: string;
+    expandedCompletedTitle: string;
+    failedTitle: string;
+    receivingStatus: string;
+    dispatchingStatus: string;
     runningStatus: string;
+    checkingStatus: string;
+    completedStatus: string;
+    failedStatus: string;
+    resultReturned: string;
+    resultSummary: (files: number) => string;
     activityAction: (kind: ExecutionActivityKind, detail?: string) => string;
     activityLane: (kind: ExecutionActivityKind, detail?: string) => string;
   }>;
@@ -607,12 +616,22 @@ export const UI_MESSAGES = Object.freeze({
     execution: Object.freeze({
       claude: "Claude",
       codex: "Codex",
-      receivingTitle: (identity: string) => `${identity} is receiving context`,
-      runningTitle: (identity: string) => `${identity} is modifying code`,
-      completedTitle: (identity: string) => `${identity} finished the change`,
-      failedTitle: (identity: string) => `${identity} stopped`,
-      resultReturned: "The result is back in SpotPatch",
+      receivingTitle: "Receiving context",
+      dispatchingTitle: (identity: string) => `Handing off to ${identity}`,
+      runningTitle: (target: string) => `Modifying ${target}`,
+      expandedRunningTitle: (identity: string) => `${identity} is making changes`,
+      completedTitle: "Change complete",
+      expandedCompletedTitle: "Changes complete",
+      failedTitle: "Execution failed",
+      receivingStatus: "Receiving",
+      dispatchingStatus: "Dispatching",
       runningStatus: "Running",
+      checkingStatus: "Checking",
+      completedStatus: "Done",
+      failedStatus: "Failed",
+      resultReturned: "The result is back in SpotPatch",
+      resultSummary: (files: number) =>
+        `${String(files)} ${files === 1 ? "file" : "files"}`,
       activityAction: (kind: ExecutionActivityKind, detail?: string) =>
         executionActivityAction(EXECUTION_ACTIVITY_EN, kind, detail),
       activityLane: executionActivityLane,
@@ -779,12 +798,21 @@ export const UI_MESSAGES = Object.freeze({
     execution: Object.freeze({
       claude: "Claude",
       codex: "Codex",
-      receivingTitle: (identity: string) => `${identity} 正在接收上下文`,
-      runningTitle: (identity: string) => `${identity} 正在执行修改`,
-      completedTitle: (identity: string) => `${identity} 修改完成`,
-      failedTitle: (identity: string) => `${identity} 执行失败`,
-      resultReturned: "结果已回流 SpotPatch",
+      receivingTitle: "正在接收上下文",
+      dispatchingTitle: (identity: string) => `正在交接给 ${identity}`,
+      runningTitle: (target: string) => `正在修改 ${target}`,
+      expandedRunningTitle: (identity: string) => `${identity} 正在执行修改`,
+      completedTitle: "修改完成",
+      expandedCompletedTitle: "修改已完成",
+      failedTitle: "执行失败",
+      receivingStatus: "接收中",
+      dispatchingStatus: "派发中",
       runningStatus: "执行中",
+      checkingStatus: "检查中",
+      completedStatus: "完成",
+      failedStatus: "失败",
+      resultReturned: "结果已回流 SpotPatch",
+      resultSummary: (files: number) => `${String(files)} 个文件`,
       activityAction: (kind: ExecutionActivityKind, detail?: string) =>
         executionActivityAction(EXECUTION_ACTIVITY_ZH, kind, detail),
       activityLane: executionActivityLane,

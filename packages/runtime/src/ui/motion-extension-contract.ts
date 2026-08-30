@@ -11,8 +11,23 @@ export type FloatingSurfaceScene =
 export type FloatingSurfaceTone =
   "neutral" | "capturing" | "ready" | "running" | "success" | "danger";
 
+export type ExecutionActivityKind =
+  | "prepare"
+  | "dispatch"
+  | "discover"
+  | "search"
+  | "read"
+  | "patch"
+  | "check"
+  | "audit"
+  | "apply"
+  | "sync"
+  | "unknown";
+
 export interface FloatingSurfaceActivity {
+  readonly detail?: string;
   readonly key: string;
+  readonly kind: ExecutionActivityKind;
   readonly label: string;
   readonly state: "active" | "success" | "failure" | "info";
 }
@@ -20,6 +35,8 @@ export interface FloatingSurfaceActivity {
 export interface FloatingSurfaceProjection {
   readonly action: string;
   readonly activity?: FloatingSurfaceActivity;
+  readonly expandedAction?: string;
+  readonly expandedHeadline?: string;
   readonly headline: string;
   readonly meta: string;
   readonly recentActivities: readonly FloatingSurfaceActivity[];
@@ -30,21 +47,29 @@ export interface FloatingSurfaceProjection {
 
 export interface ExecutionIslandElements {
   readonly action: HTMLElement;
-  readonly activityLane: HTMLElement;
-  readonly activityLabel: HTMLElement;
-  readonly core: HTMLElement;
+  readonly actionOutgoing: HTMLElement;
+  readonly content: HTMLElement;
   readonly headline: HTMLElement;
+  readonly headlineOutgoing: HTMLElement;
+  readonly logo: SVGSVGElement;
+  readonly mark: HTMLElement;
   readonly meta: HTMLElement;
+  readonly metaDot: HTMLElement;
+  readonly metaLabel: HTMLElement;
+  readonly more: HTMLElement;
   readonly recent: HTMLElement;
   readonly root: HTMLButtonElement;
-  readonly streak: HTMLElement;
+  readonly sweep: HTMLElement;
   readonly timer: HTMLElement;
 }
 
 export interface ExecutionIslandView {
+  readonly canExpand: () => boolean;
   readonly dispose: () => void;
+  readonly isExpanded: () => boolean;
   readonly render: (projection: FloatingSurfaceProjection) => void;
   readonly root: HTMLButtonElement;
+  readonly setExpanded: (expanded: boolean) => void;
 }
 
 export interface MotionExecutionIsland extends ExecutionIslandView {
@@ -62,7 +87,11 @@ export interface FloatingSurfaceMotionController {
   readonly cancel: () => void;
   readonly dispatch: (source: HTMLElement, target: HTMLElement) => void;
   readonly dispose: () => void;
-  readonly render: (projection: FloatingSurfaceProjection) => void;
+  readonly render: (
+    projection: FloatingSurfaceProjection,
+    renderContent: () => void,
+  ) => void;
+  readonly updateLayout: (updateContent: () => void) => void;
 }
 
 export interface FloatingSurfaceMotionExtension {

@@ -8,7 +8,22 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const REPOSITORY_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const RUNNER_PATH = path.join(REPOSITORY_ROOT, "scripts", "dev.mjs");
+const PROCESS_TEST_TIMEOUT_MS = 15_000;
 const temporaryDirectories = [];
+
+function environmentWithPnpm(pnpmPath, logPath) {
+  const inherited = Object.fromEntries(
+    Object.entries(process.env).filter(
+      ([name]) => name.toLowerCase() !== "npm_execpath",
+    ),
+  );
+
+  return {
+    ...inherited,
+    npm_execpath: pnpmPath,
+    SPOTPATCH_DEV_TEST_LOG: logPath,
+  };
+}
 
 async function createFakePnpm(directory) {
   const executable = path.join(directory, "fake-pnpm.mjs");
@@ -70,68 +85,68 @@ afterEach(async () => {
 });
 
 describe("development process runner", () => {
-  it("reserves stdin for the playground and stops package watchers with it", async () => {
-    const directory = await mkdtemp(path.join(os.tmpdir(), "spotpatch-dev-runner-"));
-    temporaryDirectories.push(directory);
-    const log = path.join(directory, "calls.jsonl");
-    const fakePnpm = await createFakePnpm(directory);
-    const child = spawn(process.execPath, [RUNNER_PATH], {
-      cwd: REPOSITORY_ROOT,
-      env: {
-        ...process.env,
-        npm_execpath: fakePnpm,
-        SPOTPATCH_DEV_TEST_LOG: log,
-      },
-      shell: false,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-    let inputSent = false;
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk;
-      if (!inputSent && stdout.includes("playground-ready")) {
-        inputSent = true;
-        child.stdin.write("yes\n");
-      }
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
+  it(
+    "reserves stdin for the playground and stops package watchers with it",
+    async () => {
+      const directory = await mkdtemp(path.join(os.tmpdir(), "spotpatch-dev-runner-"));
+      temporaryDirectories.push(directory);
+      const log = path.join(directory, "calls.jsonl");
+      const fakePnpm = await createFakePnpm(directory);
+      const child = spawn(process.execPath, [RUNNER_PATH], {
+        cwd: REPOSITORY_ROOT,
+        env: environmentWithPnpm(fakePnpm, log),
+        shell: false,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      let inputSent = false;
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk;
+        if (!inputSent && stdout.includes("playground-ready")) {
+          inputSent = true;
+          child.stdin.write("yes\n");
+        }
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk;
+      });
 
-    const outcome = await waitForExit(child);
-    const entries = (await readFile(log, "utf8"))
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line));
+      const outcome = await waitForExit(child);
+      const entries = (await readFile(log, "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line));
 
-    expect(outcome).toEqual({ code: 0, signal: null });
-    expect(stderr).toBe("");
-    expect(entries).toContainEqual({
-      role: "build",
-      args: ["--filter", "@spotpatch/vite...", "build"],
-    });
-    expect(entries).toContainEqual({
-      role: "watchers",
-      args: [
-        "--parallel",
-        "--stream",
-        "--filter",
-        "@spotpatch/vite...",
-        "--if-present",
-        "dev",
-      ],
-    });
-    expect(entries).toContainEqual({
-      role: "playground",
-      args: ["--filter", "@spotpatch/playground", "dev"],
-    });
-    expect(entries).toContainEqual({ role: "playground", input: "yes\n" });
-    expect(entries).toContainEqual({ role: "watchers", signal: "SIGTERM" });
-    expect(entries.some((entry) => entry.role === "watchers" && "input" in entry)).toBe(
-      false,
-    );
-  });
+      expect(outcome).toEqual({ code: 0, signal: null });
+      expect(stderr).toBe("");
+      expect(entries).toContainEqual({
+        role: "build",
+        args: ["--filter", "@spotpatch/vite...", "build"],
+      });
+      expect(entries).toContainEqual({
+        role: "watchers",
+        args: [
+          "--parallel",
+          "--stream",
+          "--filter",
+          "@spotpatch/vite...",
+          "--if-present",
+          "dev",
+        ],
+      });
+      expect(entries).toContainEqual({
+        role: "playground",
+        args: ["--filter", "@spotpatch/playground", "dev"],
+      });
+      expect(entries).toContainEqual({ role: "playground", input: "yes\n" });
+      expect(entries).toContainEqual({ role: "watchers", signal: "SIGTERM" });
+      expect(
+        entries.some((entry) => entry.role === "watchers" && "input" in entry),
+      ).toBe(false);
+    },
+    PROCESS_TEST_TIMEOUT_MS,
+  );
 });

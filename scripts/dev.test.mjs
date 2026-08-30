@@ -142,7 +142,13 @@ describe("development process runner", () => {
         args: ["--filter", "@spotpatch/playground", "dev"],
       });
       expect(entries).toContainEqual({ role: "playground", input: "yes\n" });
-      expect(entries).toContainEqual({ role: "watchers", signal: "SIGTERM" });
+      // Windows terminates the child directly instead of dispatching a
+      // catchable POSIX SIGTERM event to its JavaScript handler.
+      expect(
+        entries.some(
+          (entry) => entry.role === "watchers" && entry.signal === "SIGTERM",
+        ),
+      ).toBe(process.platform !== "win32");
       expect(
         entries.some((entry) => entry.role === "watchers" && "input" in entry),
       ).toBe(false);

@@ -12,9 +12,10 @@ const RUNTIME_GZIP_BUDGET_BYTES = 48 * 1024;
 const DATA_FLOW_PRELUDE_GZIP_BUDGET_BYTES = 8 * 1024;
 const DATA_FLOW_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;
 // ADR-038 keeps the managed-control UI in its existing dev-only lazy bundle.
-// macOS Node 26 measured 14,366 bytes after strict protocol/result parsing;
-// 16 KiB preserves a narrow cross-platform zlib margin without affecting core Runtime.
-const EXTERNAL_HANDOFF_PANEL_GZIP_BUDGET_BYTES = 16 * 1024;
+// Ubuntu Node 20 measured 16,489 bytes after adding the no-motion execution
+// fallback; 17 KiB preserves a bounded cross-platform zlib margin without
+// affecting core Runtime.
+const EXTERNAL_HANDOFF_PANEL_GZIP_BUDGET_BYTES = 17 * 1024;
 // GSAP Core, complete Shell/Scene implementation, and the execution-island
 // renderer remain in a dev-only browser bundle. macOS Node 26 measured 34,057
 // bytes after minification, so 35 KiB leaves a bounded margin.

@@ -14,7 +14,7 @@ async function createFakePnpm(directory) {
   const executable = path.join(directory, "fake-pnpm.mjs");
   await writeFile(
     executable,
-    `import { appendFileSync } from "node:fs";
+    `import { appendFileSync, readFileSync } from "node:fs";
 
 const log = process.env.SPOTPATCH_DEV_TEST_LOG;
 if (log === undefined) process.exit(90);
@@ -37,7 +37,11 @@ if (role === "watchers") {
   });
   setInterval(() => undefined, 1_000);
 } else {
-  process.stdout.write("playground-ready\\n");
+  const readyInterval = setInterval(() => {
+    if (!readFileSync(log, "utf8").includes('"role":"watchers"')) return;
+    clearInterval(readyInterval);
+    process.stdout.write("playground-ready\\n");
+  }, 5);
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (chunk) => {
     appendFileSync(log, JSON.stringify({ role, input: chunk }) + "\\n");

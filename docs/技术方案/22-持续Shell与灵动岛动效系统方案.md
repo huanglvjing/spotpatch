@@ -35,9 +35,9 @@ Pill → Capturing → Planner → Agent Charging → Handoff → Running → Re
 
 浮动位置、拖拽、边界钳制和 Session 恢复继续由 (见 doc-id:21-floating-workbench-island) 唯一负责；本文只拥有持续 Shell、视觉状态投影、动画编排和 Agent 动效的规范事实。Runtime 业务状态、Agent Job 与外部交接协议仍由其原文档拥有，本文不得新增或改写协议语义。
 
-## 2. 参考 Demo 审计
+## 2. 视觉参考审计
 
-本方案参考仓库文档目录下的 `spotpatch_apple_style_dynamic_island.html`。该文件是非规范视觉参考，不是可直接复制的生产实现。
+本方案第三版实现曾使用独立 HTML 视觉稿审计比例、信息层级和动效节奏。相关一次性参考稿完成工程化落地后已从仓库清理；下列结论是正式代码需要持续遵守的规范事实。
 
 ### 2.1 可保留的设计语言
 

@@ -1,11 +1,14 @@
 <!doctype html>
 <html lang="zh-CN">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>SpotPatch Motion System Reference</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <title>SpotPatch Motion System Reference</title>
 
-<!--
+    <!--
 SpotPatch Motion System Reference
 =================================
 开发 Agent 重点看：
@@ -15,458 +18,2001 @@ SpotPatch Motion System Reference
 4. 生产环境不要伪造百分比进度。没有真实进度时使用阶段状态。
 5. React 落地时建议把 STATES 映射为 reducer / XState 状态机。
 -->
-<script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3/dist/gsap.min.js"></script>
 
-<style>
-:root{
-  color-scheme:dark;
-  --bg:#f4f6fa;--panel:#090b10;--panel2:#0d1017;
-  --text:#f8f9ff;--muted:#8b91a1;--line:rgba(255,255,255,.095);
-  --violet:#8c63ff;--violet2:#b6a4ff;--cyan:#2ec3ff;--mint:#50e0b6;
-}
-*{box-sizing:border-box}html,body{height:100%}
-body{
-  margin:0;overflow:hidden;
-  font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Microsoft YaHei",sans-serif;
-  background:
-    radial-gradient(900px 420px at 18% -10%,rgba(140,99,255,.13),transparent 62%),
-    radial-gradient(700px 360px at 98% 0%,rgba(46,195,255,.09),transparent 60%),
-    linear-gradient(180deg,#fafbfe,#eef2f7);
-}
-button,textarea{font:inherit}
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #f4f6fa;
+        --panel: #090b10;
+        --panel2: #0d1017;
+        --text: #f8f9ff;
+        --muted: #8b91a1;
+        --line: rgba(255, 255, 255, 0.095);
+        --violet: #8c63ff;
+        --violet2: #b6a4ff;
+        --cyan: #2ec3ff;
+        --mint: #50e0b6;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "SF Pro Display",
+          "PingFang SC",
+          "Microsoft YaHei",
+          sans-serif;
+        background:
+          radial-gradient(
+            900px 420px at 18% -10%,
+            rgba(140, 99, 255, 0.13),
+            transparent 62%
+          ),
+          radial-gradient(
+            700px 360px at 98% 0%,
+            rgba(46, 195, 255, 0.09),
+            transparent 60%
+          ),
+          linear-gradient(180deg, #fafbfe, #eef2f7);
+      }
+      button,
+      textarea {
+        font: inherit;
+      }
 
-/* ---------- fake page ---------- */
-.page{position:fixed;inset:0;display:grid;grid-template-columns:230px 1fr;
-  background:
-   linear-gradient(90deg,rgba(55,62,80,.05) 1px,transparent 1px) 0 0/88px 88px,
-   linear-gradient(rgba(55,62,80,.05) 1px,transparent 1px) 0 0/88px 88px}
-.sidebar{padding:28px 22px;border-right:1px solid rgba(29,34,45,.09);background:rgba(255,255,255,.58);backdrop-filter:blur(22px)}
-.sidebar b{display:block;color:#181b23;margin-bottom:26px}
-.skel{height:42px;border-radius:13px;background:#ebedf3;margin:12px 0}.skel:nth-of-type(3){background:#e8e4ff}
-.content{padding:40px}.titleSk{width:260px;height:34px;border-radius:11px;background:#dfe3eb;margin-bottom:14px}
-.subSk{width:440px;height:15px;border-radius:8px;background:#e6e9f0;margin-bottom:32px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.card{height:164px;border-radius:22px;border:1px solid rgba(28,34,48,.08);background:rgba(255,255,255,.68);box-shadow:0 10px 28px rgba(30,38,60,.04)}
-.selection{position:absolute;left:36%;top:36%;width:270px;height:130px;border-radius:16px;border:2px solid rgba(140,99,255,.72);
-  box-shadow:0 0 0 4px rgba(140,99,255,.11),0 18px 50px rgba(74,56,160,.08);opacity:0}
-.selection:before,.selection:after{content:"";position:absolute;width:8px;height:8px;border-radius:2px;background:#9f82ff}
-.selection:before{left:-5px;top:-5px}.selection:after{right:-5px;bottom:-5px}
-.caption,.help{position:fixed;z-index:3;top:20px;padding:8px 12px;border-radius:999px;border:1px solid rgba(24,29,42,.08);
-  background:rgba(255,255,255,.74);backdrop-filter:blur(18px);color:#737986;font-size:12px}
-.caption{left:20px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;display:flex;gap:10px;align-items:center}
-.caption:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--violet);box-shadow:0 0 0 6px rgba(140,99,255,.12)}
-.help{right:20px}.devhint{position:fixed;right:18px;bottom:18px;z-index:4;padding:8px 11px;border-radius:12px;
-  border:1px solid rgba(26,31,44,.08);background:rgba(255,255,255,.72);backdrop-filter:blur(18px);color:#777d8a;font-size:11px}
-kbd{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;background:rgba(30,35,48,.07);padding:2px 5px;border-radius:5px}
-.veil{position:fixed;inset:0;z-index:8;pointer-events:none;opacity:0;background:radial-gradient(800px 480px at 50% 44%,rgba(81,58,174,.16),transparent 64%),rgba(245,247,250,.30);backdrop-filter:blur(0)}
+      /* ---------- fake page ---------- */
+      .page {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        grid-template-columns: 230px 1fr;
+        background:
+          linear-gradient(90deg, rgba(55, 62, 80, 0.05) 1px, transparent 1px) 0 0/88px
+            88px,
+          linear-gradient(rgba(55, 62, 80, 0.05) 1px, transparent 1px) 0 0/88px 88px;
+      }
+      .sidebar {
+        padding: 28px 22px;
+        border-right: 1px solid rgba(29, 34, 45, 0.09);
+        background: rgba(255, 255, 255, 0.58);
+        backdrop-filter: blur(22px);
+      }
+      .sidebar b {
+        display: block;
+        color: #181b23;
+        margin-bottom: 26px;
+      }
+      .skel {
+        height: 42px;
+        border-radius: 13px;
+        background: #ebedf3;
+        margin: 12px 0;
+      }
+      .skel:nth-of-type(3) {
+        background: #e8e4ff;
+      }
+      .content {
+        padding: 40px;
+      }
+      .titleSk {
+        width: 260px;
+        height: 34px;
+        border-radius: 11px;
+        background: #dfe3eb;
+        margin-bottom: 14px;
+      }
+      .subSk {
+        width: 440px;
+        height: 15px;
+        border-radius: 8px;
+        background: #e6e9f0;
+        margin-bottom: 32px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+      .card {
+        height: 164px;
+        border-radius: 22px;
+        border: 1px solid rgba(28, 34, 48, 0.08);
+        background: rgba(255, 255, 255, 0.68);
+        box-shadow: 0 10px 28px rgba(30, 38, 60, 0.04);
+      }
+      .selection {
+        position: absolute;
+        left: 36%;
+        top: 36%;
+        width: 270px;
+        height: 130px;
+        border-radius: 16px;
+        border: 2px solid rgba(140, 99, 255, 0.72);
+        box-shadow:
+          0 0 0 4px rgba(140, 99, 255, 0.11),
+          0 18px 50px rgba(74, 56, 160, 0.08);
+        opacity: 0;
+      }
+      .selection:before,
+      .selection:after {
+        content: "";
+        position: absolute;
+        width: 8px;
+        height: 8px;
+        border-radius: 2px;
+        background: #9f82ff;
+      }
+      .selection:before {
+        left: -5px;
+        top: -5px;
+      }
+      .selection:after {
+        right: -5px;
+        bottom: -5px;
+      }
+      .caption,
+      .help {
+        position: fixed;
+        z-index: 3;
+        top: 20px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(24, 29, 42, 0.08);
+        background: rgba(255, 255, 255, 0.74);
+        backdrop-filter: blur(18px);
+        color: #737986;
+        font-size: 12px;
+      }
+      .caption {
+        left: 20px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .caption:before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--violet);
+        box-shadow: 0 0 0 6px rgba(140, 99, 255, 0.12);
+      }
+      .help {
+        right: 20px;
+      }
+      .devhint {
+        position: fixed;
+        right: 18px;
+        bottom: 18px;
+        z-index: 4;
+        padding: 8px 11px;
+        border-radius: 12px;
+        border: 1px solid rgba(26, 31, 44, 0.08);
+        background: rgba(255, 255, 255, 0.72);
+        backdrop-filter: blur(18px);
+        color: #777d8a;
+        font-size: 11px;
+      }
+      kbd {
+        font:
+          11px ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+        background: rgba(30, 35, 48, 0.07);
+        padding: 2px 5px;
+        border-radius: 5px;
+      }
+      .veil {
+        position: fixed;
+        inset: 0;
+        z-index: 8;
+        pointer-events: none;
+        opacity: 0;
+        background:
+          radial-gradient(
+            800px 480px at 50% 44%,
+            rgba(81, 58, 174, 0.16),
+            transparent 64%
+          ),
+          rgba(245, 247, 250, 0.3);
+        backdrop-filter: blur(0);
+      }
 
-/* ---------- persistent surface ---------- */
-.shell{
-  position:fixed;z-index:20;left:28px;top:calc(100vh - 102px);width:224px;height:72px;border-radius:38px;
-  overflow:hidden;isolation:isolate;transform:translateZ(0);
-  background:
-    linear-gradient(180deg,rgba(255,255,255,.036),rgba(255,255,255,0) 34%),
-    radial-gradient(480px 180px at 10% -25%,rgba(140,99,255,.19),transparent 55%),
-    radial-gradient(360px 180px at 108% 112%,rgba(46,195,255,.085),transparent 60%),
-    rgba(9,11,16,.985);
-  border:1px solid rgba(180,187,210,.28);
-  box-shadow:0 18px 48px rgba(15,18,31,.18),inset 0 1px 0 rgba(255,255,255,.085),inset 0 0 0 1px rgba(255,255,255,.022);
-  will-change:left,top,width,height,border-radius,transform;
-}
-.borderSheen{position:absolute;inset:0;z-index:6;border-radius:inherit;overflow:hidden;pointer-events:none}
-.borderSheen:before{content:"";position:absolute;width:50%;height:220%;top:-60%;left:-65%;
-  background:linear-gradient(90deg,transparent,rgba(204,194,255,.30),rgba(83,201,255,.12),transparent);
-  transform:rotate(18deg);opacity:.46;animation:borderSweep 7.5s ease-in-out infinite}
-@keyframes borderSweep{
-  0%,26%{transform:translateX(0) rotate(18deg);opacity:0}36%{opacity:.34}
-  62%{transform:translateX(330%) rotate(18deg);opacity:.12}100%{transform:translateX(330%) rotate(18deg);opacity:0}
-}
-.ambient{position:absolute;inset:-45%;z-index:0;pointer-events:none;opacity:.82}
-.ribbon{position:absolute;height:1px;border-radius:99px;
- background:linear-gradient(90deg,transparent,rgba(154,125,255,.03),rgba(176,151,255,.86),rgba(62,189,255,.55),transparent);
- box-shadow:0 0 12px rgba(140,99,255,.22),0 0 22px rgba(46,195,255,.10)}
-.r1{top:27%;width:46%;animation:ribbon 8.2s linear infinite -2.7s}.r2{top:42%;width:34%;animation:ribbon 6.8s linear infinite -4.4s}
-.r3{top:63%;width:56%;animation:ribbon 9.5s linear infinite -1.2s}.r4{top:77%;width:30%;animation:ribbon 7.4s linear infinite -5.5s}
-@keyframes ribbon{0%{transform:translate3d(-100%,0,0) rotate(-3deg);opacity:0}12%{opacity:.2}50%{opacity:.7}
- 100%{transform:translate3d(420%,0,0) rotate(-3deg);opacity:0}}
-.bloom{position:absolute;width:220px;height:160px;border-radius:50%;left:-100px;top:-80px;z-index:0;pointer-events:none;
- background:var(--violet);filter:blur(34px);opacity:.16;animation:bloom 7s ease-in-out infinite}
-.bloom.b2{background:var(--cyan);left:auto;right:-120px;top:auto;bottom:-90px;animation-delay:-3s}
-@keyframes bloom{50%{transform:translate3d(22px,16px,0) scale(1.07)}}
+      /* ---------- persistent surface ---------- */
+      .shell {
+        position: fixed;
+        z-index: 20;
+        left: 28px;
+        top: calc(100vh - 102px);
+        width: 224px;
+        height: 72px;
+        border-radius: 38px;
+        overflow: hidden;
+        isolation: isolate;
+        transform: translateZ(0);
+        background:
+          linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.036),
+            rgba(255, 255, 255, 0) 34%
+          ),
+          radial-gradient(
+            480px 180px at 10% -25%,
+            rgba(140, 99, 255, 0.19),
+            transparent 55%
+          ),
+          radial-gradient(
+            360px 180px at 108% 112%,
+            rgba(46, 195, 255, 0.085),
+            transparent 60%
+          ),
+          rgba(9, 11, 16, 0.985);
+        border: 1px solid rgba(180, 187, 210, 0.28);
+        box-shadow:
+          0 18px 48px rgba(15, 18, 31, 0.18),
+          inset 0 1px 0 rgba(255, 255, 255, 0.085),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.022);
+        will-change: left, top, width, height, border-radius, transform;
+      }
+      .borderSheen {
+        position: absolute;
+        inset: 0;
+        z-index: 6;
+        border-radius: inherit;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .borderSheen:before {
+        content: "";
+        position: absolute;
+        width: 50%;
+        height: 220%;
+        top: -60%;
+        left: -65%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(204, 194, 255, 0.3),
+          rgba(83, 201, 255, 0.12),
+          transparent
+        );
+        transform: rotate(18deg);
+        opacity: 0.46;
+        animation: borderSweep 7.5s ease-in-out infinite;
+      }
+      @keyframes borderSweep {
+        0%,
+        26% {
+          transform: translateX(0) rotate(18deg);
+          opacity: 0;
+        }
+        36% {
+          opacity: 0.34;
+        }
+        62% {
+          transform: translateX(330%) rotate(18deg);
+          opacity: 0.12;
+        }
+        100% {
+          transform: translateX(330%) rotate(18deg);
+          opacity: 0;
+        }
+      }
+      .ambient {
+        position: absolute;
+        inset: -45%;
+        z-index: 0;
+        pointer-events: none;
+        opacity: 0.82;
+      }
+      .ribbon {
+        position: absolute;
+        height: 1px;
+        border-radius: 99px;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(154, 125, 255, 0.03),
+          rgba(176, 151, 255, 0.86),
+          rgba(62, 189, 255, 0.55),
+          transparent
+        );
+        box-shadow:
+          0 0 12px rgba(140, 99, 255, 0.22),
+          0 0 22px rgba(46, 195, 255, 0.1);
+      }
+      .r1 {
+        top: 27%;
+        width: 46%;
+        animation: ribbon 8.2s linear infinite -2.7s;
+      }
+      .r2 {
+        top: 42%;
+        width: 34%;
+        animation: ribbon 6.8s linear infinite -4.4s;
+      }
+      .r3 {
+        top: 63%;
+        width: 56%;
+        animation: ribbon 9.5s linear infinite -1.2s;
+      }
+      .r4 {
+        top: 77%;
+        width: 30%;
+        animation: ribbon 7.4s linear infinite -5.5s;
+      }
+      @keyframes ribbon {
+        0% {
+          transform: translate3d(-100%, 0, 0) rotate(-3deg);
+          opacity: 0;
+        }
+        12% {
+          opacity: 0.2;
+        }
+        50% {
+          opacity: 0.7;
+        }
+        100% {
+          transform: translate3d(420%, 0, 0) rotate(-3deg);
+          opacity: 0;
+        }
+      }
+      .bloom {
+        position: absolute;
+        width: 220px;
+        height: 160px;
+        border-radius: 50%;
+        left: -100px;
+        top: -80px;
+        z-index: 0;
+        pointer-events: none;
+        background: var(--violet);
+        filter: blur(34px);
+        opacity: 0.16;
+        animation: bloom 7s ease-in-out infinite;
+      }
+      .bloom.b2 {
+        background: var(--cyan);
+        left: auto;
+        right: -120px;
+        top: auto;
+        bottom: -90px;
+        animation-delay: -3s;
+      }
+      @keyframes bloom {
+        50% {
+          transform: translate3d(22px, 16px, 0) scale(1.07);
+        }
+      }
 
-/* ---------- scene base ---------- */
-.scene{position:absolute;inset:0;z-index:2;opacity:0;visibility:hidden;pointer-events:none;transform:translate3d(0,8px,0) scale(.992);filter:blur(7px)}
-.scene.active{visibility:visible;pointer-events:auto}
-.logoSvg{width:33px;height:33px;display:block}
-.seed{width:22px;height:22px;border-radius:50%;position:relative;flex:none;background:var(--violet);
- box-shadow:0 0 0 8px rgba(140,99,255,.10),0 0 28px rgba(140,99,255,.40)}
-.seed:after{content:"";position:absolute;inset:6px;border-radius:50%;background:#b29aff}
-.live{width:13px;height:13px;border-radius:50%;background:var(--mint);box-shadow:0 0 0 9px rgba(80,224,182,.055),0 0 18px rgba(80,224,182,.25)}
+      /* ---------- scene base ---------- */
+      .scene {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translate3d(0, 8px, 0) scale(0.992);
+        filter: blur(7px);
+      }
+      .scene.active {
+        visibility: visible;
+        pointer-events: auto;
+      }
+      .logoSvg {
+        width: 33px;
+        height: 33px;
+        display: block;
+      }
+      .seed {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        position: relative;
+        flex: none;
+        background: var(--violet);
+        box-shadow:
+          0 0 0 8px rgba(140, 99, 255, 0.1),
+          0 0 28px rgba(140, 99, 255, 0.4);
+      }
+      .seed:after {
+        content: "";
+        position: absolute;
+        inset: 6px;
+        border-radius: 50%;
+        background: #b29aff;
+      }
+      .live {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--mint);
+        box-shadow:
+          0 0 0 9px rgba(80, 224, 182, 0.055),
+          0 0 18px rgba(80, 224, 182, 0.25);
+      }
 
-/* pill */
-.pillScene{display:flex;align-items:center;gap:14px;padding:0 24px;cursor:pointer}
-.pillScene strong{font-size:20px;color:var(--text);letter-spacing:-.02em;white-space:nowrap}
-.pillScene .arrow{margin-left:auto;color:#646a78;font-size:19px}
+      /* pill */
+      .pillScene {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 24px;
+        cursor: pointer;
+      }
+      .pillScene strong {
+        font-size: 20px;
+        color: var(--text);
+        letter-spacing: -0.02em;
+        white-space: nowrap;
+      }
+      .pillScene .arrow {
+        margin-left: auto;
+        color: #646a78;
+        font-size: 19px;
+      }
 
-/* capture */
-.captureScene{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:15px;padding:0 18px}
-.capIcon{width:50px;height:50px;border-radius:18px;display:grid;place-items:center;position:relative;border:1px solid rgba(140,99,255,.28);background:rgba(140,99,255,.10)}
-.scanRing{position:absolute;inset:6px;border-radius:15px;border:1px solid rgba(159,132,255,.45)}
-.capCopy b{display:block;color:#fff;font-size:17px}.capCopy span{display:block;color:var(--muted);font-size:12px;margin-top:7px}
-.capProgress{width:110px;height:5px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,.08)}
-.capProgress i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--violet),var(--cyan));box-shadow:0 0 14px rgba(140,99,255,.6)}
+      /* capture */
+      .captureScene {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 15px;
+        padding: 0 18px;
+      }
+      .capIcon {
+        width: 50px;
+        height: 50px;
+        border-radius: 18px;
+        display: grid;
+        place-items: center;
+        position: relative;
+        border: 1px solid rgba(140, 99, 255, 0.28);
+        background: rgba(140, 99, 255, 0.1);
+      }
+      .scanRing {
+        position: absolute;
+        inset: 6px;
+        border-radius: 15px;
+        border: 1px solid rgba(159, 132, 255, 0.45);
+      }
+      .capCopy b {
+        display: block;
+        color: #fff;
+        font-size: 17px;
+      }
+      .capCopy span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 7px;
+      }
+      .capProgress {
+        width: 110px;
+        height: 5px;
+        border-radius: 99px;
+        overflow: hidden;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .capProgress i {
+        display: block;
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, var(--violet), var(--cyan));
+        box-shadow: 0 0 14px rgba(140, 99, 255, 0.6);
+      }
 
-/* context */
-.contextScene{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:18px;padding:0 20px}
-.logoBox,.agentOrb{display:grid;place-items:center;position:relative;overflow:hidden;border:1px solid rgba(140,99,255,.30);
- background:linear-gradient(180deg,rgba(140,99,255,.15),rgba(140,99,255,.07));box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 0 26px rgba(140,99,255,.10)}
-.logoBox{width:58px;height:58px;border-radius:21px}
-.contextCopy h3{margin:0;color:#fff;font-size:20px;letter-spacing:-.025em}.contextCopy p{margin:8px 0 0;color:var(--muted);font-size:13px}
-.contextStat{height:50px;border-radius:18px;padding:0 20px;display:flex;align-items:center;gap:12px;border:1px solid rgba(140,99,255,.42);
- background:linear-gradient(180deg,rgba(140,99,255,.13),rgba(140,99,255,.06));color:#f0ebff;font-weight:780;font-size:17px;white-space:nowrap}
+      /* context */
+      .contextScene {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 18px;
+        padding: 0 20px;
+      }
+      .logoBox,
+      .agentOrb {
+        display: grid;
+        place-items: center;
+        position: relative;
+        overflow: hidden;
+        border: 1px solid rgba(140, 99, 255, 0.3);
+        background: linear-gradient(
+          180deg,
+          rgba(140, 99, 255, 0.15),
+          rgba(140, 99, 255, 0.07)
+        );
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.045),
+          0 0 26px rgba(140, 99, 255, 0.1);
+      }
+      .logoBox {
+        width: 58px;
+        height: 58px;
+        border-radius: 21px;
+      }
+      .contextCopy h3 {
+        margin: 0;
+        color: #fff;
+        font-size: 20px;
+        letter-spacing: -0.025em;
+      }
+      .contextCopy p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .contextStat {
+        height: 50px;
+        border-radius: 18px;
+        padding: 0 20px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid rgba(140, 99, 255, 0.42);
+        background: linear-gradient(
+          180deg,
+          rgba(140, 99, 255, 0.13),
+          rgba(140, 99, 255, 0.06)
+        );
+        color: #f0ebff;
+        font-weight: 780;
+        font-size: 17px;
+        white-space: nowrap;
+      }
 
-/* planner */
-.plannerScene{display:grid;grid-template-rows:82px 1fr 98px}
-.plannerHead{display:flex;align-items:center;padding:0 25px;border-bottom:1px solid var(--line)}
-.brandGroup{display:flex;align-items:center;gap:13px}.brandCopy b{display:block;color:#fff;font-size:18px}.brandCopy span{display:block;color:var(--muted);font-size:12px;margin-top:7px}
-.actions{margin-left:auto;display:flex;gap:9px}.ghost{height:40px;border-radius:13px;padding:0 14px;border:1px solid var(--line);color:#b7bdca;background:rgba(255,255,255,.018);cursor:pointer}
-.ghost.icon{width:40px;padding:0;font-size:20px}
-.plannerBody{overflow:auto;padding:26px 28px 30px;scrollbar-width:thin;scrollbar-color:#2b3040 transparent}
-.plannerBody h1{margin:0;color:#fff;font-size:28px;letter-spacing:-.04em}.lead{margin:10px 0 20px;color:var(--muted);font-size:15px}
-.summary{display:flex;align-items:center;gap:14px;margin-bottom:18px}.sumPill{height:37px;border-radius:999px;padding:0 14px;display:flex;align-items:center;
- border:1px solid rgba(140,99,255,.40);background:rgba(140,99,255,.09);color:#ddd6ff;font-size:13px;font-weight:760}
-.ready{display:flex;align-items:center;gap:9px;color:#8ce0c5;font-size:13px}.ready .live{width:9px;height:9px;box-shadow:0 0 0 5px rgba(80,224,182,.05)}
-.summary .num{margin-left:auto;color:#737987;font-weight:760;font-size:13px}
-.target{border-radius:18px;border:1px solid rgba(140,99,255,.24);background:linear-gradient(180deg,rgba(140,99,255,.045),rgba(255,255,255,.008));padding:16px;margin-bottom:14px}
-.targetTop{display:flex;align-items:center;gap:10px;margin-bottom:12px}.code{width:32px;height:26px;border-radius:9px;display:grid;place-items:center;
- border:1px solid rgba(46,195,255,.18);background:rgba(46,195,255,.06);color:#9edfff;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
-.targetName{color:#edf0f7;font-size:14px;font-weight:760}.path{color:#6f7686;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
-.targetLabel{display:flex;align-items:center;margin-bottom:10px}.targetLabel b{color:#e8ebf2;font-size:13px}.targetLabel span{margin-left:auto;color:#676e7e;font:11px ui-monospace,SFMono-Regular,Menlo,monospace}
-textarea{width:100%;min-height:106px;resize:none;outline:none;border-radius:14px;background:#0a0d14;color:#eff1f7;border:1px solid rgba(140,99,255,.68);
- box-shadow:0 0 0 4px rgba(140,99,255,.10);padding:14px 16px;font-size:13px;line-height:1.65}
-textarea::placeholder{color:#5f6677}
+      /* planner */
+      .plannerScene {
+        display: grid;
+        grid-template-rows: 82px 1fr 98px;
+      }
+      .plannerHead {
+        display: flex;
+        align-items: center;
+        padding: 0 25px;
+        border-bottom: 1px solid var(--line);
+      }
+      .brandGroup {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+      }
+      .brandCopy b {
+        display: block;
+        color: #fff;
+        font-size: 18px;
+      }
+      .brandCopy span {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+        margin-top: 7px;
+      }
+      .actions {
+        margin-left: auto;
+        display: flex;
+        gap: 9px;
+      }
+      .ghost {
+        height: 40px;
+        border-radius: 13px;
+        padding: 0 14px;
+        border: 1px solid var(--line);
+        color: #b7bdca;
+        background: rgba(255, 255, 255, 0.018);
+        cursor: pointer;
+      }
+      .ghost.icon {
+        width: 40px;
+        padding: 0;
+        font-size: 20px;
+      }
+      .plannerBody {
+        overflow: auto;
+        padding: 26px 28px 30px;
+        scrollbar-width: thin;
+        scrollbar-color: #2b3040 transparent;
+      }
+      .plannerBody h1 {
+        margin: 0;
+        color: #fff;
+        font-size: 28px;
+        letter-spacing: -0.04em;
+      }
+      .lead {
+        margin: 10px 0 20px;
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .summary {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 18px;
+      }
+      .sumPill {
+        height: 37px;
+        border-radius: 999px;
+        padding: 0 14px;
+        display: flex;
+        align-items: center;
+        border: 1px solid rgba(140, 99, 255, 0.4);
+        background: rgba(140, 99, 255, 0.09);
+        color: #ddd6ff;
+        font-size: 13px;
+        font-weight: 760;
+      }
+      .ready {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        color: #8ce0c5;
+        font-size: 13px;
+      }
+      .ready .live {
+        width: 9px;
+        height: 9px;
+        box-shadow: 0 0 0 5px rgba(80, 224, 182, 0.05);
+      }
+      .summary .num {
+        margin-left: auto;
+        color: #737987;
+        font-weight: 760;
+        font-size: 13px;
+      }
+      .target {
+        border-radius: 18px;
+        border: 1px solid rgba(140, 99, 255, 0.24);
+        background: linear-gradient(
+          180deg,
+          rgba(140, 99, 255, 0.045),
+          rgba(255, 255, 255, 0.008)
+        );
+        padding: 16px;
+        margin-bottom: 14px;
+      }
+      .targetTop {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .code {
+        width: 32px;
+        height: 26px;
+        border-radius: 9px;
+        display: grid;
+        place-items: center;
+        border: 1px solid rgba(46, 195, 255, 0.18);
+        background: rgba(46, 195, 255, 0.06);
+        color: #9edfff;
+        font:
+          12px ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      .targetName {
+        color: #edf0f7;
+        font-size: 14px;
+        font-weight: 760;
+      }
+      .path {
+        color: #6f7686;
+        font:
+          12px ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      .targetLabel {
+        display: flex;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      .targetLabel b {
+        color: #e8ebf2;
+        font-size: 13px;
+      }
+      .targetLabel span {
+        margin-left: auto;
+        color: #676e7e;
+        font:
+          11px ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      textarea {
+        width: 100%;
+        min-height: 106px;
+        resize: none;
+        outline: none;
+        border-radius: 14px;
+        background: #0a0d14;
+        color: #eff1f7;
+        border: 1px solid rgba(140, 99, 255, 0.68);
+        box-shadow: 0 0 0 4px rgba(140, 99, 255, 0.1);
+        padding: 14px 16px;
+        font-size: 13px;
+        line-height: 1.65;
+      }
+      textarea::placeholder {
+        color: #5f6677;
+      }
 
-/* inner Agent layer */
-.agentCard{position:relative;border-radius:18px;border:1px solid rgba(255,255,255,.095);
- background:linear-gradient(180deg,rgba(255,255,255,.018),rgba(255,255,255,.008)),#0d1017;padding:15px;overflow:hidden}
-.agentCard:before{content:"";position:absolute;inset:-1px;border-radius:inherit;pointer-events:none;opacity:0;padding:1px;
- background:conic-gradient(from 0deg,transparent,rgba(140,99,255,.75),rgba(46,195,255,.55),transparent 36%);
- -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
-.agentCard.charged:before{animation:agentBorder 1.15s linear 1}
-@keyframes agentBorder{0%{opacity:0;transform:rotate(0)}15%{opacity:1}80%{opacity:.8}100%{opacity:0;transform:rotate(360deg)}}
-.radial{position:absolute;width:90px;height:90px;border-radius:50%;left:-70px;top:20px;
- background:radial-gradient(circle,rgba(140,99,255,.36),rgba(46,195,255,.12) 45%,transparent 72%);filter:blur(14px);opacity:0}
-.agentHead{display:flex;align-items:center;position:relative;z-index:1}.agentHead b{color:#eef1f7;font-size:14px}
-.agentState{margin-left:auto;height:28px;border-radius:999px;padding:0 10px;display:flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,.08);color:#89909e;font-size:11px}
-.agentState .live{width:7px;height:7px;box-shadow:none;background:#727887}.agentCard p{position:relative;z-index:1;color:#7f8695;font-size:12px;line-height:1.55;margin:9px 0 12px}
-.agentSelect{position:relative;z-index:1;height:44px;border-radius:12px;border:1px solid rgba(255,255,255,.09);background:#0a0d13;color:#dce0e8;display:flex;align-items:center;padding:0 12px;font-size:12px}
-.agentSelect span{margin-left:auto;color:#747b8a}
-.footer{display:grid;grid-template-columns:52px 1fr 1fr;gap:12px;padding:17px 22px;border-top:1px solid var(--line);background:rgba(7,9,13,.90);backdrop-filter:blur(18px)}
-.footer button{height:54px;border-radius:16px;cursor:pointer}.plus{border:1px solid var(--line);background:#10131a;color:#9299a8;font-size:24px}
-.send{position:relative;overflow:hidden;color:#f7f4ff;border:1px solid rgba(154,131,255,.55);background:radial-gradient(140px 80px at 25% -10%,rgba(255,255,255,.18),transparent 70%),linear-gradient(180deg,#705ad6,#5d49bc);
- font-size:15px;font-weight:800;box-shadow:inset 0 1px 0 rgba(255,255,255,.13),0 16px 32px rgba(91,71,187,.17)}
-.send:after{content:"";position:absolute;inset:-80% auto -80% -30%;width:34%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.18),transparent);transform:rotate(15deg)}
-.preview{color:#d8d3ef;border:1px solid rgba(111,96,187,.40);background:linear-gradient(180deg,rgba(94,79,170,.58),rgba(74,61,145,.70))}
+      /* inner Agent layer */
+      .agentCard {
+        position: relative;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.095);
+        background:
+          linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.018),
+            rgba(255, 255, 255, 0.008)
+          ),
+          #0d1017;
+        padding: 15px;
+        overflow: hidden;
+      }
+      .agentCard:before {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        border-radius: inherit;
+        pointer-events: none;
+        opacity: 0;
+        padding: 1px;
+        background: conic-gradient(
+          from 0deg,
+          transparent,
+          rgba(140, 99, 255, 0.75),
+          rgba(46, 195, 255, 0.55),
+          transparent 36%
+        );
+        -webkit-mask:
+          linear-gradient(#000 0 0) content-box,
+          linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+      }
+      .agentCard.charged:before {
+        animation: agentBorder 1.15s linear 1;
+      }
+      @keyframes agentBorder {
+        0% {
+          opacity: 0;
+          transform: rotate(0);
+        }
+        15% {
+          opacity: 1;
+        }
+        80% {
+          opacity: 0.8;
+        }
+        100% {
+          opacity: 0;
+          transform: rotate(360deg);
+        }
+      }
+      .radial {
+        position: absolute;
+        width: 90px;
+        height: 90px;
+        border-radius: 50%;
+        left: -70px;
+        top: 20px;
+        background: radial-gradient(
+          circle,
+          rgba(140, 99, 255, 0.36),
+          rgba(46, 195, 255, 0.12) 45%,
+          transparent 72%
+        );
+        filter: blur(14px);
+        opacity: 0;
+      }
+      .agentHead {
+        display: flex;
+        align-items: center;
+        position: relative;
+        z-index: 1;
+      }
+      .agentHead b {
+        color: #eef1f7;
+        font-size: 14px;
+      }
+      .agentState {
+        margin-left: auto;
+        height: 28px;
+        border-radius: 999px;
+        padding: 0 10px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        color: #89909e;
+        font-size: 11px;
+      }
+      .agentState .live {
+        width: 7px;
+        height: 7px;
+        box-shadow: none;
+        background: #727887;
+      }
+      .agentCard p {
+        position: relative;
+        z-index: 1;
+        color: #7f8695;
+        font-size: 12px;
+        line-height: 1.55;
+        margin: 9px 0 12px;
+      }
+      .agentSelect {
+        position: relative;
+        z-index: 1;
+        height: 44px;
+        border-radius: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        background: #0a0d13;
+        color: #dce0e8;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        font-size: 12px;
+      }
+      .agentSelect span {
+        margin-left: auto;
+        color: #747b8a;
+      }
+      .footer {
+        display: grid;
+        grid-template-columns: 52px 1fr 1fr;
+        gap: 12px;
+        padding: 17px 22px;
+        border-top: 1px solid var(--line);
+        background: rgba(7, 9, 13, 0.9);
+        backdrop-filter: blur(18px);
+      }
+      .footer button {
+        height: 54px;
+        border-radius: 16px;
+        cursor: pointer;
+      }
+      .plus {
+        border: 1px solid var(--line);
+        background: #10131a;
+        color: #9299a8;
+        font-size: 24px;
+      }
+      .send {
+        position: relative;
+        overflow: hidden;
+        color: #f7f4ff;
+        border: 1px solid rgba(154, 131, 255, 0.55);
+        background:
+          radial-gradient(
+            140px 80px at 25% -10%,
+            rgba(255, 255, 255, 0.18),
+            transparent 70%
+          ),
+          linear-gradient(180deg, #705ad6, #5d49bc);
+        font-size: 15px;
+        font-weight: 800;
+        box-shadow:
+          inset 0 1px 0 rgba(255, 255, 255, 0.13),
+          0 16px 32px rgba(91, 71, 187, 0.17);
+      }
+      .send:after {
+        content: "";
+        position: absolute;
+        inset: -80% auto -80% -30%;
+        width: 34%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.18),
+          transparent
+        );
+        transform: rotate(15deg);
+      }
+      .preview {
+        color: #d8d3ef;
+        border: 1px solid rgba(111, 96, 187, 0.4);
+        background: linear-gradient(
+          180deg,
+          rgba(94, 79, 170, 0.58),
+          rgba(74, 61, 145, 0.7)
+        );
+      }
 
-/* energy path */
-.signalSvg{position:absolute;inset:0;width:100%;height:100%;z-index:12;pointer-events:none;overflow:visible}
-.signalPath{fill:none;stroke:url(#sigGrad);stroke-width:1.25;stroke-linecap:round;filter:url(#sigGlow);opacity:0}.signalPath.core{stroke-width:2.1}
-.particle{position:absolute;z-index:13;width:7px;height:7px;border-radius:50%;pointer-events:none;opacity:0;background:#c5b5ff;
- box-shadow:0 0 8px #ad92ff,0 0 18px rgba(46,195,255,.55)}
+      /* energy path */
+      .signalSvg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 12;
+        pointer-events: none;
+        overflow: visible;
+      }
+      .signalPath {
+        fill: none;
+        stroke: url(#sigGrad);
+        stroke-width: 1.25;
+        stroke-linecap: round;
+        filter: url(#sigGlow);
+        opacity: 0;
+      }
+      .signalPath.core {
+        stroke-width: 2.1;
+      }
+      .particle {
+        position: absolute;
+        z-index: 13;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        pointer-events: none;
+        opacity: 0;
+        background: #c5b5ff;
+        box-shadow:
+          0 0 8px #ad92ff,
+          0 0 18px rgba(46, 195, 255, 0.55);
+      }
 
-/* handoff */
-.handoffScene{display:grid;grid-template-columns:auto 1fr auto;gap:17px;align-items:center;padding:0 19px}
-.agentOrb{width:54px;height:54px;border-radius:19px}.agentOrb:before{content:"";position:absolute;inset:-42%;background:conic-gradient(from 80deg,transparent,rgba(46,195,255,.78),transparent,rgba(140,99,255,.85),transparent);animation:spin 2.4s linear infinite;opacity:.76}
-.agentOrb svg{position:relative;z-index:1}@keyframes spin{to{transform:rotate(360deg)}}
-.handoffCopy h3{margin:0;color:#fff;font-size:19px;letter-spacing:-.03em}.handoffCopy p{margin:7px 0 0;color:#8e95a4;font-size:12px}
-.phase{min-width:136px;height:46px;border-radius:16px;padding:0 14px;display:flex;align-items:center;justify-content:center;gap:9px;
- border:1px solid rgba(140,99,255,.30);background:rgba(140,99,255,.08);color:#ded8ff;font-size:12px;font-weight:750}
-.wave{display:flex;gap:3px;align-items:center;height:18px}.wave i{display:block;width:2px;height:5px;border-radius:2px;background:linear-gradient(180deg,var(--violet2),var(--cyan));transform-origin:center}
+      /* handoff */
+      .handoffScene {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 17px;
+        align-items: center;
+        padding: 0 19px;
+      }
+      .agentOrb {
+        width: 54px;
+        height: 54px;
+        border-radius: 19px;
+      }
+      .agentOrb:before {
+        content: "";
+        position: absolute;
+        inset: -42%;
+        background: conic-gradient(
+          from 80deg,
+          transparent,
+          rgba(46, 195, 255, 0.78),
+          transparent,
+          rgba(140, 99, 255, 0.85),
+          transparent
+        );
+        animation: spin 2.4s linear infinite;
+        opacity: 0.76;
+      }
+      .agentOrb svg {
+        position: relative;
+        z-index: 1;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .handoffCopy h3 {
+        margin: 0;
+        color: #fff;
+        font-size: 19px;
+        letter-spacing: -0.03em;
+      }
+      .handoffCopy p {
+        margin: 7px 0 0;
+        color: #8e95a4;
+        font-size: 12px;
+      }
+      .phase {
+        min-width: 136px;
+        height: 46px;
+        border-radius: 16px;
+        padding: 0 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        border: 1px solid rgba(140, 99, 255, 0.3);
+        background: rgba(140, 99, 255, 0.08);
+        color: #ded8ff;
+        font-size: 12px;
+        font-weight: 750;
+      }
+      .wave {
+        display: flex;
+        gap: 3px;
+        align-items: center;
+        height: 18px;
+      }
+      .wave i {
+        display: block;
+        width: 2px;
+        height: 5px;
+        border-radius: 2px;
+        background: linear-gradient(180deg, var(--violet2), var(--cyan));
+        transform-origin: center;
+      }
 
-/* running */
-.runningScene{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:14px;padding:0 16px}
-.runIcon{width:42px;height:42px;border-radius:15px;display:grid;place-items:center;background:rgba(140,99,255,.10);border:1px solid rgba(140,99,255,.23)}
-.runPulse{width:10px;height:10px;border-radius:50%;background:var(--violet2);box-shadow:0 0 0 8px rgba(140,99,255,.06),0 0 18px rgba(140,99,255,.28)}
-.runCopy b{display:block;color:#fff;font-size:15px}.runCopy span{display:block;color:#858c9a;font-size:11px;margin-top:5px}
-.runMeta{display:flex;align-items:center;gap:10px;color:#cfd4df;font:12px ui-monospace,SFMono-Regular,Menlo,monospace}
-.timerDot{width:6px;height:6px;border-radius:50%;background:var(--mint);box-shadow:0 0 12px rgba(80,224,182,.5)}
-.activity{position:absolute;left:16px;right:16px;bottom:10px;height:22px;border-radius:8px;background:rgba(255,255,255,.022);border:1px solid rgba(255,255,255,.055);overflow:hidden;opacity:0}
-.activityTrack{position:absolute;inset:0 auto 0 0;width:38%;background:linear-gradient(90deg,transparent,rgba(140,99,255,.08),rgba(46,195,255,.07),transparent);transform:translateX(-110%)}
-.activityLabel{position:relative;height:100%;display:flex;align-items:center;padding:0 9px;color:#707786;font:10px ui-monospace,SFMono-Regular,Menlo,monospace}
+      /* running */
+      .runningScene {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 14px;
+        padding: 0 16px;
+      }
+      .runIcon {
+        width: 42px;
+        height: 42px;
+        border-radius: 15px;
+        display: grid;
+        place-items: center;
+        background: rgba(140, 99, 255, 0.1);
+        border: 1px solid rgba(140, 99, 255, 0.23);
+      }
+      .runPulse {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--violet2);
+        box-shadow:
+          0 0 0 8px rgba(140, 99, 255, 0.06),
+          0 0 18px rgba(140, 99, 255, 0.28);
+      }
+      .runCopy b {
+        display: block;
+        color: #fff;
+        font-size: 15px;
+      }
+      .runCopy span {
+        display: block;
+        color: #858c9a;
+        font-size: 11px;
+        margin-top: 5px;
+      }
+      .runMeta {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: #cfd4df;
+        font:
+          12px ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      .timerDot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--mint);
+        box-shadow: 0 0 12px rgba(80, 224, 182, 0.5);
+      }
+      .activity {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 10px;
+        height: 22px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.022);
+        border: 1px solid rgba(255, 255, 255, 0.055);
+        overflow: hidden;
+        opacity: 0;
+      }
+      .activityTrack {
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 38%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(140, 99, 255, 0.08),
+          rgba(46, 195, 255, 0.07),
+          transparent
+        );
+        transform: translateX(-110%);
+      }
+      .activityLabel {
+        position: relative;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        padding: 0 9px;
+        color: #707786;
+        font:
+          10px ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
 
-/* done */
-.doneScene{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:15px;padding:0 16px}
-.doneIcon{width:44px;height:44px;border-radius:16px;display:grid;place-items:center;color:#baf4e1;font-size:20px;background:rgba(80,224,182,.10);border:1px solid rgba(80,224,182,.22);box-shadow:0 0 22px rgba(80,224,182,.08)}
-.doneCopy b{display:block;color:#fff;font-size:16px}.doneCopy span{display:block;color:#88909d;font-size:11px;margin-top:5px}
-.doneChip{height:38px;border-radius:14px;padding:0 13px;display:flex;align-items:center;gap:8px;color:#d8f7ec;font-size:11px;font-weight:760;border:1px solid rgba(80,224,182,.20);background:rgba(80,224,182,.07)}
+      /* done */
+      .doneScene {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 15px;
+        padding: 0 16px;
+      }
+      .doneIcon {
+        width: 44px;
+        height: 44px;
+        border-radius: 16px;
+        display: grid;
+        place-items: center;
+        color: #baf4e1;
+        font-size: 20px;
+        background: rgba(80, 224, 182, 0.1);
+        border: 1px solid rgba(80, 224, 182, 0.22);
+        box-shadow: 0 0 22px rgba(80, 224, 182, 0.08);
+      }
+      .doneCopy b {
+        display: block;
+        color: #fff;
+        font-size: 16px;
+      }
+      .doneCopy span {
+        display: block;
+        color: #88909d;
+        font-size: 11px;
+        margin-top: 5px;
+      }
+      .doneChip {
+        height: 38px;
+        border-radius: 14px;
+        padding: 0 13px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #d8f7ec;
+        font-size: 11px;
+        font-weight: 760;
+        border: 1px solid rgba(80, 224, 182, 0.2);
+        background: rgba(80, 224, 182, 0.07);
+      }
 
-@media(max-width:860px){
- .page{grid-template-columns:1fr}.sidebar{display:none}.content{padding:20px}.grid{grid-template-columns:1fr}.help{display:none}
- .footer{grid-template-columns:48px 1fr}.preview{display:none}.actions .github{display:none}
-}
-@media(prefers-reduced-motion:reduce){
- .ribbon,.bloom,.borderSheen:before,.agentOrb:before,.agentCard.charged:before{animation:none!important}
-}
-</style>
-</head>
-<body>
-<div class="page" aria-hidden="true">
-  <aside class="sidebar"><b>Workspace</b><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></aside>
-  <main class="content"><div class="titleSk"></div><div class="subSk"></div><div class="grid"><div class="card"></div><div class="card"></div><div class="card"></div><div class="card"></div><div class="card"></div><div class="card"></div></div><div class="selection" id="selection"></div></main>
-</div>
-<div class="caption">SpotPatch / Motion System</div>
-<div class="help">点击 SpotPatch → Context → Planner；再点击「发送给 Agent」</div>
-<div class="devhint"><kbd>Enter</kbd> 下一步 · <kbd>Esc</kbd> 收起 · <kbd>R</kbd> 重播</div>
-<div class="veil" id="veil"></div>
-
-<section class="shell" id="shell">
-  <div class="bloom"></div><div class="bloom b2"></div>
-  <div class="ambient"><i class="ribbon r1"></i><i class="ribbon r2"></i><i class="ribbon r3"></i><i class="ribbon r4"></i></div>
-  <div class="borderSheen"></div>
-
-  <svg class="signalSvg" aria-hidden="true">
-    <defs>
-      <linearGradient id="sigGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9f7fff"/><stop offset=".56" stop-color="#776bff"/><stop offset="1" stop-color="#31c4ff"/></linearGradient>
-      <filter id="sigGlow" x="-100%" y="-100%" width="300%" height="300%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-    </defs>
-    <path class="signalPath" id="signalPath"/><path class="signalPath core" id="signalCore"/>
-  </svg>
-  <i class="particle"></i><i class="particle"></i><i class="particle"></i><i class="particle"></i><i class="particle"></i>
-
-  <div class="scene pillScene active" data-scene="pill">
-    <span class="seed"></span><strong>选择元素</strong><span class="arrow">↗</span>
-  </div>
-
-  <div class="scene captureScene" data-scene="capture">
-    <div class="capIcon"><div class="scanRing"></div><svg class="logoSvg" viewBox="0 0 48 48"><defs><linearGradient id="g1" x1="8" y1="6" x2="39" y2="42"><stop stop-color="#9b4dff"/><stop offset=".52" stop-color="#615bff"/><stop offset="1" stop-color="#17baff"/></linearGradient></defs><path d="M24 4C13.8 4 7 11.2 7 20.5c0 10.8 17 24 17 24s17-13.2 17-24C41 11.2 34.2 4 24 4Z" fill="none" stroke="url(#g1)" stroke-width="4"/><path d="M17 16l-5 5 5 5M31 16l5 5-5 5M26 13l-5 16" fill="none" stroke="url(#g1)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-    <div class="capCopy"><b>正在捕获上下文</b><span>DOM · Source Map · Component</span></div>
-    <div class="capProgress"><i id="captureBar"></i></div>
-  </div>
-
-  <div class="scene contextScene" data-scene="context">
-    <div class="logoBox"><svg class="logoSvg" viewBox="0 0 48 48"><defs><linearGradient id="g2" x1="8" y1="6" x2="39" y2="42"><stop stop-color="#9b4dff"/><stop offset=".52" stop-color="#615bff"/><stop offset="1" stop-color="#17baff"/></linearGradient></defs><path d="M24 4C13.8 4 7 11.2 7 20.5c0 10.8 17 24 17 24s17-13.2 17-24C41 11.2 34.2 4 24 4Z" fill="none" stroke="url(#g2)" stroke-width="4"/><path d="M17 16l-5 5 5 5M31 16l5 5-5 5M26 13l-5 16" fill="none" stroke="url(#g2)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-    <div class="contextCopy"><h3>SpotPatch · 实时上下文</h3><p>已捕获当前目标，点击继续进入修改规划</p></div>
-    <div class="contextStat"><span class="live"></span>已选择 2 个元素</div>
-  </div>
-
-  <div class="scene plannerScene" data-scene="planner">
-    <header class="plannerHead">
-      <div class="brandGroup"><div class="logoBox" style="width:48px;height:48px;border-radius:18px"><svg class="logoSvg" viewBox="0 0 48 48"><defs><linearGradient id="g3" x1="8" y1="6" x2="39" y2="42"><stop stop-color="#9b4dff"/><stop offset=".52" stop-color="#615bff"/><stop offset="1" stop-color="#17baff"/></linearGradient></defs><path d="M24 4C13.8 4 7 11.2 7 20.5c0 10.8 17 24 17 24s17-13.2 17-24C41 11.2 34.2 4 24 4Z" fill="none" stroke="url(#g3)" stroke-width="4"/><path d="M17 16l-5 5 5 5M31 16l5 5-5 5M26 13l-5 16" fill="none" stroke="url(#g3)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="brandCopy"><b>SpotPatch</b><span>实时上下文</span></div></div>
-      <div class="actions"><button class="ghost github">GitHub ↗</button><button class="ghost">EN</button><button class="ghost icon">⌖</button><button class="ghost icon" id="closeBtn">×</button></div>
-    </header>
-    <div class="plannerBody">
-      <h1>规划本次修改</h1><div class="lead">为每个选中目标分别写清楚修改要求。</div>
-      <div class="summary"><div class="sumPill">已选择 2 个元素</div><div class="ready"><span class="live"></span>上下文已就绪</div><div class="num">2 / 8</div></div>
-      <section class="target"><div class="targetTop"><span class="code">&lt;/&gt;</span><span class="targetName">ListFixture</span><span class="path">src/fixtures.tsx:68:11</span></div><div class="targetLabel"><b>ListFixture 的修改说明</b><span>0 / 2000</span></div><textarea placeholder="描述这个目标期望达到的结果，以及不能破坏的约束……"></textarea></section>
-      <section class="agentCard" id="agentCard">
-        <div class="radial" id="agentRadial"></div>
-        <div class="agentHead"><b>外部 Agent 连接</b><div class="agentState" id="agentState"><span class="live" id="agentDot"></span><span id="agentStateText">Codex · Ready</span></div></div>
-        <p>发送时，这一层会先接收上下文，再“脱离” Planner，成为执行中的灵动岛。</p>
-        <div class="agentSelect">Codex · 受管模式（实验性）<span>⌄</span></div>
-      </section>
+      @media (max-width: 860px) {
+        .page {
+          grid-template-columns: 1fr;
+        }
+        .sidebar {
+          display: none;
+        }
+        .content {
+          padding: 20px;
+        }
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .help {
+          display: none;
+        }
+        .footer {
+          grid-template-columns: 48px 1fr;
+        }
+        .preview {
+          display: none;
+        }
+        .actions .github {
+          display: none;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ribbon,
+        .bloom,
+        .borderSheen:before,
+        .agentOrb:before,
+        .agentCard.charged:before {
+          animation: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page" aria-hidden="true">
+      <aside class="sidebar">
+        <b>Workspace</b>
+        <div class="skel"></div>
+        <div class="skel"></div>
+        <div class="skel"></div>
+        <div class="skel"></div>
+        <div class="skel"></div>
+      </aside>
+      <main class="content">
+        <div class="titleSk"></div>
+        <div class="subSk"></div>
+        <div class="grid">
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+          <div class="card"></div>
+        </div>
+        <div class="selection" id="selection"></div>
+      </main>
     </div>
-    <footer class="footer"><button class="plus">＋</button><button class="send" id="sendBtn">发送给 Agent ↗</button><button class="preview">预览 Prompt ↗</button></footer>
-  </div>
+    <div class="caption">SpotPatch / Motion System</div>
+    <div class="help">点击 SpotPatch → Context → Planner；再点击「发送给 Agent」</div>
+    <div class="devhint">
+      <kbd>Enter</kbd> 下一步 · <kbd>Esc</kbd> 收起 · <kbd>R</kbd> 重播
+    </div>
+    <div class="veil" id="veil"></div>
 
-  <div class="scene handoffScene" data-scene="handoff">
-    <div class="agentOrb"><svg class="logoSvg" viewBox="0 0 48 48"><defs><linearGradient id="g4" x1="8" y1="6" x2="39" y2="42"><stop stop-color="#9b4dff"/><stop offset=".52" stop-color="#615bff"/><stop offset="1" stop-color="#17baff"/></linearGradient></defs><path d="M24 4C13.8 4 7 11.2 7 20.5c0 10.8 17 24 17 24s17-13.2 17-24C41 11.2 34.2 4 24 4Z" fill="none" stroke="url(#g4)" stroke-width="4"/><path d="M17 16l-5 5 5 5M31 16l5 5-5 5M26 13l-5 16" fill="none" stroke="url(#g4)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-    <div class="handoffCopy"><h3 id="handoffTitle">正在构建 Agent 上下文</h3><p id="handoffSub">2 个元素 · 14 个相关代码片段</p></div>
-    <div class="phase"><div class="wave"><i></i><i></i><i></i><i></i><i></i></div><span id="phaseText">PREPARE</span></div>
-  </div>
+    <section class="shell" id="shell">
+      <div class="bloom"></div>
+      <div class="bloom b2"></div>
+      <div class="ambient">
+        <i class="ribbon r1"></i><i class="ribbon r2"></i><i class="ribbon r3"></i
+        ><i class="ribbon r4"></i>
+      </div>
+      <div class="borderSheen"></div>
 
-  <div class="scene runningScene" data-scene="running">
-    <div class="runIcon"><span class="runPulse"></span></div>
-    <div class="runCopy"><b>Codex 正在执行修改</b><span id="runLabel">读取 src/fixtures.tsx</span></div>
-    <div class="runMeta"><span class="timerDot"></span><span id="timer">00:00</span></div>
-    <div class="activity" id="activity"><div class="activityTrack"></div><div class="activityLabel" id="activityLabel">read · src/fixtures.tsx:68</div></div>
-  </div>
+      <svg class="signalSvg" aria-hidden="true">
+        <defs>
+          <linearGradient id="sigGrad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#9f7fff" />
+            <stop offset=".56" stop-color="#776bff" />
+            <stop offset="1" stop-color="#31c4ff" />
+          </linearGradient>
+          <filter id="sigGlow" x="-100%" y="-100%" width="300%" height="300%">
+            <feGaussianBlur stdDeviation="3.2" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <path class="signalPath" id="signalPath" />
+        <path class="signalPath core" id="signalCore" />
+      </svg>
+      <i class="particle"></i><i class="particle"></i><i class="particle"></i
+      ><i class="particle"></i><i class="particle"></i>
 
-  <div class="scene doneScene" data-scene="done">
-    <div class="doneIcon">✓</div><div class="doneCopy"><b>Codex 修改完成</b><span>结果已回流 SpotPatch，可继续检查或重新选择</span></div>
-    <div class="doneChip"><span class="live" style="width:9px;height:9px;box-shadow:none"></span>执行完成</div>
-  </div>
-</section>
+      <div class="scene pillScene active" data-scene="pill">
+        <span class="seed"></span><strong>选择元素</strong><span class="arrow">↗</span>
+      </div>
 
-<script>
-(() => {
-  if (!window.gsap) {
-    document.body.insertAdjacentHTML('beforeend','<div style="position:fixed;left:20px;bottom:20px;background:#111;color:#fff;padding:12px;border-radius:10px;z-index:99">GSAP CDN 未加载，请联网后重新打开。</div>');
-    return;
-  }
+      <div class="scene captureScene" data-scene="capture">
+        <div class="capIcon">
+          <div class="scanRing"></div>
+          <svg class="logoSvg" viewBox="0 0 48 48">
+            <defs>
+              <linearGradient id="g1" x1="8" y1="6" x2="39" y2="42">
+                <stop stop-color="#9b4dff" />
+                <stop offset=".52" stop-color="#615bff" />
+                <stop offset="1" stop-color="#17baff" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M24 4C13.8 4 7 11.2 7 20.5c0 10.8 17 24 17 24s17-13.2 17-24C41 11.2 34.2 4 24 4Z"
+              fill="none"
+              stroke="url(#g1)"
+              stroke-width="4"
+            />
+            <path
+              d="M17 16l-5 5 5 5M31 16l5 5-5 5M26 13l-5 16"
+              fill="none"
+              stroke="url(#g1)"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+        <div class="capCopy">
+          <b>正在捕获上下文</b><span>DOM · Source Map · Component</span>
+        </div>
+        <div class="capProgress"><i id="captureBar"></i></div>
+      </div>
 
-  const $=(q,r=document)=>r.querySelector(q), $$=(q,r=document)=>[...r.querySelectorAll(q)];
-  const shell=$('#shell'), scenes=$$('.scene'), veil=$('#veil'), selection=$('#selection');
-  const captureBar=$('#captureBar'), sendBtn=$('#sendBtn'), closeBtn=$('#closeBtn');
-  const agentCard=$('#agentCard'), agentRadial=$('#agentRadial'), agentState=$('#agentState');
-  const agentDot=$('#agentDot'), agentStateText=$('#agentStateText');
-  const signalPath=$('#signalPath'), signalCore=$('#signalCore'), particles=$$('.particle');
-  const handoffTitle=$('#handoffTitle'), handoffSub=$('#handoffSub'), phaseText=$('#phaseText');
-  const waveBars=$$('.wave i'), runLabel=$('#runLabel'), timerEl=$('#timer');
-  const activity=$('#activity'), activityLabel=$('#activityLabel');
+      <div class="scene contextScene" data-scene="context">
+        <div class="logoBox">
+          <svg class="logoSvg" viewBox="0 0 48 48">
+            <defs>
+              <linearGradient id="g2" x1="8" y1="6" x2="39" y2="42">
+                <stop stop-color="#9b4dff" />
+                <stop offset=".52" stop-color="#615bff" />
+                <stop offset="1" stop-color="#17baff" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M24 4C13.8 4 7 11.2 7 20.5c0 10.8 17 24 17 24s17-13.2 17-24C41 11.2 34.2 4 24 4Z"
+              fill="none"
+              stroke="url(#g2)"
+              stroke-width="4"
+            />
+            <path
+              d="M17 16l-5 5 5 5M31 16l5 5-5 5M26 13l-5 16"
+              fill="none"
+              stroke="url(#g2)"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+        <div class="contextCopy">
+          <h3>SpotPatch · 实时上下文</h3>
+          <p>已捕获当前目标，点击继续进入修改规划</p>
+        </div>
+        <div class="contextStat"><span class="live"></span>已选择 2 个元素</div>
+      </div>
 
-  const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const M=reduced?0.04:1;
-  let state='pill', locked=false, runTimer=null, eventTimer=null, seconds=0;
+      <div class="scene plannerScene" data-scene="planner">
+        <header class="plannerHead">
+          <div class="brandGroup">
+            <div class="logoBox" style="width: 48px; height: 48px; border-radius: 18px">
+              <svg class="logoSvg" viewBox="0 0 48 48">
+                <defs>
+                  <linearGradient id="g3" x1="8" y1="6" x2="39" y2="42">
+                    <stop stop-color="#9b4dff" />
+                    <stop offset=".52" stop-color="#615bff" />
+                    <stop offset="1" stop-color="#17baff" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d="M24 4C13.8 4 7 11.2 7 20.5c0 10.8 17 24 17 24s17-13.2 17-24C41 11.2 34.2 4 24 4Z"
+                  fill="none"
+                  stroke="url(#g3)"
+                  stroke-width="4"
+                />
+                <path
+                  d="M17 16l-5 5 5 5M31 16l5 5-5 5M26 13l-5 16"
+                  fill="none"
+                  stroke="url(#g3)"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>
+            <div class="brandCopy"><b>SpotPatch</b><span>实时上下文</span></div>
+          </div>
+          <div class="actions">
+            <button class="ghost github">GitHub ↗</button
+            ><button class="ghost">EN</button><button class="ghost icon">⌖</button
+            ><button class="ghost icon" id="closeBtn">×</button>
+          </div>
+        </header>
+        <div class="plannerBody">
+          <h1>规划本次修改</h1>
+          <div class="lead">为每个选中目标分别写清楚修改要求。</div>
+          <div class="summary">
+            <div class="sumPill">已选择 2 个元素</div>
+            <div class="ready"><span class="live"></span>上下文已就绪</div>
+            <div class="num">2 / 8</div>
+          </div>
+          <section class="target">
+            <div class="targetTop">
+              <span class="code">&lt;/&gt;</span
+              ><span class="targetName">ListFixture</span
+              ><span class="path">src/fixtures.tsx:68:11</span>
+            </div>
+            <div class="targetLabel">
+              <b>ListFixture 的修改说明</b><span>0 / 2000</span>
+            </div>
+            <textarea
+              placeholder="描述这个目标期望达到的结果，以及不能破坏的约束……"
+            ></textarea>
+          </section>
+          <section class="agentCard" id="agentCard">
+            <div class="radial" id="agentRadial"></div>
+            <div class="agentHead">
+              <b>外部 Agent 连接</b>
+              <div class="agentState" id="agentState">
+                <span class="live" id="agentDot"></span
+                ><span id="agentStateText">Codex · Ready</span>
+              </div>
+            </div>
+            <p>发送时，这一层会先接收上下文，再“脱离” Planner，成为执行中的灵动岛。</p>
+            <div class="agentSelect">Codex · 受管模式（实验性）<span>⌄</span></div>
+          </section>
+        </div>
+        <footer class="footer">
+          <button class="plus">＋</button
+          ><button class="send" id="sendBtn">发送给 Agent ↗</button
+          ><button class="preview">预览 Prompt ↗</button>
+        </footer>
+      </div>
 
-  const dims={
-    pill(){return {l:Math.max(16,Math.min(28,innerWidth*.03)),t:Math.max(16,innerHeight-102),w:Math.min(224,innerWidth-32),h:72,r:38}},
-    capture(){const w=Math.min(520,innerWidth-34);return {l:(innerWidth-w)/2,t:Math.max(24,innerHeight-112),w,h:78,r:30}},
-    context(){const w=Math.min(1080,innerWidth-48);return {l:(innerWidth-w)/2,t:36,w,h:146,r:34}},
-    planner(){const w=Math.min(930,innerWidth-32),h=Math.min(760,innerHeight-30);return {l:(innerWidth-w)/2,t:(innerHeight-h)/2,w,h,r:30}},
-    handoff(){const w=Math.min(820,innerWidth-44);return {l:(innerWidth-w)/2,t:34,w,h:112,r:34}},
-    running(){const w=Math.min(610,innerWidth-40);return {l:(innerWidth-w)/2,t:34,w,h:92,r:30}},
-    done(){const w=Math.min(650,innerWidth-40);return {l:(innerWidth-w)/2,t:34,w,h:88,r:30}}
-  };
+      <div class="scene handoffScene" data-scene="handoff">
+        <div class="agentOrb">
+          <svg class="logoSvg" viewBox="0 0 48 48">
+            <defs>
+              <linearGradient id="g4" x1="8" y1="6" x2="39" y2="42">
+                <stop stop-color="#9b4dff" />
+                <stop offset=".52" stop-color="#615bff" />
+                <stop offset="1" stop-color="#17baff" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M24 4C13.8 4 7 11.2 7 20.5c0 10.8 17 24 17 24s17-13.2 17-24C41 11.2 34.2 4 24 4Z"
+              fill="none"
+              stroke="url(#g4)"
+              stroke-width="4"
+            />
+            <path
+              d="M17 16l-5 5 5 5M31 16l5 5-5 5M26 13l-5 16"
+              fill="none"
+              stroke="url(#g4)"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </div>
+        <div class="handoffCopy">
+          <h3 id="handoffTitle">正在构建 Agent 上下文</h3>
+          <p id="handoffSub">2 个元素 · 14 个相关代码片段</p>
+        </div>
+        <div class="phase">
+          <div class="wave"><i></i><i></i><i></i><i></i><i></i></div>
+          <span id="phaseText">PREPARE</span>
+        </div>
+      </div>
 
-  const scene=n=>$(`[data-scene="${n}"]`);
+      <div class="scene runningScene" data-scene="running">
+        <div class="runIcon"><span class="runPulse"></span></div>
+        <div class="runCopy">
+          <b>Codex 正在执行修改</b><span id="runLabel">读取 src/fixtures.tsx</span>
+        </div>
+        <div class="runMeta">
+          <span class="timerDot"></span><span id="timer">00:00</span>
+        </div>
+        <div class="activity" id="activity">
+          <div class="activityTrack"></div>
+          <div class="activityLabel" id="activityLabel">read · src/fixtures.tsx:68</div>
+        </div>
+      </div>
 
-  function setScene(name,delay=0){
-    scenes.forEach(el=>{el.classList.remove('active');gsap.set(el,{autoAlpha:0,y:8,scale:.992,filter:'blur(7px)'})});
-    const el=scene(name);el.classList.add('active');
-    gsap.to(el,{delay:delay*M,duration:.42*M,autoAlpha:1,y:0,scale:1,filter:'blur(0px)',ease:'power3.out'});
-  }
-  function hide(name){return gsap.to(scene(name),{duration:.18*M,autoAlpha:0,y:-5,scale:.996,filter:'blur(5px)',ease:'power2.in'})}
-  function setVeil(on){gsap.to(veil,{duration:.42*M,opacity:on?1:0,backdropFilter:on?'blur(9px)':'blur(0px)',ease:'power3.out'})}
-  function morph(name,duration=.7,ease='expo.inOut'){
-    const d=dims[name]();
-    return gsap.to(shell,{duration:duration*M,left:d.l,top:d.t,width:d.w,height:d.h,borderRadius:d.r,ease,overwrite:true});
-  }
+      <div class="scene doneScene" data-scene="done">
+        <div class="doneIcon">✓</div>
+        <div class="doneCopy">
+          <b>Codex 修改完成</b><span>结果已回流 SpotPatch，可继续检查或重新选择</span>
+        </div>
+        <div class="doneChip">
+          <span class="live" style="width: 9px; height: 9px; box-shadow: none"></span
+          >执行完成
+        </div>
+      </div>
+    </section>
 
-  async function captureFlow(){
-    if(locked)return;locked=true;state='capture';
-    await hide('pill');setScene('capture',.05);morph('capture',.52,'power4.out');
-    gsap.to(selection,{duration:.22*M,opacity:1});
-    gsap.fromTo(selection,{scale:.992},{duration:.72*M,scale:1.008,repeat:1,yoyo:true,ease:'sine.inOut'});
-    gsap.set(captureBar,{width:'0%'});
-    await gsap.to(captureBar,{duration:.88*M,width:'100%',ease:'power2.inOut'});
-    await wait(110);hide('capture');state='context';setScene('context',.1);
-    await morph('context',.70,'expo.out');locked=false;
-  }
+    <script>
+      (() => {
+        if (!window.gsap) {
+          document.body.insertAdjacentHTML(
+            "beforeend",
+            '<div style="position:fixed;left:20px;bottom:20px;background:#111;color:#fff;padding:12px;border-radius:10px;z-index:99">GSAP CDN 未加载，请联网后重新打开。</div>',
+          );
+          return;
+        }
 
-  async function openPlanner(){
-    if(locked)return;locked=true;state='planner';setVeil(true);
-    hide('context');setScene('planner',.19);
-    const d=dims.planner(),o=reduced?0:10;
-    await gsap.timeline()
-      .to(shell,{duration:.62*M,left:d.l-o/2,top:d.t-o/2,width:d.w+o,height:d.h+o,borderRadius:d.r-2,ease:'expo.out'})
-      .to(shell,{duration:.18*M,left:d.l,top:d.t,width:d.w,height:d.h,borderRadius:d.r,ease:'power2.out'});
-    locked=false;
-  }
+        const $ = (q, r = document) => r.querySelector(q),
+          $$ = (q, r = document) => [...r.querySelectorAll(q)];
+        const shell = $("#shell"),
+          scenes = $$(".scene"),
+          veil = $("#veil"),
+          selection = $("#selection");
+        const captureBar = $("#captureBar"),
+          sendBtn = $("#sendBtn"),
+          closeBtn = $("#closeBtn");
+        const agentCard = $("#agentCard"),
+          agentRadial = $("#agentRadial"),
+          agentState = $("#agentState");
+        const agentDot = $("#agentDot"),
+          agentStateText = $("#agentStateText");
+        const signalPath = $("#signalPath"),
+          signalCore = $("#signalCore"),
+          particles = $$(".particle");
+        const handoffTitle = $("#handoffTitle"),
+          handoffSub = $("#handoffSub"),
+          phaseText = $("#phaseText");
+        const waveBars = $$(".wave i"),
+          runLabel = $("#runLabel"),
+          timerEl = $("#timer");
+        const activity = $("#activity"),
+          activityLabel = $("#activityLabel");
 
-  function signalGeometry(){
-    const sr=shell.getBoundingClientRect(), b=sendBtn.getBoundingClientRect(), a=agentCard.getBoundingClientRect();
-    const p={sx:b.left+b.width/2-sr.left,sy:b.top+b.height/2-sr.top,ex:a.left+Math.min(70,a.width*.22)-sr.left,ey:a.top+a.height*.55-sr.top};
-    p.c1x=p.sx-Math.min(190,Math.abs(p.sx-p.ex)*.42);p.c1y=p.sy-42;
-    p.c2x=p.ex+Math.min(130,Math.abs(p.sx-p.ex)*.32);p.c2y=p.ey+76;
-    const d=`M ${p.sx} ${p.sy} C ${p.c1x} ${p.c1y}, ${p.c2x} ${p.c2y}, ${p.ex} ${p.ey}`;
-    signalPath.setAttribute('d',d);signalCore.setAttribute('d',d);return p;
-  }
-  function point(t,p){const m=1-t;return {x:m*m*m*p.sx+3*m*m*t*p.c1x+3*m*t*t*p.c2x+t*t*t*p.ex,y:m*m*m*p.sy+3*m*m*t*p.c1y+3*m*t*t*p.c2y+t*t*t*p.ey}}
-  function sendSignal(){
-    const p=signalGeometry(),len=signalPath.getTotalLength();
-    gsap.set([signalPath,signalCore],{opacity:1,strokeDasharray:len,strokeDashoffset:len});
-    gsap.to(signalPath,{duration:.72*M,strokeDashoffset:0,ease:'power2.out'});
-    gsap.to(signalCore,{duration:.58*M,strokeDashoffset:0,opacity:.95,ease:'power3.out',delay:.06*M});
-    particles.forEach((el,i)=>{
-      const q={t:0};gsap.set(el,{opacity:0,x:p.sx-3,y:p.sy-3,scale:1});
-      gsap.to(q,{t:1,duration:(.60+i*.055)*M,delay:(.08+i*.055)*M,ease:'power2.inOut',
-        onStart:()=>gsap.to(el,{duration:.08*M,opacity:.9}),
-        onUpdate:()=>{const v=point(q.t,p);gsap.set(el,{x:v.x-3,y:v.y-3})},
-        onComplete:()=>gsap.to(el,{duration:.12*M,opacity:0,scale:.2})
-      });
-    });
-    gsap.to([signalPath,signalCore],{duration:.22*M,opacity:0,delay:.78*M});
-  }
-  function chargeAgent(){
-    agentCard.classList.remove('charged');void agentCard.offsetWidth;agentCard.classList.add('charged');
-    gsap.set(agentRadial,{opacity:0,x:0});
-    gsap.timeline().to(agentRadial,{duration:.14*M,opacity:.8})
-      .to(agentRadial,{duration:.62*M,x:agentCard.clientWidth+100,opacity:.12,ease:'power2.inOut'},'<')
-      .to(agentRadial,{duration:.10*M,opacity:0});
-    gsap.to(agentState,{duration:.25*M,borderColor:'rgba(80,224,182,.22)',backgroundColor:'rgba(80,224,182,.05)',color:'#bcefdc'});
-    gsap.to(agentDot,{duration:.22*M,backgroundColor:'#50e0b6',boxShadow:'0 0 14px rgba(80,224,182,.45)'});
-    agentStateText.textContent='正在接收上下文';
-  }
+        const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const M = reduced ? 0.04 : 1;
+        let state = "pill",
+          locked = false,
+          runTimer = null,
+          eventTimer = null,
+          seconds = 0;
 
-  async function sendFlow(){
-    if(locked||state!=='planner')return;locked=true;
-    gsap.timeline().to(sendBtn,{duration:.10*M,scaleY:.965,scaleX:.992,ease:'power2.in'})
-      .to(sendBtn,{duration:.22*M,scaleY:1,scaleX:1,ease:'back.out(2)'});
-    gsap.fromTo(sendBtn,{filter:'brightness(1)'},{duration:.30*M,filter:'brightness(1.24)',repeat:1,yoyo:true});
-    sendSignal();await wait(500);chargeAgent();await wait(650);
+        const dims = {
+          pill() {
+            return {
+              l: Math.max(16, Math.min(28, innerWidth * 0.03)),
+              t: Math.max(16, innerHeight - 102),
+              w: Math.min(224, innerWidth - 32),
+              h: 72,
+              r: 38,
+            };
+          },
+          capture() {
+            const w = Math.min(520, innerWidth - 34);
+            return {
+              l: (innerWidth - w) / 2,
+              t: Math.max(24, innerHeight - 112),
+              w,
+              h: 78,
+              r: 30,
+            };
+          },
+          context() {
+            const w = Math.min(1080, innerWidth - 48);
+            return { l: (innerWidth - w) / 2, t: 36, w, h: 146, r: 34 };
+          },
+          planner() {
+            const w = Math.min(930, innerWidth - 32),
+              h = Math.min(760, innerHeight - 30);
+            return { l: (innerWidth - w) / 2, t: (innerHeight - h) / 2, w, h, r: 30 };
+          },
+          handoff() {
+            const w = Math.min(820, innerWidth - 44);
+            return { l: (innerWidth - w) / 2, t: 34, w, h: 112, r: 34 };
+          },
+          running() {
+            const w = Math.min(610, innerWidth - 40);
+            return { l: (innerWidth - w) / 2, t: 34, w, h: 92, r: 30 };
+          },
+          done() {
+            const w = Math.min(650, innerWidth - 40);
+            return { l: (innerWidth - w) / 2, t: 34, w, h: 88, r: 30 };
+          },
+        };
 
-    state='handoff';hide('planner');setScene('handoff',.17);await morph('handoff',.74,'expo.inOut');
-    await handoffPhases();locked=false;
-  }
+        const scene = (n) => $(`[data-scene="${n}"]`);
 
-  async function handoffPhases(){
-    waveBars.forEach((bar,i)=>gsap.to(bar,{duration:.34*M,scaleY:2.2+(i%3)*.8,repeat:-1,yoyo:true,ease:'sine.inOut',delay:i*.055*M}));
-    const phases=[
-      ['正在构建 Agent 上下文','2 个元素 · 14 个相关代码片段','PREPARE',720],
-      ['正在派发 Prompt','Context → Prompt → Codex','DISPATCH',720],
-      ['Codex 已取件','执行链路建立，等待首个动作','ATTACHED',560]
-    ];
-    for(const [a,b,c,ms] of phases){
-      await gsap.to([handoffTitle,handoffSub,phaseText],{duration:.12*M,opacity:0,y:-3});
-      handoffTitle.textContent=a;handoffSub.textContent=b;phaseText.textContent=c;
-      gsap.to([handoffTitle,handoffSub,phaseText],{duration:.23*M,opacity:1,y:0,ease:'power3.out'});
-      await wait(ms);
-    }
-    state='running';setVeil(false);hide('handoff');setScene('running',.10);await morph('running',.56,'power4.inOut');startRunning();
-  }
+        function setScene(name, delay = 0) {
+          scenes.forEach((el) => {
+            el.classList.remove("active");
+            gsap.set(el, { autoAlpha: 0, y: 8, scale: 0.992, filter: "blur(7px)" });
+          });
+          const el = scene(name);
+          el.classList.add("active");
+          gsap.to(el, {
+            delay: delay * M,
+            duration: 0.42 * M,
+            autoAlpha: 1,
+            y: 0,
+            scale: 1,
+            filter: "blur(0px)",
+            ease: "power3.out",
+          });
+        }
+        function hide(name) {
+          return gsap.to(scene(name), {
+            duration: 0.18 * M,
+            autoAlpha: 0,
+            y: -5,
+            scale: 0.996,
+            filter: "blur(5px)",
+            ease: "power2.in",
+          });
+        }
+        function setVeil(on) {
+          gsap.to(veil, {
+            duration: 0.42 * M,
+            opacity: on ? 1 : 0,
+            backdropFilter: on ? "blur(9px)" : "blur(0px)",
+            ease: "power3.out",
+          });
+        }
+        function morph(name, duration = 0.7, ease = "expo.inOut") {
+          const d = dims[name]();
+          return gsap.to(shell, {
+            duration: duration * M,
+            left: d.l,
+            top: d.t,
+            width: d.w,
+            height: d.h,
+            borderRadius: d.r,
+            ease,
+            overwrite: true,
+          });
+        }
 
-  function startRunning(){
-    seconds=0;timerEl.textContent='00:00';
-    gsap.to('.runPulse',{duration:.72*M,scale:1.28,repeat:-1,yoyo:true,ease:'sine.inOut'});
-    gsap.to(activity,{duration:.28*M,opacity:1,delay:.22*M});
-    const events=[
-      ['读取 src/fixtures.tsx','read · src/fixtures.tsx:68'],
-      ['分析 ListFixture 依赖','trace · ListFixture → components'],
-      ['生成最小修改补丁','patch · 3 hunks'],
-      ['运行类型检查','check · TypeScript'],
-      ['准备回传结果','sync · SpotPatch inbox']
-    ];
-    let i=0;
-    const show=()=>{
-      const e=events[i%events.length];runLabel.textContent=e[0];activityLabel.textContent=e[1];
-      gsap.fromTo('.activityTrack',{xPercent:-110},{duration:.78*M,xPercent:300,ease:'power1.inOut'});
-      gsap.fromTo([runLabel,activityLabel],{opacity:.35,y:2},{duration:.22*M,opacity:1,y:0});i++;
-    };
-    show();eventTimer=setInterval(show,720);
-    runTimer=setInterval(()=>{seconds++;timerEl.textContent='00:'+String(seconds).padStart(2,'0');if(seconds>=5){clearInterval(runTimer);clearInterval(eventTimer);finish()}},1000);
-  }
+        async function captureFlow() {
+          if (locked) return;
+          locked = true;
+          state = "capture";
+          await hide("pill");
+          setScene("capture", 0.05);
+          morph("capture", 0.52, "power4.out");
+          gsap.to(selection, { duration: 0.22 * M, opacity: 1 });
+          gsap.fromTo(
+            selection,
+            { scale: 0.992 },
+            {
+              duration: 0.72 * M,
+              scale: 1.008,
+              repeat: 1,
+              yoyo: true,
+              ease: "sine.inOut",
+            },
+          );
+          gsap.set(captureBar, { width: "0%" });
+          await gsap.to(captureBar, {
+            duration: 0.88 * M,
+            width: "100%",
+            ease: "power2.inOut",
+          });
+          await wait(110);
+          hide("capture");
+          state = "context";
+          setScene("context", 0.1);
+          await morph("context", 0.7, "expo.out");
+          locked = false;
+        }
 
-  async function finish(){
-    if(state!=='running')return;locked=true;state='done';hide('running');setScene('done',.10);
-    await morph('done',.46,'back.out(1.45)');
-    gsap.fromTo('.doneIcon',{scale:.7,rotation:-12},{duration:.44*M,scale:1,rotation:0,ease:'back.out(2.2)'});
-    await wait(1500);await reset();locked=false;
-  }
+        async function openPlanner() {
+          if (locked) return;
+          locked = true;
+          state = "planner";
+          setVeil(true);
+          hide("context");
+          setScene("planner", 0.19);
+          const d = dims.planner(),
+            o = reduced ? 0 : 10;
+          await gsap
+            .timeline()
+            .to(shell, {
+              duration: 0.62 * M,
+              left: d.l - o / 2,
+              top: d.t - o / 2,
+              width: d.w + o,
+              height: d.h + o,
+              borderRadius: d.r - 2,
+              ease: "expo.out",
+            })
+            .to(shell, {
+              duration: 0.18 * M,
+              left: d.l,
+              top: d.t,
+              width: d.w,
+              height: d.h,
+              borderRadius: d.r,
+              ease: "power2.out",
+            });
+          locked = false;
+        }
 
-  async function reset(){
-    clearInterval(runTimer);clearInterval(eventTimer);state='pill';setVeil(false);gsap.to(selection,{duration:.22*M,opacity:0});
-    const current=scenes.find(s=>s.classList.contains('active'));if(current)hide(current.dataset.scene);
-    setScene('pill',.14);await morph('pill',.66,'expo.inOut');
-    agentCard.classList.remove('charged');agentStateText.textContent='Codex · Ready';
-    gsap.set(agentState,{clearProps:'backgroundColor,borderColor,color'});gsap.set(agentDot,{clearProps:'backgroundColor,boxShadow'});locked=false;
-  }
-  function wait(ms){return new Promise(r=>setTimeout(r,reduced?10:ms))}
+        function signalGeometry() {
+          const sr = shell.getBoundingClientRect(),
+            b = sendBtn.getBoundingClientRect(),
+            a = agentCard.getBoundingClientRect();
+          const p = {
+            sx: b.left + b.width / 2 - sr.left,
+            sy: b.top + b.height / 2 - sr.top,
+            ex: a.left + Math.min(70, a.width * 0.22) - sr.left,
+            ey: a.top + a.height * 0.55 - sr.top,
+          };
+          p.c1x = p.sx - Math.min(190, Math.abs(p.sx - p.ex) * 0.42);
+          p.c1y = p.sy - 42;
+          p.c2x = p.ex + Math.min(130, Math.abs(p.sx - p.ex) * 0.32);
+          p.c2y = p.ey + 76;
+          const d = `M ${p.sx} ${p.sy} C ${p.c1x} ${p.c1y}, ${p.c2x} ${p.c2y}, ${p.ex} ${p.ey}`;
+          signalPath.setAttribute("d", d);
+          signalCore.setAttribute("d", d);
+          return p;
+        }
+        function point(t, p) {
+          const m = 1 - t;
+          return {
+            x:
+              m * m * m * p.sx +
+              3 * m * m * t * p.c1x +
+              3 * m * t * t * p.c2x +
+              t * t * t * p.ex,
+            y:
+              m * m * m * p.sy +
+              3 * m * m * t * p.c1y +
+              3 * m * t * t * p.c2y +
+              t * t * t * p.ey,
+          };
+        }
+        function sendSignal() {
+          const p = signalGeometry(),
+            len = signalPath.getTotalLength();
+          gsap.set([signalPath, signalCore], {
+            opacity: 1,
+            strokeDasharray: len,
+            strokeDashoffset: len,
+          });
+          gsap.to(signalPath, {
+            duration: 0.72 * M,
+            strokeDashoffset: 0,
+            ease: "power2.out",
+          });
+          gsap.to(signalCore, {
+            duration: 0.58 * M,
+            strokeDashoffset: 0,
+            opacity: 0.95,
+            ease: "power3.out",
+            delay: 0.06 * M,
+          });
+          particles.forEach((el, i) => {
+            const q = { t: 0 };
+            gsap.set(el, { opacity: 0, x: p.sx - 3, y: p.sy - 3, scale: 1 });
+            gsap.to(q, {
+              t: 1,
+              duration: (0.6 + i * 0.055) * M,
+              delay: (0.08 + i * 0.055) * M,
+              ease: "power2.inOut",
+              onStart: () => gsap.to(el, { duration: 0.08 * M, opacity: 0.9 }),
+              onUpdate: () => {
+                const v = point(q.t, p);
+                gsap.set(el, { x: v.x - 3, y: v.y - 3 });
+              },
+              onComplete: () =>
+                gsap.to(el, { duration: 0.12 * M, opacity: 0, scale: 0.2 }),
+            });
+          });
+          gsap.to([signalPath, signalCore], {
+            duration: 0.22 * M,
+            opacity: 0,
+            delay: 0.78 * M,
+          });
+        }
+        function chargeAgent() {
+          agentCard.classList.remove("charged");
+          void agentCard.offsetWidth;
+          agentCard.classList.add("charged");
+          gsap.set(agentRadial, { opacity: 0, x: 0 });
+          gsap
+            .timeline()
+            .to(agentRadial, { duration: 0.14 * M, opacity: 0.8 })
+            .to(
+              agentRadial,
+              {
+                duration: 0.62 * M,
+                x: agentCard.clientWidth + 100,
+                opacity: 0.12,
+                ease: "power2.inOut",
+              },
+              "<",
+            )
+            .to(agentRadial, { duration: 0.1 * M, opacity: 0 });
+          gsap.to(agentState, {
+            duration: 0.25 * M,
+            borderColor: "rgba(80,224,182,.22)",
+            backgroundColor: "rgba(80,224,182,.05)",
+            color: "#bcefdc",
+          });
+          gsap.to(agentDot, {
+            duration: 0.22 * M,
+            backgroundColor: "#50e0b6",
+            boxShadow: "0 0 14px rgba(80,224,182,.45)",
+          });
+          agentStateText.textContent = "正在接收上下文";
+        }
 
-  shell.addEventListener('click',e=>{
-    if(e.target.closest('button,textarea'))return;
-    if(state==='pill')captureFlow();else if(state==='context')openPlanner();else if(state==='done')reset();
-  });
-  sendBtn.addEventListener('click',e=>{e.stopPropagation();sendFlow()});
-  closeBtn.addEventListener('click',e=>{e.stopPropagation();if(!locked)reset()});
-  addEventListener('keydown',e=>{
-    if(e.key==='Escape'&&!locked)reset();
-    if(e.key.toLowerCase()==='r'&&!locked)reset();
-    if(e.key==='Enter'&&!locked){if(state==='pill')captureFlow();else if(state==='context')openPlanner();else if(state==='planner')sendFlow()}
-  });
-  addEventListener('resize',()=>{if(locked)return;const d=dims[state]?dims[state]():dims.pill();gsap.set(shell,{left:d.l,top:d.t,width:d.w,height:d.h,borderRadius:d.r})});
+        async function sendFlow() {
+          if (locked || state !== "planner") return;
+          locked = true;
+          gsap
+            .timeline()
+            .to(sendBtn, {
+              duration: 0.1 * M,
+              scaleY: 0.965,
+              scaleX: 0.992,
+              ease: "power2.in",
+            })
+            .to(sendBtn, {
+              duration: 0.22 * M,
+              scaleY: 1,
+              scaleX: 1,
+              ease: "back.out(2)",
+            });
+          gsap.fromTo(
+            sendBtn,
+            { filter: "brightness(1)" },
+            { duration: 0.3 * M, filter: "brightness(1.24)", repeat: 1, yoyo: true },
+          );
+          sendSignal();
+          await wait(500);
+          chargeAgent();
+          await wait(650);
 
-  gsap.set(scene('pill'),{autoAlpha:1,y:0,scale:1,filter:'blur(0px)'});
-})();
-</script>
-</body>
+          state = "handoff";
+          hide("planner");
+          setScene("handoff", 0.17);
+          await morph("handoff", 0.74, "expo.inOut");
+          await handoffPhases();
+          locked = false;
+        }
+
+        async function handoffPhases() {
+          waveBars.forEach((bar, i) =>
+            gsap.to(bar, {
+              duration: 0.34 * M,
+              scaleY: 2.2 + (i % 3) * 0.8,
+              repeat: -1,
+              yoyo: true,
+              ease: "sine.inOut",
+              delay: i * 0.055 * M,
+            }),
+          );
+          const phases = [
+            ["正在构建 Agent 上下文", "2 个元素 · 14 个相关代码片段", "PREPARE", 720],
+            ["正在派发 Prompt", "Context → Prompt → Codex", "DISPATCH", 720],
+            ["Codex 已取件", "执行链路建立，等待首个动作", "ATTACHED", 560],
+          ];
+          for (const [a, b, c, ms] of phases) {
+            await gsap.to([handoffTitle, handoffSub, phaseText], {
+              duration: 0.12 * M,
+              opacity: 0,
+              y: -3,
+            });
+            handoffTitle.textContent = a;
+            handoffSub.textContent = b;
+            phaseText.textContent = c;
+            gsap.to([handoffTitle, handoffSub, phaseText], {
+              duration: 0.23 * M,
+              opacity: 1,
+              y: 0,
+              ease: "power3.out",
+            });
+            await wait(ms);
+          }
+          state = "running";
+          setVeil(false);
+          hide("handoff");
+          setScene("running", 0.1);
+          await morph("running", 0.56, "power4.inOut");
+          startRunning();
+        }
+
+        function startRunning() {
+          seconds = 0;
+          timerEl.textContent = "00:00";
+          gsap.to(".runPulse", {
+            duration: 0.72 * M,
+            scale: 1.28,
+            repeat: -1,
+            yoyo: true,
+            ease: "sine.inOut",
+          });
+          gsap.to(activity, { duration: 0.28 * M, opacity: 1, delay: 0.22 * M });
+          const events = [
+            ["读取 src/fixtures.tsx", "read · src/fixtures.tsx:68"],
+            ["分析 ListFixture 依赖", "trace · ListFixture → components"],
+            ["生成最小修改补丁", "patch · 3 hunks"],
+            ["运行类型检查", "check · TypeScript"],
+            ["准备回传结果", "sync · SpotPatch inbox"],
+          ];
+          let i = 0;
+          const show = () => {
+            const e = events[i % events.length];
+            runLabel.textContent = e[0];
+            activityLabel.textContent = e[1];
+            gsap.fromTo(
+              ".activityTrack",
+              { xPercent: -110 },
+              { duration: 0.78 * M, xPercent: 300, ease: "power1.inOut" },
+            );
+            gsap.fromTo(
+              [runLabel, activityLabel],
+              { opacity: 0.35, y: 2 },
+              { duration: 0.22 * M, opacity: 1, y: 0 },
+            );
+            i++;
+          };
+          show();
+          eventTimer = setInterval(show, 720);
+          runTimer = setInterval(() => {
+            seconds++;
+            timerEl.textContent = "00:" + String(seconds).padStart(2, "0");
+            if (seconds >= 5) {
+              clearInterval(runTimer);
+              clearInterval(eventTimer);
+              finish();
+            }
+          }, 1000);
+        }
+
+        async function finish() {
+          if (state !== "running") return;
+          locked = true;
+          state = "done";
+          hide("running");
+          setScene("done", 0.1);
+          await morph("done", 0.46, "back.out(1.45)");
+          gsap.fromTo(
+            ".doneIcon",
+            { scale: 0.7, rotation: -12 },
+            { duration: 0.44 * M, scale: 1, rotation: 0, ease: "back.out(2.2)" },
+          );
+          await wait(1500);
+          await reset();
+          locked = false;
+        }
+
+        async function reset() {
+          clearInterval(runTimer);
+          clearInterval(eventTimer);
+          state = "pill";
+          setVeil(false);
+          gsap.to(selection, { duration: 0.22 * M, opacity: 0 });
+          const current = scenes.find((s) => s.classList.contains("active"));
+          if (current) hide(current.dataset.scene);
+          setScene("pill", 0.14);
+          await morph("pill", 0.66, "expo.inOut");
+          agentCard.classList.remove("charged");
+          agentStateText.textContent = "Codex · Ready";
+          gsap.set(agentState, { clearProps: "backgroundColor,borderColor,color" });
+          gsap.set(agentDot, { clearProps: "backgroundColor,boxShadow" });
+          locked = false;
+        }
+        function wait(ms) {
+          return new Promise((r) => setTimeout(r, reduced ? 10 : ms));
+        }
+
+        shell.addEventListener("click", (e) => {
+          if (e.target.closest("button,textarea")) return;
+          if (state === "pill") captureFlow();
+          else if (state === "context") openPlanner();
+          else if (state === "done") reset();
+        });
+        sendBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          sendFlow();
+        });
+        closeBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (!locked) reset();
+        });
+        addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && !locked) reset();
+          if (e.key.toLowerCase() === "r" && !locked) reset();
+          if (e.key === "Enter" && !locked) {
+            if (state === "pill") captureFlow();
+            else if (state === "context") openPlanner();
+            else if (state === "planner") sendFlow();
+          }
+        });
+        addEventListener("resize", () => {
+          if (locked) return;
+          const d = dims[state] ? dims[state]() : dims.pill();
+          gsap.set(shell, {
+            left: d.l,
+            top: d.t,
+            width: d.w,
+            height: d.h,
+            borderRadius: d.r,
+          });
+        });
+
+        gsap.set(scene("pill"), { autoAlpha: 1, y: 0, scale: 1, filter: "blur(0px)" });
+      })();
+    </script>
+  </body>
 </html>

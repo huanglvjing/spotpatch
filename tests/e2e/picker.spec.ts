@@ -1,5 +1,14 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+const GEOMETRY_TOLERANCE_PX = 1;
+
+interface ElementBox {
+  readonly height: number;
+  readonly width: number;
+  readonly x: number;
+  readonly y: number;
+}
+
 const activatePicker = async (page: Page): Promise<void> => {
   await page.getByRole("button", { name: "Select element" }).click();
   await expect(page.getByRole("button", { name: "Stop selecting" })).toBeVisible();
@@ -30,7 +39,61 @@ const expectHighlightToMatch = async (
         Math.abs(highlightBox.height - targetBox.height),
       );
     })
-    .toBeLessThanOrEqual(1);
+    .toBeLessThanOrEqual(GEOMETRY_TOLERANCE_PX);
+};
+
+const requireElementBox = async (
+  locator: Locator,
+  description: string,
+): Promise<ElementBox> => {
+  const box = await locator.boundingBox();
+
+  if (box === null) {
+    throw new Error(`Expected ${description} geometry.`);
+  }
+
+  return box;
+};
+
+const expectBoxWithinViewport = async (
+  page: Page,
+  locator: Locator,
+): Promise<ElementBox> => {
+  await expect(locator).not.toHaveAttribute("data-motion-morphing", "true");
+  const box = await requireElementBox(locator, "floating surface");
+  const viewport = page.viewportSize();
+
+  if (viewport === null) {
+    throw new Error("Expected a fixed browser viewport.");
+  }
+
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
+  expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
+
+  return box;
+};
+
+const expectEndAnchorToMatch = async (
+  surface: Locator,
+  expected: ElementBox,
+): Promise<void> => {
+  await expect(surface).not.toHaveAttribute("data-motion-morphing", "true");
+  await expect
+    .poll(async () => {
+      const actual = await surface.boundingBox();
+
+      if (actual === null) {
+        return Number.POSITIVE_INFINITY;
+      }
+
+      return Math.max(
+        Math.abs(actual.x + actual.width - (expected.x + expected.width)),
+        Math.abs(actual.y + actual.height - (expected.y + expected.height)),
+      );
+    })
+    .toBeLessThanOrEqual(GEOMETRY_TOLERANCE_PX);
 };
 
 test("keeps the highlight aligned with the hovered and selected element", async ({
@@ -55,7 +118,9 @@ test("keeps the highlight aligned with the hovered and selected element", async 
   );
 });
 
-test("places the contextual workbench with the selected element", async ({ page }) => {
+test("keeps the floating workbench anchored while selections change", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto("/");
   const largeTarget = page.locator("main.page-shell");
@@ -63,54 +128,23 @@ test("places the contextual workbench with the selected element", async ({ page 
   await largeTarget.click({ position: { x: 4, y: 4 } });
 
   const dialog = page.getByRole("dialog", { name: "Plan the change" });
-  await expect(dialog).toHaveAttribute("data-placement", "center");
+  const surface = page.locator("spotpatch-root").locator(".spotpatch-floating-surface");
+  await expect(surface).toHaveAttribute("data-floating-positioned", "true");
   await expect(dialog.locator("textarea[data-target-instruction-id]")).toBeFocused();
-  const largeTargetBox = await largeTarget.boundingBox();
-  const centeredDialogBox = await dialog.boundingBox();
-
-  expect(largeTargetBox).not.toBeNull();
-  expect(centeredDialogBox).not.toBeNull();
-  if (largeTargetBox !== null && centeredDialogBox !== null) {
-    expect(centeredDialogBox.x).toBeGreaterThanOrEqual(largeTargetBox.x);
-    expect(centeredDialogBox.x + centeredDialogBox.width).toBeLessThanOrEqual(
-      largeTargetBox.x + largeTargetBox.width,
-    );
-  }
+  const initialSurfaceBox = await expectBoxWithinViewport(page, surface);
 
   await dialog.getByRole("button", { name: "Start over" }).click();
   const compactTarget = page.getByRole("heading", {
     name: "SpotPatch Playground",
   });
   await compactTarget.click();
-  await expect(dialog).not.toHaveAttribute("data-placement", "center");
-  const adjacentDialogBox = await dialog.boundingBox();
-
-  expect(adjacentDialogBox).not.toBeNull();
-  if (adjacentDialogBox !== null) {
-    expect(adjacentDialogBox.x).toBeGreaterThanOrEqual(16);
-    expect(adjacentDialogBox.y).toBeGreaterThanOrEqual(16);
-    expect(adjacentDialogBox.x + adjacentDialogBox.width).toBeLessThanOrEqual(
-      1280 - 16,
-    );
-    expect(adjacentDialogBox.y + adjacentDialogBox.height).toBeLessThanOrEqual(
-      800 - 16,
-    );
-  }
+  await expectEndAnchorToMatch(surface, initialSurfaceBox);
+  const selectedSurfaceBox = await expectBoxWithinViewport(page, surface);
 
   await dialog.getByRole("tab", { name: "Diagnostics" }).click();
   await dialog.locator(".spotpatch-diagnostics > summary").click();
-  const expandedDialogBox = await dialog.boundingBox();
-  expect(expandedDialogBox).not.toBeNull();
-  if (expandedDialogBox !== null) {
-    expect(expandedDialogBox.x).toBeGreaterThanOrEqual(16);
-    expect(expandedDialogBox.y).toBeGreaterThanOrEqual(16);
-    expect(expandedDialogBox.x + expandedDialogBox.width).toBeLessThanOrEqual(
-      1280 - 16,
-    );
-    expect(expandedDialogBox.y + expandedDialogBox.height).toBeLessThanOrEqual(
-      800 - 16,
-    );
-  }
+  await expectEndAnchorToMatch(surface, selectedSurfaceBox);
+  await expectBoxWithinViewport(page, surface);
 });
 
 test("selects a native element and sends an authorized editor request", async ({
@@ -276,8 +310,10 @@ test("restores a selection after closing and continues it on another page", asyn
   const firstInstruction = dialog.locator(
     "textarea[data-target-instruction-id='target-1']",
   );
+  const surface = page.locator("spotpatch-root").locator(".spotpatch-floating-surface");
   await firstInstruction.fill("Update the component selected on page A.");
   await expect(dialog.getByRole("button", { name: "Preview prompt" })).toBeEnabled();
+  const initialSurfaceBox = await expectBoxWithinViewport(page, surface);
 
   await dialog.getByRole("button", { name: "Close SpotPatch" }).click();
   await expect(dialog).toBeHidden();
@@ -291,28 +327,13 @@ test("restores a selection after closing and continues it on another page", asyn
   await expect(firstInstruction).toHaveValue(
     "Update the component selected on page A.",
   );
-  await expect(dialog).toHaveAttribute("data-placement", "viewport");
-  const restoredDialogBox = await dialog.boundingBox();
-  const viewport = page.viewportSize();
-  expect(restoredDialogBox).not.toBeNull();
-  expect(viewport).not.toBeNull();
-
-  if (restoredDialogBox === null || viewport === null) {
-    throw new Error("Expected the restored workbench and viewport geometry.");
-  }
-
-  expect(restoredDialogBox.width).toBeLessThanOrEqual(460);
-  expect(restoredDialogBox.height).toBeLessThanOrEqual(620);
-  expect(
-    Math.abs(restoredDialogBox.x + restoredDialogBox.width / 2 - viewport.width / 2),
-  ).toBeLessThanOrEqual(1);
-  expect(
-    Math.abs(restoredDialogBox.y + restoredDialogBox.height / 2 - viewport.height / 2),
-  ).toBeLessThanOrEqual(1);
+  await expect(surface).toHaveAttribute("data-floating-positioned", "true");
+  await expectEndAnchorToMatch(surface, initialSurfaceBox);
+  const restoredSurfaceBox = await expectBoxWithinViewport(page, surface);
 
   await dialog.getByRole("button", { name: "Add element" }).click();
   await page.getByTestId("tailwind-button").click();
-  await expect(dialog).not.toHaveAttribute("data-placement", "viewport");
+  await expectEndAnchorToMatch(surface, restoredSurfaceBox);
   const secondInstruction = dialog.locator(
     "textarea[data-target-instruction-id='target-2']",
   );

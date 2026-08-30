@@ -104,17 +104,23 @@ describe.skipIf(process.platform === "win32")("Codex executable resolution", () 
     });
   });
 
-  it("accepts later stable versions when their generated schema is compatible", async () => {
-    const bin = path.join(temporaryRoot, "future-version-bin");
-    const target = await executable(bin, "1.2.3");
+  it.each(["0.151.0", "1.2.3"])(
+    "accepts later stable version %s when its generated schema is compatible",
+    async (version) => {
+      const bin = path.join(
+        temporaryRoot,
+        `compatible-${version.replaceAll(".", "-")}`,
+      );
+      const target = await executable(bin, version);
 
-    await expect(
-      resolveCodexExecutable(projectRoot, { pathValue: bin }),
-    ).resolves.toEqual({
-      path: await realpath(target),
-      version: "1.2.3",
-    });
-  });
+      await expect(
+        resolveCodexExecutable(projectRoot, { pathValue: bin }),
+      ).resolves.toEqual({
+        path: await realpath(target),
+        version,
+      });
+    },
+  );
 
   it("rejects a version below the minimum supported semantic version", async () => {
     const bin = path.join(temporaryRoot, "wrong-version-bin");

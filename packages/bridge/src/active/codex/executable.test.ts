@@ -14,12 +14,32 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CODEX_ADAPTER_ERROR_CODES } from "./errors.js";
 import {
+  isPathWithin,
   resolveCodexExecutable,
   resolveWindowsNpmCodexExecutable,
 } from "./executable.js";
 import { fakeSchemaCommandSource } from "./test-schema-fixture.js";
 
 const windowsRoots: string[] = [];
+
+describe("path containment", () => {
+  it("treats a Windows path on another volume as outside the root", () => {
+    expect(
+      isPathWithin(
+        "D:\\a\\spotpatch\\spotpatch",
+        "C:\\npm\\node_modules\\@openai\\codex\\codex.exe",
+        path.win32,
+      ),
+    ).toBe(false);
+    expect(
+      isPathWithin(
+        "D:\\a\\spotpatch\\spotpatch",
+        "D:\\a\\spotpatch\\spotpatch\\node_modules\\codex.exe",
+        path.win32,
+      ),
+    ).toBe(true);
+  });
+});
 
 afterEach(async () => {
   await Promise.all(

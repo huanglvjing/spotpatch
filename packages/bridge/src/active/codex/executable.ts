@@ -100,10 +100,23 @@ export interface ResolveCodexExecutableOptions {
   readonly pathValue?: string | undefined;
 }
 
-function isWithin(root: string, candidate: string): boolean {
-  const relative = path.relative(root, candidate);
+interface PathSemantics {
+  readonly isAbsolute: (value: string) => boolean;
+  readonly relative: (from: string, to: string) => string;
+  readonly sep: string;
+}
+
+export function isPathWithin(
+  root: string,
+  candidate: string,
+  semantics: PathSemantics = path,
+): boolean {
+  const relative = semantics.relative(root, candidate);
   return (
-    relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== "..")
+    relative === "" ||
+    (!semantics.isAbsolute(relative) &&
+      !relative.startsWith(`..${semantics.sep}`) &&
+      relative !== "..")
   );
 }
 
@@ -209,7 +222,7 @@ export async function resolveWindowsNpmCodexExecutable(
     executable = await realpath(
       path.join(packageRoot, "vendor", target.targetTriple, "bin", "codex.exe"),
     );
-    if (!isWithin(packageRoot, executable) || !(await stat(executable)).isFile()) {
+    if (!isPathWithin(packageRoot, executable) || !(await stat(executable)).isFile()) {
       throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.EXECUTABLE_UNTRUSTED);
     }
     await access(executable, fsConstants.X_OK);
@@ -376,7 +389,7 @@ async function verifyCodexSchema(executable: string): Promise<void> {
     const canonicalSchemaRoot = await realpath(schemaRoot);
     if (
       !(await lstat(schemaRoot)).isDirectory() ||
-      !isWithin(canonicalTemporaryRoot, canonicalSchemaRoot)
+      !isPathWithin(canonicalTemporaryRoot, canonicalSchemaRoot)
     ) {
       throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.SCHEMA_INCOMPATIBLE);
     }
@@ -412,7 +425,7 @@ export async function resolveCodexExecutable(
     options.pathValue ?? process.env.PATH ?? "",
   );
 
-  if (isWithin(canonicalRoot, executable)) {
+  if (isPathWithin(canonicalRoot, executable)) {
     throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.EXECUTABLE_UNTRUSTED);
   }
 

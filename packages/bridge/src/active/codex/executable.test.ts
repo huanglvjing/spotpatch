@@ -187,37 +187,59 @@ describe.skipIf(process.platform === "win32")("Codex executable resolution", () 
 });
 
 describe("Windows npm Codex executable resolution", () => {
-  it("resolves the standard npm shim to the platform package binary", async () => {
-    const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-codex-windows-"));
-    windowsRoots.push(root);
-    const bin = path.join(root, "bin");
-    const packageRoot = path.join(bin, "node_modules", "@openai", "codex-win32-x64");
-    const executable = path.join(
-      packageRoot,
-      "vendor",
-      "x86_64-pc-windows-msvc",
-      "bin",
-      "codex.exe",
-    );
-    await mkdir(path.dirname(executable), { recursive: true });
-    await writeFile(path.join(bin, "codex.cmd"), "@echo off\r\n");
-    await writeFile(
-      path.join(packageRoot, "package.json"),
-      '{"name":"@openai/codex","version":"0.151.0-win32-x64"}\n',
-    );
-    await writeFile(executable, "fixture");
-    await chmod(executable, 0o700);
+  it.each(["nested", "hoisted"] as const)(
+    "resolves the standard npm shim with a %s platform package",
+    async (layout) => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-codex-windows-"));
+      windowsRoots.push(root);
+      const bin = path.join(root, "bin");
+      const codexPackageRoot = path.join(bin, "node_modules", "@openai", "codex");
+      const packageRoot = path.join(
+        layout === "nested" ? codexPackageRoot : bin,
+        "node_modules",
+        "@openai",
+        "codex-win32-x64",
+      );
+      const executable = path.join(
+        packageRoot,
+        "vendor",
+        "x86_64-pc-windows-msvc",
+        "bin",
+        "codex.exe",
+      );
+      await mkdir(path.dirname(executable), { recursive: true });
+      await mkdir(codexPackageRoot, { recursive: true });
+      await writeFile(path.join(bin, "codex.cmd"), "@echo off\r\n");
+      await writeFile(
+        path.join(codexPackageRoot, "package.json"),
+        '{"name":"@openai/codex","version":"0.151.0"}\n',
+      );
+      await writeFile(
+        path.join(packageRoot, "package.json"),
+        '{"name":"@openai/codex","version":"0.151.0-win32-x64"}\n',
+      );
+      await writeFile(executable, "fixture");
+      await chmod(executable, 0o700);
 
-    await expect(
-      resolveWindowsNpmCodexExecutable(path.join(bin, "codex.cmd"), "x64"),
-    ).resolves.toBe(await realpath(executable));
-  });
+      await expect(
+        resolveWindowsNpmCodexExecutable(path.join(bin, "codex.cmd"), "x64"),
+      ).resolves.toBe(await realpath(executable));
+    },
+  );
 
   it("fails closed when the platform package is absent", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-codex-windows-"));
     windowsRoots.push(root);
-    const shim = path.join(root, "codex.cmd");
+    const bin = path.join(root, "bin");
+    const shim = path.join(bin, "codex.cmd");
+    await mkdir(path.join(bin, "node_modules", "@openai", "codex"), {
+      recursive: true,
+    });
     await writeFile(shim, "@echo off\r\n");
+    await writeFile(
+      path.join(bin, "node_modules", "@openai", "codex", "package.json"),
+      '{"name":"@openai/codex","version":"0.151.0"}\n',
+    );
 
     await expect(resolveWindowsNpmCodexExecutable(shim, "x64")).resolves.toBe(
       undefined,
@@ -228,9 +250,19 @@ describe("Windows npm Codex executable resolution", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-codex-windows-"));
     windowsRoots.push(root);
     const bin = path.join(root, "bin");
-    const packageRoot = path.join(bin, "node_modules", "@openai", "codex-win32-x64");
+    const codexPackageRoot = path.join(bin, "node_modules", "@openai", "codex");
+    const packageRoot = path.join(
+      codexPackageRoot,
+      "node_modules",
+      "@openai",
+      "codex-win32-x64",
+    );
     await mkdir(packageRoot, { recursive: true });
     await writeFile(path.join(bin, "codex.cmd"), "@echo off\r\n");
+    await writeFile(
+      path.join(codexPackageRoot, "package.json"),
+      '{"name":"@openai/codex","version":"0.151.0"}\n',
+    );
     await writeFile(
       path.join(packageRoot, "package.json"),
       '{"name":"@openai/codex","version":"0.151.0-win32-x64"}\n',

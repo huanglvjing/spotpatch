@@ -189,7 +189,9 @@ export async function resolveWindowsNpmCodexExecutable(
   );
   let manifestPath: string;
   try {
-    manifestPath = resolveFromShim.resolve(`${target.packageName}/package.json`);
+    const codexManifestPath = resolveFromShim.resolve("@openai/codex/package.json");
+    const resolveFromCodex = createRequire(codexManifestPath);
+    manifestPath = resolveFromCodex.resolve(`${target.packageName}/package.json`);
   } catch (error: unknown) {
     if (
       typeof error === "object" &&

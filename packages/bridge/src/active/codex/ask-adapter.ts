@@ -503,6 +503,7 @@ class ManagedCodexAskConnection {
       cleanupError ??= error;
     }
     if (cleanupError !== undefined) {
+      if (cleanupError instanceof ContextualAskExecutorError) throw cleanupError;
       throw askError("ASK_EXECUTOR_UNAVAILABLE", cleanupError);
     }
   }

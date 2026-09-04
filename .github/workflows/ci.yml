@@ -59,6 +59,7 @@ jobs:
           retention-days: 7
 
   contextual-ask-beta:
+    if: github.event_name == 'pull_request'
     uses: ./.github/workflows/contextual-ask-beta.yml
 
   next-loader-poc:

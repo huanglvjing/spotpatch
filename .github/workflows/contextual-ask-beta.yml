@@ -100,7 +100,8 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           node-version: ${{ matrix.node }}
-      - run: npm install --global @openai/codex@0.151.0
+      - name: Install the current stable Codex CLI
+        run: npm install --global @openai/codex@latest
       - run: pnpm test:package-beta
       - run: pnpm exec vitest run packages/bridge/src/active/codex/executable.test.ts
         env:

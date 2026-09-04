@@ -245,11 +245,12 @@ describe("Windows npm Codex executable resolution", () => {
 });
 
 it.runIf(process.env.SPOTPATCH_RUN_CODEX_DISTRIBUTION === "1")(
-  "validates the installed Codex 0.151.0 distribution and generated schema",
+  "validates the installed stable Codex distribution and generated schema",
   async () => {
-    await expect(resolveCodexExecutable(process.cwd())).resolves.toMatchObject({
-      version: "0.151.0",
-    });
+    const resolved = await resolveCodexExecutable(process.cwd());
+    expect(resolved.version).toMatch(
+      /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u,
+    );
   },
   20_000,
 );

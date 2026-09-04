@@ -26,8 +26,10 @@ interface Scenario {
   readonly duplicateFinal?: boolean;
   readonly ephemeralDelete?: boolean;
   readonly hookConfigured?: boolean;
+  readonly lateWriteDiffDelayMs?: number;
   readonly mcpConfigured?: boolean;
   readonly reverseRequest?: string;
+  readonly threadDeleteDelayMs?: number;
   readonly lateWriteDiff?: boolean;
   readonly turnStatus?: "completed" | "failed" | "interrupted";
   readonly writeDiff?: boolean;
@@ -137,7 +139,12 @@ input.on("line", (line) => {
     return;
   }
   if (message.method === "thread/delete" || message.method === "turn/interrupt") {
-    send({ id: message.id, result: {} });
+    const acknowledge = () => send({ id: message.id, result: {} });
+    if (message.method === "thread/delete" && scenario.threadDeleteDelayMs) {
+      setTimeout(acknowledge, scenario.threadDeleteDelayMs);
+    } else {
+      acknowledge();
+    }
     return;
   }
   if (message.method !== "turn/start") return;
@@ -165,7 +172,12 @@ input.on("line", (line) => {
       turn: { id: turnId, status: scenario.turnStatus || "completed" },
     } });
     if (scenario.lateWriteDiff) {
-      send({ method: "turn/diff/updated", params: { threadId, turnId, diff: "late diff" } });
+      const sendLateDiff = () => send({ method: "turn/diff/updated", params: { threadId, turnId, diff: "late diff" } });
+      if (scenario.lateWriteDiffDelayMs) {
+        setTimeout(sendLateDiff, scenario.lateWriteDiffDelayMs);
+      } else {
+        sendLateDiff();
+      }
     }
   };
   if (scenario.answerDelayMs) setTimeout(finish, scenario.answerDelayMs);
@@ -348,7 +360,10 @@ describeManagedAsk("Managed Codex Ask executor", () => {
     [{ writeDiff: true }, "ASK_WRITE_ATTEMPTED"],
     [{ reverseRequest: "item/permissions/requestApproval" }, "ASK_WRITE_ATTEMPTED"],
     [{ duplicateFinal: true }, "ASK_ANSWER_INVALID"],
-    [{ lateWriteDiff: true }, "ASK_WRITE_ATTEMPTED"],
+    [
+      { lateWriteDiff: true, lateWriteDiffDelayMs: 10, threadDeleteDelayMs: 40 },
+      "ASK_WRITE_ATTEMPTED",
+    ],
     [{ turnStatus: "failed" }, "ASK_EXECUTOR_UNAVAILABLE"],
     [{ cleanupThreadMissing: true }, "ASK_EXECUTOR_UNAVAILABLE"],
     [{ crashOnTurn: true }, "ASK_EXECUTOR_UNAVAILABLE"],

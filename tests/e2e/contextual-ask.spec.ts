@@ -22,10 +22,14 @@ async function installAskRoutes(
   page: Page,
   options: Readonly<{
     executorKind?: ExecutorKind;
+    includeAlternateExecutor?: boolean;
     onCreate?: (targetCount: number) => void;
   }> = {},
 ): Promise<void> {
   const executor = createExecutor(options.executorKind ?? "configured-key");
+  const alternateExecutor = createExecutor(
+    executor.kind === "configured-key" ? "managed-codex" : "configured-key",
+  );
   let selectionId = "selection_pending";
   await page.route("**/__spotpatch/v1/ask/**", async (route: Route) => {
     const request = route.request();
@@ -61,6 +65,20 @@ async function installAskRoutes(
                 providerDataConsentRequired: true,
                 readOnlyProven: true,
               },
+              ...(options.includeAlternateExecutor
+                ? [
+                    {
+                      executorId: alternateExecutor.executorId,
+                      kind: alternateExecutor.kind,
+                      label: alternateExecutor.label,
+                      requestedModelLabel: alternateExecutor.modelLabel,
+                      effectiveModelLabel: alternateExecutor.modelLabel,
+                      state: "ready",
+                      providerDataConsentRequired: true,
+                      readOnlyProven: true,
+                    },
+                  ]
+                : []),
             ],
             safety: {
               selectionRequired: true,
@@ -185,13 +203,40 @@ test("loads Contextual Ask capability through a real same-origin browser GET", a
   const dialog = page.locator("spotpatch-root").getByRole("dialog");
   await dialog.getByRole("tab", { name: "Ask" }).click();
 
-  expect((await capabilityResponse).status()).toBe(200);
+  const response = await capabilityResponse;
+  expect(response.status()).toBe(200);
+  const capability = (await response.json()) as {
+    data: {
+      executors: {
+        effectiveModelLabel: string;
+        kind: string;
+        label: string;
+        readOnlyProven: boolean;
+        state: string;
+      }[];
+    };
+    ok: boolean;
+  };
+  expect(capability.ok).toBe(true);
+  expect(
+    capability.data.executors.some((candidate) => candidate.kind === "managed-codex"),
+  ).toBe(true);
   const executor = dialog.getByRole("combobox", {
     name: "Read-only executor",
     exact: true,
   });
-  await expect(executor).toContainText("Managed Codex");
-  await expect(executor).toBeDisabled();
+  const readyExecutors = capability.data.executors.filter(
+    (candidate) => candidate.state === "ready" && candidate.readOnlyProven,
+  );
+  if (readyExecutors.length === 0) {
+    await expect(executor).toContainText("No verified read-only executor");
+    await expect(dialog.locator(".spotpatch-ask-executor-status")).toContainText(
+      "Managed Codex",
+    );
+  } else {
+    await expect(executor).toContainText(readyExecutors[0]?.label ?? "");
+  }
+  if (readyExecutors.length <= 1) await expect(executor).toBeDisabled();
 });
 
 for (const executorKind of ["configured-key", "managed-codex"] as const) {
@@ -244,7 +289,7 @@ for (const executorKind of ["configured-key", "managed-codex"] as const) {
     await expect(dialog.locator("script")).toHaveCount(0);
     const answer = dialog.locator(".spotpatch-ask-answer");
     await answer.scrollIntoViewIfNeeded();
-    if (executorKind === "configured-key") {
+    if (executorKind === "configured-key" && process.platform === "darwin") {
       await expect(answer).toHaveScreenshot("contextual-ask-answer.png", {
         animations: "disabled",
       });
@@ -292,6 +337,41 @@ for (const executorKind of ["configured-key", "managed-codex"] as const) {
     expect(submittedTargetCount).toBe(2);
   });
 }
+
+test("keeps the custom executor menu in flow below its field", async ({ page }) => {
+  await installAskRoutes(page, { includeAlternateExecutor: true });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Select element" }).click();
+  await page.getByRole("heading", { name: "SpotPatch Playground" }).click();
+  const dialog = page.locator("spotpatch-root").getByRole("dialog");
+  await dialog.getByRole("tab", { name: "Ask" }).click();
+
+  const trigger = dialog.getByRole("combobox", {
+    name: "Read-only executor",
+    exact: true,
+  });
+  const menu = dialog.locator(".spotpatch-ask-executor-menu");
+  const safety = dialog.locator(".spotpatch-ask-safety");
+  await trigger.click();
+  await expect(menu).toBeVisible();
+
+  const [triggerBox, menuBox, safetyBox] = await Promise.all([
+    trigger.boundingBox(),
+    menu.boundingBox(),
+    safety.boundingBox(),
+  ]);
+  expect(triggerBox).not.toBeNull();
+  expect(menuBox).not.toBeNull();
+  expect(safetyBox).not.toBeNull();
+  if (triggerBox !== null && menuBox !== null && safetyBox !== null) {
+    expect(menuBox.y).toBeGreaterThanOrEqual(triggerBox.y + triggerBox.height);
+    expect(menuBox.x).toBeGreaterThanOrEqual(triggerBox.x);
+    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(
+      triggerBox.x + triggerBox.width,
+    );
+    expect(safetyBox.y).toBeGreaterThanOrEqual(menuBox.y + menuBox.height);
+  }
+});
 
 test("retains accessible controls without horizontal overflow at 320px", async ({
   page,

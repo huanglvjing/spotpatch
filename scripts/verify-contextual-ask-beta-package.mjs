@@ -403,6 +403,7 @@ export default defineConfig({ optimizeDeps: { noDiscovery: true }, plugins: spot
   await writeFile(
     probePath,
     `import assert from "node:assert/strict";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "vite";
 const root = process.argv[2];
@@ -410,7 +411,7 @@ const configFile = fileURLToPath(new URL("./vite-host/vite.config.mjs", import.m
 const server = await createServer({ root, configFile, server: { host: "127.0.0.1", port: 0 } });
 try {
   await server.listen();
-  assert.equal(server.config.root, root);
+  assert.equal(path.resolve(server.config.root), path.resolve(root));
   assert(server.config.plugins.some((plugin) => plugin.name === "spotpatch:transform"));
   const address = server.httpServer?.address();
   assert(address && typeof address !== "string");

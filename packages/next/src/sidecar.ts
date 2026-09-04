@@ -6,22 +6,28 @@ import {
 } from "node:http";
 
 import {
+  composeContextualAskExecutors,
   createAgentJobManager,
+  createConfiguredKeyAskExecutors,
+  createContextualAskManager,
   createExternalHandoffService,
   createRuntimeAiConfig,
   createRuntimeDataFlowConfig,
   createSession,
   createSourceRegistrationService,
   createSourceRegistry,
+  createWorkspaceActivityCoordinator,
   createSpotPatchMiddleware,
   resolveManagedExecutionValidation,
   type AgentJobManager,
+  type ContextualAskManager,
   type ExternalHandoffService,
   type ResolvedSpotPatchOptions,
   type SourceRegistry,
   type SpotPatchMiddleware,
 } from "@spotpatch/dev-server";
 import {
+  createManagedCodexAskExecutor,
   createExternalAgentSupervisor,
   type ExternalAgentSupervisor,
 } from "@spotpatch/bridge";
@@ -288,6 +294,7 @@ export async function createNextSidecar(
   let closed = false;
   let registry: SourceRegistry | undefined;
   let agentManager: AgentJobManager | undefined;
+  let contextualAskManager: ContextualAskManager | undefined;
   let externalHandoffService: ExternalHandoffService | undefined;
   let externalAgentSupervisor: ExternalAgentSupervisor | undefined;
   let spotPatchMiddleware: SpotPatchMiddleware | undefined;
@@ -358,10 +365,14 @@ export async function createNextSidecar(
 
       const sourceRegistry = createSourceRegistry();
       const session = createSession();
+      const coordinator = createWorkspaceActivityCoordinator();
       const runtimeConfig = Object.freeze({
         apiBase: SPOTPATCH_API_BASE,
         ai: createRuntimeAiConfig(input.options.ai),
         budget: input.options.budget,
+        contextualAsk: Object.freeze({
+          enabled: input.options.contextualAsk.enabled,
+        }),
         dataFlow: createRuntimeDataFlowConfig(input.options.dataFlow),
         bundler: input.bundler,
         debug: input.options.debug,
@@ -385,7 +396,37 @@ export async function createNextSidecar(
               ai: input.options.ai,
               environment: input.credentials,
               root: input.projectRoot,
+              coordinator,
             });
+      const askManager = input.options.contextualAsk.enabled
+        ? createContextualAskManager({
+            coordinator,
+            enabled: true,
+            executors: composeContextualAskExecutors({
+              configuredKey:
+                input.options.ai === false
+                  ? []
+                  : createConfiguredKeyAskExecutors({
+                      ai: input.options.ai,
+                      environment: input.credentials,
+                      ...(input.options.contextualAsk.defaultExecutor === undefined
+                        ? {}
+                        : {
+                            defaultExecutor:
+                              input.options.contextualAsk.defaultExecutor,
+                          }),
+                    }),
+              managedCodex: createManagedCodexAskExecutor({
+                projectRoot: input.appRoot,
+              }),
+              ...(input.options.contextualAsk.defaultExecutor === undefined
+                ? {}
+                : { defaultExecutor: input.options.contextualAsk.defaultExecutor }),
+            }),
+            registry: sourceRegistry,
+            root: input.appRoot,
+          })
+        : undefined;
       const handoffService = input.options.externalAgent.enabled
         ? createExternalHandoffService({
             framework: "next",
@@ -430,6 +471,7 @@ export async function createNextSidecar(
       externalAgentSupervisor = supervisor;
       const middleware = createSpotPatchMiddleware({
         ...(manager === undefined ? {} : { agentManager: manager }),
+        ...(askManager === undefined ? {} : { contextualAskManager: askManager }),
         ...(handoffService === undefined
           ? {}
           : { externalHandoffService: handoffService }),
@@ -458,6 +500,7 @@ export async function createNextSidecar(
 
       registry = sourceRegistry;
       agentManager = manager;
+      contextualAskManager = askManager;
       spotPatchMiddleware = middleware;
       handler = (request, response) => {
         if (requestPath(request.url) === NEXT_INTERNAL_REGISTRATION_PATH) {
@@ -500,7 +543,6 @@ export async function createNextSidecar(
       handler = (_request, response) => {
         writeUnavailable(response, 503);
       };
-      registry?.clear();
       spotPatchMiddleware?.dispose();
       spotPatchMiddleware = undefined;
       await externalAgentSupervisor?.dispose();
@@ -508,6 +550,10 @@ export async function createNextSidecar(
       await externalHandoffService?.close();
       externalHandoffService = undefined;
       await agentManager?.close();
+      agentManager = undefined;
+      await contextualAskManager?.close();
+      contextualAskManager = undefined;
+      registry?.clear();
       server.closeIdleConnections();
       const closing = closeServer(server);
       server.closeAllConnections();

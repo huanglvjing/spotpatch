@@ -54,6 +54,13 @@ export default defineConfig([
   },
   {
     ...browserBundle,
+    name: "runtime-contextual-ask-panel",
+    entry: ["src/runtime-contextual-ask-panel.ts"],
+    minify: true,
+    noExternal: ["@spotpatch/runtime", "@spotpatch/shared"],
+  },
+  {
+    ...browserBundle,
     name: "runtime-data-flow-prelude",
     entry: ["src/runtime-data-flow-prelude.ts"],
     minify: true,

@@ -8,6 +8,7 @@ export default defineConfig({
   dts: true,
   entry: {
     index: "src/index.ts",
+    "contextual-ask-panel": "src/contextual-ask-panel-entry.ts",
     "data-flow": "src/data-flow-entry.ts",
     "data-flow-panel": "src/data-flow-panel-entry.ts",
     "external-handoff-panel": "src/external-handoff-panel-entry.ts",

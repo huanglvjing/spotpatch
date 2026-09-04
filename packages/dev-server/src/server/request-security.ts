@@ -68,6 +68,15 @@ function parseOrigin(value: string): URL | undefined {
   }
 }
 
+function isSameOriginBrowserGet(request: IncomingMessage): boolean {
+  return (
+    request.method === "GET" &&
+    getSingleHeader(request, "sec-fetch-site")?.toLowerCase() === "same-origin" &&
+    getSingleHeader(request, "sec-fetch-mode")?.toLowerCase() === "cors" &&
+    getSingleHeader(request, "sec-fetch-dest")?.toLowerCase() === "empty"
+  );
+}
+
 export interface RequestSecurityOptions {
   readonly allowLan: boolean;
   readonly sessionToken: string;
@@ -88,11 +97,22 @@ export function assertRequestAuthorized(
   const host = hostHeader === undefined ? undefined : parseHost(hostHeader);
   const origin = originHeader === undefined ? undefined : parseOrigin(originHeader);
 
-  if (host === undefined || origin === undefined) {
+  if (host === undefined) {
     throw new SpotPatchError(ERROR_CODES.ORIGIN_NOT_ALLOWED);
   }
 
   const hostIsLoopback = isLoopbackHostname(host.hostname);
+
+  // Browsers omit Origin on same-origin GET fetches. Fetch Metadata is browser-
+  // controlled and lets those reads pass without weakening token validation or
+  // accepting cross-site requests. Non-browser clients can continue to send Origin.
+  if (origin === undefined) {
+    if (!isSameOriginBrowserGet(request) || (!options.allowLan && !hostIsLoopback)) {
+      throw new SpotPatchError(ERROR_CODES.ORIGIN_NOT_ALLOWED);
+    }
+    return;
+  }
+
   const originIsLoopback = isLoopbackHostname(origin.hostname);
 
   if (!options.allowLan) {

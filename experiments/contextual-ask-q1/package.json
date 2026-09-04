@@ -1,0 +1,27 @@
+{
+  "name": "@spotpatch/contextual-ask-q1-experiments",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:ui": "tsup --config tsup.ui-poc.config.ts",
+    "test": "pnpm --filter @spotpatch/runtime build && pnpm build:ui && vitest run --config vitest.config.ts src/key-readonly-poc.test.ts src/codex-schema-poc.test.ts src/ui-poc.test.ts",
+    "test:browser": "pnpm build:ui && playwright test --config playwright.config.ts",
+    "test:codex-live": "SPOTPATCH_RUN_CODEX_LIVE=1 vitest run --config vitest.config.ts src/codex-live-poc.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@spotpatch/agent": "workspace:*",
+    "@spotpatch/bridge": "workspace:*",
+    "@spotpatch/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/jsdom": "27.0.0",
+    "@types/node": "20.19.33",
+    "jsdom": "27.4.0",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import type { NextConfig } from "next";
-import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from "next/constants";
+import { PHASE_DEVELOPMENT_SERVER, PHASE_PRODUCTION_BUILD } from "next/constants.js";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -18,6 +18,7 @@ import {
 import { createConfigurationRequestHandler } from "../internal/configuration-server.js";
 import { parseNextConfigureMessage } from "../internal/ipc.js";
 import {
+  resolveNextHostCapabilities,
   withSpotPatch,
   type NextConfigContext,
   type NextConfigFactory,
@@ -34,10 +35,18 @@ let server: Server;
 async function createApplicationFixture(): Promise<string> {
   const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-next-config-"));
   const adapterRoot = path.join(root, "node_modules", "@spotpatch", "next");
+  const nextRoot = path.join(root, "node_modules", "next");
   const distributionRoot = path.join(adapterRoot, "dist");
-  await mkdir(distributionRoot, { recursive: true });
+  await Promise.all([
+    mkdir(distributionRoot, { recursive: true }),
+    mkdir(nextRoot, { recursive: true }),
+  ]);
   await Promise.all([
     writeFile(path.join(root, "package.json"), '{"private":true}\n'),
+    writeFile(
+      path.join(nextRoot, "package.json"),
+      '{"name":"next","version":"16.3.0"}\n',
+    ),
     writeFile(
       path.join(adapterRoot, "package.json"),
       `${JSON.stringify({
@@ -101,6 +110,21 @@ function createFactory(
 ): NextConfigFactory<NextConfig> {
   return withSpotPatch({ ai: false, dataFlow: {} })<NextConfig>(input);
 }
+
+describe("Next host capabilities", () => {
+  it("does not emit the Next 16 turbopack.root field to Next 15", () => {
+    expect(resolveNextHostCapabilities("15.3.9")).toEqual({
+      turbopackRoot: false,
+    });
+    expect(resolveNextHostCapabilities("16.3.0")).toEqual({
+      turbopackRoot: true,
+    });
+  });
+
+  it("rejects malformed host versions", () => {
+    expect(() => resolveNextHostCapabilities("latest")).toThrow(TypeError);
+  });
+});
 
 beforeAll(async () => {
   appRoot = await createApplicationFixture();

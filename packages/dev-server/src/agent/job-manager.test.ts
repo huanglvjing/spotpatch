@@ -12,6 +12,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import { resolveOptions } from "../options.js";
+import { createWorkspaceActivityCoordinator } from "../workspace/activity-coordinator.js";
 import { createAgentJobManager } from "./job-manager.js";
 
 const TEST_ENVIRONMENT = Object.freeze({
@@ -576,6 +577,21 @@ describe("Agent job manager", () => {
     expect(serialized).toContain(ERROR_CODES.INTERNAL_ERROR);
     expect(serialized).not.toContain(TEST_ENVIRONMENT.SPOTPATCH_TEST_API_KEY);
     expect(serialized).not.toContain("relay.example");
+    await manager.close();
+  });
+
+  it("honors the shared workspace lease held by Contextual Ask", async () => {
+    const coordinator = createWorkspaceActivityCoordinator();
+    const askLease = coordinator.acquire("ask");
+    const manager = createAgentJobManager({
+      ai: resolveAi(),
+      coordinator,
+      root: "/project",
+      environment: TEST_ENVIRONMENT,
+    });
+
+    expect(() => manager.create(jobRequest())).toThrowError(ERROR_CODES.AGENT_BUSY);
+    askLease?.release();
     await manager.close();
   });
 });

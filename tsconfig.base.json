@@ -37,8 +37,17 @@
       "@spotpatch/shared/external-handoff-browser": [
         "packages/shared/src/external-handoff-browser.ts"
       ],
+      "@spotpatch/shared/contextual-ask-browser": [
+        "packages/shared/src/contextual-ask-browser.ts"
+      ],
+      "@spotpatch/shared/contextual-ask-node": [
+        "packages/shared/src/contextual-ask-node.ts"
+      ],
       "@spotpatch/react-adapter": ["packages/react-adapter/src/index.ts"],
       "@spotpatch/runtime": ["packages/runtime/src/index.ts"],
+      "@spotpatch/runtime/contextual-ask-panel": [
+        "packages/runtime/src/contextual-ask-panel-entry.ts"
+      ],
       "@spotpatch/runtime/data-flow": ["packages/runtime/src/data-flow-entry.ts"],
       "@spotpatch/runtime/data-flow-panel": [
         "packages/runtime/src/data-flow-panel-entry.ts"

@@ -17,12 +17,14 @@ import type { SpotPatchPluginContext } from "../plugin-context.js";
 import {
   createRuntimeInjectionPlugin,
   RESOLVED_SPOTPATCH_DATA_FLOW_MODULE_ID,
+  RESOLVED_SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID,
   RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID,
   RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID,
   RESOLVED_SPOTPATCH_MOTION_MODULE_ID,
   RESOLVED_SPOTPATCH_REACT_ADAPTER_MODULE_ID,
   RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
   SPOTPATCH_CLIENT_MODULE_ID,
+  SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID,
   SPOTPATCH_DATA_FLOW_MODULE_ID,
   SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID,
   SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID,
@@ -40,6 +42,7 @@ const clientBundle = [
   "void __SPOTPATCH_RUNTIME_CONFIG__;",
 ].join("\n");
 const reactAdapterBundle = "export function createReact18Adapter() {}";
+const contextualAskPanelBundle = "globalThis.__spotpatchAskInstalled = true;";
 const dataFlowPreludeBundle = "export const dataFlowRuntime = {};";
 const dataFlowPanelBundle = "globalThis.__spotpatchPanelInstalled = true;";
 const externalHandoffPanelBundle =
@@ -114,6 +117,8 @@ describe("runtime injection plugin", () => {
     expect(code).toContain('"editor":"auto"');
     expect(code).toContain('"maxTargets":8');
     expect(code).toContain('"externalAgent":{"enabled":false}');
+    expect(code).toContain('"contextualAsk":{"enabled":false}');
+    expect(code).not.toContain(SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID);
     expect(code).not.toContain(SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID);
     expect(code).toContain(`import ${JSON.stringify(SPOTPATCH_MOTION_MODULE_ID)}`);
     expect(code).toContain("SPOTPATCH_API_BASE");
@@ -227,6 +232,14 @@ describe("runtime injection plugin", () => {
     expect(
       hook.call({} as never, SPOTPATCH_MOTION_MODULE_ID, undefined, {} as never),
     ).toBe(RESOLVED_SPOTPATCH_MOTION_MODULE_ID);
+    expect(
+      hook.call(
+        {} as never,
+        SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID,
+        undefined,
+        {} as never,
+      ),
+    ).toBe(RESOLVED_SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID);
     expect(
       hook.call(
         {} as never,
@@ -385,6 +398,41 @@ describe("runtime injection plugin", () => {
       `import ${JSON.stringify(SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID)}`,
     );
     expect(client).toContain('"externalAgent":{"enabled":true}');
+  });
+
+  it("serves the Contextual Ask UI as an isolated opt-in bundle", () => {
+    const plugin = createRuntimeInjectionPlugin({
+      context: createContext(resolveOptions({ contextualAsk: true })),
+      session,
+      clientBundle,
+      contextualAskPanelBundle,
+      reactAdapterBundle,
+    });
+    const resolveHook = plugin.resolveId;
+    const loadHook = plugin.load;
+    if (typeof resolveHook !== "function" || typeof loadHook !== "function") {
+      throw new Error("Expected runtime injection hooks.");
+    }
+
+    expect(
+      resolveHook.call(
+        {} as never,
+        SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID,
+        RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
+        {} as never,
+      ),
+    ).toBe(RESOLVED_SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID);
+    expect(
+      loadHook.call({} as never, RESOLVED_SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID),
+    ).toBe(contextualAskPanelBundle);
+    const client = loadHook.call(
+      {} as never,
+      RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
+    ) as string;
+    expect(client).toContain(
+      `import ${JSON.stringify(SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID)}`,
+    );
+    expect(client).toContain('"contextualAsk":{"enabled":true}');
   });
 
   it("invalidates changed runtime bundles and releases its watcher on shutdown", async () => {

@@ -498,6 +498,71 @@ describe("OpenAI-compatible provider", () => {
     ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_CALL_ID_CONFLICT });
   });
 
+  it("rejects duplicate Responses call IDs within one completed output", async () => {
+    const source = provider("responses");
+    const duplicate = (path: string) => ({
+      type: "function_call",
+      call_id: "duplicate-call",
+      name: "read_file",
+      arguments: JSON.stringify({ path }),
+    });
+    const { fetch } = createFetchQueue([
+      sseResponse(
+        event("response.created", { response: { id: "duplicate-response" } }) +
+          event("response.completed", {
+            response: {
+              id: "duplicate-response",
+              status: "completed",
+              output: [duplicate("src/App.tsx"), duplicate("src/other.ts")],
+            },
+          }),
+      ),
+    ]);
+    const session = createOpenAICompatibleProviderSession({
+      provider: source,
+      model: model(source),
+      credential: createProviderCredential(TEST_KEY),
+      instructions: "Use only the declared tools.",
+      userPrompt: "Inspect the source.",
+      tools: [toolDefinition()],
+      limits: DEFAULT_AGENT_LIMITS,
+      fetch,
+    });
+
+    await expect(
+      session.next(undefined, new AbortController().signal),
+    ).rejects.toMatchObject({ code: ERROR_CODES.TOOL_CALL_ID_CONFLICT });
+  });
+
+  it("rejects Chat Completions data after an explicit finish reason", async () => {
+    const source = provider("chat-completions");
+    const { fetch } = createFetchQueue([
+      sseResponse(
+        chatData({ choices: [{ delta: {}, finish_reason: "stop" }] }) +
+          chatData({
+            choices: [
+              { delta: { content: "late provider text" }, finish_reason: null },
+            ],
+          }) +
+          "data: [DONE]\n\n",
+      ),
+    ]);
+    const session = createOpenAICompatibleProviderSession({
+      provider: source,
+      model: model(source),
+      credential: createProviderCredential(TEST_KEY),
+      instructions: "Use only the declared tools.",
+      userPrompt: "Inspect the source.",
+      tools: [toolDefinition()],
+      limits: DEFAULT_AGENT_LIMITS,
+      fetch,
+    });
+
+    await expect(
+      session.next(undefined, new AbortController().signal),
+    ).rejects.toMatchObject({ code: ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED });
+  });
+
   it("reports malformed tool argument JSON separately from relay protocol errors", async () => {
     const source = provider("chat-completions");
     const { fetch } = createFetchQueue([

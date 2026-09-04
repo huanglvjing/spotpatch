@@ -32,6 +32,7 @@ export {
   type FilterEntry,
   type ResolvedSpotPatchOptions,
   type ResolvedSpotPatchDataFlowOptions,
+  type ResolvedContextualAskOptions,
   type SimpleAiOptions,
   type SpotPatchAiOptions,
   type SpotPatchDataFlowOptions,
@@ -55,6 +56,32 @@ export {
   type SourceRegistry,
 } from "./registry/source-registry.js";
 export {
+  createContextualAskManager,
+  type ContextualAskJobEventListener,
+  type ContextualAskManager,
+  type CreateContextualAskManagerOptions,
+} from "./contextual-ask/manager.js";
+export {
+  captureAskReadSnapshot,
+  type CapturedAskReadSnapshot,
+  type CaptureAskReadSnapshotOptions,
+} from "./contextual-ask/read-snapshot.js";
+export { ContextualAskError } from "./contextual-ask/error.js";
+export {
+  createConfiguredKeyAskExecutors,
+  type CreateConfiguredKeyAskExecutorsOptions,
+} from "./contextual-ask/configured-key-executors.js";
+export {
+  composeContextualAskExecutors,
+  type ComposeContextualAskExecutorsOptions,
+} from "./contextual-ask/executors.js";
+export {
+  createWorkspaceActivityCoordinator,
+  type WorkspaceActivityCoordinator,
+  type WorkspaceActivityKind,
+  type WorkspaceActivityLease,
+} from "./workspace/activity-coordinator.js";
+export {
   createSpotPatchMiddleware,
   type CreateMiddlewareOptions,
   type SpotPatchMiddleware,
@@ -69,6 +96,11 @@ export {
   type RuntimeBootstrapOptions,
 } from "./server/runtime-bootstrap.js";
 export { isLoopbackHostname } from "./server/request-security.js";
+export {
+  handleContextualAskRequest,
+  matchContextualAskPath,
+  type ContextualAskRoute,
+} from "./contextual-ask/http.js";
 export {
   createSourceRegistrationService,
   type SourceRegistrationHandler,

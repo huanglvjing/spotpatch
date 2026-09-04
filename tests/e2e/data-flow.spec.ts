@@ -29,8 +29,11 @@ test("maps an AntD host button to its business request and runtime dispatch", as
   );
   await expect(dialog).not.toContainText("never-display-token");
 
+  await dialog.getByRole("button", { name: "Close SpotPatch" }).click();
   await page.getByTestId("data-flow-button").click();
   await expect(page.getByTestId("data-flow-count")).toHaveText("2");
+  await page.getByRole("button", { name: "Select element" }).click();
+  await dialog.getByRole("tab", { name: "Data flow" }).click();
   await dialog.getByRole("button", { name: /Refresh evidence/u }).click();
   await expect(
     componentPanel.locator(".spotpatch-data-flow-badge").first(),

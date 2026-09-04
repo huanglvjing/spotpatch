@@ -1,0 +1,107 @@
+name: Contextual Ask Beta Gate
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Ask E2E (Ubuntu, Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20.19.0, 22]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          node-version: ${{ matrix.node }}
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm exec playwright test tests/e2e/contextual-ask.spec.ts --project=chromium
+      - name: Upload Contextual Ask diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: contextual-ask-diagnostics-node-${{ matrix.node }}-${{ github.run_id }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  package:
+    name: npm (${{ matrix.os }}, Node ${{ matrix.node }}, Vite ${{ matrix.vite }}, Next ${{ matrix.next }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            node: 20.19.0
+            vite: 5.4.21
+            next: 15.3.9
+            react: 18.3.1
+          - os: ubuntu-latest
+            node: 22
+            vite: 5.4.21
+            next: 16.3.0
+            react: 19.2.8
+          - os: ubuntu-latest
+            node: 22
+            vite: 6.4.3
+            next: 15.3.9
+            react: 18.3.1
+          - os: ubuntu-latest
+            node: 22
+            vite: 6.4.3
+            next: 16.3.0
+            react: 19.2.8
+          - os: ubuntu-latest
+            node: 22
+            vite: 7.3.6
+            next: 15.3.9
+            react: 18.3.1
+          - os: ubuntu-latest
+            node: 22
+            vite: 7.3.6
+            next: 16.3.0
+            react: 19.2.8
+          - os: windows-latest
+            node: 20.19.0
+            vite: 5.4.21
+            next: 15.3.9
+            react: 18.3.1
+          - os: windows-latest
+            node: 22
+            vite: 7.3.6
+            next: 16.3.0
+            react: 19.2.8
+          - os: macos-latest
+            node: 20.19.0
+            vite: 5.4.21
+            next: 15.3.9
+            react: 18.3.1
+          - os: macos-latest
+            node: 22
+            vite: 7.3.6
+            next: 16.3.0
+            react: 19.2.8
+    env:
+      SPOTPATCH_Q7_NEXT_VERSION: ${{ matrix.next }}
+      SPOTPATCH_Q7_REACT_VERSION: ${{ matrix.react }}
+      SPOTPATCH_Q7_VITE_VERSION: ${{ matrix.vite }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm install --global @openai/codex@0.151.0
+      - run: pnpm test:package-beta
+      - run: pnpm exec vitest run packages/bridge/src/active/codex/executable.test.ts
+        env:
+          SPOTPATCH_RUN_CODEX_DISTRIBUTION: "1"

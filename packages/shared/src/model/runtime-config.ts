@@ -24,6 +24,7 @@ interface RuntimeConfigBase {
   readonly apiBase: typeof SPOTPATCH_API_BASE;
   readonly ai: RuntimeAiConfig;
   readonly budget: Readonly<ContextBudget>;
+  readonly contextualAsk: Readonly<{ enabled: boolean }>;
   readonly dataFlow: RuntimeDataFlowConfig;
   readonly debug: boolean;
   readonly editor: (typeof SPOTPATCH_EDITOR_PREFERENCES)[number];
@@ -103,6 +104,7 @@ const runtimeConfigBaseShape = {
     maxCodeLines: positiveInteger,
     maxComponentDepth: positiveInteger,
   }),
+  contextualAsk: z.strictObject({ enabled: z.boolean() }),
   debug: z.boolean(),
   dataFlow: runtimeDataFlowConfigSchema,
   editor: z.enum(SPOTPATCH_EDITOR_PREFERENCES),

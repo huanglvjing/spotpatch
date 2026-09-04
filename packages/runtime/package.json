@@ -50,6 +50,16 @@
         "default": "./dist/data-flow.cjs"
       }
     },
+    "./contextual-ask-panel": {
+      "import": {
+        "types": "./dist/contextual-ask-panel.d.ts",
+        "default": "./dist/contextual-ask-panel.js"
+      },
+      "require": {
+        "types": "./dist/contextual-ask-panel.d.cts",
+        "default": "./dist/contextual-ask-panel.cjs"
+      }
+    },
     "./data-flow-panel": {
       "import": {
         "types": "./dist/data-flow-panel.d.ts",
@@ -83,6 +93,9 @@
   },
   "typesVersions": {
     "*": {
+      "contextual-ask-panel": [
+        "dist/contextual-ask-panel.d.ts"
+      ],
       "data-flow": [
         "dist/data-flow.d.ts"
       ],

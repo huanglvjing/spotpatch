@@ -24,6 +24,7 @@ const config = Object.freeze({
   apiBase: SPOTPATCH_API_BASE,
   ai: Object.freeze({ enabled: false }),
   budget,
+  contextualAsk: Object.freeze({ enabled: false }),
   debug: false,
   dataFlow: Object.freeze({
     enabled: false,

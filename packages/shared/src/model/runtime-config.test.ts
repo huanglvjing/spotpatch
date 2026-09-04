@@ -15,6 +15,7 @@ const base = Object.freeze({
     maxCodeLines: 80,
     maxComponentDepth: 8,
   }),
+  contextualAsk: Object.freeze({ enabled: false }),
   debug: false,
   dataFlow: Object.freeze({
     enabled: false,

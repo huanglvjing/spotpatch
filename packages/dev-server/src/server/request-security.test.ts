@@ -7,8 +7,11 @@ import { assertRequestAuthorized, isLoopbackHostname } from "./request-security.
 
 const sessionToken = "test-session-token";
 
-function requestWithHeaders(headers: IncomingMessage["headers"]): IncomingMessage {
-  return { headers } as IncomingMessage;
+function requestWithHeaders(
+  headers: IncomingMessage["headers"],
+  method = "POST",
+): IncomingMessage {
+  return { headers, method } as IncomingMessage;
 }
 
 function expectErrorCode(callback: () => void, code: string): void {
@@ -52,6 +55,58 @@ describe("request security", () => {
     expect(() => {
       assertRequestAuthorized(request, { allowLan: false, sessionToken });
     }).not.toThrow();
+  });
+
+  it("accepts an authenticated same-origin browser GET without an Origin header", () => {
+    const request = requestWithHeaders(
+      {
+        host: "localhost:5173",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        [SPOTPATCH_TOKEN_HEADER.toLowerCase()]: sessionToken,
+      },
+      "GET",
+    );
+
+    expect(() => {
+      assertRequestAuthorized(request, { allowLan: false, sessionToken });
+    }).not.toThrow();
+  });
+
+  it.each([
+    ["missing Fetch Metadata", {}, "GET"],
+    [
+      "cross-site Fetch Metadata",
+      {
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "cross-site",
+      },
+      "GET",
+    ],
+    [
+      "a non-GET method",
+      {
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+      },
+      "POST",
+    ],
+  ])("rejects an Origin-less request with %s", (_label, metadata, method) => {
+    const request = requestWithHeaders(
+      {
+        host: "localhost:5173",
+        ...metadata,
+        [SPOTPATCH_TOKEN_HEADER.toLowerCase()]: sessionToken,
+      },
+      method,
+    );
+
+    expectErrorCode(() => {
+      assertRequestAuthorized(request, { allowLan: false, sessionToken });
+    }, ERROR_CODES.ORIGIN_NOT_ALLOWED);
   });
 
   it("rejects missing and incorrect tokens before origin processing", () => {

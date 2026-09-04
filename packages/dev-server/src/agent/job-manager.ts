@@ -32,6 +32,11 @@ import {
   type SpotAnnotation,
 } from "@spotpatch/shared";
 
+import type {
+  WorkspaceActivityCoordinator,
+  WorkspaceActivityLease,
+} from "../workspace/activity-coordinator.js";
+
 const MAX_RETAINED_JOBS = 32;
 const MAX_RETAINED_EVENTS = 512;
 const JOB_ID_PATTERN = /^[A-Za-z0-9_-]{22,128}$/;
@@ -83,6 +88,7 @@ interface InternalAgentJob {
   readonly provider: ResolvedOpenAICompatibleProviderOptions;
   readonly trustedFastModeConsent: boolean;
   readonly workingTreeMode: AgentWorkingTreeMode;
+  lease: WorkspaceActivityLease | undefined;
   errorCode: ErrorCode | undefined;
   phaseMessage: string;
   preparedChange: PreparedAgentChange | undefined;
@@ -126,6 +132,7 @@ export interface CreateAgentJobManagerOptions {
   readonly environment?: Readonly<Record<string, string | undefined>>;
   readonly fetch?: typeof globalThis.fetch;
   readonly root: string;
+  readonly coordinator?: WorkspaceActivityCoordinator;
 }
 
 const DEFAULT_DEPENDENCIES: AgentJobManagerDependencies = Object.freeze({
@@ -310,6 +317,10 @@ export function createAgentJobManager(
     job.updatedAt = dependencies.now();
     emitSnapshot(job);
     emitPhase(job, phaseMessage);
+    if (!isActive(status)) {
+      job.lease?.release();
+      job.lease = undefined;
+    }
   };
 
   const probeResolved = async (
@@ -551,6 +562,7 @@ export function createAgentJobManager(
           .filter((promise): promise is Promise<void> => promise !== undefined),
       );
       capabilityCache.clear();
+      for (const job of jobs.values()) job.lease?.release();
       jobs.clear();
     },
 
@@ -591,9 +603,14 @@ export function createAgentJobManager(
         request.providerProfileId,
         request.modelProfileId,
       );
+      const lease = options.coordinator?.acquire("change");
+      if (options.coordinator !== undefined && lease === undefined) {
+        throw new SpotPatchError(ERROR_CODES.AGENT_BUSY);
+      }
       const id = dependencies.createJobId();
 
       if (!JOB_ID_PATTERN.test(id) || jobs.has(id)) {
+        lease?.release();
         throw new SpotPatchError(ERROR_CODES.INTERNAL_ERROR);
       }
 
@@ -608,6 +625,7 @@ export function createAgentJobManager(
         events: [],
         id,
         listeners: new Set(),
+        lease,
         model: selection.model,
         phaseMessage: "Agent job queued.",
         preparedChange: undefined,
@@ -663,6 +681,12 @@ export function createAgentJobManager(
           hasActiveJob(job.id) ? ERROR_CODES.AGENT_BUSY : ERROR_CODES.APPLY_CONFLICT,
         );
       }
+
+      const lease = options.coordinator?.acquire("change");
+      if (options.coordinator !== undefined && lease === undefined) {
+        throw new SpotPatchError(ERROR_CODES.AGENT_BUSY);
+      }
+      job.lease = lease;
 
       transition(job, "reverting", "Reverting the applied Agent change.");
 

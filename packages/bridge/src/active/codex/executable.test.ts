@@ -13,8 +13,19 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { CODEX_ADAPTER_ERROR_CODES } from "./errors.js";
-import { resolveCodexExecutable } from "./executable.js";
+import {
+  resolveCodexExecutable,
+  resolveWindowsNpmCodexExecutable,
+} from "./executable.js";
 import { fakeSchemaCommandSource } from "./test-schema-fixture.js";
+
+const windowsRoots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(
+    windowsRoots.splice(0).map((root) => rm(root, { force: true, recursive: true })),
+  );
+});
 
 async function executable(
   directory: string,
@@ -174,3 +185,71 @@ describe.skipIf(process.platform === "win32")("Codex executable resolution", () 
     });
   });
 });
+
+describe("Windows npm Codex executable resolution", () => {
+  it("resolves the standard npm shim to the platform package binary", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-codex-windows-"));
+    windowsRoots.push(root);
+    const bin = path.join(root, "bin");
+    const packageRoot = path.join(bin, "node_modules", "@openai", "codex-win32-x64");
+    const executable = path.join(
+      packageRoot,
+      "vendor",
+      "x86_64-pc-windows-msvc",
+      "bin",
+      "codex.exe",
+    );
+    await mkdir(path.dirname(executable), { recursive: true });
+    await writeFile(path.join(bin, "codex.cmd"), "@echo off\r\n");
+    await writeFile(
+      path.join(packageRoot, "package.json"),
+      '{"name":"@openai/codex","version":"0.151.0-win32-x64"}\n',
+    );
+    await writeFile(executable, "fixture");
+    await chmod(executable, 0o700);
+
+    await expect(
+      resolveWindowsNpmCodexExecutable(path.join(bin, "codex.cmd"), "x64"),
+    ).resolves.toBe(await realpath(executable));
+  });
+
+  it("fails closed when the platform package is absent", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-codex-windows-"));
+    windowsRoots.push(root);
+    const shim = path.join(root, "codex.cmd");
+    await writeFile(shim, "@echo off\r\n");
+
+    await expect(resolveWindowsNpmCodexExecutable(shim, "x64")).resolves.toBe(
+      undefined,
+    );
+  });
+
+  it("rejects a malformed platform package without exposing filesystem errors", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "spotpatch-codex-windows-"));
+    windowsRoots.push(root);
+    const bin = path.join(root, "bin");
+    const packageRoot = path.join(bin, "node_modules", "@openai", "codex-win32-x64");
+    await mkdir(packageRoot, { recursive: true });
+    await writeFile(path.join(bin, "codex.cmd"), "@echo off\r\n");
+    await writeFile(
+      path.join(packageRoot, "package.json"),
+      '{"name":"@openai/codex","version":"0.151.0-win32-x64"}\n',
+    );
+
+    await expect(
+      resolveWindowsNpmCodexExecutable(path.join(bin, "codex.cmd"), "x64"),
+    ).rejects.toMatchObject({
+      code: CODEX_ADAPTER_ERROR_CODES.EXECUTABLE_UNTRUSTED,
+    });
+  });
+});
+
+it.runIf(process.env.SPOTPATCH_RUN_CODEX_DISTRIBUTION === "1")(
+  "validates the installed Codex 0.151.0 distribution and generated schema",
+  async () => {
+    await expect(resolveCodexExecutable(process.cwd())).resolves.toMatchObject({
+      version: "0.151.0",
+    });
+  },
+  20_000,
+);

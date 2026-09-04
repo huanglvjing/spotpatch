@@ -113,11 +113,15 @@ function parseChatEvents(
   const calls = new Map<number, MutableToolCall>();
   let done = false;
   let finishReason: string | null | undefined;
+  let terminal = false;
 
   for (const event of events) {
     if (event.data === "[DONE]") {
       done = true;
       continue;
+    }
+    if (terminal || done) {
+      throw new SpotPatchError(ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED);
     }
 
     const payload = parseJsonRecord(event.data);
@@ -153,6 +157,7 @@ function parseChatEvents(
 
       if (typeof choice.finish_reason === "string") {
         finishReason = choice.finish_reason;
+        terminal = true;
       } else if (choice.finish_reason !== undefined && choice.finish_reason !== null) {
         throw new SpotPatchError(ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED);
       }

@@ -1,6 +1,7 @@
 import type {
   AiOptions,
   ContextBudget,
+  ContextualAskOptions,
   ResolvedAiOptions,
   SpotPatchEditorPreference,
   SpotPatchLocalePreference,
@@ -32,6 +33,7 @@ export interface SerializedSpotPatchOptions {
   readonly budget: Readonly<ContextBudget>;
   readonly debug: boolean;
   readonly dataFlow: false | SpotPatchDataFlowOptions;
+  readonly contextualAsk: ContextualAskOptions;
   readonly editor: SpotPatchEditorPreference;
   readonly enabled: boolean;
   readonly externalAgent: boolean;
@@ -49,6 +51,7 @@ const OPTION_KEYS = Object.freeze([
   "budget",
   "debug",
   "dataFlow",
+  "contextualAsk",
   "editor",
   "enabled",
   "externalAgent",
@@ -157,6 +160,13 @@ export function serializeResolvedSpotPatchOptions(
           runtime: options.dataFlow.runtime,
         })
       : false,
+    contextualAsk: options.contextualAsk.enabled
+      ? Object.freeze({
+          ...(options.contextualAsk.defaultExecutor === undefined
+            ? {}
+            : { defaultExecutor: options.contextualAsk.defaultExecutor }),
+        })
+      : false,
     editor: options.editor,
     enabled: options.enabled,
     externalAgent: options.externalAgent.enabled,
@@ -239,6 +249,39 @@ function parseDataFlow(value: unknown): false | SpotPatchDataFlowOptions {
   });
 }
 
+function parseContextualAsk(value: unknown): ContextualAskOptions {
+  if (value === false || value === true) return value;
+  if (!isRecord(value)) {
+    throw new TypeError("The SpotPatch contextual Ask transport is invalid.");
+  }
+  const keys = Object.keys(value);
+  if (keys.length === 0) return Object.freeze({});
+  if (!hasExactKeys(value, ["defaultExecutor"]) || !isRecord(value.defaultExecutor)) {
+    throw new TypeError("The SpotPatch contextual Ask transport is invalid.");
+  }
+  const preference = value.defaultExecutor;
+  if (preference.kind === "managed-codex" && hasExactKeys(preference, ["kind"])) {
+    return Object.freeze({
+      defaultExecutor: Object.freeze({ kind: "managed-codex" }),
+    });
+  }
+  if (
+    preference.kind === "configured-key" &&
+    hasExactKeys(preference, ["kind", "modelProfileId", "providerProfileId"]) &&
+    typeof preference.providerProfileId === "string" &&
+    typeof preference.modelProfileId === "string"
+  ) {
+    return Object.freeze({
+      defaultExecutor: Object.freeze({
+        kind: "configured-key",
+        providerProfileId: preference.providerProfileId,
+        modelProfileId: preference.modelProfileId,
+      }),
+    });
+  }
+  throw new TypeError("The SpotPatch contextual Ask transport is invalid.");
+}
+
 export function parseSerializedSpotPatchOptions(
   value: unknown,
 ): ResolvedSpotPatchOptions {
@@ -268,6 +311,7 @@ export function parseSerializedSpotPatchOptions(
       budget: parseBudget(value.budget),
       debug: value.debug,
       dataFlow: parseDataFlow(value.dataFlow),
+      contextualAsk: parseContextualAsk(value.contextualAsk),
       editor: value.editor as SpotPatchEditorPreference,
       enabled: value.enabled,
       externalAgent: value.externalAgent,

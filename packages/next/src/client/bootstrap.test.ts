@@ -11,6 +11,7 @@ const moduleMocks = vi.hoisted(() => ({
   createExternalHandoffPanel: vi.fn(),
   createExternalHandoffWorkflow: vi.fn(),
   installDataFlowPanelExtension: vi.fn(),
+  installContextualAskExtension: vi.fn(),
   installFloatingSurfaceMotionExtension: vi.fn(),
   registerExternalHandoffExtension: vi.fn(),
 }));
@@ -28,6 +29,10 @@ vi.mock("@spotpatch/runtime/data-flow-panel", () => ({
   installDataFlowPanelExtension: moduleMocks.installDataFlowPanelExtension,
 }));
 
+vi.mock("@spotpatch/runtime/contextual-ask-panel", () => ({
+  installContextualAskExtension: moduleMocks.installContextualAskExtension,
+}));
+
 vi.mock("@spotpatch/runtime/external-handoff-panel", () => ({
   createExternalHandoffPanel: moduleMocks.createExternalHandoffPanel,
   createExternalHandoffWorkflow: moduleMocks.createExternalHandoffWorkflow,
@@ -37,6 +42,7 @@ vi.mock("@spotpatch/runtime/external-handoff-panel", () => ({
 import { bootstrapNextClient } from "./bootstrap.js";
 
 interface RuntimeFeatureFlags {
+  readonly contextualAsk?: boolean;
   readonly dataFlow?: boolean;
   readonly externalAgent?: boolean;
 }
@@ -53,6 +59,7 @@ function createRuntimeConfig(flags: RuntimeFeatureFlags = {}): SpotPatchRuntimeC
       maxCodeLines: 80,
       maxComponentDepth: 8,
     },
+    contextualAsk: { enabled: flags.contextualAsk ?? false },
     dataFlow: {
       enabled: flags.dataFlow ?? false,
       runtime: "dispatch",
@@ -122,17 +129,23 @@ describe("Next client bootstrap", () => {
 
     expect(motionCallOrder).toBeLessThan(mountCallOrder);
     expect(moduleMocks.installDataFlowPanelExtension).not.toHaveBeenCalled();
+    expect(moduleMocks.installContextualAskExtension).not.toHaveBeenCalled();
     expect(moduleMocks.registerExternalHandoffExtension).not.toHaveBeenCalled();
   });
 
   it("keeps optional panels feature-driven while sharing the same Motion setup", async () => {
-    const config = createRuntimeConfig({ dataFlow: true, externalAgent: true });
+    const config = createRuntimeConfig({
+      contextualAsk: true,
+      dataFlow: true,
+      externalAgent: true,
+    });
     mockBootstrapRequest(config);
 
     await expect(bootstrapNextClient()).resolves.toEqual({ ok: true });
 
     expect(moduleMocks.installFloatingSurfaceMotionExtension).toHaveBeenCalledOnce();
     expect(moduleMocks.installDataFlowPanelExtension).toHaveBeenCalledOnce();
+    expect(moduleMocks.installContextualAskExtension).toHaveBeenCalledOnce();
     expect(moduleMocks.registerExternalHandoffExtension).toHaveBeenCalledWith({
       createPanel: moduleMocks.createExternalHandoffPanel,
       createWorkflow: moduleMocks.createExternalHandoffWorkflow,

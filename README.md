@@ -205,6 +205,17 @@ This Beta reports a relationship only when stable component, source, callsite, a
 
 ## Optional AI Agent
 
+Contextual Ask is an explicit development-only feature. Enable it in the adapter configuration; it can use either a configured Key or a compatible local Managed Codex installation:
+
+```ts
+spotPatch({
+  dataFlow: {},
+  contextualAsk: true,
+});
+```
+
+After selecting at least one element, switch the Planner from **Change** to **Ask**. Each submission is a single read-only question with cited source references; turning the answer into a change only creates an editable local draft.
+
 AI is disabled unless a complete provider configuration is available. The smallest setup uses a Git-ignored `.env.local` file and requires no change to `spotPatch()`:
 
 ```dotenv
@@ -323,21 +334,22 @@ See the complete [`@spotpatch/next` public-preview guide](./packages/next/README
 
 The Vite entry exports `spotPatch(options)`. Important defaults are:
 
-| Option            | Default                                        | Purpose                                                                   |
-| ----------------- | ---------------------------------------------- | ------------------------------------------------------------------------- |
-| `enabled`         | `true`                                         | Disable the plugin explicitly when needed.                                |
-| `include`         | JSX/TSX inside `src`                           | Source files eligible for marker injection.                               |
-| `exclude`         | dependencies, tests, stories, generated output | Files that must not be transformed.                                       |
-| `editor`          | `"auto"`                                       | Auto-detect Cursor or VS Code.                                            |
-| `redact`          | `true`                                         | Sanitize collected browser context.                                       |
-| `shortcut`        | `"Mod+Shift+S"`                                | Toggle the element picker.                                                |
-| `allowLan`        | `false`                                        | Keep the local protocol loopback-only by default.                         |
-| `locale`          | `"auto"`                                       | Resolve `en-US` or `zh-CN`.                                               |
-| `maxTargets`      | `8`                                            | Maximum targets in one task by default.                                   |
-| `ai`              | `false` or detected complete environment       | Optional provider and Agent configuration.                                |
-| `dataFlow`        | `false`                                        | Opt-in dispatch-only component data-flow Beta.                            |
-| `externalAgent`   | `false`                                        | Opt-in external Agent Inbox and active-connector UI; local validation.    |
-| `trustedFastMode` | `false`                                        | Expose Review/Trusted direct; discovered TypeScript protects Review only. |
+| Option            | Default                                        | Purpose                                                                    |
+| ----------------- | ---------------------------------------------- | -------------------------------------------------------------------------- |
+| `enabled`         | `true`                                         | Disable the plugin explicitly when needed.                                 |
+| `include`         | JSX/TSX inside `src`                           | Source files eligible for marker injection.                                |
+| `exclude`         | dependencies, tests, stories, generated output | Files that must not be transformed.                                        |
+| `editor`          | `"auto"`                                       | Auto-detect Cursor or VS Code.                                             |
+| `redact`          | `true`                                         | Sanitize collected browser context.                                        |
+| `shortcut`        | `"Mod+Shift+S"`                                | Toggle the element picker.                                                 |
+| `allowLan`        | `false`                                        | Keep the local protocol loopback-only by default.                          |
+| `locale`          | `"auto"`                                       | Resolve `en-US` or `zh-CN`.                                                |
+| `maxTargets`      | `8`                                            | Maximum targets in one task by default.                                    |
+| `ai`              | `false` or detected complete environment       | Optional provider and Agent configuration.                                 |
+| `contextualAsk`   | `false`                                        | Opt-in single-turn, source-cited read-only questions for selected targets. |
+| `dataFlow`        | `false`                                        | Opt-in dispatch-only component data-flow Beta.                             |
+| `externalAgent`   | `false`                                        | Opt-in external Agent Inbox and active-connector UI; local validation.     |
+| `trustedFastMode` | `false`                                        | Expose Review/Trusted direct; discovered TypeScript protects Review only.  |
 
 See [`@spotpatch/vite`](./packages/vite/README.md) and the [public API specification](./docs/技术方案/03-公共API与数据模型.md) for complete types and constraints.
 

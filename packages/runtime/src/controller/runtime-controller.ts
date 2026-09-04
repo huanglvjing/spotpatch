@@ -49,6 +49,7 @@ import {
 } from "../ui/runtime-view.js";
 import { getDataFlowExtension } from "../ui/data-flow-panel-contract.js";
 import { getExternalHandoffExtension } from "../ui/external-handoff-contract.js";
+import { getContextualAskExtension } from "../ui/contextual-ask-contract.js";
 import {
   createSelectionSummary,
   type ApiConnectionStatus,
@@ -180,6 +181,7 @@ export function createController(
       config.externalAgent.enabled,
       config.framework,
       config.sessionId,
+      config.contextualAsk.enabled,
     );
   const api =
     dependencies.api ??
@@ -457,6 +459,20 @@ export function createController(
     );
   }
 
+  function selectedAskSelection() {
+    const snapshots = targets.flatMap((target) => {
+      const snapshot = snapshotTarget(target);
+      return snapshot === undefined ? [] : [snapshot];
+    });
+    if (snapshots.length === 0 || snapshots.length !== targets.length) {
+      return undefined;
+    }
+    return Object.freeze({
+      locale: view.locale(),
+      targets: snapshots,
+    });
+  }
+
   function selectionSummary(): string {
     const messages = view.messages().summary;
 
@@ -607,6 +623,7 @@ export function createController(
     api.cancelPending();
     agentWorkflow.disposeSelection();
     externalHandoffWorkflow?.cancelPending();
+    contextualAskWorkflow?.cancelPending();
     clearCollectionTimers();
     resizeObserver?.disconnect();
     targets = [];
@@ -751,6 +768,30 @@ export function createController(
           config.sessionToken,
           browser.window,
         )
+      : undefined;
+  const contextualAskWorkflow =
+    config.contextualAsk.enabled && view.contextualAskPanel !== undefined
+      ? getContextualAskExtension()?.createWorkflow({
+          ...(clipboard === undefined ? {} : { clipboard }),
+          createId,
+          fetch: browser.window.fetch.bind(browser.window),
+          getSelection: selectedAskSelection,
+          onBusyChange(busy) {
+            view.setAgentEditingEnabled(!busy);
+          },
+          onConvert() {
+            view.focusTargetInstruction(activeTargetId);
+          },
+          async onOpenSource(source) {
+            await api.openEditor({
+              fileId: source.fileId,
+              line: source.startLine,
+              column: 1,
+            });
+          },
+          panel: view.contextualAskPanel,
+          sessionToken: config.sessionToken,
+        })
       : undefined;
 
   async function loadSourceContext(
@@ -906,6 +947,7 @@ export function createController(
       previewPrompt = "";
       agentWorkflow.beginSelection();
       workflowSelectionActive = true;
+      contextualAskWorkflow?.beginSelection();
     }
 
     targetSequence += 1;
@@ -925,6 +967,9 @@ export function createController(
       dataFlowStatus: "idle",
     };
     targets.push(target);
+    if (!initialSelection) {
+      contextualAskWorkflow?.selectionChanged();
+    }
     activeTargetId = target.id;
     addingTarget = false;
     const revision = sessionRevision;
@@ -1075,11 +1120,13 @@ export function createController(
       pageDataFlowStatus = "idle";
       renderDataFlowView();
       selectionSession.clear();
+      contextualAskWorkflow?.selectionChanged();
       view.announce(view.messages().announcements.allTargetsRemoved);
       return;
     }
 
     refreshSelectionView();
+    contextualAskWorkflow?.selectionChanged();
     void loadDataFlowReports();
     persistSelection();
     view.announce(view.messages().announcements.targetRemoved);
@@ -1331,6 +1378,7 @@ export function createController(
 
     mounted = true;
     externalHandoffWorkflow?.mount();
+    contextualAskWorkflow?.mount();
     view.renderStatus(state.status);
     browser.document.addEventListener("pointermove", handlePointerMove, true);
     browser.document.addEventListener("click", handleClick, true);
@@ -1385,6 +1433,7 @@ export function createController(
     if (selectionOpen && targets.length > 0) {
       transition({ type: "RESTORE" });
       agentWorkflow.beginSelection();
+      contextualAskWorkflow?.beginSelection();
       workflowSelectionActive = true;
       refreshSelectionView(true);
     }
@@ -1403,6 +1452,7 @@ export function createController(
       api.dispose();
       agentWorkflow.disposeSelection();
       externalHandoffWorkflow?.dispose();
+      contextualAskWorkflow?.dispose();
       sourceResolver.dispose();
       return;
     }
@@ -1470,6 +1520,7 @@ export function createController(
     api.dispose();
     agentWorkflow.disposeSelection();
     externalHandoffWorkflow?.dispose();
+    contextualAskWorkflow?.dispose();
     sourceResolver.dispose();
     view.dispose();
     state = INITIAL_RUNTIME_STATE;

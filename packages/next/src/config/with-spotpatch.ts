@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import { realpath } from "node:fs/promises";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import path from "node:path";
 
 import {
@@ -11,7 +11,7 @@ import {
 } from "@spotpatch/dev-server";
 import { SPOTPATCH_API_BASE } from "@spotpatch/shared";
 import type { NextConfig } from "next";
-import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
+import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
 
 import {
   NEXT_CLIENT_MODULE_ID,
@@ -55,6 +55,10 @@ interface AdapterModulePaths {
   readonly turbopackDataFlow: string;
   readonly turbopackLoader: string;
   readonly turbopackNoop: string;
+}
+
+interface NextHostCapabilities {
+  readonly turbopackRoot: boolean;
 }
 
 type WebpackConfig = Record<string, unknown>;
@@ -208,6 +212,31 @@ function resolveAdapterModulePaths(appRoot: string): AdapterModulePaths {
     turbopackNoop:
       logicalNoop === undefined ? noop : relativeModulePath(appRoot, logicalNoop),
   });
+}
+
+export function resolveNextHostCapabilities(version: string): NextHostCapabilities {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$/u.exec(version);
+  const major = Number(match?.[1]);
+  if (match === null || !Number.isSafeInteger(major)) {
+    throw new TypeError("SpotPatch could not determine the installed Next.js version.");
+  }
+  return Object.freeze({ turbopackRoot: major >= 16 });
+}
+
+function readNextHostCapabilities(appRoot: string): NextHostCapabilities {
+  const resolveFromApplication = createRequire(path.join(appRoot, "package.json"));
+  const manifest = JSON.parse(
+    readFileSync(resolveFromApplication.resolve("next/package.json"), "utf8"),
+  ) as unknown;
+  if (
+    typeof manifest !== "object" ||
+    manifest === null ||
+    !("version" in manifest) ||
+    typeof manifest.version !== "string"
+  ) {
+    throw new TypeError("SpotPatch found invalid Next.js package metadata.");
+  }
+  return resolveNextHostCapabilities(manifest.version);
 }
 
 function mergeTurbopackRoot(
@@ -465,6 +494,7 @@ function mergeProductionConfig(
   config: NextConfig,
   appRoot: string,
   paths: AdapterModulePaths,
+  capabilities: NextHostCapabilities,
 ): NextConfig {
   const turbopackRoot = mergeTurbopackRoot(config, [appRoot, paths.noop]);
 
@@ -475,7 +505,7 @@ function mergeProductionConfig(
         [NEXT_CLIENT_MODULE_ID]: paths.turbopackNoop,
         [NEXT_DATA_FLOW_MODULE_ID]: paths.turbopackNoop,
       }),
-      root: turbopackRoot,
+      ...(capabilities.turbopackRoot ? { root: turbopackRoot } : {}),
     },
     webpack: createWebpackWrapper({
       appRoot,
@@ -496,6 +526,7 @@ function mergeDevelopmentConfig(
   registryEpoch: string,
   sidecarOrigin: string,
   dataFlowEnabled: boolean,
+  capabilities: NextHostCapabilities,
 ): NextConfig {
   const turbopackRoot = mergeTurbopackRoot(config, [
     appRoot,
@@ -577,7 +608,7 @@ function mergeDevelopmentConfig(
           ? paths.turbopackDataFlow
           : paths.turbopackNoop,
       }),
-      root: turbopackRoot,
+      ...(capabilities.turbopackRoot ? { root: turbopackRoot } : {}),
       rules: { ...existingRules, ...spotPatchRules },
     },
     webpack: createWebpackWrapper({
@@ -616,9 +647,15 @@ export function withSpotPatch(
       const config = inputConfig as unknown as NextConfig;
       const appRoot = await realpath(process.cwd());
       const paths = resolveAdapterModulePaths(appRoot);
+      const capabilities = readNextHostCapabilities(appRoot);
 
       if (phase !== PHASE_DEVELOPMENT_SERVER) {
-        return mergeProductionConfig(config, appRoot, paths) as unknown as Config;
+        return mergeProductionConfig(
+          config,
+          appRoot,
+          paths,
+          capabilities,
+        ) as unknown as Config;
       }
 
       const environmentAi =
@@ -647,7 +684,12 @@ export function withSpotPatch(
       });
 
       if (!options.enabled) {
-        return mergeProductionConfig(config, appRoot, paths) as unknown as Config;
+        return mergeProductionConfig(
+          config,
+          appRoot,
+          paths,
+          capabilities,
+        ) as unknown as Config;
       }
 
       return mergeDevelopmentConfig(
@@ -657,6 +699,7 @@ export function withSpotPatch(
         carrier.registryEpoch,
         carrier.sidecarOrigin,
         options.dataFlow.enabled,
+        capabilities,
       ) as unknown as Config;
     };
 }

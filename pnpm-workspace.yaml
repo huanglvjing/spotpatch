@@ -1,6 +1,7 @@
 packages:
   - "packages/*"
   - "playgrounds/*"
+  - "experiments/contextual-ask-q1"
   - "experiments/next-adapter"
   - "experiments/next-adapter/fixtures/*"
 

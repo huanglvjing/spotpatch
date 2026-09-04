@@ -31,6 +31,7 @@ export interface CodexJsonlClientOptions {
   readonly requestTimeoutMs?: number | undefined;
   readonly onFatal: (error: CodexAdapterError) => void;
   readonly onNotification: (method: string, params: unknown) => void;
+  readonly onReverseRequest?: (method: string, params: unknown) => void;
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -122,6 +123,7 @@ export class CodexJsonlClient {
   readonly #maximumStderrBytes: number;
   readonly #onFatal: (error: CodexAdapterError) => void;
   readonly #onNotification: (method: string, params: unknown) => void;
+  readonly #onReverseRequest: ((method: string, params: unknown) => void) | undefined;
   readonly #pending = new Map<number, PendingRequest>();
   readonly #requestTimeoutMs: number;
   #closed = false;
@@ -137,6 +139,7 @@ export class CodexJsonlClient {
       options.maximumStderrBytes ?? DEFAULT_MAXIMUM_STDERR_BYTES;
     this.#onFatal = options.onFatal;
     this.#onNotification = options.onNotification;
+    this.#onReverseRequest = options.onReverseRequest;
     this.#requestTimeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
 
     child.stdout.on("data", (chunk: Buffer) => {
@@ -275,6 +278,7 @@ export class CodexJsonlClient {
       ) {
         throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.PROTOCOL);
       }
+      this.#onReverseRequest?.(value.method, value.params);
       this.#respondToReverseRequest(value.id, value.method);
       return;
     }

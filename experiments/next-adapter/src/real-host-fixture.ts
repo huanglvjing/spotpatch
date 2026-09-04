@@ -180,7 +180,7 @@ import type { NextConfig } from "next";
 import {
   PHASE_DEVELOPMENT_SERVER,
   PHASE_PRODUCTION_BUILD,
-} from "next/constants";
+} from "next/constants.js";
 
 import originalConfig from "./.spotpatch-original-next-config";
 

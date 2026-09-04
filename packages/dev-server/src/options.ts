@@ -10,6 +10,10 @@ import {
   type AiProviderAuthentication,
   type AiProviderProtocol,
   type ContextBudget,
+  contextualAskOptionsSchema,
+  CONTEXTUAL_ASK_LIMITS,
+  type ContextualAskExecutorPreference,
+  type ContextualAskOptions,
   DEFAULT_DATA_FLOW_LIMITS,
   type DataFlowLimits,
   type RuntimeDataFlowConfig,
@@ -72,6 +76,12 @@ export interface SpotPatchOptions {
   readonly ai?: SpotPatchAiOptions;
   readonly dataFlow?: false | SpotPatchDataFlowOptions;
   readonly externalAgent?: boolean;
+  readonly contextualAsk?: ContextualAskOptions;
+}
+
+export interface ResolvedContextualAskOptions {
+  readonly enabled: boolean;
+  readonly defaultExecutor?: ContextualAskExecutorPreference;
 }
 
 export interface ResolvedSpotPatchOptions {
@@ -89,6 +99,7 @@ export interface ResolvedSpotPatchOptions {
   readonly ai: false | ResolvedAiOptions;
   readonly dataFlow: ResolvedSpotPatchDataFlowOptions;
   readonly externalAgent: Readonly<{ enabled: boolean }>;
+  readonly contextualAsk: ResolvedContextualAskOptions;
 }
 
 export interface ResolvedSpotPatchDataFlowOptions {
@@ -136,6 +147,7 @@ export const DEFAULT_OPTIONS = Object.freeze({
     limits: DEFAULT_DATA_FLOW_LIMITS,
   }),
   externalAgent: Object.freeze({ enabled: false }),
+  contextualAsk: Object.freeze({ enabled: false }),
 } satisfies ResolvedSpotPatchOptions);
 
 const PROFILE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -545,6 +557,45 @@ function resolveDataFlowOptions(
   });
 }
 
+function resolveContextualAskOptions(
+  value: ContextualAskOptions | undefined,
+  ai: false | ResolvedAiOptions,
+): ResolvedContextualAskOptions {
+  if (value === undefined || value === false) return DEFAULT_OPTIONS.contextualAsk;
+  const parsed = contextualAskOptionsSchema.safeParse(value);
+  if (!parsed.success) {
+    throw new RangeError("SpotPatch contextualAsk configuration is invalid.");
+  }
+  const configured = typeof parsed.data === "boolean" ? {} : parsed.data;
+  const preference = configured.defaultExecutor;
+  if (preference?.kind === "configured-key") {
+    const provider =
+      ai === false ? undefined : ai.providers[preference.providerProfileId];
+    if (provider?.models[preference.modelProfileId] === undefined) {
+      throw new RangeError(
+        "SpotPatch contextualAsk default Key executor must reference a configured AI model.",
+      );
+    }
+  }
+  if (
+    ai !== false &&
+    Object.values(ai.providers).reduce(
+      (total, provider) => total + Object.keys(provider.models).length,
+      0,
+    ) >= CONTEXTUAL_ASK_LIMITS.maximumExecutors
+  ) {
+    throw new RangeError(
+      "SpotPatch contextualAsk configuration exceeds the executor limit.",
+    );
+  }
+  return Object.freeze({
+    enabled: true,
+    ...(preference === undefined
+      ? {}
+      : { defaultExecutor: Object.freeze({ ...preference }) }),
+  });
+}
+
 export function createRuntimeDataFlowConfig(
   options: ResolvedSpotPatchDataFlowOptions,
 ): RuntimeDataFlowConfig {
@@ -607,6 +658,7 @@ export function resolveOptions(
     );
   }
 
+  const ai = resolveAiOptions(options.ai ?? environmentAi);
   const resolved = {
     enabled: options.enabled ?? DEFAULT_OPTIONS.enabled,
     include: Object.freeze([...(options.include ?? DEFAULT_OPTIONS.include)]),
@@ -619,11 +671,12 @@ export function resolveOptions(
     debug: options.debug ?? DEFAULT_OPTIONS.debug,
     locale,
     maxTargets,
-    ai: resolveAiOptions(options.ai ?? environmentAi),
+    ai,
     dataFlow: resolveDataFlowOptions(options.dataFlow),
     externalAgent: Object.freeze({
       enabled: options.externalAgent ?? DEFAULT_OPTIONS.externalAgent.enabled,
     }),
+    contextualAsk: resolveContextualAskOptions(options.contextualAsk, ai),
   } satisfies ResolvedSpotPatchOptions;
 
   if (

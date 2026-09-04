@@ -55,6 +55,27 @@ export const ERROR_CODES = {
   INTERNAL_ERROR: "INTERNAL_ERROR",
 } as const;
 
+export const CONTEXTUAL_ASK_ERROR_CODES = Object.freeze([
+  "ASK_DISABLED",
+  "ASK_SELECTION_REQUIRED",
+  "ASK_SELECTION_STALE",
+  "ASK_QUESTION_INVALID",
+  "ASK_EXECUTOR_UNAVAILABLE",
+  "ASK_TIMEOUT",
+  "ASK_CONSENT_REQUIRED",
+  "ASK_BUSY",
+  "ASK_IDEMPOTENCY_CONFLICT",
+  "ASK_SOURCE_SCOPE_DENIED",
+  "ASK_LIMIT_EXCEEDED",
+  "ASK_ANSWER_INVALID",
+  "ASK_WRITE_ATTEMPTED",
+  "ASK_CANCELLED",
+  "ASK_RESULT_EXPIRED",
+  "ASK_PROTOCOL_INCOMPATIBLE",
+] as const);
+
+export type ContextualAskErrorCode = (typeof CONTEXTUAL_ASK_ERROR_CODES)[number];
+
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
 
 export const ERROR_CODE_VALUES = Object.freeze(Object.values(ERROR_CODES));

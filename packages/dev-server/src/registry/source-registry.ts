@@ -10,6 +10,7 @@ export interface SourceRegistry {
     components: readonly DataFlowComponentAnchorInput[],
   ): string;
   resolve(fileId: string): string | undefined;
+  findRegisteredId(absolutePath: string): string | undefined;
   resolveDataFlowComponent(
     componentSourceId: string,
   ): DataFlowComponentAnchor | undefined;
@@ -90,6 +91,10 @@ export function createSourceRegistry(
 
     resolve(fileId: string): string | undefined {
       return idToPath.get(fileId);
+    },
+
+    findRegisteredId(absolutePath: string): string | undefined {
+      return pathToId.get(normalizeAbsolutePath(absolutePath));
     },
 
     resolveDataFlowComponent(

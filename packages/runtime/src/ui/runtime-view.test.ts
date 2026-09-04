@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createRuntimeView } from "./runtime-view.js";
 import { installDataFlowPanelExtension } from "../data-flow-panel-entry.js";
+import { installContextualAskExtension } from "../contextual-ask-panel-entry.js";
 import { createExecutionIsland } from "./execution-island.js";
 import {
   registerFloatingSurfaceMotionExtension,
@@ -55,6 +56,7 @@ const trustedFastAiConfig = Object.freeze({
 afterEach(() => {
   vi.restoreAllMocks();
   Reflect.deleteProperty(globalThis, Symbol.for("spotpatch.motion.v1"));
+  Reflect.deleteProperty(globalThis, Symbol.for("spotpatch.contextual-ask.v1"));
   document.querySelectorAll("spotpatch-root").forEach((host) => {
     host.remove();
   });
@@ -847,5 +849,31 @@ describe("runtime view", () => {
     expect(view.host.isConnected).toBe(true);
     expect(surface?.dataset.scene).toBe("pill");
     expect(view.triggerButton.hidden).toBe(false);
+  });
+
+  it("mounts the optional Ask extension without a construction-time render race", () => {
+    installContextualAskExtension();
+    const view = createRuntimeView(
+      document,
+      "Mod+Shift+S",
+      Object.freeze({ enabled: false }),
+      "en-US",
+      false,
+      false,
+      "vite",
+      "runtime-session",
+      true,
+    );
+    view.renderStatus("selected");
+    view.showSelection("Browser context: ready", true, true);
+    const root = view.host.shadowRoot;
+
+    expect(root?.querySelector(".spotpatch-title")?.textContent).toBe(
+      "Plan the change",
+    );
+    root?.querySelectorAll<HTMLButtonElement>("[role=tab]").item(0).click();
+    expect(root?.querySelector(".spotpatch-title")?.textContent).toBe(
+      "Ask about this selection",
+    );
   });
 });

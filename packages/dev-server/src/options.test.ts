@@ -65,6 +65,39 @@ describe("resolveOptions", () => {
     ).toThrow(RangeError);
   });
 
+  it("keeps Contextual Ask disabled by default and validates its Key default", () => {
+    expect(resolveOptions().contextualAsk).toEqual({ enabled: false });
+    expect(resolveOptions({ contextualAsk: true }).contextualAsk).toEqual({
+      enabled: true,
+    });
+    expect(
+      resolveOptions({
+        ai: aiOptions,
+        contextualAsk: {
+          defaultExecutor: {
+            kind: "configured-key",
+            providerProfileId: "relay",
+            modelProfileId: "coding",
+          },
+        },
+      }).contextualAsk,
+    ).toMatchObject({
+      enabled: true,
+      defaultExecutor: { kind: "configured-key" },
+    });
+    expect(() =>
+      resolveOptions({
+        contextualAsk: {
+          defaultExecutor: {
+            kind: "configured-key",
+            providerProfileId: "missing",
+            modelProfileId: "missing",
+          },
+        },
+      }),
+    ).toThrow(RangeError);
+  });
+
   it("merges nested budget values once without mutating defaults", () => {
     const resolved = resolveOptions({ budget: { maxCodeLines: 42 } });
 

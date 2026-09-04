@@ -18,6 +18,11 @@ import {
 import type { ResolvedSpotPatchOptions } from "../options.js";
 import type { SourceRegistry } from "../registry/source-registry.js";
 import type { SpotPatchSession } from "../session/session.js";
+import type { ContextualAskManager } from "../contextual-ask/manager.js";
+import {
+  handleContextualAskRequest,
+  matchContextualAskPath,
+} from "../contextual-ask/http.js";
 import type { AgentJobManager } from "../agent/job-manager.js";
 import {
   handleExternalHandoffBrowserRequest,
@@ -58,6 +63,7 @@ export interface SpotPatchServerLogger {
 
 export interface CreateMiddlewareOptions {
   readonly agentManager?: AgentJobManager;
+  readonly contextualAskManager?: ContextualAskManager;
   readonly bootstrap?: RuntimeBootstrapOptions;
   readonly editorLauncher?: EditorLauncher;
   readonly externalAgentControl?: ExternalAgentControlPort;
@@ -312,6 +318,7 @@ export function createSpotPatchMiddleware(
   ): void => {
     const path = requestPath(request);
     const agentRoute = matchAgentRequestPath(path);
+    const askRoute = matchContextualAskPath(path);
     const externalAgentRoute = matchExternalAgentBrowserPath(path);
     const externalHandoffRoute = matchExternalHandoffBrowserPath(path);
 
@@ -321,6 +328,7 @@ export function createSpotPatchMiddleware(
       path !== SPOTPATCH_ENDPOINTS.dataFlowComponentReport &&
       path !== SPOTPATCH_ENDPOINTS.dataFlowPageReport &&
       agentRoute === undefined &&
+      askRoute === undefined &&
       externalAgentRoute === undefined &&
       externalHandoffRoute === undefined &&
       !path.startsWith(`${SPOTPATCH_API_BASE}/`)
@@ -343,6 +351,17 @@ export function createSpotPatchMiddleware(
         allowLan: options.options.allowLan,
         sessionToken: options.session.token,
       });
+
+      if (askRoute !== undefined) {
+        await handleContextualAskRequest(
+          request,
+          response,
+          askRoute,
+          options.contextualAskManager,
+          options.logger,
+        );
+        return;
+      }
 
       if (path === SPOTPATCH_ENDPOINTS.sourceContext) {
         if (request.method !== "POST") {

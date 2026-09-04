@@ -118,6 +118,11 @@ async function executeBootstrap(): Promise<void> {
     const motionExtension = await import("@spotpatch/runtime/motion");
     motionExtension.installFloatingSurfaceMotionExtension();
 
+    if (config.contextualAsk.enabled) {
+      const extension = await import("@spotpatch/runtime/contextual-ask-panel");
+      extension.installContextualAskExtension();
+    }
+
     if (config.externalAgent.enabled) {
       const extension = await import("@spotpatch/runtime/external-handoff-panel");
       extension.registerExternalHandoffExtension(

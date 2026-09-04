@@ -69,6 +69,26 @@
         "types": "./dist/external-handoff-browser.d.cts",
         "default": "./dist/external-handoff-browser.cjs"
       }
+    },
+    "./contextual-ask-browser": {
+      "import": {
+        "types": "./dist/contextual-ask-browser.d.ts",
+        "default": "./dist/contextual-ask-browser.js"
+      },
+      "require": {
+        "types": "./dist/contextual-ask-browser.d.cts",
+        "default": "./dist/contextual-ask-browser.cjs"
+      }
+    },
+    "./contextual-ask-node": {
+      "import": {
+        "types": "./dist/contextual-ask-node.d.ts",
+        "default": "./dist/contextual-ask-node.js"
+      },
+      "require": {
+        "types": "./dist/contextual-ask-node.d.cts",
+        "default": "./dist/contextual-ask-node.cjs"
+      }
     }
   },
   "typesVersions": {
@@ -81,13 +101,19 @@
       ],
       "external-handoff-browser": [
         "dist/external-handoff-browser.d.ts"
+      ],
+      "contextual-ask-browser": [
+        "dist/contextual-ask-browser.d.ts"
+      ],
+      "contextual-ask-node": [
+        "dist/contextual-ask-node.d.ts"
       ]
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts src/data-flow-runtime.ts src/external-agent-node.ts src/external-handoff-browser.ts --format esm,cjs --dts --sourcemap --clean",
+    "build": "tsup src/index.ts src/data-flow-runtime.ts src/external-agent-node.ts src/external-handoff-browser.ts src/contextual-ask-browser.ts src/contextual-ask-node.ts --format esm,cjs --dts --sourcemap --clean",
     "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
-    "dev": "tsup src/index.ts src/data-flow-runtime.ts src/external-agent-node.ts src/external-handoff-browser.ts --format esm,cjs --dts --sourcemap --watch",
+    "dev": "tsup src/index.ts src/data-flow-runtime.ts src/external-agent-node.ts src/external-handoff-browser.ts src/contextual-ask-browser.ts src/contextual-ask-node.ts --format esm,cjs --dts --sourcemap --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

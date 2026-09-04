@@ -38,6 +38,10 @@ import {
   type ExternalHandoffPanel,
 } from "./external-handoff-contract.js";
 import {
+  getContextualAskExtension,
+  type ContextualAskPanel,
+} from "./contextual-ask-contract.js";
+import {
   type ExecutionActivityKind,
   type ExecutionIslandView,
   getFloatingSurfaceMotionExtension,
@@ -97,6 +101,7 @@ export interface RuntimeView {
   readonly copyButton: HTMLButtonElement;
   readonly dataFlowRefreshButton: HTMLButtonElement;
   readonly externalHandoffPanel?: ExternalHandoffPanel;
+  readonly contextualAskPanel?: ContextualAskPanel;
   readonly host: HTMLElement;
   readonly openEditorButton: HTMLButtonElement;
   readonly repositoryLink: HTMLAnchorElement;
@@ -862,6 +867,7 @@ export function createRuntimeView(
   externalAgentEnabled = false,
   framework: "vite" | "next" = "vite",
   sessionId = "",
+  contextualAskEnabled = false,
 ): RuntimeView {
   const localizer: UiLocalizer = createUiLocalizer(document, localePreference);
   const associatedWindow = document.defaultView;
@@ -878,6 +884,9 @@ export function createRuntimeView(
   );
   let messages = localizer.messages();
   let currentStatus: RuntimeStatus = "idle";
+  let contextualAskMode: "ask" | "change" = "change";
+  let contextualAskTitle = "";
+  let contextualAskSubtitle = "";
   let plannerVisible = false;
   let executionSuppressed = false;
   let executionProjection: FloatingSurfaceProjection | undefined;
@@ -1104,6 +1113,31 @@ export function createRuntimeView(
     backButton,
   );
   actions.append(editorFeedback, secondaryActions, primaryActions);
+  const contextualAskPanel = contextualAskEnabled
+    ? getContextualAskExtension()?.createPanel({
+        document,
+        locale: localizer.locale,
+        subscribeLocale: localizer.subscribe,
+        changeRoot: dataFlowPanel.root,
+        changeActions: actions,
+        announce,
+        onModeChange(mode, askTitle, askSubtitle) {
+          contextualAskMode = mode;
+          contextualAskTitle = askTitle;
+          contextualAskSubtitle = askSubtitle;
+          if (host.isConnected) renderPanelStatus(currentStatus);
+        },
+        onExecutionChange(projection) {
+          executionProjection = projection;
+          executionSuppressed = false;
+          renderFloatingSurfaceMotion();
+        },
+        onViewChange: requestFloatingSurfaceLayout,
+      })
+    : undefined;
+  if (contextualAskPanel !== undefined) {
+    selectionPanel.prepend(contextualAskPanel.root);
+  }
   shell.append(header, body, actions);
   dialog.append(shell);
 
@@ -1116,6 +1150,7 @@ export function createRuntimeView(
     createStyles(document),
     ...(motionExtension === undefined ? [] : [motionExtension.createStyles(document)]),
     dataFlowPanel.styles,
+    ...(contextualAskPanel === undefined ? [] : [contextualAskPanel.styles]),
     ...(externalHandoffPanel === undefined ? [] : [externalHandoffPanel.styles]),
   ];
   const styleNonce = resolveStyleNonce(document);
@@ -1877,6 +1912,11 @@ export function createRuntimeView(
     previewButton.disabled = !canPreview;
     agentPanel.setContextReady(canPreview);
     externalHandoffPanel?.setContextReady(canPreview);
+    contextualAskPanel?.setSelectionPreview({
+      contextReady: currentTargets.every((target) => target.status !== "loading"),
+      targetCount: currentTargets.length,
+      sourceCount: currentTargets.filter((target) => target.canOpenEditor).length,
+    });
     updateContextOverview(summaryText);
     requestFloatingSurfaceLayout();
   }
@@ -1894,14 +1934,19 @@ export function createRuntimeView(
     secondaryActions.hidden = !selected;
     agentPanel.setSelectionVisible(selected);
     externalHandoffPanel?.setSelectionVisible(selected);
+    contextualAskPanel?.setSelectionVisible(selected);
     copyButton.hidden = !previewing;
     backButton.hidden = !previewing;
     title.textContent = previewing
       ? messages.dialog.previewTitle
-      : messages.dialog.editTitle;
+      : contextualAskMode === "ask" && contextualAskTitle.length > 0
+        ? contextualAskTitle
+        : messages.dialog.editTitle;
     subtitle.textContent = previewing
       ? messages.dialog.previewSubtitle
-      : messages.dialog.editSubtitle;
+      : contextualAskMode === "ask" && contextualAskSubtitle.length > 0
+        ? contextualAskSubtitle
+        : messages.dialog.editSubtitle;
     renderFloatingSurfaceMotion();
   }
 
@@ -2044,6 +2089,7 @@ export function createRuntimeView(
     agentRevertButton: agentPanel.revertButton,
     agentResetButton: agentPanel.resetButton,
     ...(externalHandoffPanel === undefined ? {} : { externalHandoffPanel }),
+    ...(contextualAskPanel === undefined ? {} : { contextualAskPanel }),
 
     renderStatus(status: RuntimeStatus): void {
       const inspecting = status === "inspecting";
@@ -2136,6 +2182,7 @@ export function createRuntimeView(
       agentPanel.setSelectionVisible(false);
       externalHandoffPanel?.setContextReady(false);
       externalHandoffPanel?.setSelectionVisible(false);
+      contextualAskPanel?.setSelectionVisible(false);
       agentPanel.setEditingEnabled(true);
       agentPanel.resetJob();
       dataFlowPanel.resetView();
@@ -2381,6 +2428,7 @@ export function createRuntimeView(
       unsubscribeLocale();
       dataFlowPanel.dispose();
       externalHandoffPanel?.dispose();
+      contextualAskPanel?.dispose();
       agentPanel.dispose();
       motionController?.dispose();
       executionIslandView.dispose();

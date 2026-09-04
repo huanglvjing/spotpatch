@@ -220,6 +220,7 @@ export async function startRuntimePocSidecar(
     apiBase: SPOTPATCH_API_BASE,
     ai: createRuntimeAiConfig(options.ai),
     budget: options.budget,
+    contextualAsk: Object.freeze({ enabled: false }),
     dataFlow: createRuntimeDataFlowConfig(options.dataFlow),
     bundler: input.bundler,
     debug: options.debug,

@@ -1,17 +1,23 @@
 import path from "node:path";
 
 import {
+  composeContextualAskExecutors,
   createAgentJobManager,
+  createConfiguredKeyAskExecutors,
+  createContextualAskManager,
   createExternalHandoffService,
+  createWorkspaceActivityCoordinator,
   createSpotPatchMiddleware,
   resolveManagedExecutionValidation,
   type AgentJobManager,
+  type ContextualAskManager,
   type ExternalHandoffService,
   type SourceRegistry,
   type SpotPatchSession,
   type SpotPatchMiddleware,
 } from "@spotpatch/dev-server";
 import {
+  createManagedCodexAskExecutor,
   createExternalAgentSupervisor,
   type ExternalAgentSupervisor,
 } from "@spotpatch/bridge";
@@ -27,13 +33,13 @@ interface ServerPluginInput {
 
 export function createServerPlugin(input: ServerPluginInput): Plugin {
   let agentManager: AgentJobManager | undefined;
+  let contextualAskManager: ContextualAskManager | undefined;
   let externalHandoffService: ExternalHandoffService | undefined;
   let externalAgentSupervisor: ExternalAgentSupervisor | undefined;
   let middleware: SpotPatchMiddleware | undefined;
   let config: ResolvedConfig | undefined;
 
   const closeResources = async (): Promise<void> => {
-    input.registry.clear();
     middleware?.dispose();
     middleware = undefined;
     await externalAgentSupervisor?.dispose();
@@ -42,6 +48,9 @@ export function createServerPlugin(input: ServerPluginInput): Plugin {
     externalHandoffService = undefined;
     await agentManager?.close();
     agentManager = undefined;
+    await contextualAskManager?.close();
+    contextualAskManager = undefined;
+    input.registry.clear();
   };
 
   return {
@@ -60,6 +69,7 @@ export function createServerPlugin(input: ServerPluginInput): Plugin {
 
       const root = path.resolve(config.root);
       const options = input.context.getOptions();
+      const coordinator = createWorkspaceActivityCoordinator();
       agentManager =
         options.ai === false
           ? undefined
@@ -67,7 +77,34 @@ export function createServerPlugin(input: ServerPluginInput): Plugin {
               ai: options.ai,
               environment: input.context.getCredentialEnvironment(),
               root,
+              coordinator,
             });
+      contextualAskManager = options.contextualAsk.enabled
+        ? createContextualAskManager({
+            coordinator,
+            enabled: true,
+            executors: composeContextualAskExecutors({
+              configuredKey:
+                options.ai === false
+                  ? []
+                  : createConfiguredKeyAskExecutors({
+                      ai: options.ai,
+                      environment: input.context.getCredentialEnvironment(),
+                      ...(options.contextualAsk.defaultExecutor === undefined
+                        ? {}
+                        : {
+                            defaultExecutor: options.contextualAsk.defaultExecutor,
+                          }),
+                    }),
+              managedCodex: createManagedCodexAskExecutor({ projectRoot: root }),
+              ...(options.contextualAsk.defaultExecutor === undefined
+                ? {}
+                : { defaultExecutor: options.contextualAsk.defaultExecutor }),
+            }),
+            registry: input.registry,
+            root,
+          })
+        : undefined;
       externalHandoffService = options.externalAgent.enabled
         ? createExternalHandoffService({
             framework: "vite",
@@ -109,6 +146,7 @@ export function createServerPlugin(input: ServerPluginInput): Plugin {
 
       middleware = createSpotPatchMiddleware({
         ...(agentManager === undefined ? {} : { agentManager }),
+        ...(contextualAskManager === undefined ? {} : { contextualAskManager }),
         ...(externalAgentSupervisor === undefined
           ? {}
           : { externalAgentControl: externalAgentSupervisor }),

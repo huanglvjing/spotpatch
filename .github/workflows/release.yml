@@ -14,7 +14,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  contextual-ask-beta:
+    uses: ./.github/workflows/contextual-ask-beta.yml
+
   release:
+    needs: contextual-ask-beta
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

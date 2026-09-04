@@ -96,8 +96,16 @@ function callsFromOutput(
     return;
   }
 
+  const outputCallIds = new Set<string>();
   for (const output of response.output) {
     if (isRecord(output)) {
+      if (output.type === "function_call") {
+        const callId = requireString(output, "call_id");
+        if (outputCallIds.has(callId)) {
+          throw new SpotPatchError(ERROR_CODES.TOOL_CALL_ID_CONFLICT);
+        }
+        outputCallIds.add(callId);
+      }
       collectFunctionCall(output, calls);
     }
   }
@@ -119,10 +127,14 @@ function parseResponsesEvents(
   const textDeltas: string[] = [];
   let completedResponse: Readonly<Record<string, unknown>> | undefined;
   let responseId: string | undefined;
+  let terminal = false;
 
   for (const event of events) {
     if (event.data === "[DONE]") {
       continue;
+    }
+    if (terminal) {
+      throw new SpotPatchError(ERROR_CODES.PROVIDER_PROTOCOL_UNSUPPORTED);
     }
 
     const payload = parseJsonRecord(event.data);
@@ -165,6 +177,7 @@ function parseResponsesEvents(
       responseId = requireString(payload.response, "id");
       completedResponse = payload.response;
       callsFromOutput(payload.response, calls);
+      terminal = true;
     }
   }
 

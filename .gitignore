@@ -8,6 +8,8 @@ playwright-report/
 test-results/
 blob-report/
 playgrounds/minimal-react-18/.spotpatch-hmr-*/
+experiments/contextual-ask-q1/.artifacts/
+experiments/contextual-ask-q1/.work/
 
 *.tsbuildinfo
 *.log

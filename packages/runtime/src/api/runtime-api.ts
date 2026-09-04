@@ -22,7 +22,6 @@ import {
   type SPOTPATCH_API_BASE,
   type SourceContextRequest,
 } from "@spotpatch/shared";
-
 import {
   isAgentCapabilitySnapshot,
   isAgentErrorCode,
@@ -354,7 +353,9 @@ function omitBrowserCodeContext(request: AgentJobCreateRequest): AgentJobCreateR
 }
 
 export function runtimeApiErrorCode(error: unknown): ErrorCode | undefined {
-  return error instanceof RuntimeApiError ? error.code : undefined;
+  return error instanceof RuntimeApiError && isAgentErrorCode(error.code)
+    ? error.code
+    : undefined;
 }
 
 export function createRuntimeApi(options: RuntimeApiOptions): RuntimeApi {

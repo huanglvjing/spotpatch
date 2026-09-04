@@ -3,6 +3,7 @@ import { access, lstat, mkdtemp, readFile, realpath, rm, stat } from "node:fs/pr
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { createRequire } from "node:module";
 
 import { CODEX_ADAPTER_ERROR_CODES, CodexAdapterError } from "./errors.js";
 
@@ -37,7 +38,15 @@ export const REQUIRED_CODEX_SCHEMA_METHODS = Object.freeze({
     "turn/interrupt",
     "turn/start",
   ]),
-  "ServerNotification.json": Object.freeze(["turn/completed", "turn/started"]),
+  "ServerNotification.json": Object.freeze([
+    "item/agentMessage/delta",
+    "item/completed",
+    "item/started",
+    "model/rerouted",
+    "turn/completed",
+    "turn/diff/updated",
+    "turn/started",
+  ]),
   "ServerRequest.json": Object.freeze([
     "account/chatgptAuthTokens/refresh",
     "applyPatchApproval",
@@ -108,7 +117,8 @@ function isMissingFileError(error: unknown): boolean {
 }
 
 async function findOnTrustedPath(pathValue: string): Promise<string> {
-  const executableNames = process.platform === "win32" ? ["codex.exe"] : ["codex"];
+  const executableNames =
+    process.platform === "win32" ? ["codex.exe", "codex.cmd"] : ["codex"];
 
   for (const entry of pathValue.split(path.delimiter)) {
     if (entry.length === 0 || !path.isAbsolute(entry)) continue;
@@ -117,6 +127,11 @@ async function findOnTrustedPath(pathValue: string): Promise<string> {
       const candidate = path.join(entry, executableName);
 
       try {
+        if (executableName === "codex.cmd") {
+          const nativeExecutable = await resolveWindowsNpmCodexExecutable(candidate);
+          if (nativeExecutable !== undefined) return nativeExecutable;
+          continue;
+        }
         const canonical = await realpath(candidate);
         const metadata = await stat(canonical);
         if (!metadata.isFile()) continue;
@@ -133,6 +148,74 @@ async function findOnTrustedPath(pathValue: string): Promise<string> {
   }
 
   throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.EXECUTABLE_NOT_FOUND);
+}
+
+function windowsCodexTarget(
+  arch: NodeJS.Architecture,
+): Readonly<{ packageName: string; targetTriple: string }> | undefined {
+  if (arch === "x64") {
+    return Object.freeze({
+      packageName: "@openai/codex-win32-x64",
+      targetTriple: "x86_64-pc-windows-msvc",
+    });
+  }
+  if (arch === "arm64") {
+    return Object.freeze({
+      packageName: "@openai/codex-win32-arm64",
+      targetTriple: "aarch64-pc-windows-msvc",
+    });
+  }
+  return undefined;
+}
+
+/** Resolves an npm Codex Windows shim to its signed platform package binary. */
+export async function resolveWindowsNpmCodexExecutable(
+  shimPath: string,
+  arch: NodeJS.Architecture = process.arch,
+): Promise<string | undefined> {
+  const target = windowsCodexTarget(arch);
+  if (target === undefined) return undefined;
+  let shim: string;
+  try {
+    shim = await realpath(shimPath);
+    if (!(await stat(shim)).isFile()) return undefined;
+  } catch (error: unknown) {
+    if (isMissingFileError(error)) return undefined;
+    throw error;
+  }
+
+  const resolveFromShim = createRequire(
+    path.join(path.dirname(shim), "__spotpatch_codex_resolver__.cjs"),
+  );
+  let manifestPath: string;
+  try {
+    manifestPath = resolveFromShim.resolve(`${target.packageName}/package.json`);
+  } catch (error: unknown) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "MODULE_NOT_FOUND"
+    ) {
+      return undefined;
+    }
+    throw error;
+  }
+  const packageRoot = await realpath(path.dirname(manifestPath));
+  let executable: string;
+  try {
+    executable = await realpath(
+      path.join(packageRoot, "vendor", target.targetTriple, "bin", "codex.exe"),
+    );
+    if (!isWithin(packageRoot, executable) || !(await stat(executable)).isFile()) {
+      throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.EXECUTABLE_UNTRUSTED);
+    }
+    await access(executable, fsConstants.X_OK);
+  } catch (error: unknown) {
+    if (error instanceof CodexAdapterError) throw error;
+    throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.EXECUTABLE_UNTRUSTED);
+  }
+  return executable;
 }
 
 async function runCodexProbe(

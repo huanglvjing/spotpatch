@@ -33,6 +33,12 @@ export default defineConfig({
       "@spotpatch/shared/external-handoff-browser": fromRoot(
         "./packages/shared/src/external-handoff-browser.ts",
       ),
+      "@spotpatch/shared/contextual-ask-browser": fromRoot(
+        "./packages/shared/src/contextual-ask-browser.ts",
+      ),
+      "@spotpatch/shared/contextual-ask-node": fromRoot(
+        "./packages/shared/src/contextual-ask-node.ts",
+      ),
       "@spotpatch/shared": fromRoot("./packages/shared/src/index.ts"),
       "@spotpatch/react-adapter": fromRoot("./packages/react-adapter/src/index.ts"),
       "@spotpatch/runtime": fromRoot("./packages/runtime/src/index.ts"),

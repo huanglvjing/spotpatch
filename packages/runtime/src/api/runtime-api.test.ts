@@ -12,8 +12,16 @@ import {
   type PageDataFlowReport,
 } from "@spotpatch/shared";
 import { describe, expect, it, vi } from "vitest";
+import {
+  getAskJobEndpoint,
+  type AskJobCreateRequest,
+  type AskJobEvent,
+  type AskJobSnapshot,
+  type ContextualAskCapability,
+} from "@spotpatch/shared/contextual-ask-browser";
 
 import { RuntimeApiError, createRuntimeApi } from "./runtime-api.js";
+import { createContextualAskApi } from "./contextual-ask-api.js";
 
 const codeContext = Object.freeze({
   relativePath: "src/App.tsx",
@@ -526,5 +534,196 @@ describe("runtime API client", () => {
     await expect(mismatchedJob.applyAgentJob(jobId)).rejects.toThrow(
       "SpotPatch local API request failed.",
     );
+  });
+
+  it("validates the read-only Ask lifecycle, GET event replay, and sourced result", async () => {
+    const askJobId = "ask_job_1";
+    const askCapability: ContextualAskCapability = {
+      schemaVersion: 1,
+      enabled: true,
+      executors: [
+        {
+          executorId: "configured-key-relay-coder",
+          kind: "configured-key",
+          label: "Trusted Relay",
+          requestedModelLabel: "Coder",
+          effectiveModelLabel: "Coder",
+          state: "ready",
+          providerDataConsentRequired: true,
+          readOnlyProven: true,
+        },
+      ],
+      safety: {
+        selectionRequired: true,
+        singleTurn: true,
+        writesAllowed: false,
+        historyStored: false,
+      },
+      checkedAt: "2026-09-02T00:00:00.000Z",
+    };
+    const queued: AskJobSnapshot = {
+      schemaVersion: 1,
+      jobId: askJobId,
+      selectionId: "selection_1",
+      status: "queued",
+      executor: {
+        executorId: "configured-key-relay-coder",
+        kind: "configured-key",
+        label: "Trusted Relay",
+        modelLabel: "Coder",
+      },
+      createdAt: "2026-09-02T00:00:00.000Z",
+      updatedAt: "2026-09-02T00:00:00.000Z",
+      canCancel: true,
+    };
+    const answered: AskJobSnapshot = {
+      ...queued,
+      status: "answered",
+      updatedAt: "2026-09-02T00:00:02.000Z",
+      canCancel: false,
+    };
+    const events: readonly AskJobEvent[] = [
+      {
+        schemaVersion: 1,
+        sequence: 1,
+        jobId: askJobId,
+        status: "running",
+        timestamp: "2026-09-02T00:00:01.000Z",
+        type: "read-activity",
+        activity: {
+          kind: "source",
+          sourceId: "source_1",
+          relativePath: "src/Form.tsx",
+        },
+        state: "started",
+      },
+      {
+        schemaVersion: 1,
+        sequence: 2,
+        jobId: askJobId,
+        status: "answered",
+        timestamp: "2026-09-02T00:00:02.000Z",
+        type: "answer-ready",
+      },
+    ];
+    const result = {
+      snapshot: answered,
+      result: {
+        schemaVersion: 1,
+        jobId: askJobId,
+        selectionId: "selection_1",
+        contextHash: "a".repeat(64),
+        executor: answered.executor,
+        blocks: [
+          {
+            kind: "paragraph" as const,
+            text: "The selected component submits the form.",
+            sourceIds: ["source_1"],
+          },
+        ],
+        sources: [
+          {
+            sourceId: "source_1",
+            label: "Submit handler",
+            relativePath: "src/Form.tsx",
+            fileId: "file_form",
+            startLine: 12,
+            endLine: 24,
+            confidence: "exact" as const,
+            targetIds: ["target_1"],
+            contentHash: "b".repeat(64),
+          },
+        ],
+        warnings: [],
+        createdAt: "2026-09-02T00:00:02.000Z",
+        expiresAt: "2026-09-02T00:05:02.000Z",
+      },
+    };
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          new TextEncoder().encode(
+            `${events.map((event) => JSON.stringify(event)).join("\n")}\n`,
+          ),
+        );
+        controller.close();
+      },
+    });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(jsonResponse({ ok: true, data: askCapability }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, data: queued }, 202))
+      .mockResolvedValueOnce(new Response(stream, { status: 200 }))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, data: result }));
+    const api = createContextualAskApi({
+      fetch: fetchMock,
+      sessionToken: "session-secret",
+    });
+    const request: AskJobCreateRequest = {
+      schemaVersion: 1,
+      requestId: "request_1",
+      executorId: "configured-key-relay-coder",
+      providerDataConsent: true,
+      envelope: {
+        schemaVersion: 1,
+        taskId: "task_1",
+        selection: {
+          schemaVersion: 1,
+          selectionId: "selection_1",
+          locale: "en-US",
+          targets: [
+            {
+              targetId: "target_1",
+              page: {
+                url: "http://localhost:4173/",
+                pathname: "/",
+                title: "Fixture",
+                viewportWidth: 1440,
+                viewportHeight: 900,
+                devicePixelRatio: 2,
+              },
+              source: {
+                origin: "jsx-host",
+                confidence: "exact",
+                fileId: "file_form",
+                relativePath: "src/Form.tsx",
+                line: 12,
+                column: 1,
+              },
+              react: { supported: false, componentStack: [] },
+              element: {
+                tagName: "button",
+                selector: "button[type=submit]",
+                sanitizedHtml: '<button type="submit">Save</button>',
+                rect: { x: 1, y: 2, width: 100, height: 40 },
+              },
+              styles: {
+                classNames: [],
+                matchedRules: [],
+                computed: {},
+                warnings: [],
+              },
+              warnings: [],
+            },
+          ],
+          createdAt: "2026-09-02T00:00:00.000Z",
+        },
+        task: { kind: "ask", question: "What does this component do?" },
+        createdAt: "2026-09-02T00:00:00.000Z",
+      },
+    };
+
+    await expect(api.capability()).resolves.toEqual(askCapability);
+    await expect(api.createJob(request)).resolves.toEqual(queued);
+    const received: AskJobEvent[] = [];
+    await api.events(askJobId, 0, (event) => received.push(event));
+    await expect(api.result(askJobId)).resolves.toEqual(result);
+    expect(received).toEqual(events);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      getAskJobEndpoint(askJobId, "events", { afterSequence: 0 }),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain("apiKey");
   });
 });

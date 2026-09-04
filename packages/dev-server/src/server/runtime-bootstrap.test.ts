@@ -22,6 +22,7 @@ const runtimeConfig = Object.freeze({
   apiBase: SPOTPATCH_API_BASE,
   ai: Object.freeze({ enabled: false }),
   budget: resolveOptions().budget,
+  contextualAsk: Object.freeze({ enabled: false }),
   dataFlow: createRuntimeDataFlowConfig(resolveOptions().dataFlow),
   bundler: "turbopack",
   debug: false,

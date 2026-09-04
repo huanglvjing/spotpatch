@@ -16,12 +16,17 @@ describe("SpotPatch options transport", () => {
       },
       dataFlow: { runtime: "dispatch" },
       externalAgent: true,
+      contextualAsk: { defaultExecutor: { kind: "managed-codex" } },
     });
     const serialized = serializeResolvedSpotPatchOptions(resolved);
     const parsed = parseSerializedSpotPatchOptions(serialized);
 
     expect(parsed).toEqual(resolved);
     expect(parsed.externalAgent).toEqual({ enabled: true });
+    expect(parsed.contextualAsk).toEqual({
+      enabled: true,
+      defaultExecutor: { kind: "managed-codex" },
+    });
     expect(JSON.stringify(serialized)).not.toContain("credential");
   });
 

@@ -901,10 +901,13 @@ describeCodexAdapter("Codex App Server adapter contract", () => {
       signal: controller.signal,
     });
 
-    await vi.waitFor(async () => {
-      const records = await captured(harness.capturePath);
-      expect(capturedMethods(records)).toContain("initialize");
-    });
+    await vi.waitFor(
+      async () => {
+        const records = await captured(harness.capturePath);
+        expect(capturedMethods(records)).toContain("initialize");
+      },
+      { timeout: 5_000 },
+    );
     controller.abort("test-interrupted");
 
     await expect(connecting).rejects.toMatchObject({ name: "AbortError" });

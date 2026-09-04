@@ -16,6 +16,10 @@ export {
   type ConnectManagedCodexAppServerOptions,
 } from "./active/codex/managed-adapter.js";
 export {
+  createManagedCodexAskExecutor,
+  type CreateManagedCodexAskExecutorOptions,
+} from "./active/codex/ask-adapter.js";
+export {
   applyBridgeSetupPlan,
   createBridgeSetupPlan,
   type BridgeCliAdapter,

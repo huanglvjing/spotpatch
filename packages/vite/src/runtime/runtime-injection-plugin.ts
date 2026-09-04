@@ -25,11 +25,15 @@ export const RESOLVED_SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID = `\0${SPOTPATCH_DATA_
 export const SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID =
   "virtual:spotpatch/external-handoff-panel";
 export const RESOLVED_SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID = `\0${SPOTPATCH_EXTERNAL_HANDOFF_PANEL_MODULE_ID}`;
+export const SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID =
+  "virtual:spotpatch/contextual-ask-panel";
+export const RESOLVED_SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID = `\0${SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID}`;
 export const SPOTPATCH_MOTION_MODULE_ID = "virtual:spotpatch/motion";
 export const RESOLVED_SPOTPATCH_MOTION_MODULE_ID = `\0${SPOTPATCH_MOTION_MODULE_ID}`;
 
 const RUNTIME_BUNDLE_NAMES = [
   "client",
+  "contextualAskPanel",
   "dataFlowPanel",
   "dataFlowPrelude",
   "externalHandoffPanel",
@@ -61,6 +65,12 @@ const RUNTIME_BUNDLE_DEFINITIONS: Readonly<
     fileName: "runtime-client.js",
     publicId: SPOTPATCH_CLIENT_MODULE_ID,
     resolvedId: RESOLVED_SPOTPATCH_CLIENT_MODULE_ID,
+  },
+  contextualAskPanel: {
+    enabled: (options) => options.contextualAsk.enabled,
+    fileName: "runtime-contextual-ask-panel.js",
+    publicId: SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID,
+    resolvedId: RESOLVED_SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID,
   },
   dataFlowPanel: {
     enabled: (options) => options.dataFlow.enabled,
@@ -98,6 +108,7 @@ const RUNTIME_BUNDLE_DEFINITIONS: Readonly<
 interface RuntimeInjectionPluginInput {
   readonly bundlePaths?: Partial<Readonly<Record<RuntimeBundleName, string>>>;
   readonly clientBundle?: string;
+  readonly contextualAskPanelBundle?: string;
   readonly context: SpotPatchPluginContext;
   readonly dataFlowPreludeBundle?: string;
   readonly dataFlowPanelBundle?: string;
@@ -157,6 +168,7 @@ function createClientModule(
   const runtimeConfig = {
     ai: createRuntimeAiConfig(options.ai),
     budget: options.budget,
+    contextualAsk: Object.freeze({ enabled: options.contextualAsk.enabled }),
     dataFlow: createRuntimeDataFlowConfig(options.dataFlow),
     debug: options.debug,
     editor: options.editor,
@@ -174,6 +186,9 @@ function createClientModule(
 
   return [
     `import ${JSON.stringify(SPOTPATCH_MOTION_MODULE_ID)};`,
+    ...(options.contextualAsk.enabled
+      ? [`import ${JSON.stringify(SPOTPATCH_CONTEXTUAL_ASK_PANEL_MODULE_ID)};`]
+      : []),
     ...(options.dataFlow.enabled
       ? [`import ${JSON.stringify(SPOTPATCH_DATA_FLOW_PANEL_MODULE_ID)};`]
       : []),
@@ -194,6 +209,7 @@ export function createRuntimeInjectionPlugin(
   let disposeWatcher: (() => void) | undefined;
   const bundleStates: Record<RuntimeBundleName, RuntimeBundleState> = {
     client: createBundleState(input.clientBundle),
+    contextualAskPanel: createBundleState(input.contextualAskPanelBundle),
     dataFlowPanel: createBundleState(input.dataFlowPanelBundle),
     dataFlowPrelude: createBundleState(input.dataFlowPreludeBundle),
     externalHandoffPanel: createBundleState(input.externalHandoffPanelBundle),

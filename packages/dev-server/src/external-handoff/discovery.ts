@@ -11,6 +11,7 @@ import {
   computeExternalHandoffProjectKey,
   assertPrivateExternalHandoffPath,
   externalHandoffDescriptorSchema,
+  initializePrivateExternalHandoffFile,
   resolveExternalHandoffRuntimeDirectory,
   type ExternalHandoffDescriptor,
 } from "@spotpatch/shared/external-agent-node";
@@ -95,6 +96,7 @@ export async function publishExternalHandoffDescriptor(
       await handle.close();
     }
 
+    await initializePrivateExternalHandoffFile(temporary);
     await rename(temporary, destination);
     temporaryExists = false;
     published = true;

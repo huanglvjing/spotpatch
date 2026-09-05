@@ -124,7 +124,8 @@ describe("external agent Node protocol", () => {
     "uses the current Windows user's local application data directory",
     async () => {
       await withWindowsLocalAppData(async (localAppData) => {
-        await expect(resolveExternalHandoffRuntimeDirectory(true)).resolves.toBe(
+        const runtimeDirectory = await resolveExternalHandoffRuntimeDirectory(true);
+        expect(runtimeDirectory).toBe(
           await realpath(
             path.join(localAppData, "SpotPatch", "external-agent-runtime-v1"),
           ),

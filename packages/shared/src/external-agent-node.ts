@@ -73,6 +73,21 @@ if ($kind -eq 'directory') {
   )
 } elseif ($kind -eq 'file') {
   $item = [System.IO.FileInfo]::new($target)
+  if ($operation -eq 'initialize') {
+    $security = [System.Security.AccessControl.FileSecurity]::new()
+    $security.SetOwner($identity)
+    foreach ($sidValue in $allowed) {
+      $sid = [System.Security.Principal.SecurityIdentifier]::new($sidValue)
+      $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+        $sid,
+        [System.Security.AccessControl.FileSystemRights]::FullControl,
+        [System.Security.AccessControl.AccessControlType]::Allow
+      )
+      [void]$security.AddAccessRule($rule)
+    }
+    $security.SetAccessRuleProtection($true, $false)
+    $item.SetAccessControl($security)
+  }
   $acl = $item.GetAccessControl(
     [System.Security.AccessControl.AccessControlSections]'Access, Owner'
   )
@@ -276,6 +291,14 @@ export async function assertPrivateExternalHandoffPath(
   }
 
   return status;
+}
+
+export async function initializePrivateExternalHandoffFile(
+  candidate: string,
+): Promise<void> {
+  if (process.platform === "win32") {
+    await verifyWindowsAcl(candidate, "file", true);
+  }
 }
 
 async function initializeWindowsDirectory(directory: string): Promise<void> {

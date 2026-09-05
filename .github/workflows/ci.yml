@@ -78,6 +78,16 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:astro
       - run: pnpm test:astro:compatibility
+      - name: Upload Astro Playwright diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: astro-playwright-diagnostics-${{ matrix.os }}-${{ github.run_id }}
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
 
   contextual-ask-beta:
     if: github.event_name == 'pull_request'

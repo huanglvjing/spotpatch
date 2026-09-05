@@ -19,10 +19,12 @@ test("native scripts and hydrated React islands expose real data-flow evidence",
   await expect(page.locator(".spotpatch-summary")).toContainText(
     "pages/features.astro",
   );
-  await page.getByRole("tab", { name: "Data flow", exact: true }).click();
-  const panel = page
+  await page.getByRole("tab", { name: "Page APIs", exact: true }).click();
+  const pagePanel = page.getByRole("tabpanel", { name: "Page APIs", exact: true });
+  const panel = pagePanel
     .locator(".spotpatch-data-flow-card")
     .filter({ hasText: "/models/api/data.json" });
+  await expect(pagePanel).toBeVisible();
   await expect(panel.first()).toBeVisible();
   const observations: unknown = await page.evaluate(() => {
     const runtime: unknown = Reflect.get(
@@ -52,7 +54,7 @@ test("native scripts and hydrated React islands expose real data-flow evidence",
   await expect(page.locator(".spotpatch-summary")).toContainText(
     "components/Island.tsx",
   );
-  await page.getByRole("tab", { name: "Data flow", exact: true }).click();
+  await page.getByRole("tab", { name: "Page APIs", exact: true }).click();
   await expect(panel.first()).toContainText("Actually requested");
   await page.keyboard.press("Escape");
   await page.getByRole("link", { name: "Next page" }).click();

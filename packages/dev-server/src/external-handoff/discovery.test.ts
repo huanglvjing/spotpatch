@@ -22,10 +22,7 @@ async function privateTemporaryDirectory(prefix: string): Promise<string> {
   return directory;
 }
 
-const describeDescriptorPublisher =
-  process.platform === "win32" ? describe.skip : describe;
-
-describeDescriptorPublisher("external handoff descriptor publisher", () => {
+describe("external handoff descriptor publisher", () => {
   it("atomically publishes only private connection metadata and removes its own file", async () => {
     const runtimeRoot = await privateTemporaryDirectory("spotpatch-xdg-");
     const projectRoot = await privateTemporaryDirectory("spotpatch-project-");
@@ -45,7 +42,9 @@ describeDescriptorPublisher("external handoff descriptor publisher", () => {
     const content = await readFile(descriptorPath, "utf8");
     expect(status.isFile()).toBe(true);
     expect(status.isSymbolicLink()).toBe(false);
-    expect(status.mode & 0o077).toBe(0);
+    if (process.platform !== "win32") {
+      expect(status.mode & 0o077).toBe(0);
+    }
     expect(content).not.toContain(projectRoot);
     expect(content).not.toContain("annotation");
     expect(JSON.parse(content)).toEqual(published.descriptor);
@@ -55,20 +54,23 @@ describeDescriptorPublisher("external handoff descriptor publisher", () => {
     await published.close();
   });
 
-  it("fails closed when the configured runtime directory is group-readable", async () => {
-    const runtimeRoot = await privateTemporaryDirectory("spotpatch-xdg-wide-");
-    const projectRoot = await privateTemporaryDirectory("spotpatch-project-");
-    await chmod(runtimeRoot, 0o755);
-    vi.stubEnv("XDG_RUNTIME_DIR", runtimeRoot);
+  it.runIf(process.platform !== "win32")(
+    "fails closed when the configured runtime directory is group-readable",
+    async () => {
+      const runtimeRoot = await privateTemporaryDirectory("spotpatch-xdg-wide-");
+      const projectRoot = await privateTemporaryDirectory("spotpatch-project-");
+      await chmod(runtimeRoot, 0o755);
+      vi.stubEnv("XDG_RUNTIME_DIR", runtimeRoot);
 
-    await expect(
-      publishExternalHandoffDescriptor({
-        bridgeToken: "a".repeat(43),
-        endpoint: "http://127.0.0.1:43123",
-        framework: "next",
-        root: projectRoot,
-        sessionId: "0123456789abcdef012345",
-      }),
-    ).rejects.toMatchObject({ code: "BRIDGE_UNAUTHORIZED" });
-  });
+      await expect(
+        publishExternalHandoffDescriptor({
+          bridgeToken: "a".repeat(43),
+          endpoint: "http://127.0.0.1:43123",
+          framework: "next",
+          root: projectRoot,
+          sessionId: "0123456789abcdef012345",
+        }),
+      ).rejects.toMatchObject({ code: "BRIDGE_UNAUTHORIZED" });
+    },
+  );
 });

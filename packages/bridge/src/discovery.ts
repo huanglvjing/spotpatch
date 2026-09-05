@@ -1,5 +1,5 @@
 import { constants } from "node:fs";
-import { lstat, open, opendir, realpath, unlink } from "node:fs/promises";
+import { open, opendir, realpath, unlink } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -9,6 +9,7 @@ import {
 } from "@spotpatch/shared";
 import {
   computeExternalHandoffProjectKey,
+  assertPrivateExternalHandoffPath,
   externalHandoffDescriptorSchema,
   resolveExternalHandoffRuntimeDirectory,
   type ExternalHandoffDescriptor,
@@ -42,17 +43,16 @@ async function projectKeys(cwd: string): Promise<ReadonlySet<string>> {
 async function readSecureDescriptor(
   descriptorPath: string,
 ): Promise<SecureExternalHandoffDescriptor> {
+  const pathStatus = await assertPrivateExternalHandoffPath(descriptorPath, "file");
   const handle = await open(descriptorPath, constants.O_RDONLY | constants.O_NOFOLLOW);
 
   try {
     const status = await handle.stat();
-    const uid = process.getuid?.();
 
     if (
       !status.isFile() ||
-      uid === undefined ||
-      status.uid !== uid ||
-      (status.mode & 0o077) !== 0 ||
+      status.dev !== pathStatus.dev ||
+      status.ino !== pathStatus.ino ||
       status.size <= 0 ||
       status.size > EXTERNAL_HANDOFF_LIMITS.maximumDescriptorBytes
     ) {
@@ -91,18 +91,9 @@ export async function removeStaleProjectDescriptor(
   candidate: SecureExternalHandoffDescriptor,
 ): Promise<void> {
   try {
-    const status = await lstat(candidate.path);
-    const uid = process.getuid?.();
+    const status = await assertPrivateExternalHandoffPath(candidate.path, "file");
 
-    if (
-      !status.isFile() ||
-      status.isSymbolicLink() ||
-      uid === undefined ||
-      status.uid !== uid ||
-      (status.mode & 0o077) !== 0 ||
-      status.dev !== candidate.device ||
-      status.ino !== candidate.inode
-    ) {
+    if (status.dev !== candidate.device || status.ino !== candidate.inode) {
       throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
     }
 

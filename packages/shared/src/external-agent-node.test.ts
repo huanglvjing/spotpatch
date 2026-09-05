@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { execFile } from "node:child_process";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
+
+import { describe, expect, it, vi } from "vitest";
 
 import {
   bridgeActiveClaimRequestSchema,
@@ -6,9 +12,35 @@ import {
   bridgeActiveReportRequestSchema,
   bridgeActiveStateResultSchema,
   bridgeWaitRequestSchema,
+  assertPrivateExternalHandoffPath,
   externalHandoffDescriptorSchema,
   resolveExternalHandoffRuntimeDirectory,
 } from "./external-agent-node.js";
+
+const execFileAsync = promisify(execFile);
+
+async function withWindowsLocalAppData(
+  callback: (localAppData: string) => Promise<void>,
+): Promise<void> {
+  const localAppData = await mkdtemp(
+    path.join(os.tmpdir(), "spotpatch-windows-runtime-"),
+  );
+  const previousXdgRuntimeDirectory = process.env.XDG_RUNTIME_DIR;
+  delete process.env.XDG_RUNTIME_DIR;
+  vi.stubEnv("LOCALAPPDATA", localAppData);
+
+  try {
+    await callback(localAppData);
+  } finally {
+    vi.unstubAllEnvs();
+    if (previousXdgRuntimeDirectory === undefined) {
+      delete process.env.XDG_RUNTIME_DIR;
+    } else {
+      process.env.XDG_RUNTIME_DIR = previousXdgRuntimeDirectory;
+    }
+    await rm(localAppData, { recursive: true, force: true });
+  }
+}
 
 const descriptor = Object.freeze({
   schemaVersion: 1,
@@ -89,10 +121,37 @@ describe("external agent Node protocol", () => {
   });
 
   it.runIf(process.platform === "win32")(
-    "fails closed when private Windows discovery has not been implemented",
+    "uses the current Windows user's local application data directory",
     async () => {
-      await expect(resolveExternalHandoffRuntimeDirectory(true)).rejects.toMatchObject({
-        code: "BRIDGE_UNAUTHORIZED",
+      await withWindowsLocalAppData(async (localAppData) => {
+        await expect(resolveExternalHandoffRuntimeDirectory(true)).resolves.toBe(
+          await realpath(
+            path.join(localAppData, "SpotPatch", "external-agent-runtime-v1"),
+          ),
+        );
+      });
+    },
+  );
+
+  it.runIf(process.platform === "win32")(
+    "rejects a runtime directory that grants access to Everyone",
+    async () => {
+      await withWindowsLocalAppData(async () => {
+        const runtimeDirectory = await resolveExternalHandoffRuntimeDirectory(true);
+        const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT;
+        if (systemRoot === undefined) {
+          throw new Error("Windows system root is unavailable");
+        }
+
+        await execFileAsync(
+          path.win32.join(systemRoot, "System32", "icacls.exe"),
+          [runtimeDirectory, "/grant", "*S-1-1-0:(OI)(CI)R"],
+          { windowsHide: true },
+        );
+
+        await expect(
+          assertPrivateExternalHandoffPath(runtimeDirectory, "directory"),
+        ).rejects.toMatchObject({ code: "BRIDGE_UNAUTHORIZED" });
       });
     },
   );

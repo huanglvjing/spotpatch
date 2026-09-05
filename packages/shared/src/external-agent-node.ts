@@ -1,9 +1,12 @@
 /// <reference types="node" />
 
 import { createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import type { Stats } from "node:fs";
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { z } from "zod";
 
@@ -37,6 +40,61 @@ export const SPOTPATCH_BRIDGE_PATHS = Object.freeze({
 });
 export const EXTERNAL_HANDOFF_PROJECT_KEY_SALT =
   "spotpatch-external-agent-project-v1" as const;
+
+const execFileAsync = promisify(execFile);
+const WINDOWS_ACL_SCRIPT = String.raw`
+$ErrorActionPreference = 'Stop'
+$target = $env:SPOTPATCH_ACL_TARGET
+$kind = $env:SPOTPATCH_ACL_KIND
+$operation = $env:SPOTPATCH_ACL_OPERATION
+$identity = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$allowed = @($identity.Value, 'S-1-5-18', 'S-1-5-32-544')
+if ($kind -eq 'directory') {
+  $item = [System.IO.DirectoryInfo]::new($target)
+  if ($operation -eq 'initialize') {
+    $security = [System.Security.AccessControl.DirectorySecurity]::new()
+    $security.SetOwner($identity)
+    foreach ($sidValue in $allowed) {
+      $sid = [System.Security.Principal.SecurityIdentifier]::new($sidValue)
+      $rule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+        $sid,
+        [System.Security.AccessControl.FileSystemRights]::FullControl,
+        [System.Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit',
+        [System.Security.AccessControl.PropagationFlags]::None,
+        [System.Security.AccessControl.AccessControlType]::Allow
+      )
+      [void]$security.AddAccessRule($rule)
+    }
+    $security.SetAccessRuleProtection($true, $false)
+    $item.SetAccessControl($security)
+  }
+  $acl = $item.GetAccessControl(
+    [System.Security.AccessControl.AccessControlSections]'Access, Owner'
+  )
+} elseif ($kind -eq 'file') {
+  $item = [System.IO.FileInfo]::new($target)
+  $acl = $item.GetAccessControl(
+    [System.Security.AccessControl.AccessControlSections]'Access, Owner'
+  )
+} else {
+  exit 10
+}
+if ($acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value -ne $identity.Value) {
+  exit 11
+}
+foreach ($rule in $acl.GetAccessRules(
+  $true,
+  $true,
+  [System.Security.Principal.SecurityIdentifier]
+)) {
+  if (
+    $rule.AccessControlType -eq [System.Security.AccessControl.AccessControlType]::Allow -and
+    $allowed -notcontains $rule.IdentityReference.Value
+  ) {
+    exit 12
+  }
+}
+`;
 
 const opaqueIdSchema = z
   .string()
@@ -154,39 +212,89 @@ export interface BridgeActiveStateResult {
   readonly dispatch: DispatchSummary | null;
 }
 
-function currentUid(): number {
-  const uid = process.getuid?.();
+function windowsPowerShellExecutable(): string {
+  const systemRoot = process.env.SystemRoot ?? process.env.SYSTEMROOT;
+  if (systemRoot === undefined || !path.win32.isAbsolute(systemRoot)) {
+    throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
+  }
+  return path.win32.join(
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
+  );
+}
 
-  if (uid === undefined) {
+async function verifyWindowsAcl(
+  candidate: string,
+  kind: "directory" | "file",
+  initialize: boolean,
+): Promise<void> {
+  try {
+    await execFileAsync(
+      windowsPowerShellExecutable(),
+      ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", WINDOWS_ACL_SCRIPT],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          SPOTPATCH_ACL_KIND: kind,
+          SPOTPATCH_ACL_OPERATION: initialize ? "initialize" : "verify",
+          SPOTPATCH_ACL_TARGET: candidate,
+        },
+        timeout: 10_000,
+        windowsHide: true,
+      },
+    );
+  } catch (error: unknown) {
+    throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED, undefined, {
+      cause: error,
+    });
+  }
+}
+
+export async function assertPrivateExternalHandoffPath(
+  candidate: string,
+  kind: "directory" | "file",
+): Promise<Stats> {
+  const status = await lstat(candidate);
+  const correctKind = kind === "directory" ? status.isDirectory() : status.isFile();
+
+  if (!correctKind || status.isSymbolicLink()) {
     throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
   }
 
-  return uid;
+  if (process.platform === "win32") {
+    await verifyWindowsAcl(candidate, kind, false);
+    return status;
+  }
+
+  const uid = process.getuid?.();
+  if (uid === undefined || status.uid !== uid || (status.mode & 0o077) !== 0) {
+    throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
+  }
+
+  return status;
 }
 
-async function assertPrivateDirectory(directory: string, uid: number): Promise<void> {
-  const status = await lstat(directory);
-
-  if (
-    !status.isDirectory() ||
-    status.isSymbolicLink() ||
-    status.uid !== uid ||
-    (status.mode & 0o077) !== 0
-  ) {
-    throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
+async function initializeWindowsDirectory(directory: string): Promise<void> {
+  if (process.platform === "win32") {
+    await verifyWindowsAcl(directory, "directory", true);
   }
 }
 
 async function ensurePrivateSubdirectory(
   base: string,
-  uid: number,
   create: boolean,
 ): Promise<string> {
   const directory = path.join(base, "spotpatch");
+  let created = false;
 
   if (create) {
     try {
       await mkdir(directory, { mode: 0o700 });
+      created = true;
     } catch (error: unknown) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") {
         throw error;
@@ -194,18 +302,34 @@ async function ensurePrivateSubdirectory(
     }
   }
 
-  await assertPrivateDirectory(directory, uid);
-  return directory;
+  if (created) await initializeWindowsDirectory(directory);
+  await assertPrivateExternalHandoffPath(directory, "directory");
+  return realpath(directory);
+}
+
+async function resolveWindowsRuntimeDirectory(create: boolean): Promise<string> {
+  const configuredBase = process.env.LOCALAPPDATA;
+
+  if (configuredBase !== undefined && !path.isAbsolute(configuredBase)) {
+    throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
+  }
+
+  const base = configuredBase ?? path.join(os.homedir(), "AppData", "Local");
+  const directory = path.join(base, "SpotPatch", "external-agent-runtime-v1");
+  let created = false;
+
+  if (create) {
+    created = (await mkdir(directory, { mode: 0o700, recursive: true })) !== undefined;
+  }
+
+  if (created) await initializeWindowsDirectory(directory);
+  await assertPrivateExternalHandoffPath(directory, "directory");
+  return realpath(directory);
 }
 
 export async function resolveExternalHandoffRuntimeDirectory(
   create: boolean,
 ): Promise<string> {
-  if (process.platform === "win32") {
-    throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
-  }
-
-  const uid = currentUid();
   const xdgRuntimeDirectory = process.env.XDG_RUNTIME_DIR;
 
   if (xdgRuntimeDirectory !== undefined && !path.isAbsolute(xdgRuntimeDirectory)) {
@@ -214,8 +338,10 @@ export async function resolveExternalHandoffRuntimeDirectory(
 
   if (xdgRuntimeDirectory !== undefined) {
     try {
-      await assertPrivateDirectory(xdgRuntimeDirectory, uid);
-      return await ensurePrivateSubdirectory(xdgRuntimeDirectory, uid, create);
+      if (process.platform !== "win32") {
+        await assertPrivateExternalHandoffPath(xdgRuntimeDirectory, "directory");
+      }
+      return await ensurePrivateSubdirectory(xdgRuntimeDirectory, create);
     } catch (error: unknown) {
       if (!create && (error as NodeJS.ErrnoException).code === "ENOENT") {
         throw new SpotPatchError(ERROR_CODES.SESSION_NOT_FOUND);
@@ -223,6 +349,23 @@ export async function resolveExternalHandoffRuntimeDirectory(
 
       throw error;
     }
+  }
+
+  if (process.platform === "win32") {
+    try {
+      return await resolveWindowsRuntimeDirectory(create);
+    } catch (error: unknown) {
+      if (!create && (error as NodeJS.ErrnoException).code === "ENOENT") {
+        throw new SpotPatchError(ERROR_CODES.SESSION_NOT_FOUND);
+      }
+
+      throw error;
+    }
+  }
+
+  const uid = process.getuid?.();
+  if (uid === undefined) {
+    throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
   }
 
   const fallback = path.join(os.tmpdir(), `spotpatch-${String(uid)}`);
@@ -238,7 +381,7 @@ export async function resolveExternalHandoffRuntimeDirectory(
   }
 
   try {
-    await assertPrivateDirectory(fallback, uid);
+    await assertPrivateExternalHandoffPath(fallback, "directory");
   } catch (error: unknown) {
     if (!create && (error as NodeJS.ErrnoException).code === "ENOENT") {
       throw new SpotPatchError(ERROR_CODES.SESSION_NOT_FOUND);
@@ -247,7 +390,7 @@ export async function resolveExternalHandoffRuntimeDirectory(
     throw error;
   }
 
-  return fallback;
+  return realpath(fallback);
 }
 
 export async function computeExternalHandoffProjectKey(root: string): Promise<string> {

@@ -151,10 +151,7 @@ function structured(result: {
   return value as Record<string, unknown>;
 }
 
-const describeExternalAgentBridge =
-  process.platform === "win32" ? describe.skip : describe;
-
-describeExternalAgentBridge.sequential("external Agent bridge integration", () => {
+describe.sequential("external Agent bridge integration", () => {
   let projectRoot: string;
   let runtimeRoot: string;
   let service: ExternalHandoffService | undefined;

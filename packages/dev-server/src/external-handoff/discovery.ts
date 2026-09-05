@@ -9,6 +9,7 @@ import {
 } from "@spotpatch/shared";
 import {
   computeExternalHandoffProjectKey,
+  assertPrivateExternalHandoffPath,
   externalHandoffDescriptorSchema,
   resolveExternalHandoffRuntimeDirectory,
   type ExternalHandoffDescriptor,
@@ -28,6 +29,10 @@ export interface PublishExternalHandoffDescriptorOptions {
 }
 
 async function syncDirectory(directory: string): Promise<void> {
+  // Node cannot open directories for fsync on Windows. The atomic rename still
+  // protects readers from observing a partial descriptor.
+  if (process.platform === "win32") return;
+
   const handle = await open(directory, "r");
 
   try {
@@ -93,18 +98,7 @@ export async function publishExternalHandoffDescriptor(
     await rename(temporary, destination);
     temporaryExists = false;
     published = true;
-    const status = await lstat(destination);
-    const uid = process.getuid?.();
-
-    if (
-      !status.isFile() ||
-      status.isSymbolicLink() ||
-      uid === undefined ||
-      status.uid !== uid ||
-      (status.mode & 0o077) !== 0
-    ) {
-      throw new Error("SpotPatch external Agent descriptor is not private.");
-    }
+    const status = await assertPrivateExternalHandoffPath(destination, "file");
 
     descriptorIdentity = Object.freeze({ device: status.dev, inode: status.ino });
 

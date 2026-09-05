@@ -1,5 +1,18 @@
 # @spotpatch/compiler
 
+## 0.4.0
+
+### Minor Changes
+
+- 2d98a66: Add an Astro development integration with native template and React-island source markers, bounded source context, shared AI review/apply/revert, read-only Contextual Ask, external-Agent Inbox/managed controls and Astro-aware trusted validation. Share service ownership across Vite, Next and Astro without changing their transport boundaries. Add original-coordinate native source projections, browser-script instrumentation and scoped navigation exclusions; never infer server execution from browser observations. Preserve JSX markers, production isolation and existing security policies. Compatibility and external-Agent maturity remain limited to the documented evidence; this change does not publish the new package.
+
+### Patch Changes
+
+- Updated dependencies [2d98a66]
+- Updated dependencies [2d98a66]
+- Updated dependencies [16d19c0]
+  - @spotpatch/shared@1.14.0
+
 ## 0.3.0
 
 ### Minor Changes

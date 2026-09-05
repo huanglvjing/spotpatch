@@ -1,5 +1,16 @@
 # @spotpatch/shared
 
+## 1.14.0
+
+### Minor Changes
+
+- 2d98a66: Add an Astro development integration with native template and React-island source markers, bounded source context, shared AI review/apply/revert, read-only Contextual Ask, external-Agent Inbox/managed controls and Astro-aware trusted validation. Share service ownership across Vite, Next and Astro without changing their transport boundaries. Add original-coordinate native source projections, browser-script instrumentation and scoped navigation exclusions; never infer server execution from browser observations. Preserve JSX markers, production isolation and existing security policies. Compatibility and external-Agent maturity remain limited to the documented evidence; this change does not publish the new package.
+- 2d98a66: Add a shared, accessible Managed Codex Ask model picker backed by the local model catalog, with bounded discovery, execution-time validation and explicit model dispatch.
+
+### Patch Changes
+
+- 16d19c0: Enable external-Agent discovery on native Windows with a per-user LocalAppData runtime directory and fail-closed owner/ACL validation. Keep POSIX UID and mode checks unchanged, and run the existing descriptor, browser API, service, and bridge integration suites on Windows.
+
 ## 1.13.0
 
 ### Minor Changes

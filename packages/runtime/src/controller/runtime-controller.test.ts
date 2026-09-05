@@ -183,7 +183,11 @@ describe("runtime controller", () => {
         return 1;
       });
     const api = createApi();
-    const controller = createController(config, { api });
+    const dataFlowConfig = Object.freeze({
+      ...config,
+      dataFlow: Object.freeze({ ...config.dataFlow, enabled: true }),
+    }) satisfies RuntimeConfig;
+    const controller = createController(dataFlowConfig, { api });
     controller.mount();
     const host = document.querySelector("spotpatch-root");
     const trigger =
@@ -223,6 +227,21 @@ describe("runtime controller", () => {
       column: 5,
       maxLines: 12,
     });
+    expect(api.componentDataFlowReport).toHaveBeenCalledOnce();
+    expect(api.pageDataFlowReport).toHaveBeenCalledOnce();
+    const sourceCallOrder = vi.mocked(api.sourceContext).mock.invocationCallOrder[0];
+    const componentCallOrder = vi.mocked(api.componentDataFlowReport).mock
+      .invocationCallOrder[0];
+    const pageCallOrder = vi.mocked(api.pageDataFlowReport).mock.invocationCallOrder[0];
+    if (
+      sourceCallOrder === undefined ||
+      componentCallOrder === undefined ||
+      pageCallOrder === undefined
+    ) {
+      throw new Error("Expected source and data-flow API calls.");
+    }
+    expect(sourceCallOrder).toBeLessThan(componentCallOrder);
+    expect(sourceCallOrder).toBeLessThan(pageCallOrder);
 
     await vi.waitFor(() => {
       expect(

@@ -977,7 +977,6 @@ export function createController(
     view.hideHighlight();
     resizeObserver?.observe(element);
     refreshSelectionView(true);
-    void loadDataFlowReports();
     selectionOpen = true;
     view.focusTargetInstruction(target.id);
     scheduleBrowserContextCollection(target, revision);
@@ -991,6 +990,7 @@ export function createController(
           : view.messages().announcements.sourceMissing,
       );
     }
+    void loadDataFlowReports();
   }
 
   function updateHoveredElement(): void {

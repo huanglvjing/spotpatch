@@ -19,6 +19,7 @@ import {
   resolveExistingAgentPath,
 } from "../security/path-policy.js";
 import { runConfiguredCheck } from "../validation/check-runner.js";
+import { trustedCheckDependencyViews } from "../validation/trusted-check-dependencies.js";
 import {
   assertNoIgnoredAgentArtifacts,
   collectAgentChangeSet,
@@ -35,14 +36,6 @@ import {
 
 const MANAGED_RESULT_TTL_MS = 10 * 60_000;
 const MANAGED_PROMPT_MAX_CHARACTERS = 16_000;
-const TYPESCRIPT_CHECK_ARGUMENTS = Object.freeze([
-  "--noEmit",
-  "--pretty",
-  "false",
-  "--incremental",
-  "false",
-  "--project",
-] as const);
 
 const MANAGED_SYSTEM_RULES = `You are editing code inside a disposable SpotPatch Git snapshot.
 
@@ -161,37 +154,16 @@ function isWithinRoot(root: string, candidate: string): boolean {
   );
 }
 
-async function trustedTypeScriptDependencyRoot(
-  check: ResolvedAgentCheckDefinition,
-  projectRoot: string,
-): Promise<string | undefined> {
-  if (
-    check.command !== process.execPath ||
-    check.args.length !== TYPESCRIPT_CHECK_ARGUMENTS.length + 2 ||
-    !TYPESCRIPT_CHECK_ARGUMENTS.every(
-      (argument, index) => check.args[index + 1] === argument,
-    )
-  ) {
-    return undefined;
-  }
-
-  const projectPath = check.args.at(-1);
-  if (!projectPath?.endsWith(".json")) return undefined;
-
-  try {
-    assertAgentPathAllowed(projectPath);
-    const dependencyRoot = await realpath(path.join(projectRoot, "node_modules"));
-    const executable = await realpath(check.args[0] ?? "");
-    const executableSegments = executable.split(path.sep).slice(-4);
-    if (
-      !isWithinRoot(dependencyRoot, executable) ||
-      executableSegments.join("/") !== "node_modules/typescript/bin/tsc"
-    ) {
-      return undefined;
-    }
-    return dependencyRoot;
-  } catch {
-    return undefined;
+async function removeDependencyViews(links: readonly string[]): Promise<void> {
+  const results = await Promise.allSettled(links.map((link) => unlink(link)));
+  const failures = results.flatMap((result): unknown[] =>
+    result.status === "rejected" ? [result.reason as unknown] : [],
+  );
+  if (failures.length > 0) {
+    throw new AggregateError(
+      failures,
+      "Failed to remove temporary validation dependency views",
+    );
   }
 }
 
@@ -199,30 +171,34 @@ async function runManagedCheck(
   check: ResolvedAgentCheckDefinition,
   projectRoot: string,
   workspaceRoot: string,
+  repositoryWorkspaceRoot: string,
   limits: Readonly<AgentLimits>,
   signal: AbortSignal,
 ): Promise<AgentCheckResult> {
-  const dependencyRoot = await trustedTypeScriptDependencyRoot(check, projectRoot);
-  if (dependencyRoot === undefined) {
-    return runConfiguredCheck({
-      check,
-      maxOutputCharacters: limits.maxToolOutputCharacters,
-      signal,
-      worktreeRoot: workspaceRoot,
-    });
-  }
-
-  const dependencyLink = path.join(workspaceRoot, "node_modules");
-  await symlink(dependencyRoot, dependencyLink, "dir");
+  const views = await trustedCheckDependencyViews(check, projectRoot);
+  // Discovered checks use repository-relative arguments. User-defined commands
+  // retain the existing application-relative cwd contract.
+  const checkRoot = views.length > 0 ? repositoryWorkspaceRoot : workspaceRoot;
+  const links: string[] = [];
   try {
+    for (const view of views) {
+      const dependencyLink = path.join(checkRoot, view.relativePath);
+      const parent = await realpath(path.dirname(dependencyLink));
+      if (!isWithinRoot(checkRoot, parent)) {
+        throw new SpotPatchError(ERROR_CODES.TOOL_PATH_DENIED);
+      }
+      await symlink(view.source, dependencyLink, "dir");
+      links.push(dependencyLink);
+    }
     return await runConfiguredCheck({
       check,
       maxOutputCharacters: limits.maxToolOutputCharacters,
       signal,
-      worktreeRoot: workspaceRoot,
+      worktreeRoot: checkRoot,
     });
   } finally {
-    await unlink(dependencyLink);
+    // Attempt every cleanup, including when a later link/check fails.
+    await removeDependencyViews(links);
   }
 }
 
@@ -423,8 +399,9 @@ export function createManagedExecutionRunner(
           checkResults.push(
             await runManagedCheck(
               check,
-              options.root,
+              state.snapshot.baseline.root,
               task.workspaceRoot,
+              state.snapshot.root,
               limits,
               signal,
             ),

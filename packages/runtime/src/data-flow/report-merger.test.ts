@@ -166,6 +166,31 @@ describe("data-flow report merger", () => {
     expect(report.dependencies[0]?.execution).toBe("declared-not-observed");
   });
 
+  it("merges independently compiled browser scopes without claiming server execution", () => {
+    const original = componentReport(dependency("direct"));
+    const browser = Object.freeze({
+      ...dependency("direct"),
+      environment: "client" as const,
+    });
+    const server = Object.freeze({
+      ...dependency("direct"),
+      id: "server_dependency",
+      environment: "server" as const,
+    });
+    const report = mergeComponentDataFlowReport(
+      {
+        ...original,
+        component: { ...original.component, componentSourceId: "document_owner" },
+        dependencies: [browser, server],
+      },
+      [observation()],
+    );
+    expect(report.dependencies.map((entry) => entry.execution)).toEqual([
+      "observed",
+      "declared-not-observed",
+    ]);
+  });
+
   it("assigns a shared callsite only with exact component and trigger provenance", () => {
     const report = mergeComponentDataFlowReport(
       componentReport(dependency("transitive")),

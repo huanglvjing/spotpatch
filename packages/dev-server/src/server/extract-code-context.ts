@@ -336,6 +336,7 @@ function nearbyContext(options: ExtractCodeContextOptions): CodeContext {
 }
 
 export function extractCodeContext(options: ExtractCodeContextOptions): CodeContext {
+  if (options.language === "astro") return nearbyContext(options);
   const component = findComponentSpan(options);
 
   if (component !== undefined) {

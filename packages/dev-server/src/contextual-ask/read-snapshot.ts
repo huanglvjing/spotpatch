@@ -21,6 +21,7 @@ import type { SourceRegistry } from "../registry/source-registry.js";
 import { ContextualAskError } from "./error.js";
 
 const SOURCE_EXTENSIONS = Object.freeze([
+  ".astro",
   ".ts",
   ".tsx",
   ".js",
@@ -83,6 +84,10 @@ export interface CapturedAskReadSnapshot {
 }
 
 export interface CaptureAskReadSnapshotOptions {
+  readonly resolveSourceImports?: (
+    absolutePath: string,
+    code: string,
+  ) => readonly string[] | undefined;
   readonly root: string;
   readonly registry: SourceRegistry;
   readonly selection: SpotSelectionContext;
@@ -446,7 +451,10 @@ export async function captureAskReadSnapshot(
     } satisfies CapturedSource);
     captured.push(entry);
 
-    for (const specifier of localSpecifiers(candidate.absolutePath, read.content)) {
+    const specifiers =
+      options.resolveSourceImports?.(candidate.absolutePath, read.content) ??
+      localSpecifiers(candidate.absolutePath, read.content);
+    for (const specifier of specifiers.filter((value) => value.startsWith("."))) {
       options.signal?.throwIfAborted();
       for (const importPath of importCandidates(candidate.absolutePath, specifier)) {
         if (capturedPaths.has(importPath)) continue;

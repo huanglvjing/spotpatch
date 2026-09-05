@@ -437,6 +437,12 @@ export const contextualAskExecutorCapabilitySchema = z
     label: contextualAskBoundedText(limits.maximumLabelCharacters),
     requestedModelLabel: contextualAskBoundedText(limits.maximumLabelCharacters),
     effectiveModelLabel: contextualAskBoundedText(limits.maximumLabelCharacters),
+    models: z
+      .array(contextualAskBoundedText(limits.maximumLabelCharacters))
+      .min(1)
+      .max(limits.maximumModels)
+      .refine((models) => new Set(models).size === models.length)
+      .optional(),
     state: z.enum(CONTEXTUAL_ASK_EXECUTOR_STATES),
     providerDataConsentRequired: z.boolean(),
     readOnlyProven: z.boolean(),

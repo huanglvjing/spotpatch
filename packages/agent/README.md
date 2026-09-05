@@ -17,6 +17,8 @@ Security boundaries:
 
 Requires Node.js `>=20.19.0`.
 
+Managed validation recognizes fixed, non-emitting TypeScript and Astro diagnostic commands. Installed dependency views are exposed only after the Agent turn and removed after validation, including failures. Arbitrary commands do not receive this exception. These checks trust installed tools; they are not an OS sandbox. See the [Astro validation boundary](../astro/README.md#trusted-direct-validation).
+
 ## 简体中文
 
 这是 SpotPatch 框架适配器使用的 Node-only Agent 引擎，负责 OpenAI-compatible Provider 会话、显式/内联能力证明、有界项目规范上下文与文件工具、隔离 Git worktree、去重后的项目检查、Diff 审阅、Apply 和冲突安全的 Revert。

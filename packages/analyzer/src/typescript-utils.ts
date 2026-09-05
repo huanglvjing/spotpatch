@@ -120,10 +120,10 @@ export function toDisplayPath(root: string, absolutePath: string): string {
 }
 
 export function visitFunctionBody(
-  implementation: FunctionImplementation,
+  implementation: FunctionImplementation | ts.SourceFile,
   callback: (node: ts.Node) => void,
 ): void {
-  const body = implementation.body;
+  const body = ts.isSourceFile(implementation) ? implementation : implementation.body;
   if (body === undefined) return;
 
   function visit(node: ts.Node): void {

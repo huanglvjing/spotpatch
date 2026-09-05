@@ -1,4 +1,6 @@
 node_modules/
+**/.astro/
+playgrounds/compat-astro*/.fixture/
 dist/
 coverage/
 playwright-report/

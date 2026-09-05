@@ -67,6 +67,8 @@ export interface CollectDataFlowInstrumentationInput {
   readonly code: string;
   readonly helperModule: string;
   readonly root: string;
+  /** A padded browser script extracted from a non-JS source document. */
+  readonly moduleScope?: Readonly<{ sourceVersion: string; importOffset: number }>;
 }
 
 export interface CollectedDataFlowInstrumentation {
@@ -388,7 +390,8 @@ export function collectDataFlowInstrumentation(
     input.absolutePath.endsWith("x") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   const relativePath = displayPath(input.root, input.absolutePath);
-  const sourceVersion = createDataFlowSourceVersion(input.code);
+  const sourceVersion =
+    input.moduleScope?.sourceVersion ?? createDataFlowSourceVersion(input.code);
   const wrapperBindings = reactWrapperBindings(sourceFile);
   const trpcClientFactories = importedBindings(
     sourceFile,
@@ -461,9 +464,10 @@ export function collectDataFlowInstrumentation(
       const block = blockBody(node);
       if (block !== undefined) {
         const name = functionName(node, wrapperBindings);
-        const componentId = isComponentName(name)
-          ? anchor("component", node)
-          : undefined;
+        const componentId =
+          input.moduleScope === undefined && isComponentName(name)
+            ? anchor("component", node)
+            : undefined;
         const functionId = createDataFlowAnchorId(
           "function",
           relativePath,
@@ -490,6 +494,12 @@ export function collectDataFlowInstrumentation(
     ts.forEachChild(node, collectFunctions);
   }
   collectFunctions(sourceFile);
+  const moduleComponentId =
+    input.moduleScope === undefined ? undefined : anchor("component", sourceFile);
+  const moduleTriggerId =
+    input.moduleScope === undefined
+      ? undefined
+      : anchor("trigger", sourceFile, "render");
 
   for (const record of functions.values()) {
     if (record.componentId !== undefined) {
@@ -514,18 +524,36 @@ export function collectDataFlowInstrumentation(
 
   function addExternalTrigger(expression: ts.Expression, node: ts.Node): boolean {
     const component = enclosingComponent(node);
-    if (component?.componentId === undefined) return false;
+    const componentId = component?.componentId ?? moduleComponentId;
+    if (componentId === undefined) return false;
     externalTriggers.push(
       Object.freeze({
-        componentId: component.componentId,
+        componentId,
         expression,
-        triggerId: anchor("trigger", node, component.componentId),
+        triggerId: anchor("trigger", node, componentId),
       }),
     );
     return true;
   }
 
   function collectTriggers(node: ts.Node): void {
+    if (
+      moduleComponentId !== undefined &&
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression) &&
+      node.expression.name.text === "addEventListener"
+    ) {
+      const callback = node.arguments[1];
+      // Wrapping a named listener would break removeEventListener identity. A
+      // listener function's body receives its trigger instead; inline callbacks
+      // may be bound directly without changing an application's stored reference.
+      if (callback !== undefined) {
+        const record = resolveCallback(callback, functions, namedFunctions);
+        if (record !== undefined)
+          triggerFunctions.set(record, anchor("trigger", node, moduleComponentId));
+        else if (isFunctionImplementation(callback)) addExternalTrigger(callback, node);
+      }
+    }
     if (
       ts.isJsxAttribute(node) &&
       /^on[A-Z]/u.test(node.name.getText(sourceFile)) &&
@@ -587,7 +615,14 @@ export function collectDataFlowInstrumentation(
   collectTriggers(sourceFile);
 
   const helper = uniqueBinding("__spotpatchDataFlow", usedBindings);
-  const helperImportOffset = importOffset(sourceFile, input.code);
+  const helperImportOffset = Math.max(
+    importOffset(sourceFile, input.code),
+    input.moduleScope?.importOffset ?? 0,
+  );
+  const moduleInvocation =
+    moduleComponentId === undefined
+      ? undefined
+      : `${helper}.beginInvocation({componentSourceId:${JSON.stringify(moduleComponentId)},triggerCallsiteId:${JSON.stringify(moduleTriggerId)},sourceVersion:${JSON.stringify(sourceVersion)}})`;
   edits.push(
     Object.freeze({
       content: `${helperImportOffset === 0 || input.code[helperImportOffset - 1] === "\n" ? "" : "\n"}import { dataFlowRuntime as ${helper} } from ${JSON.stringify(input.helperModule)};\n`,
@@ -675,7 +710,7 @@ export function collectDataFlowInstrumentation(
       record.componentId !== undefined
         ? `${helper}.beginInvocation({componentSourceId:${JSON.stringify(record.componentId)},triggerCallsiteId:${JSON.stringify(renderTriggers.get(record))},sourceVersion:${JSON.stringify(sourceVersion)}})`
         : triggerId === undefined
-          ? `${helper}.captureInvocation()`
+          ? `${helper}.captureInvocation()${moduleInvocation === undefined ? "" : `??${moduleInvocation}`}`
           : `${helper}.beginInvocation({componentSourceId:${JSON.stringify(
               (() => {
                 let scope: FunctionRecord | undefined = lexicalFunction(
@@ -686,7 +721,7 @@ export function collectDataFlowInstrumentation(
                   if (scope.componentId !== undefined) return scope.componentId;
                   scope = lexicalFunction(scope.node, functions);
                 }
-                return "component_unknown";
+                return moduleComponentId ?? "component_unknown";
               })(),
             )},triggerCallsiteId:${JSON.stringify(triggerId)},sourceVersion:${JSON.stringify(sourceVersion)}})`;
     edits.push(
@@ -715,7 +750,14 @@ export function collectDataFlowInstrumentation(
   function collectCalls(node: ts.Node): void {
     if (ts.isCallExpression(node)) {
       const owner = lexicalFunction(node, functions);
-      if (owner !== undefined && owner.node.asteriskToken === undefined) {
+      const invocationBinding = owner?.tokenBinding ?? moduleInvocation;
+      if (invocationBinding !== undefined && owner?.node.asteriskToken === undefined) {
+        // An explicit event/effect trigger starts a new invocation even when it
+        // fires synchronously inside another instrumented call (dispatchEvent).
+        const invocation =
+          owner !== undefined && triggerFunctions.has(owner)
+            ? owner.tokenBinding
+            : `${helper}.captureInvocation()??${invocationBinding}`;
         if (unsafeToWrap(node)) {
           addDiagnostic(
             diagnostics,
@@ -727,7 +769,7 @@ export function collectDataFlowInstrumentation(
           const requestId = anchor("request", node);
           edits.push(
             Object.freeze({
-              content: `${helper}.withRequestFrame(${helper}.captureInvocation()??${owner.tokenBinding},{requestCallsiteId:${JSON.stringify(requestId)},sourceVersion:${JSON.stringify(sourceVersion)}},()=>`,
+              content: `${helper}.withRequestFrame(${invocation},{requestCallsiteId:${JSON.stringify(requestId)},sourceVersion:${JSON.stringify(sourceVersion)}},()=>`,
               offset: node.getStart(sourceFile),
               placement: "left",
             }),
@@ -750,7 +792,7 @@ export function collectDataFlowInstrumentation(
             }
             edits.push(
               Object.freeze({
-                content: `${helper}.bindInvocation(${helper}.captureInvocation()??${owner.tokenBinding},`,
+                content: `${helper}.bindInvocation(${invocation},`,
                 offset: callback.getStart(sourceFile),
                 placement: "left",
               }),
@@ -763,7 +805,7 @@ export function collectDataFlowInstrumentation(
           }
           edits.push(
             Object.freeze({
-              content: `${helper}.withInvocation(${helper}.captureInvocation()??${owner.tokenBinding},()=>`,
+              content: `${helper}.withInvocation(${invocation},()=>`,
               offset: node.getStart(sourceFile),
               placement: "left",
             }),

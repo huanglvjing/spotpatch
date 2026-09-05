@@ -6,7 +6,12 @@ import {
 } from "@spotpatch/shared";
 import { describe, expect, it, vi } from "vitest";
 
-import { createDataFlowRuntime } from "./data-flow-runtime.js";
+import {
+  createDataFlowRuntime,
+  installDataFlowPrelude,
+  getDataFlowRuntime,
+  disposeDataFlowPrelude,
+} from "./data-flow-runtime.js";
 
 const config = Object.freeze({
   enabled: true,
@@ -19,6 +24,26 @@ function successfulResponse(): Promise<Response> {
 }
 
 describe("data-flow runtime", () => {
+  it("restores fetch on prelude disposal without deleting a newer runtime", () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(() => successfulResponse());
+    const target = {
+      fetch,
+      location: { href: "https://example.test/" } as Location,
+      performance: { now: () => 1 } as Performance,
+    };
+    const first = installDataFlowPrelude(config, target);
+    if (first === undefined) throw new Error("Expected runtime");
+    expect(target.fetch).not.toBe(fetch);
+    disposeDataFlowPrelude(first, target);
+    expect(target.fetch).toBe(fetch);
+    expect(getDataFlowRuntime(target)).toBeUndefined();
+    const second = installDataFlowPrelude(config, target);
+    if (second === undefined) throw new Error("Expected replacement runtime");
+    disposeDataFlowPrelude(first, target);
+    expect(getDataFlowRuntime(target)).toBe(second);
+    disposeDataFlowPrelude(second, target);
+    expect(target.fetch).toBe(fetch);
+  });
   it("records dispatch without changing the original Promise or retaining values", () => {
     const expected = successfulResponse();
     const originalFetch: typeof fetch = vi.fn(

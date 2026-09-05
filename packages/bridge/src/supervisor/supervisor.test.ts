@@ -9,6 +9,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AgentAdapter } from "../active/types.js";
+import { createManagedGrantStore } from "./grant-store.js";
 import {
   CODEX_ADAPTER_ERROR_CODES,
   CodexAdapterError,
@@ -100,6 +101,29 @@ describeExternalAgentSupervisor("external Agent Supervisor", () => {
       rm(projectRoot, { recursive: true, force: true }),
       rm(runtimeRoot, { recursive: true, force: true }),
     ]);
+  });
+
+  it("returns immediately without a terminal prompt and accepts a CLI-created grant on reconnect", async () => {
+    const connector = fakeConnector();
+    const supervisor = await createSupervisor(connector);
+    await expect(
+      supervisor.connect(request, new AbortController().signal),
+    ).resolves.toMatchObject({
+      connectionState: "awaiting-consent",
+      grantState: "missing",
+    });
+    const store = await createManagedGrantStore({ root: projectRoot, configBase });
+    await store.grant();
+    await supervisor.connect(
+      { ...request, requestId: "after-cli-init" },
+      new AbortController().signal,
+    );
+    await vi.waitFor(() => {
+      expect(supervisor.getStatus()).toMatchObject({
+        connectionState: "ready",
+        grantState: "valid",
+      });
+    });
   });
 
   it("keeps Inbox mode when out-of-browser consent is declined", async () => {

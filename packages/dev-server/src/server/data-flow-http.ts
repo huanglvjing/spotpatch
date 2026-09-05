@@ -79,6 +79,9 @@ export function createDataFlowAnalyzer(
     registryEpoch: options.session.id,
     registerSource: (absolutePath) => options.registry.register(absolutePath),
     limits: options.options.dataFlow.limits,
+    ...(options.projectDataFlowSource === undefined
+      ? {}
+      : { projectSource: options.projectDataFlowSource }),
   });
 }
 

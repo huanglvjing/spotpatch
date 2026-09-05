@@ -114,3 +114,8 @@ export {
   type SerializedFilterEntry,
   type SerializedSpotPatchOptions,
 } from "./transport-options.js";
+export {
+  createDevelopmentSession,
+  type DevelopmentSession,
+  type DevelopmentSessionInput,
+} from "./development-session.js";

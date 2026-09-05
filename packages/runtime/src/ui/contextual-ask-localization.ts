@@ -14,6 +14,7 @@ export interface ContextualAskMessages {
   readonly suggestionsLabel: string;
   readonly suggestions: readonly string[];
   readonly executorLabel: string;
+  readonly modelLabel: string;
   readonly loadingExecutors: string;
   readonly noExecutor: string;
   readonly unavailable: string;
@@ -55,6 +56,7 @@ const EN: ContextualAskMessages = Object.freeze({
     "Why is it implemented this way?",
   ]),
   executorLabel: "Read-only executor",
+  modelLabel: "Model",
   loadingExecutors: "Checking available executors…",
   noExecutor: "No verified read-only executor is available.",
   unavailable: "unavailable",
@@ -137,6 +139,7 @@ const ZH: ContextualAskMessages = Object.freeze({
     "为什么要这样实现？",
   ]),
   executorLabel: "只读执行器",
+  modelLabel: "模型",
   loadingExecutors: "正在检查可用执行器…",
   noExecutor: "目前没有通过只读验证的执行器。",
   unavailable: "不可用",

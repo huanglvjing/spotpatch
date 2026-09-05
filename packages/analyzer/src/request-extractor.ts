@@ -384,9 +384,28 @@ function stringVariants(
   expression: ts.Expression,
   sourceFile: ts.SourceFile,
   maximumVariants: number,
+  checker?: ts.TypeChecker,
 ): StringVariantsResult {
   if (maximumVariants <= 0) {
     return Object.freeze({ variants: Object.freeze([]), truncated: true });
+  }
+
+  if (checker !== undefined && ts.isIdentifier(expression)) {
+    const declaration = findVariableDeclaration(checker, expression);
+    if (
+      declaration !== undefined &&
+      ts.isVariableDeclarationList(declaration.parent) &&
+      (declaration.parent.flags & ts.NodeFlags.Const) !== 0 &&
+      declaration.initializer !== undefined &&
+      ts.isStringLiteralLike(declaration.initializer)
+    ) {
+      return Object.freeze({
+        variants: Object.freeze([
+          Object.freeze({ value: declaration.initializer.text }),
+        ]),
+        truncated: false,
+      });
+    }
   }
 
   if (ts.isStringLiteralLike(expression)) {
@@ -416,11 +435,16 @@ function stringVariants(
 
   if (ts.isConditionalExpression(expression)) {
     const condition = expressionLabel(expression.condition, sourceFile);
-    const whenTrue = stringVariants(expression.whenTrue, sourceFile, maximumVariants);
+    const whenTrue = stringVariants(
+      expression.whenTrue,
+      sourceFile,
+      maximumVariants,
+      checker,
+    );
     const remaining = maximumVariants - whenTrue.variants.length;
     const whenFalse =
       remaining > 0
-        ? stringVariants(expression.whenFalse, sourceFile, remaining)
+        ? stringVariants(expression.whenFalse, sourceFile, remaining, checker)
         : Object.freeze({ variants: Object.freeze([]), truncated: true });
     const combineCondition = (
       branchCondition: string,
@@ -452,8 +476,13 @@ function stringVariants(
     ts.isBinaryExpression(expression) &&
     expression.operatorToken.kind === ts.SyntaxKind.PlusToken
   ) {
-    const left = stringVariants(expression.left, sourceFile, maximumVariants);
-    const right = stringVariants(expression.right, sourceFile, maximumVariants);
+    const left = stringVariants(expression.left, sourceFile, maximumVariants, checker);
+    const right = stringVariants(
+      expression.right,
+      sourceFile,
+      maximumVariants,
+      checker,
+    );
     if (left.variants.length > 0 && right.variants.length > 0) {
       const variants: StringVariant[] = [];
       for (const leftVariant of left.variants) {
@@ -705,7 +734,12 @@ export function extractRequest(
     const urlExpression = call.arguments[0];
     if (urlExpression === undefined) return undefined;
     const config = fetchMethodAndParameters(checker, call.arguments[1]);
-    const variants = stringVariants(urlExpression, sourceFile, options.maximumVariants);
+    const variants = stringVariants(
+      urlExpression,
+      sourceFile,
+      options.maximumVariants,
+      checker,
+    );
     return Object.freeze({
       adapterId: "fetch",
       kind: "http",
@@ -747,7 +781,12 @@ export function extractRequest(
         ...parametersFromAxiosConfig(checker, call.arguments[2]),
       ];
 
-  const variants = stringVariants(urlExpression, sourceFile, options.maximumVariants);
+  const variants = stringVariants(
+    urlExpression,
+    sourceFile,
+    options.maximumVariants,
+    checker,
+  );
   return Object.freeze({
     adapterId: "axios-create",
     kind: "http",

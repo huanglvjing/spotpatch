@@ -30,6 +30,7 @@ export const CONTEXTUAL_ASK_LIMITS = Object.freeze({
   maximumLanguageCharacters: 64,
   maximumPhaseMessageCharacters: 1_024,
   maximumExecutors: 32,
+  maximumModels: 800,
   contentHashHexCharacters: 64,
 } as const);
 

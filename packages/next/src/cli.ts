@@ -15,7 +15,7 @@ function writeUsage(): void {
   process.stderr.write(
     "Usage: spotpatch-next <dev|init|check|connect|bridge>\n" +
       "  dev [next dev options]  Start the local Next.js development server.\n" +
-      "  init                    Preview and apply safe integration changes.\n" +
+      "  init  Apply integration changes; initialize managed Codex project authorization.\n" +
       "  check                   Verify the integration without writing files.\n" +
       "  connect codex           Start the zero-setup Codex Agent connector.\n" +
       "  bridge                  Run external-Agent MCP, CLI, or setup commands.\n",
@@ -50,8 +50,11 @@ function writeTrustedModeStatus(available: boolean): void {
 }
 
 async function runInit(arguments_: readonly string[]): Promise<number> {
-  if (arguments_.length !== 0) {
-    throw new Error("SpotPatch init does not accept positional arguments.");
+  if (
+    arguments_.length > 1 ||
+    (arguments_.length === 1 && arguments_[0] !== "--allow-managed-codex")
+  ) {
+    throw new Error("Usage: init");
   }
 
   const project = await inspectNextProject();
@@ -61,7 +64,7 @@ async function runInit(arguments_: readonly string[]): Promise<number> {
   if (plan.changes.length === 0) {
     process.stdout.write("[spotpatch:next] integration is already up to date.\n");
     writeTrustedModeStatus(plan.trustedFastModeAvailable);
-    return 0;
+    return runSpotPatchBridgeCli(["init"], { adapter: "next", cwd: project.appRoot });
   }
 
   process.stdout.write("[spotpatch:next] integration preview (resulting files):\n");
@@ -79,7 +82,7 @@ async function runInit(arguments_: readonly string[]): Promise<number> {
     `[spotpatch:next] updated ${String(plan.changes.length)} integration file(s).\n`,
   );
   writeTrustedModeStatus(plan.trustedFastModeAvailable);
-  return 0;
+  return runSpotPatchBridgeCli(["init"], { adapter: "next", cwd: project.appRoot });
 }
 
 async function runCheck(arguments_: readonly string[]): Promise<number> {

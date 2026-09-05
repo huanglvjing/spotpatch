@@ -6,30 +6,18 @@ import {
 } from "node:http";
 
 import {
-  composeContextualAskExecutors,
-  createAgentJobManager,
-  createConfiguredKeyAskExecutors,
-  createContextualAskManager,
-  createExternalHandoffService,
+  createDevelopmentSession,
+  type DevelopmentSession,
   createRuntimeAiConfig,
   createRuntimeDataFlowConfig,
   createSession,
   createSourceRegistrationService,
   createSourceRegistry,
-  createWorkspaceActivityCoordinator,
-  createSpotPatchMiddleware,
-  resolveManagedExecutionValidation,
-  type AgentJobManager,
-  type ContextualAskManager,
-  type ExternalHandoffService,
   type ResolvedSpotPatchOptions,
-  type SourceRegistry,
-  type SpotPatchMiddleware,
 } from "@spotpatch/dev-server";
 import {
   createManagedCodexAskExecutor,
   createExternalAgentSupervisor,
-  type ExternalAgentSupervisor,
 } from "@spotpatch/bridge";
 import {
   SPOTPATCH_API_BASE,
@@ -292,12 +280,7 @@ export async function createNextSidecar(
 ): Promise<NextSidecar> {
   let active = false;
   let closed = false;
-  let registry: SourceRegistry | undefined;
-  let agentManager: AgentJobManager | undefined;
-  let contextualAskManager: ContextualAskManager | undefined;
-  let externalHandoffService: ExternalHandoffService | undefined;
-  let externalAgentSupervisor: ExternalAgentSupervisor | undefined;
-  let spotPatchMiddleware: SpotPatchMiddleware | undefined;
+  let developmentSession: DevelopmentSession | undefined;
   let publicRouteCheck:
     | Readonly<{
         expectedConfig: SpotPatchRuntimeConfig;
@@ -365,7 +348,6 @@ export async function createNextSidecar(
 
       const sourceRegistry = createSourceRegistry();
       const session = createSession();
-      const coordinator = createWorkspaceActivityCoordinator();
       const runtimeConfig = Object.freeze({
         apiBase: SPOTPATCH_API_BASE,
         ai: createRuntimeAiConfig(input.options.ai),
@@ -389,107 +371,33 @@ export async function createNextSidecar(
         shortcut: input.options.shortcut,
         spotPatchVersion: packageMetadata.version,
       }) satisfies SpotPatchRuntimeConfig;
-      const manager =
-        input.options.ai === false
-          ? undefined
-          : createAgentJobManager({
-              ai: input.options.ai,
-              environment: input.credentials,
-              root: input.projectRoot,
-              coordinator,
-            });
-      const askManager = input.options.contextualAsk.enabled
-        ? createContextualAskManager({
-            coordinator,
-            enabled: true,
-            executors: composeContextualAskExecutors({
-              configuredKey:
-                input.options.ai === false
-                  ? []
-                  : createConfiguredKeyAskExecutors({
-                      ai: input.options.ai,
-                      environment: input.credentials,
-                      ...(input.options.contextualAsk.defaultExecutor === undefined
-                        ? {}
-                        : {
-                            defaultExecutor:
-                              input.options.contextualAsk.defaultExecutor,
-                          }),
-                    }),
-              managedCodex: createManagedCodexAskExecutor({
-                projectRoot: input.appRoot,
-              }),
-              ...(input.options.contextualAsk.defaultExecutor === undefined
-                ? {}
-                : { defaultExecutor: input.options.contextualAsk.defaultExecutor }),
-            }),
-            registry: sourceRegistry,
-            root: input.appRoot,
-          })
-        : undefined;
-      const handoffService = input.options.externalAgent.enabled
-        ? createExternalHandoffService({
-            framework: "next",
-            root: input.appRoot,
-            sessionId: session.id,
-          })
-        : undefined;
-      let handoffReady = false;
-
-      if (handoffService !== undefined) {
-        try {
-          await handoffService.start();
-          handoffReady = true;
-        } catch {
-          process.stderr.write(
-            "[spotpatch:next] External Agent handoff is unavailable; core tools remain active.\n",
-          );
-        }
-      }
-      externalHandoffService = handoffService;
-      let supervisor: ExternalAgentSupervisor | undefined;
-      if (handoffReady) {
-        try {
-          const validation = await resolveManagedExecutionValidation({
-            ai: input.options.ai,
-            appRoot: input.appRoot,
-          });
-          supervisor = await createExternalAgentSupervisor({
-            bridgeAdapter: "next",
-            checks: validation.checks,
-            limits: validation.limits,
-            root: input.appRoot,
-            sessionId: session.id,
-            projectLabel: input.appRoot.split(/[\\/]/u).at(-1) ?? "project",
-          });
-        } catch {
-          process.stderr.write(
-            "[spotpatch:next] Managed Agent control is unavailable; Inbox remains active.\n",
-          );
-        }
-      }
-      externalAgentSupervisor = supervisor;
-      const middleware = createSpotPatchMiddleware({
-        ...(manager === undefined ? {} : { agentManager: manager }),
-        ...(askManager === undefined ? {} : { contextualAskManager: askManager }),
-        ...(handoffService === undefined
-          ? {}
-          : { externalHandoffService: handoffService }),
-        ...(supervisor === undefined ? {} : { externalAgentControl: supervisor }),
-        bootstrap: {
-          expectedOrigin: input.publicOrigin,
-          runtimeConfig,
-        },
+      const services = await createDevelopmentSession({
+        framework: "next",
+        root: input.appRoot,
+        executionRoot: input.projectRoot,
+        environment: input.credentials,
+        options: input.options,
+        registry: sourceRegistry,
+        session,
+        bootstrap: { expectedOrigin: input.publicOrigin, runtimeConfig },
         logger: {
           warn(message) {
             process.stderr.write(`${message}\n`);
           },
         },
-        options: input.options,
-        registry: sourceRegistry,
-        root: input.appRoot,
-        session,
+        createManagedAskExecutor: () =>
+          createManagedCodexAskExecutor({ projectRoot: input.appRoot }),
+        createExternalAgentControl: (validation) =>
+          createExternalAgentSupervisor({
+            bridgeAdapter: "next",
+            ...validation,
+            root: input.appRoot,
+            sessionId: session.id,
+            projectLabel: input.appRoot.split(/[\\/]/u).at(-1) ?? "project",
+          }),
       });
+      developmentSession = services;
+      const middleware = services.middleware;
       const registration = await createSourceRegistrationService({
         internalSecret: input.internalSecret,
         options: input.options,
@@ -498,10 +406,6 @@ export async function createNextSidecar(
         root: input.appRoot,
       });
 
-      registry = sourceRegistry;
-      agentManager = manager;
-      contextualAskManager = askManager;
-      spotPatchMiddleware = middleware;
       handler = (request, response) => {
         if (requestPath(request.url) === NEXT_INTERNAL_REGISTRATION_PATH) {
           registration.handler(request, response);
@@ -543,17 +447,7 @@ export async function createNextSidecar(
       handler = (_request, response) => {
         writeUnavailable(response, 503);
       };
-      spotPatchMiddleware?.dispose();
-      spotPatchMiddleware = undefined;
-      await externalAgentSupervisor?.dispose();
-      externalAgentSupervisor = undefined;
-      await externalHandoffService?.close();
-      externalHandoffService = undefined;
-      await agentManager?.close();
-      agentManager = undefined;
-      await contextualAskManager?.close();
-      contextualAskManager = undefined;
-      registry?.clear();
+      await developmentSession?.close();
       server.closeIdleConnections();
       const closing = closeServer(server);
       server.closeAllConnections();

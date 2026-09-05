@@ -486,8 +486,8 @@ describe("external handoff Runtime extension", () => {
     });
 
     for (const [locale, expected] of [
-      ["en-US", 'type "yes" in the terminal that started `pnpm dev`'],
-      ["zh-CN", "请在启动 `pnpm dev` 的终端输入“yes”"],
+      ["en-US", "Initialize project access once"],
+      ["zh-CN", "请在当前项目执行一次初始化"],
     ] as const) {
       const panel = createExternalHandoffPanel(
         document,
@@ -501,6 +501,7 @@ describe("external handoff Runtime extension", () => {
       panel.renderControlStatus(awaitingConsent);
 
       expect(panel.root.textContent).toContain(expected);
+      expect(panel.root.textContent).toContain("pnpm exec spotpatch-vite bridge init");
       panel.dispose();
       panel.root.remove();
       panel.sendButton.remove();

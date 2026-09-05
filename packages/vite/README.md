@@ -19,6 +19,8 @@ SpotPatch runs only with the Vite development server. Production builds contain 
 
 ### One-command setup (recommended)
 
+For one-time managed Codex project authorization, run `pnpm exec spotpatch-vite init` after installation. An already-integrated project can use `pnpm exec spotpatch-vite bridge init` without changing its config. This explicitly permits isolated snapshot writes and audited/validated application, stores a private revocable project grant, and removes the later dev-terminal `yes` prompt. Login and compatibility checks are still required.
+
 ```bash
 npx --yes @spotpatch/vite@latest setup
 ```

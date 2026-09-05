@@ -10,6 +10,7 @@ export interface ResolveProjectOptionsInput {
   readonly appRoot: string;
   readonly environmentAi?: false | SimpleAiOptions;
   readonly options?: SpotPatchOptions;
+  readonly resolveValidationChecks?: typeof resolveProjectValidationChecks;
 }
 
 export async function resolveProjectOptions(
@@ -28,7 +29,9 @@ export async function resolveProjectOptions(
     );
   }
 
-  const checks = await resolveProjectValidationChecks({
+  const checks = await (
+    input.resolveValidationChecks ?? resolveProjectValidationChecks
+  )({
     appRoot: input.appRoot,
     checks: resolved.ai.execution.checks,
     timeoutMs: resolved.ai.execution.limits.checkTimeoutMs,
@@ -36,7 +39,7 @@ export async function resolveProjectOptions(
 
   if (!Object.values(checks).some((check) => check.required)) {
     throw new RangeError(
-      "SpotPatch trustedFastMode requires a configured required check or a local TypeScript project with tsconfig.json.",
+      "SpotPatch trustedFastMode requires a configured required check or an available framework-compatible local project check.",
     );
   }
 

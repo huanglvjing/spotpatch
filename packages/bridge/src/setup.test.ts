@@ -48,6 +48,28 @@ describe("external Agent project setup", () => {
     });
   });
 
+  it("uses the Astro adapter CLI for Inbox and active connectors", () => {
+    for (const client of ["codex", "claude", "cursor"] as const) {
+      const plan = createBridgeSetupPlan(client, "astro", root);
+      expect(plan.content).toContain("./node_modules/@spotpatch/astro/dist/cli.js");
+      expect(plan.content).not.toContain("@spotpatch/vite");
+      expect(plan.content).not.toContain("@spotpatch/next");
+    }
+    const active = createBridgeSetupPlan("claude", "astro", root, "active");
+    expect(JSON.parse(active.content)).toMatchObject({
+      mcpServers: {
+        spotpatch: {
+          args: [
+            "./node_modules/@spotpatch/astro/dist/cli.js",
+            "bridge",
+            "channel",
+            "claude",
+          ],
+        },
+      },
+    });
+  });
+
   it("whitelists only runtime-directory inputs in Codex MCP setup", () => {
     const plan = createBridgeSetupPlan("codex", "next", root);
 

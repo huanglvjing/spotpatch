@@ -11,6 +11,7 @@ const NPM_README_ICON_URL =
   "https://raw.githubusercontent.com/huanglvjing/spotpatch/main/docs/assets/spotpatch-npm-icon.png";
 
 const workspacePackages = [
+  { directory: "packages/astro", name: "@spotpatch/astro" },
   { directory: "packages/shared", name: "@spotpatch/shared" },
   { directory: "packages/bridge", name: "@spotpatch/bridge" },
   { directory: "packages/compiler", name: "@spotpatch/compiler" },

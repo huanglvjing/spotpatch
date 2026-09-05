@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  A local-first, development-only feedback workspace for React.
+  A local-first, development-only feedback workspace for React, with an Astro source preview.
 </p>
 
 <p align="center">
@@ -38,6 +38,7 @@ SpotPatch turns rendered React UI into precise, reusable development context. Se
 
 > [!IMPORTANT]
 > `@spotpatch/vite` is the supported public integration. The installable [Next.js adapter](./packages/next/README.md) is a **0.x public preview**, not yet part of the public support matrix.
+> Native Astro support is available as an **unreleased source preview** in [`@spotpatch/astro`](./packages/astro/README.md); its support boundaries differ from the React integrations.
 
 **Start here:** [Vite quick start](#quick-start-vite) · [Visual workflow](#visual-workflow) · [External Agents](#external-agent-handoff-local-validation) · [Data flow Beta](#component-data-flow-beta) · [Optional AI](#optional-ai-agent)
 
@@ -205,6 +206,17 @@ This Beta reports a relationship only when stable component, source, callsite, a
 
 ## Optional AI Agent
 
+To initialize managed Codex access once without a later dev-terminal `yes` prompt, run the matching command from the project root:
+
+```sh
+pnpm exec spotpatch-vite init
+pnpm exec spotpatch-next init
+# Astro: install/configure the integration first; this command initializes access only.
+pnpm exec spotpatch-astro init
+```
+
+For an already-integrated project, every adapter also supports `bridge init` without changing integration files. Running init authorizes Codex writes to an isolated snapshot and SpotPatch's audited/validated application of eligible changes. The private grant belongs to the current user and canonical project, is not committed, and can be revoked in the panel. Enable `externalAgent: true`; Codex installation, login and protocol compatibility are still required. No additional authorization flag or interactive confirmation is required. The former `--allow-managed-codex` option remains accepted for command compatibility.
+
 Contextual Ask is an explicit development-only feature. Enable it in the adapter configuration; it can use either a configured Key or a compatible local Managed Codex installation:
 
 ```ts
@@ -215,6 +227,8 @@ spotPatch({
 ```
 
 After selecting at least one element, switch the Planner from **Change** to **Ask**. Each submission is a single read-only question with cited source references; turning the answer into a change only creates an editable local draft.
+
+Managed Codex exposes a separate **Model** picker populated from the local app-server's visible model catalog, not a hardcoded list. The chosen model is validated again before execution; unavailable selections fail instead of silently falling back. Configured-key models remain selected through their server-configured executor profiles. These controls are shared by Vite, Next.js and Astro. Model discovery does not prove that a paid request will succeed for every listed model.
 
 AI is disabled unless a complete provider configuration is available. The smallest setup uses a Git-ignored `.env.local` file and requires no change to `spotPatch()`:
 
@@ -330,6 +344,14 @@ A successful startup prints a line beginning with `[spotpatch:next] ready`. Open
 
 See the complete [`@spotpatch/next` public-preview guide](./packages/next/README.md) for generated file examples, production commands, known restrictions, and the exact evidence boundary. Follow the [Next.js adapter plan](./docs/技术方案/Next适配/00-索引与架构摘要.md) and [remaining support gates](./docs/技术方案/Next适配/08-测试验收与实施计划.md) before making compatibility claims.
 
+## Astro source preview
+
+The new [`@spotpatch/astro`](./packages/astro/README.md) integration targets native `.astro` templates without requiring React. It shares the picker, DOM/CSS context, bilingual prompts, editor navigation and configured-key review workflow. Versioned fixtures cover Astro 5.18.2 / 6.4.8 / 7.2.8; Node.js 22.12+ is required.
+
+Build the checkout with `pnpm --filter @spotpatch/astro... build`, then follow the [local linking and configuration instructions](./packages/astro/README.md#use-the-source-preview). The package has **not been published** by this change; registry installation commands are documented separately for a future release. Add `spotPatch({ ai: false })` to Astro's `integrations`, not `vite.plugins`.
+
+The integration also implements React-island markers, native/browser data flow, read-only Contextual Ask, external-Agent Inbox/managed controls and Astro-aware Trusted direct validation using the shared services. These are opt-in; server-side requests remain static evidence, inline scripts are not converted into modules, and experimental external-Agent modes keep their existing maturity restrictions. See the [feature parity plan and acceptance evidence](./docs/技术方案/Astro适配/02-功能对齐实施方案.md).
+
 ## Configuration
 
 The Vite entry exports `spotPatch(options)`. Important defaults are:
@@ -373,6 +395,7 @@ Applications should normally install only a framework adapter.
 | ------------------------------------------------------------------ | ------------------------------------------------------------- | --------------------------------------- |
 | [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | Supported Vite integration                                    | **Yes**                                 |
 | [`@spotpatch/next`](./packages/next/README.md)                     | Installable Next.js 0.x public preview                        | Preview only; not formally supported    |
+| [`@spotpatch/astro`](./packages/astro/README.md)                   | Native Astro source integration                               | Unreleased source preview               |
 | `@spotpatch/compiler`                                              | Framework-neutral JSX/TSX marker compiler                     | Adapter infrastructure                  |
 | `@spotpatch/analyzer`                                              | Node-only component/request semantic analyzer                 | Adapter infrastructure; Node only       |
 | `@spotpatch/dev-server`                                            | Local sessions, source access, editor and Agent orchestration | Adapter infrastructure; Node only       |

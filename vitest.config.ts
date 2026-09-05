@@ -8,6 +8,7 @@ const fromRoot = (path: string): string =>
 export default defineConfig({
   resolve: {
     alias: {
+      "@spotpatch/astro": fromRoot("./packages/astro/src/index.ts"),
       "@spotpatch/agent": fromRoot("./packages/agent/src/index.ts"),
       "@spotpatch/analyzer": fromRoot("./packages/analyzer/src/index.ts"),
       "@spotpatch/bridge": fromRoot("./packages/bridge/src/index.ts"),
@@ -49,6 +50,9 @@ export default defineConfig({
     __SPOTPATCH_INLINE_BRAND_MARK__: true,
   },
   test: {
+    // The suite launches Git and Agent-protocol subprocesses. Bound concurrency
+    // so process-startup deadlines and analysis budgets remain reproducible.
+    maxWorkers: 2,
     coverage: {
       reporter: ["text", "json", "html"],
     },

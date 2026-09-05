@@ -21,6 +21,7 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
+      "@spotpatch/astro": ["packages/astro/src/index.ts"],
       "@spotpatch/agent": ["packages/agent/src/index.ts"],
       "@spotpatch/analyzer": ["packages/analyzer/src/index.ts"],
       "@spotpatch/bridge": ["packages/bridge/src/index.ts"],

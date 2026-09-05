@@ -27,6 +27,7 @@ export const askJobCreateRequestSchema = z.strictObject({
   requestId: contextualAskOpaqueIdSchema,
   envelope: spotAskTaskEnvelopeSchema,
   executorId: contextualAskOpaqueIdSchema,
+  model: contextualAskBoundedText(limits.maximumLabelCharacters).optional(),
   providerDataConsent: z.literal(true),
 });
 

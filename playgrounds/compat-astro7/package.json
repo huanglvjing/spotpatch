@@ -1,0 +1,24 @@
+{
+  "name": "@spotpatch/compat-astro7",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node ../../scripts/astro-fixture-dev.mjs",
+    "build": "astro build",
+    "preview": "astro preview",
+    "verify": "node ../../scripts/verify-astro-build.mjs dist"
+  },
+  "dependencies": {
+    "@spotpatch/astro": "workspace:*",
+    "astro": "7.2.8",
+    "@astrojs/react": "6.0.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "typescript": "5.9.3",
+    "@types/react": "18.3.28",
+    "@types/react-dom": "18.3.7"
+  }
+}

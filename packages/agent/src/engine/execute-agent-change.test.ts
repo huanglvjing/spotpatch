@@ -228,6 +228,77 @@ function codingModel(source: ResolvedOpenAICompatibleProviderOptions) {
 }
 
 describe("Agent execution", { timeout: GIT_PROCESS_INTEGRATION_TIMEOUT_MS }, () => {
+  it("reviews, applies and reverts native Astro without a React context", async () => {
+    const relativePath = "src/pages/index.astro";
+    const before =
+      '---\nconst title = "Fixture";\n---\n<button>Before</button>\n<style>button { color: teal }</style>\n';
+    const repository = await createTestGitRepository({ [relativePath]: before });
+    const source = provider();
+    const target = annotation.targets[0];
+    if (target === undefined) throw new Error("Missing annotation fixture target.");
+    const astroAnnotation = {
+      ...annotation,
+      targets: [
+        {
+          ...target,
+          source: {
+            relativePath,
+            line: 4,
+            column: 1,
+            origin: "astro-host",
+            confidence: "exact",
+          },
+          react: { supported: false, componentStack: [] },
+          code: {
+            relativePath,
+            language: "astro",
+            startLine: 1,
+            endLine: 5,
+            excerpt: before,
+            boundary: "nearby-lines",
+          },
+        },
+      ],
+    } satisfies SpotAnnotation;
+    const fetch = queuedFetch([
+      toolResponse("read-astro", "read_file", { path: relativePath }),
+      toolResponse("replace-astro", "replace_text", {
+        path: relativePath,
+        oldText: "<button>Before</button>",
+        newText: "<button>After</button>",
+      }),
+      toolResponse("check-astro", "run_check", { checkId: "verify" }),
+      finalResponse("Updated the native Astro button."),
+    ]);
+    try {
+      const prepared = await executeAgentChange({
+        annotation: astroAnnotation,
+        credential: createProviderCredential("synthetic-astro-test-credential"),
+        execution: execution(
+          `const fs=require('node:fs'); if(!fs.readFileSync(${JSON.stringify(relativePath)},'utf8').includes('<button>After</button>')) process.exit(1)`,
+        ),
+        fetch,
+        jobId: "job-astro",
+        model: codingModel(source),
+        provider: source,
+        root: repository.root,
+        signal: new AbortController().signal,
+      });
+      expect(prepared.validationPassed).toBe(true);
+      expect(prepared.result.files).toMatchObject([{ relativePath, kind: "modified" }]);
+      expect(await repository.read(relativePath)).toBe(before);
+      await applyPreparedAgentChange(prepared);
+      expect(await repository.read(relativePath)).toBe(
+        before.replace("Before", "After"),
+      );
+      await revertPreparedAgentChange(prepared);
+      expect(await repository.read(relativePath)).toBe(before);
+      expect(fetch).toHaveBeenCalledTimes(4);
+    } finally {
+      await repository.cleanup();
+    }
+  });
+
   it("drives read, exact replace, check, review Apply, and hash-safe Revert", async () => {
     const repository = await createTestGitRepository();
     const temporaryBase = await mkdtemp(

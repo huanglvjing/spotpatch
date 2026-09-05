@@ -6,7 +6,7 @@ import { ERROR_CODES, SpotPatchError } from "@spotpatch/shared";
 import type { SourceRegistry } from "../registry/source-registry.js";
 import { MAX_SOURCE_FILE_BYTES } from "./constants.js";
 
-const ALLOWED_EXTENSIONS = new Set([".jsx", ".tsx"]);
+const ALLOWED_EXTENSIONS = new Set([".jsx", ".tsx", ".astro"]);
 
 function isMissingFileError(error: unknown): boolean {
   return (

@@ -29,6 +29,7 @@ Component `dataFlow` uses the same compiler, analyzer, recorder, merger, protoco
 - Private API rewrites use a randomized loopback Sidecar origin and per-launch secrets.
 - Production configuration aliases both browser entries to a side-effect-free no-op and does not add the Loader, recorder, panel, Sidecar, source registry, or private rewrite.
 - `spotpatch-next init` previews and applies supported integration edits with rollback on failure.
+- `spotpatch-next init` also initializes a private, revocable project grant for isolated snapshot writes and audited/validated application. Use `spotpatch-next bridge init` on an already-integrated project to leave integration files unchanged. No later dev-terminal `yes` prompt is needed; Codex login and compatibility checks still apply.
 - `spotpatch-next check` diagnoses the package graph and generated integration without starting development.
 
 ### Public preview integration

@@ -2,8 +2,8 @@
 doc-id: "04-vite-plugin"
 title: "Vite 插件实现"
 status: "active"
-version: "1.6.0"
-last-updated: "2026-08-09"
+version: "1.7.0"
+last-updated: "2026-09-05"
 source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent server 装配边界；v1.2 约定式环境解析生命周期；v1.3 编辑器适配器；v1.4 编辑器工作区路由；Next.js 公共编译内核迁移约束"
 参考文献/依赖:
   - "02-architecture-stack"
@@ -18,6 +18,8 @@ source-range: "规格书 §2.4 第 1 条、§8、§8.1–§8.6；v1.1 Agent serv
 ---
 
 # Vite 插件实现
+
+Astro 补充（2026-09-05）：本文仍定义 JSX/Vite 的三段 marker。共享 parser 另接受 `fileId:line:column:astro`，仅由 [Astro 适配器](./Astro适配/00-方案与验收.md)产生。Astro 使用独立 Integration，在编译前把 marker 插到原生 tag name 后、所有属性前（HTML 重复属性第一个生效）；不可复用 JSX 尾部插入规则。旧 JSX marker 及算法保持不变。
 
 本文件是 source marker、Source Registry、AST transform 和 source map 行为的唯一事实来源，并遵守总体包依赖方向 (见 doc-id:02-architecture-stack)。公共配置由公共 API 文档定义 (见 doc-id:03-public-api-models)，文件读取与 HTTP 边界由安全规范定义 (见 doc-id:09-local-protocol-security)。
 

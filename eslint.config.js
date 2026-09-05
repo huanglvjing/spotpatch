@@ -17,6 +17,8 @@ export default tseslint.config(
       "**/dist/**",
       "**/coverage/**",
       "**/node_modules/**",
+      "**/.astro/**",
+      "playgrounds/compat-astro*/.fixture/**",
       "experiments/next-adapter/.artifacts/**",
       "experiments/next-adapter/.work/**",
       "experiments/contextual-ask-q1/.artifacts/**",

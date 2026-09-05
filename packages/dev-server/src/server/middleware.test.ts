@@ -134,6 +134,49 @@ afterEach(async () => {
 });
 
 describe("SpotPatch server middleware", () => {
+  it("reads registered Astro source with the same authorization and budgets", async () => {
+    const file = path.join(root, "Card.astro");
+    await writeFile(
+      file,
+      '---\nconst title = "你好";\n---\n<button>{title}</button>\n<style>button{color:red}</style>',
+      "utf8",
+    );
+    const id = registry.register(file);
+    const request = { fileId: id, line: 4, column: 1, maxLines: 2 };
+    const response = await post(SPOTPATCH_ENDPOINTS.sourceContext, request);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      data: {
+        relativePath: "Card.astro",
+        language: "astro",
+        boundary: "nearby-lines",
+        startLine: 3,
+        endLine: 4,
+        excerpt: "---\n<button>{title}</button>",
+      },
+    });
+    expect(
+      (
+        await post(SPOTPATCH_ENDPOINTS.sourceContext, request, {
+          [SPOTPATCH_TOKEN_HEADER]: "wrong",
+        })
+      ).status,
+    ).toBe(401);
+    const outside = path.join(externalRoot, "Private.astro");
+    await writeFile(outside, "<p>private</p>", "utf8");
+    const link = path.join(root, "Linked.astro");
+    await symlink(outside, link);
+    expect(
+      (
+        await post(SPOTPATCH_ENDPOINTS.sourceContext, {
+          ...request,
+          fileId: registry.register(link),
+        })
+      ).status,
+    ).toBe(403);
+  });
   it("returns a clamped source excerpt in a no-store envelope", async () => {
     const response = await post(SPOTPATCH_ENDPOINTS.sourceContext, {
       fileId,

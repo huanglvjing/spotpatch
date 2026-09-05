@@ -35,7 +35,7 @@ import {
   type FunctionImplementation,
 } from "./typescript-utils.js";
 
-const ANALYZER_VERSION = "0.0.2";
+const ANALYZER_VERSION = "0.0.3";
 const REACT_EFFECT_NAMES = new Set(["useEffect", "useLayoutEffect"]);
 const CALLBACK_CALL_NAMES = new Set([
   "setInterval",
@@ -58,7 +58,19 @@ export interface StaticDataFlowAnalyzerOptions {
   readonly registryEpoch: string;
   readonly registerSource: (absolutePath: string) => string;
   readonly limits?: DataFlowLimits;
+  /** Independent scopes with UTF-16 offsets and line breaks preserved from source. */
+  readonly projectSource?: (
+    absolutePath: string,
+    code: string,
+  ) => readonly DataFlowSourceProjection[] | undefined;
 }
+
+export interface DataFlowSourceProjection {
+  readonly code: string;
+  readonly environment: "server" | "client";
+}
+
+type AnalysisOwner = FunctionImplementation | ts.SourceFile;
 
 export interface StaticDataFlowAnalyzer {
   readonly analyzeComponent: (input: AnalyzeComponentInput) => ComponentDataFlowReport;
@@ -73,13 +85,13 @@ interface ProgramCacheEntry {
 
 interface TriggerRoot {
   readonly depth: number;
-  readonly functionNode: FunctionImplementation;
+  readonly functionNode: AnalysisOwner;
   readonly triggerId: string;
 }
 
 interface TraceEntry {
   readonly depth: number;
-  readonly functionNode: FunctionImplementation;
+  readonly functionNode: AnalysisOwner;
   readonly triggerId: string;
 }
 
@@ -158,7 +170,29 @@ function readCompilerOptions(root: string, absolutePath: string): ts.CompilerOpt
 function createProgram(
   absolutePath: string,
   compilerOptions: ts.CompilerOptions,
+  projection?: DataFlowSourceProjection,
 ): ts.Program {
+  if (projection !== undefined) {
+    const options = { ...compilerOptions, allowNonTsExtensions: true };
+    const host = ts.createCompilerHost(options);
+    const getSourceFile = host.getSourceFile.bind(host);
+    host.getSourceFile = (
+      fileName,
+      languageVersion,
+      onError,
+      shouldCreateNewSourceFile,
+    ) =>
+      isSameFilePath(fileName, absolutePath)
+        ? ts.createSourceFile(
+            fileName,
+            projection.code,
+            languageVersion,
+            true,
+            ts.ScriptKind.TSX,
+          )
+        : getSourceFile(fileName, languageVersion, onError, shouldCreateNewSourceFile);
+    return ts.createProgram({ rootNames: [absolutePath], options, host });
+  }
   return ts.createProgram({ rootNames: [absolutePath], options: compilerOptions });
 }
 
@@ -443,7 +477,7 @@ function reactQueryCallback(
 
 function collectTriggerRoots(
   checker: ts.TypeChecker,
-  component: FunctionImplementation,
+  component: AnalysisOwner,
   componentId: string,
   sourceVersion: string,
   relativePath: string,
@@ -462,7 +496,7 @@ function collectTriggerRoots(
       ),
     }),
   ];
-  const body = component.body;
+  const body = ts.isSourceFile(component) ? component : component.body;
   if (body === undefined) return triggers;
 
   function addTrigger(functionNode: FunctionImplementation, node: ts.Node): void {
@@ -521,6 +555,18 @@ function collectTriggerRoots(
     }
 
     if (ts.isCallExpression(node)) {
+      if (
+        ts.isSourceFile(component) &&
+        ts.isPropertyAccessExpression(node.expression) &&
+        node.expression.name.text === "addEventListener"
+      ) {
+        const callback = node.arguments[1];
+        const handler =
+          callback === undefined
+            ? undefined
+            : resolveFunctionExpression(checker, callback, root);
+        if (handler !== undefined) addTrigger(handler, node);
+      }
       const callback = reactQueryCallback(checker, node);
       if (callback !== undefined) {
         const handler = resolveFunctionExpression(checker, callback, root);
@@ -874,7 +920,11 @@ export function createStaticDataFlowAnalyzer(
     return program;
   }
 
-  function analyzeComponent(input: AnalyzeComponentInput): ComponentDataFlowReport {
+  function analyzeScope(
+    input: AnalyzeComponentInput,
+    projection?: DataFlowSourceProjection,
+    scopeLimits: DataFlowLimits = limits,
+  ): ComponentDataFlowReport {
     const absolutePath = realpathSync.native(path.resolve(input.absolutePath));
     if (!isInsideRoot(root, absolutePath)) {
       throw new RangeError("SpotPatch data-flow source is outside the project root.");
@@ -889,7 +939,14 @@ export function createStaticDataFlowAnalyzer(
       input.line,
       String(input.column),
     );
-    const program = getProgram(absolutePath, code);
+    const program =
+      projection === undefined
+        ? getProgram(absolutePath, code)
+        : createProgram(
+            absolutePath,
+            readCompilerOptions(root, absolutePath),
+            projection,
+          );
     const checker = program.getTypeChecker();
     const sourceFile =
       program.getSourceFile(absolutePath) ??
@@ -899,12 +956,13 @@ export function createStaticDataFlowAnalyzer(
     if (sourceFile === undefined) {
       throw new TypeError("SpotPatch data-flow source could not be parsed.");
     }
-    const component = findSelectedComponent(
-      checker,
-      sourceFile,
-      input.line,
-      input.column,
-    );
+    const projectionHasSyntaxErrors =
+      projection !== undefined &&
+      program.getSyntacticDiagnostics(sourceFile).length > 0;
+    const component =
+      projection === undefined
+        ? findSelectedComponent(checker, sourceFile, input.line, input.column)
+        : sourceFile;
     if (component === undefined) {
       const source = sourceRef(
         root,
@@ -950,7 +1008,9 @@ export function createStaticDataFlowAnalyzer(
       });
     }
 
-    const componentName = selectedComponentName(component);
+    const componentName = ts.isSourceFile(component)
+      ? path.basename(absolutePath)
+      : selectedComponentName(component);
     const componentId = createAnalyzerId(
       "component",
       relativePath,
@@ -975,6 +1035,10 @@ export function createStaticDataFlowAnalyzer(
     const dependencies: DataDependency[] = [];
     const evidence: EvidenceRef[] = [];
     const diagnostics: DataFlowDiagnostic[] = [];
+    if (projectionHasSyntaxErrors)
+      diagnostics.push(
+        diagnostic(`${reportId}_projection`, "DATA_FLOW_SOURCE_UNAVAILABLE", "warning"),
+      );
     const queue: TraceEntry[] = triggerRoots.map((trigger) =>
       Object.freeze({
         depth: trigger.depth,
@@ -991,13 +1055,13 @@ export function createStaticDataFlowAnalyzer(
 
     function assertActive(): void {
       if (input.signal?.aborted === true) throw new AnalysisStopped("cancelled");
-      if (performance.now() - startedAt > limits.analysisTimeoutMs) {
+      if (performance.now() - startedAt > scopeLimits.analysisTimeoutMs) {
         throw new AnalysisStopped("timeout");
       }
-      if (visitedCallsites >= limits.graphMaxCallsites) {
+      if (visitedCallsites >= scopeLimits.graphMaxCallsites) {
         throw new AnalysisStopped("callsites");
       }
-      if (visitedModules.size >= limits.graphMaxModules) {
+      if (visitedModules.size >= scopeLimits.graphMaxModules) {
         throw new AnalysisStopped("modules");
       }
     }
@@ -1014,19 +1078,23 @@ export function createStaticDataFlowAnalyzer(
         visited.add(visitKey);
         visitedModules.add(functionFile.fileName);
         const functionCode = functionFile.getFullText();
-        const functionVersion = createSourceVersion(functionCode);
+        const functionVersion =
+          projection !== undefined &&
+          isSameFilePath(functionFile.fileName, absolutePath)
+            ? sourceVersion
+            : createSourceVersion(functionCode);
         analyzedVersions.add(functionVersion);
 
         visitFunctionBody(entry.functionNode, (node) => {
           if (!ts.isCallExpression(node)) return;
           assertActive();
           visitedCallsites += 1;
-          if (dependencies.length >= limits.graphMaxCallsites) {
+          if (dependencies.length >= scopeLimits.graphMaxCallsites) {
             throw new AnalysisStopped("callsites");
           }
           const request = extractRequest(node, {
             checker,
-            maximumVariants: limits.graphMaxCallsites - dependencies.length,
+            maximumVariants: scopeLimits.graphMaxCallsites - dependencies.length,
             sourceFile: functionFile,
           });
 
@@ -1060,12 +1128,15 @@ export function createStaticDataFlowAnalyzer(
               }),
             );
             const consumedFields = Object.freeze(
-              collectConsumedFields(checker, node).slice(0, limits.reportMaxFields),
+              collectConsumedFields(checker, node).slice(
+                0,
+                scopeLimits.reportMaxFields,
+              ),
             );
             const suppliedBindings = Object.freeze(
               collectSuppliedBindings(checker, node, root).slice(
                 0,
-                limits.graphMaxCallsites,
+                scopeLimits.graphMaxCallsites,
               ),
             );
 
@@ -1078,7 +1149,7 @@ export function createStaticDataFlowAnalyzer(
                 `${entry.triggerId}:${String(variantIndex)}`,
               );
               const parameters: DataParameter[] = request.parameters
-                .slice(0, limits.reportMaxFields)
+                .slice(0, scopeLimits.reportMaxFields)
                 .map((item) =>
                   Object.freeze({
                     ...item,
@@ -1095,7 +1166,7 @@ export function createStaticDataFlowAnalyzer(
                   .map(({ path }) => path),
               );
               for (const queryKey of variant.url?.queryKeys ?? []) {
-                if (parameters.length >= limits.reportMaxFields) break;
+                if (parameters.length >= scopeLimits.reportMaxFields) break;
                 if (existingQueryKeys.has(queryKey)) continue;
                 parameters.push(
                   Object.freeze({
@@ -1117,6 +1188,9 @@ export function createStaticDataFlowAnalyzer(
                   kind: request.kind,
                   direction: variant.direction,
                   execution: "declared-not-observed",
+                  ...(projection === undefined
+                    ? {}
+                    : { environment: projection.environment }),
                   proof: "proven",
                   association: entry.depth === 0 ? "direct" : "transitive",
                   method: variant.method,
@@ -1147,7 +1221,7 @@ export function createStaticDataFlowAnalyzer(
             return;
           }
 
-          if (entry.depth >= limits.graphMaxDepth) return;
+          if (entry.depth >= scopeLimits.graphMaxDepth) return;
           const callee = resolveFunctionExpression(checker, node.expression, root);
           if (callee !== undefined) {
             queue.push(
@@ -1164,6 +1238,8 @@ export function createStaticDataFlowAnalyzer(
             : ts.isPropertyAccessExpression(node.expression)
               ? node.expression.name.text
               : undefined;
+          // Module-level DOM listeners were already assigned their own trigger.
+          // Do not also attribute them to module evaluation.
           if (callName !== undefined && CALLBACK_CALL_NAMES.has(callName)) {
             for (const argument of node.arguments) {
               const callback = resolveFunctionExpression(checker, argument, root);
@@ -1204,7 +1280,10 @@ export function createStaticDataFlowAnalyzer(
       }),
       capability: Object.freeze({
         enabled: true,
-        staticAnalysis: stopReason === undefined ? "available" : "partial",
+        staticAnalysis:
+          stopReason === undefined && !projectionHasSyntaxErrors
+            ? "available"
+            : "partial",
         runtimeObservation: "dispatch-only",
         responseShape: "consumed-fields-only",
         aiAssistance: "disabled",
@@ -1231,7 +1310,7 @@ export function createStaticDataFlowAnalyzer(
       evidence: Object.freeze(evidence),
       diagnostics: Object.freeze(diagnostics),
       completeness: Object.freeze({
-        complete: stopReason === undefined,
+        complete: stopReason === undefined && !projectionHasSyntaxErrors,
         visitedModules: visitedModules.size,
         visitedCallsites,
         frontierCount: queue.length,
@@ -1245,6 +1324,130 @@ export function createStaticDataFlowAnalyzer(
                     ? "modules"
                     : stopReason,
             }),
+      }),
+    });
+  }
+
+  function analyzeComponent(input: AnalyzeComponentInput): ComponentDataFlowReport {
+    if (options.projectSource === undefined) return analyzeScope(input);
+    const absolutePath = realpathSync.native(path.resolve(input.absolutePath));
+    if (!isInsideRoot(root, absolutePath))
+      throw new RangeError("SpotPatch data-flow source is outside the project root.");
+    const code = readFileSync(absolutePath, "utf8");
+    const projections = options.projectSource(absolutePath, code);
+    if (projections === undefined) return analyzeScope(input);
+    if (projections.length === 0)
+      throw new TypeError("Data-flow source projection requires at least one scope.");
+    const reports: ComponentDataFlowReport[] = [];
+    const startedAt = performance.now();
+    let visitedModules = 0;
+    let visitedCallsites = 0;
+    for (const projection of projections) {
+      const remainingTime = limits.analysisTimeoutMs - (performance.now() - startedAt);
+      if (
+        reports.length > 0 &&
+        (remainingTime <= 0 ||
+          visitedModules >= limits.graphMaxModules ||
+          visitedCallsites >= limits.graphMaxCallsites ||
+          input.signal?.aborted === true)
+      )
+        break;
+      const projectedCode = projection.code;
+      if (
+        projectedCode.length !== code.length ||
+        [...code.matchAll(/\r\n|\r|\n/gu)].some(
+          (match) =>
+            projectedCode.slice(match.index, match.index + match[0].length) !==
+            match[0],
+        )
+      ) {
+        throw new TypeError(
+          "Data-flow source projection changed original coordinates.",
+        );
+      }
+      const report = analyzeScope(
+        input,
+        { ...projection, code: projectedCode },
+        {
+          ...limits,
+          graphMaxModules: Math.max(1, limits.graphMaxModules - visitedModules),
+          graphMaxCallsites: Math.max(1, limits.graphMaxCallsites - visitedCallsites),
+          analysisTimeoutMs: Math.max(1, remainingTime),
+        },
+      );
+      reports.push(report);
+      visitedModules += Math.max(1, report.completeness.visitedModules);
+      visitedCallsites += report.completeness.visitedCallsites;
+    }
+    const first = reports[0];
+    if (first === undefined)
+      throw new TypeError("Data-flow source projection could not be analyzed.");
+    const complete =
+      reports.length === projections.length &&
+      reports.every((report) => report.completeness.complete);
+    const omittedScopes = reports.length < projections.length;
+    return Object.freeze({
+      ...first,
+      baseline: Object.freeze({
+        ...first.baseline,
+        analyzedSourceVersions: Object.freeze([
+          ...new Set(
+            reports.flatMap((report) => report.baseline.analyzedSourceVersions),
+          ),
+        ]),
+      }),
+      capability: Object.freeze({
+        ...first.capability,
+        staticAnalysis: complete ? "available" : "partial",
+        reasons: Object.freeze([
+          ...reports.flatMap((report) => report.capability.reasons),
+          ...(omittedScopes
+            ? [{ code: "DATA_FLOW_ANALYSIS_TRUNCATED" as const, retryable: false }]
+            : []),
+        ]),
+      }),
+      dependencies: Object.freeze([
+        ...new Map(
+          reports.flatMap((report) =>
+            report.dependencies.map(
+              (dependency) => [dependency.id, dependency] as const,
+            ),
+          ),
+        ).values(),
+      ]),
+      evidence: Object.freeze([
+        ...new Map(
+          reports.flatMap((report) =>
+            report.evidence.map((item) => [item.id, item] as const),
+          ),
+        ).values(),
+      ]),
+      diagnostics: Object.freeze([
+        ...reports.flatMap((report) => report.diagnostics),
+        ...(omittedScopes
+          ? [
+              diagnostic(
+                `${first.reportId}_scope_limit`,
+                "DATA_FLOW_ANALYSIS_TRUNCATED",
+                "warning",
+              ),
+            ]
+          : []),
+      ]),
+      completeness: Object.freeze({
+        complete,
+        visitedModules: reports.reduce(
+          (sum, report) => sum + report.completeness.visitedModules,
+          0,
+        ),
+        visitedCallsites: reports.reduce(
+          (sum, report) => sum + report.completeness.visitedCallsites,
+          0,
+        ),
+        frontierCount: reports.reduce(
+          (sum, report) => sum + report.completeness.frontierCount,
+          projections.length - reports.length,
+        ),
       }),
     });
   }

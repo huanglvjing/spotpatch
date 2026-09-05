@@ -288,6 +288,47 @@ describe("contextual Ask panel", () => {
     panel.dispose();
   });
 
+  it("selects models with keyboard, preserves refresh selection and locks while busy", () => {
+    const panel = createContextualAskPanel({
+      document,
+      locale: () => "en-US",
+      subscribeLocale: () => () => undefined,
+      changeRoot: document.createElement("div"),
+      changeActions: document.createElement("footer"),
+      announce: vi.fn(),
+      onModeChange: vi.fn(),
+      onExecutionChange: vi.fn(),
+      onViewChange: vi.fn(),
+    });
+    document.body.append(panel.root);
+    const first = capability.executors[0];
+    if (first === undefined) throw new Error("Missing executor");
+    const next = {
+      ...capability,
+      executors: [
+        { ...first, models: ["first", "second"], requestedModelLabel: "first" },
+      ],
+    };
+    panel.renderCapability(next);
+    const trigger =
+      panel.root.querySelectorAll<HTMLButtonElement>('[role="combobox"]')[1];
+    expect(trigger?.disabled).toBe(false);
+    expect(panel.readModel()).toBe("first");
+    trigger?.focus();
+    for (const key of ["ArrowDown", "End", "Enter"])
+      trigger?.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+    expect(panel.readModel()).toBe("second");
+    expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+    panel.renderCapability(next);
+    expect(panel.readModel()).toBe("second");
+    panel.setBusy(true);
+    expect(trigger?.disabled).toBe(true);
+    panel.setBusy(false);
+    panel.renderCapability(capability);
+    expect(panel.readModel()).toBeUndefined();
+    panel.dispose();
+  });
+
   it("renders long answers as inert text and exposes only controlled source buttons", () => {
     const panel = createContextualAskPanel({
       document,

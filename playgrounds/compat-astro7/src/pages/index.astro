@@ -1,0 +1,13 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import Card from '../components/Card.astro';
+---
+<!doctype html>
+<html lang="zh-CN">
+  <head><meta charset="utf-8" /><title>SpotPatch Astro fixture</title><ClientRouter /></head>
+  <body>
+    <h1>Astro source inspection</h1>
+    <Card><p id="slotted">插槽内容</p></Card>
+    <a href="/models/second">Next page</a>
+  </body>
+</html>

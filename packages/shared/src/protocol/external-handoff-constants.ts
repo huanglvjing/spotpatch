@@ -5,7 +5,11 @@ export const EXTERNAL_HANDOFF_STATES = Object.freeze([
   "expired",
   "superseded",
 ] as const);
-export const EXTERNAL_HANDOFF_FRAMEWORKS = Object.freeze(["vite", "next"] as const);
+export const EXTERNAL_HANDOFF_FRAMEWORKS = Object.freeze([
+  "vite",
+  "next",
+  "astro",
+] as const);
 export const EXTERNAL_HANDOFF_ACTIVE_ADAPTER_KINDS = Object.freeze([
   "claude-channel",
   "codex-app-server",

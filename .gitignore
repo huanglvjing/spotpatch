@@ -2,6 +2,8 @@ node_modules/
 dist/
 coverage/
 .turbo/
+.astro/
+playgrounds/compat-astro*/.fixture/
 .pnpm-store/
 
 playwright-report/

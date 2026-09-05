@@ -1,4 +1,5 @@
 import path from "node:path";
+import { realpath, stat } from "node:fs/promises";
 
 import {
   ERROR_CODES,
@@ -19,6 +20,7 @@ import {
 import { createSpotPatchBridgeClient } from "./client.js";
 import { resolveExactProjectSessionId } from "./discovery.js";
 import { serveSpotPatchMcp } from "./mcp.js";
+import { createManagedGrantStore } from "./supervisor/grant-store.js";
 import {
   applyBridgeSetupPlan,
   createBridgeSetupPlan,
@@ -122,7 +124,9 @@ function writeJson(
 
 function usage(stderr: Pick<NodeJS.WriteStream, "write">): void {
   stderr.write(
-    "Usage: spotpatch-bridge <sessions|current|wait|ack|mcp|channel|connect|setup> [options]\n",
+    "Usage: spotpatch-bridge <init|sessions|current|wait|ack|mcp|channel|connect|setup> [options]\n" +
+      "  init  Initialize and authorize managed Codex for this project, without a dev-terminal prompt.\n" +
+      "  Scope: isolated snapshot writes; SpotPatch audits, validates and applies eligible changes. Revoke in the panel.\n",
   );
 }
 
@@ -318,12 +322,40 @@ export async function runSpotPatchBridgeCli(
   const adapter = options.adapter ?? "bridge";
   const [command, ...rest] = arguments_;
 
+  if ((command === "--help" || command === "-h") && rest.length === 0) {
+    usage(stdout);
+    return 0;
+  }
+
   if (command === undefined) {
     usage(stderr);
     return 2;
   }
 
   try {
+    if (command === "init") {
+      allowedArguments(rest, ["--allow-managed-codex"], []);
+      const root = await realpath(cwd);
+      if (!(await stat(path.join(root, "package.json"))).isFile()) {
+        throw new SpotPatchError(ERROR_CODES.INVALID_REQUEST);
+      }
+      const store = await createManagedGrantStore({ root });
+      const state = await store.read();
+      if (state === "invalid") {
+        stderr.write(
+          "[spotpatch:bridge] Existing managed grant is invalid. Revoke it in the panel before initializing again.\n",
+        );
+        return 7;
+      }
+      if (state === "missing") await store.grant();
+      stdout.write(
+        `[spotpatch:bridge] Managed Codex authorized for ${root}.\n` +
+          "Scope: isolated snapshot writes; SpotPatch audits, validates and applies eligible changes. Revoke in the panel.\n" +
+          "Enable externalAgent in the integration, then connect in the panel. Codex authentication and protocol checks still apply.\n",
+      );
+      return 0;
+    }
+
     if (command === "mcp") {
       allowedArguments(rest, [], ["--session"]);
       const requestedSessionId = optionValue(rest, "--session");

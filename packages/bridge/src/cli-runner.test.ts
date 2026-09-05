@@ -12,6 +12,9 @@ import { createSpotPatchBridgeClient } from "./client.js";
 import { runSpotPatchBridgeCli } from "./cli-runner.js";
 import { resolveExactProjectSessionId } from "./discovery.js";
 import { serveSpotPatchMcp } from "./mcp.js";
+import { createManagedGrantStore } from "./supervisor/grant-store.js";
+
+vi.mock("./supervisor/grant-store.js", () => ({ createManagedGrantStore: vi.fn() }));
 
 vi.mock("./active/claude/index.js", () => ({
   serveClaudeChannelMcp: vi.fn(),
@@ -53,6 +56,7 @@ function output() {
 
 describe("SpotPatch bridge CLI", () => {
   beforeEach(() => {
+    vi.mocked(createManagedGrantStore).mockReset();
     vi.mocked(serveClaudeChannelMcp).mockReset();
     vi.mocked(connectCodexAppServer).mockReset();
     vi.mocked(createActiveEventPump).mockReset();
@@ -62,6 +66,88 @@ describe("SpotPatch bridge CLI", () => {
     vi.mocked(resolveExactProjectSessionId).mockImplementation((_cwd, requested) =>
       Promise.resolve(requested ?? "exact-session"),
     );
+  });
+
+  it.each(["vite", "next", "astro"] as const)(
+    "initializes %s project access once without starting Codex",
+    async (adapter) => {
+      const grant = vi.fn().mockResolvedValue(undefined);
+      const read = vi.fn().mockResolvedValueOnce("missing").mockResolvedValue("valid");
+      vi.mocked(createManagedGrantStore).mockResolvedValue({
+        projectKey: "test",
+        read,
+        grant,
+        touch: vi.fn(),
+        revoke: vi.fn(),
+      });
+      const stdout = output();
+      const stderr = output();
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        expect(
+          await runSpotPatchBridgeCli(
+            attempt === 0 ? ["init"] : ["init", "--allow-managed-codex"],
+            {
+              adapter,
+              stdout: stdout.stream,
+              stderr: stderr.stream,
+            },
+          ),
+        ).toBe(0);
+      }
+      expect(grant).toHaveBeenCalledTimes(1);
+      expect(stdout.value()).toContain("isolated snapshot writes");
+      expect(connectCodexAppServer).not.toHaveBeenCalled();
+      expect(stderr.value()).toBe("");
+    },
+  );
+
+  it("does not grant access with invalid flags", async () => {
+    for (const args of [
+      ["init", "--yes"],
+      ["init", "--allow-managed-codex", "--allow-managed-codex"],
+    ]) {
+      expect(
+        await runSpotPatchBridgeCli(args, {
+          stdout: output().stream,
+          stderr: output().stream,
+        }),
+      ).toBe(2);
+    }
+    expect(createManagedGrantStore).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite an invalid project grant", async () => {
+    const grant = vi.fn();
+    vi.mocked(createManagedGrantStore).mockResolvedValue({
+      projectKey: "test",
+      read: vi.fn().mockResolvedValue("invalid"),
+      grant,
+      touch: vi.fn(),
+      revoke: vi.fn(),
+    });
+    expect(
+      await runSpotPatchBridgeCli(["init"], {
+        stdout: output().stream,
+        stderr: output().stream,
+      }),
+    ).toBe(7);
+    expect(grant).not.toHaveBeenCalled();
+  });
+
+  it("shows help without discovering or connecting a project session", async () => {
+    const stdout = output();
+    const stderr = output();
+    await expect(
+      runSpotPatchBridgeCli(["--help"], {
+        adapter: "astro",
+        stdout: stdout.stream,
+        stderr: stderr.stream,
+      }),
+    ).resolves.toBe(0);
+    expect(stdout.value()).toContain("Usage: spotpatch-bridge");
+    expect(stderr.value()).toBe("");
+    expect(createSpotPatchBridgeClient).not.toHaveBeenCalled();
+    expect(connectCodexAppServer).not.toHaveBeenCalled();
   });
 
   it("uses the documented no-session exit code with stable JSON output", async () => {

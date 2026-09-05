@@ -35,7 +35,10 @@ const base = Object.freeze({
 } as const);
 
 describe("runtime config schema", () => {
-  it("accepts strict Vite and Next framework variants", () => {
+  it("accepts strict Vite, Astro and Next framework variants", () => {
+    expect(runtimeConfigSchema.safeParse({ ...base, framework: "astro" }).success).toBe(
+      true,
+    );
     expect(runtimeConfigSchema.safeParse({ ...base, framework: "vite" }).success).toBe(
       true,
     );

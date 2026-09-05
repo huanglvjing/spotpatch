@@ -2,8 +2,8 @@
 doc-id: "03-public-api-models"
 title: "公共 API 与数据模型"
 status: "active"
-version: "1.8.0"
-last-updated: "2026-08-13"
+version: "1.9.0"
+last-updated: "2026-09-05"
 source-range: "规格书 §6、§6.1、§7；v1.1–v1.7 既有模型；v1.8 可选组件数据链路 Beta 配置与严格 DTO"
 参考文献/依赖:
   - "04-vite-plugin"
@@ -17,6 +17,8 @@ source-range: "规格书 §6、§6.1、§7；v1.1–v1.7 既有模型；v1.8 可
 ---
 
 # 公共 API 与数据模型
+
+Astro 补充（2026-09-05）：`@spotpatch/astro` 导出 default/named `spotPatch`，`AstroSpotPatchOptions` 直接复用公共 `SpotPatchOptions`。默认 include 为 root 内 `**/*.{astro,js,jsx,ts,tsx}`，接入 dataFlow/externalAgent/contextualAsk/trustedFastMode。Runtime framework=`astro`、frameworkVersion=实际宿主版本。数据依赖可带 environment=server/client；server 静态证据不能由浏览器观测升级。生命周期与支持边界见 [Astro 功能对齐规范](./Astro适配/02-功能对齐实施方案.md)。
 
 本文件是公共配置、默认值和核心数据模型的唯一事实来源。内部模块不得重复定义这些类型、默认值或枚举字符串。
 
@@ -333,6 +335,7 @@ export type SourceConfidence =
 
 export type SourceOrigin =
   | "jsx-host"
+  | "astro-host"
   | "react-fiber"
   | "dom-ancestor"
   | "none";
@@ -385,7 +388,7 @@ export interface StyleContext {
 
 export interface CodeContext {
   readonly relativePath: string;
-  readonly language: "tsx" | "jsx";
+  readonly language: "tsx" | "jsx" | "astro";
   readonly startLine: number;
   readonly endLine: number;
   readonly excerpt: string;

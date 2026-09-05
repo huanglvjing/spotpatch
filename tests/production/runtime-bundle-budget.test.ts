@@ -12,6 +12,10 @@ import { describe, expect, it } from "vitest";
 // transport and UI stay outside this bundle, and 50 KiB keeps a bounded
 // cross-platform zlib margin.
 const RUNTIME_GZIP_BUDGET_BYTES = 50 * 1024;
+// Astro's independently bundled bootstrap includes its lifecycle and native
+// framework configuration. macOS Node 26 measured 52,720 bytes; 54 KiB allows
+// a bounded cross-platform margin without relaxing the Vite budget.
+const ASTRO_RUNTIME_GZIP_BUDGET_BYTES = 54 * 1024;
 // Browser validation, NDJSON transport, localized UI, and answer rendering are
 // intentionally isolated. Ubuntu Node 22 measured 14,344 bytes, so 15 KiB
 // keeps a bounded cross-platform zlib margin.
@@ -37,6 +41,34 @@ const serverOnlySignatures = [
 ] as const;
 
 describe("runtime browser bundle budget", () => {
+  it.each([
+    ["client.js", ASTRO_RUNTIME_GZIP_BUDGET_BYTES],
+    ["runtime-contextual-ask.js", CONTEXTUAL_ASK_PANEL_GZIP_BUDGET_BYTES],
+    ["runtime-data-flow.js", DATA_FLOW_PRELUDE_GZIP_BUDGET_BYTES],
+    ["runtime-data-flow-panel.js", DATA_FLOW_PANEL_GZIP_BUDGET_BYTES],
+    ["runtime-external-handoff.js", EXTERNAL_HANDOFF_PANEL_GZIP_BUDGET_BYTES],
+    ["runtime-motion.js", MOTION_GZIP_BUDGET_BYTES],
+  ] as const)(
+    "keeps Astro %s isolated and within its %i-byte gzip budget",
+    async (file, budget) => {
+      const bundle = await readFile(`packages/astro/dist/${file}`);
+      const source = bundle.toString("utf8");
+      expect(gzipSync(bundle, { level: 9 }).byteLength).toBeLessThan(budget);
+      for (const signature of serverOnlySignatures)
+        expect(source).not.toContain(signature);
+      if (file === "client.js") {
+        for (const signature of [
+          "spotpatch-data-flow-card",
+          "spotpatch-ask-panel",
+          "spotpatch-external-handoff",
+          "spotpatch-island-sweep",
+        ]) {
+          expect(source).not.toContain(signature);
+        }
+      }
+    },
+  );
+
   it("stays below the gzip limit and excludes Node-only dependencies", async () => {
     const bundle = await readFile("packages/vite/dist/runtime-client.js");
     const source = bundle.toString("utf8");

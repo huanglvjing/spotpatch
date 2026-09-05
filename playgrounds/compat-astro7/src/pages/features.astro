@@ -1,0 +1,22 @@
+---
+import { ClientRouter } from "astro:transitions";
+import Island from "../components/Island";
+---
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Astro feature parity</title><ClientRouter /></head>
+  <body>
+    <h1>Astro feature parity</h1>
+    <button id="native-load">Native 0</button>
+    <Island client:load />
+    <a href="/models/second">Next page</a>
+    <script>
+      const button = document.querySelector<HTMLButtonElement>("#native-load");
+      let count = 0;
+      button?.addEventListener("click", async () => {
+        const response = await fetch("/models/api/data.json?native=private");
+        if (response.ok && button) button.textContent = `Native ${++count}`;
+      });
+    </script>
+  </body>
+</html>

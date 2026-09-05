@@ -1,6 +1,7 @@
 export type SourceConfidence = "exact" | "probable" | "approximate" | "unknown";
 
-export type SourceOrigin = "jsx-host" | "react-fiber" | "dom-ancestor" | "none";
+export type SourceOrigin =
+  "jsx-host" | "astro-host" | "react-fiber" | "dom-ancestor" | "none";
 
 export interface SourceRef {
   readonly fileId?: string;

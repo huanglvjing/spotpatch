@@ -8,6 +8,8 @@ import type {
 } from "./data-flow-panel-contract.js";
 
 interface Labels {
+  readonly server: string;
+  readonly client: string;
   readonly bindings: string;
   readonly changes: string;
   readonly componentEmpty: string;
@@ -33,6 +35,8 @@ interface Labels {
 
 const LABELS = Object.freeze({
   "zh-CN": Object.freeze({
+    server: "服务端（静态证据）",
+    client: "浏览器",
     bindings: "数据去向",
     changes: "修改说明",
     componentEmpty: "当前组件没有找到可证明的接口。未找到不等于没有请求。",
@@ -56,6 +60,8 @@ const LABELS = Object.freeze({
     unknown: "未知",
   }),
   "en-US": Object.freeze({
+    server: "Server (static evidence)",
+    client: "Browser",
     bindings: "Data destinations",
     changes: "Changes",
     componentEmpty:
@@ -140,6 +146,8 @@ function renderDependency(
     badge(document, dependency.association, "neutral"),
   );
   header.append(endpoint, states);
+  if (dependency.environment !== undefined)
+    states.append(badge(document, labels[dependency.environment], "neutral"));
 
   const parameters =
     dependency.parameters.length === 0

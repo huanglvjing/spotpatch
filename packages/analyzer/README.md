@@ -8,6 +8,8 @@ Applications should install a framework adapter such as [`@spotpatch/vite`](http
 
 The analyzer never executes project source and does not own HTTP endpoints, browser recording, UI, credentials, or AI. It does not collect request/response values. Unsupported or budget-truncated paths remain partial or unknown instead of being guessed.
 
+Adapters may provide original-coordinate `projectSource` scopes. Astro separates server/template and browser-script bindings while retaining physical-file hashes and a shared file-level analysis budget. Reports label server/client evidence; static server requests do not become browser-observed requests.
+
 Requires Node.js `>=20.19.0`.
 
 ## 简体中文

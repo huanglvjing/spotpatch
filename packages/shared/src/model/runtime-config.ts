@@ -45,6 +45,9 @@ export type SpotPatchRuntimeConfig = RuntimeConfigBase &
         framework: "vite";
       }>
     | Readonly<{
+        framework: "astro";
+      }>
+    | Readonly<{
         bundler: SpotPatchNextBundler;
         framework: "next";
         routerKind: SpotPatchNextRouterKind;
@@ -129,6 +132,10 @@ const runtimeConfigBaseShape = {
 
 export const runtimeConfigSchema: z.ZodType<SpotPatchRuntimeConfig> =
   z.discriminatedUnion("framework", [
+    z.strictObject({
+      ...runtimeConfigBaseShape,
+      framework: z.literal("astro"),
+    }),
     z.strictObject({
       ...runtimeConfigBaseShape,
       framework: z.literal("vite"),

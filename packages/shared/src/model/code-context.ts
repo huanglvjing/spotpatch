@@ -9,7 +9,7 @@ export interface ContextBudget {
 
 export interface CodeContext {
   readonly relativePath: string;
-  readonly language: "tsx" | "jsx";
+  readonly language: "tsx" | "jsx" | "astro";
   readonly startLine: number;
   readonly endLine: number;
   readonly excerpt: string;

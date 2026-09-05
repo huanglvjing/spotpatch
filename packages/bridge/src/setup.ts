@@ -9,7 +9,7 @@ import {
   SpotPatchError,
 } from "@spotpatch/shared";
 
-export type BridgeCliAdapter = "bridge" | "next" | "vite";
+export type BridgeCliAdapter = "bridge" | "next" | "vite" | "astro";
 export type BridgeSetupClient = "claude" | "codex" | "cursor";
 export type BridgeSetupMode = "active" | "inbox";
 export const BRIDGE_MCP_TOOL_TIMEOUT_SECONDS = 30;
@@ -45,17 +45,9 @@ function connectorArguments(
 ): readonly string[] {
   const command = mode === "active" ? ["channel", "claude"] : ["mcp"];
 
-  if (adapter === "vite") {
+  if (adapter !== "bridge") {
     return Object.freeze([
-      "./node_modules/@spotpatch/vite/dist/cli.js",
-      "bridge",
-      ...command,
-    ]);
-  }
-
-  if (adapter === "next") {
-    return Object.freeze([
-      "./node_modules/@spotpatch/next/dist/cli.js",
+      `./node_modules/@spotpatch/${adapter}/dist/cli.js`,
       "bridge",
       ...command,
     ]);

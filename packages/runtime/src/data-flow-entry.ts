@@ -2,6 +2,7 @@ export {
   createDataFlowRuntime,
   getDataFlowRuntime,
   installDataFlowPrelude,
+  disposeDataFlowPrelude,
   type DataFlowComponentRegistration,
   type DataFlowInvocationToken,
   type DataFlowObservationPolicy,

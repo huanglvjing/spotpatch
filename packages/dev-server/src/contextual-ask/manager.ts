@@ -39,6 +39,7 @@ import { ContextualAskError, asContextualAskError } from "./error.js";
 import {
   captureAskReadSnapshot,
   type CapturedAskReadSnapshot,
+  type CaptureAskReadSnapshotOptions,
 } from "./read-snapshot.js";
 
 const ACTIVE_STATUSES = new Set<AskJobStatus>([
@@ -91,6 +92,7 @@ interface ContextualAskManagerDependencies {
 }
 
 export interface CreateContextualAskManagerOptions {
+  readonly resolveSourceImports?: CaptureAskReadSnapshotOptions["resolveSourceImports"];
   readonly coordinator: WorkspaceActivityCoordinator;
   readonly enabled: boolean;
   readonly executors?: readonly ContextualAskExecutor[];
@@ -111,6 +113,7 @@ function fingerprint(request: AskJobCreateRequest): string {
       JSON.stringify({
         envelope: request.envelope,
         executorId: request.executorId,
+        model: request.model,
         providerDataConsent: request.providerDataConsent,
       }),
     )
@@ -478,6 +481,9 @@ export function createContextualAskManager(
         selection: job.request.envelope.selection,
         signal: job.controller.signal,
         createHandleId: dependencies.createId,
+        ...(options.resolveSourceImports === undefined
+          ? {}
+          : { resolveSourceImports: options.resolveSourceImports }),
       });
       if (job.controller.signal.aborted) {
         captured.dispose();
@@ -491,6 +497,7 @@ export function createContextualAskManager(
         job.executor.execute(
           {
             jobId: job.id,
+            ...(job.request.model === undefined ? {} : { model: job.request.model }),
             envelope: job.request.envelope,
             grant: captured.grant,
             snapshot: instrumentSnapshot(job, captured.snapshot, () => {
@@ -617,6 +624,12 @@ export function createContextualAskManager(
           );
           if (isClosed()) throw new ContextualAskError("ASK_DISABLED");
           if (
+            request.model !== undefined &&
+            !capability.models?.includes(request.model)
+          ) {
+            throw new ContextualAskError("ASK_EXECUTOR_UNAVAILABLE");
+          }
+          if (
             capability.executorId !== executor.executorId ||
             capability.state !== "ready" ||
             !capability.readOnlyProven
@@ -636,7 +649,14 @@ export function createContextualAskManager(
             createdAt,
             events: [],
             executor,
-            executorCapability: capability,
+            executorCapability:
+              request.model === undefined
+                ? capability
+                : {
+                    ...capability,
+                    requestedModelLabel: request.model,
+                    effectiveModelLabel: request.model,
+                  },
             fingerprint: requestFingerprint,
             id: dependencies.createId(),
             lease,

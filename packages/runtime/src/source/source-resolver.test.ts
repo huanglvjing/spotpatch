@@ -21,6 +21,27 @@ function createAdapter(context: ReactContext = unsupported): ReactAdapter {
 }
 
 describe("element source resolver", () => {
+  it("identifies Astro markers without claiming a React component", () => {
+    const element = document.createElement("button");
+    element.setAttribute(SOURCE_MARKER_ATTRIBUTE, "opaque:4:8:astro");
+    const resolver = createSourceResolver({ adapter: createAdapter() });
+    expect(resolver.resolve(element)).toMatchObject({
+      source: {
+        fileId: "opaque",
+        line: 4,
+        column: 8,
+        origin: "astro-host",
+        confidence: "exact",
+      },
+      react: { supported: false, componentStack: [] },
+    });
+    const child = document.createElement("span");
+    element.append(child);
+    expect(resolver.resolve(child).source).toMatchObject({
+      origin: "dom-ancestor",
+      confidence: "approximate",
+    });
+  });
   it("prefers an exact marker on the selected host element", () => {
     const element = document.createElement("button");
     element.setAttribute(SOURCE_MARKER_ATTRIBUTE, "exact-file:10:4");

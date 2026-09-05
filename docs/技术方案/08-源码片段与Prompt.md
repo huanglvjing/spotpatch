@@ -2,8 +2,8 @@
 doc-id: "08-code-prompt"
 title: "源码片段与 Prompt"
 status: "active"
-version: "1.4.0"
-last-updated: "2026-08-11"
+version: "1.5.0"
+last-updated: "2026-09-05"
 source-range: "规格书 §2.5、§16、§16.1–§16.2、§17、§17.1–§17.2；v1.1 Agent Prompt 边界；v1.2 多目标 Prompt；v1.3 逐目标说明与双语输出；v1.4 有界项目规范与验证元数据"
 参考文献/依赖:
   - "03-public-api-models"
@@ -18,6 +18,8 @@ source-range: "规格书 §2.5、§16、§16.1–§16.2、§17、§17.1–§17.2
 ---
 
 # 源码片段与 Prompt
+
+Astro 补充（2026-09-05）：允许已登记的 `.astro` 返回 language=astro、boundary=nearby-lines，沿用行数/字符预算及脱敏，不使用 JSX component 提取器解析 frontmatter。Prompt 用 astro 代码围栏；不虚构组件边界、数据流或 React 所属关系。详见 [Astro 规范](./Astro适配/00-方案与验收.md)。
 
 v1 只在本地组织上下文，不调用 AI；v1.1 可在用户显式启用后把同一份清洗上下文交给本地 Agent Engine。两者的版本边界受架构决策约束 (见 doc-id:15-risks-adr)。
 

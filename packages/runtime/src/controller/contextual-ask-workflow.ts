@@ -124,6 +124,7 @@ export function createContextualAskWorkflow(
     }
 
     const requestRevision = ++revision;
+    const model = input.panel.readModel();
     currentQuestion = question;
     busy = true;
     input.onBusyChange(true);
@@ -136,6 +137,7 @@ export function createContextualAskWorkflow(
         requestId: input.createId(),
         envelope,
         executorId,
+        ...(model === undefined ? {} : { model }),
         providerDataConsent: true,
       });
       if (!isCurrent(requestRevision)) return;

@@ -8,6 +8,8 @@ Applications should install a framework adapter such as [`@spotpatch/vite`](http
 
 The service is development-only. Production adapters must omit it together with all private endpoints and source-registration state.
 
+`createDevelopmentSession` owns the common AI, read-only Ask, external handoff and middleware lifecycle for Vite, Next and Astro. Frameworks inject bridge/validation/source-projection factories, retain their own transports, and call the idempotent `close()` on shutdown. Astro source imports remain subject to the same registry, path and read-budget authorization.
+
 Requires Node.js `>=20.19.0`.
 
 ## 简体中文

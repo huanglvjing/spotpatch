@@ -49,7 +49,7 @@ function ancestorMarker(element: Element): SourceMarker | undefined {
 
 function markerSource(
   marker: SourceMarker,
-  origin: "jsx-host" | "dom-ancestor",
+  origin: "jsx-host" | "astro-host" | "dom-ancestor",
   confidence: "exact" | "approximate",
 ): SourceRef {
   return Object.freeze({
@@ -104,7 +104,11 @@ export function createSourceResolver(
       if (marker !== undefined) {
         return Object.freeze({
           react,
-          source: markerSource(marker, "jsx-host", "exact"),
+          source: markerSource(
+            marker,
+            marker.kind === "astro" ? "astro-host" : "jsx-host",
+            "exact",
+          ),
         });
       }
 

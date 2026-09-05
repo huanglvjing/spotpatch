@@ -1,0 +1,74 @@
+{
+  "name": "@spotpatch/astro",
+  "version": "0.0.0",
+  "description": "Development-only Astro integration for SpotPatch source-aware UI feedback.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/huanglvjing/spotpatch.git",
+    "directory": "packages/astro"
+  },
+  "homepage": "https://github.com/huanglvjing/spotpatch#readme",
+  "bugs": {
+    "url": "https://github.com/huanglvjing/spotpatch/issues"
+  },
+  "keywords": [
+    "spotpatch",
+    "astro",
+    "astro-integration",
+    "developer-tools"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "spotpatch-astro": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "build": "pnpm clean && tsup --config tsup.config.ts",
+    "clean": "node --input-type=module -e \"import { rmSync } from 'node:fs'; rmSync('dist', { recursive: true, force: true })\"",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@astrojs/compiler-rs": "0.4.0",
+    "@rollup/pluginutils": "5.4.0",
+    "@spotpatch/compiler": "workspace:^",
+    "@spotpatch/bridge": "workspace:^",
+    "@spotpatch/dev-server": "workspace:^",
+    "@spotpatch/runtime": "workspace:^",
+    "@spotpatch/shared": "workspace:^",
+    "magic-string": "1.1.0",
+    "vite": "8.2.2"
+  },
+  "peerDependencies": {
+    "astro": "^5.0.0 || ^6.0.0 || ^7.0.0"
+  },
+  "devDependencies": {
+    "@spotpatch/analyzer": "workspace:^",
+    "astro": "7.2.8"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

@@ -1,9 +1,6 @@
-import { createInterface } from "node:readline/promises";
-
 import {
   ERROR_CODES,
   EXTERNAL_AGENT_CONTROL_SCHEMA_VERSION,
-  EXTERNAL_AGENT_MANAGED_PROFILE,
   SpotPatchError,
   externalAgentControlStatusSchema,
   externalAgentManagedResultSchema,
@@ -303,30 +300,6 @@ function managedExecutionError(
   }
 }
 
-async function defaultTerminalConfirmation(projectLabel: string): Promise<boolean> {
-  if (!process.stdin.isTTY || !process.stdout.isTTY) return false;
-  const reader = createInterface({ input: process.stdin, output: process.stdout });
-
-  try {
-    process.stdout.write(
-      [
-        "\nSpotPatch managed Agent access request",
-        `Project: ${projectLabel}`,
-        "Adapter: Codex",
-        `Profile: ${EXTERNAL_AGENT_MANAGED_PROFILE}`,
-        "Codex may write only an independent temporary snapshot. SpotPatch audits, validates, and applies eligible changes.",
-        "You can revoke this grant from the SpotPatch panel.",
-      ].join("\n") + "\n",
-    );
-    const answer = (await reader.question('Type "yes" to grant access: '))
-      .trim()
-      .toLowerCase();
-    return answer === "yes";
-  } finally {
-    reader.close();
-  }
-}
-
 function requestFingerprint(value: unknown): string {
   return JSON.stringify(value);
 }
@@ -486,17 +459,22 @@ export async function createExternalAgentSupervisor(
     }
     if (grantState === "missing") {
       publish({ grantState, connectionState: "awaiting-consent", mode: "inbox" });
-      if (!allowPrompt) return status;
-      const confirmed = await (
-        options.confirmManagedAccess ?? defaultTerminalConfirmation
-      )(options.projectLabel ?? grantStore.projectKey.slice(0, 12));
+      if (!allowPrompt || options.confirmManagedAccess === undefined) return status;
+      const confirmed = await options.confirmManagedAccess(
+        options.projectLabel ?? grantStore.projectKey.slice(0, 12),
+      );
       if (!confirmed) return status;
       await grantStore.grant();
       grantState = "valid";
       publish({ grantState });
     }
 
-    publish({ connectionState: "connecting", mode: "inbox", error: undefined });
+    publish({
+      grantState,
+      connectionState: "connecting",
+      mode: "inbox",
+      error: undefined,
+    });
     const controller = new AbortController();
     const execution = createManagedExecutionRunner({
       root: options.root,

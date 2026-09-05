@@ -7,6 +7,7 @@ import type {
   RuntimeAiConfig,
   SpotPatchLocale,
   SpotPatchLocalePreference,
+  SpotPatchRuntimeConfig,
 } from "@spotpatch/shared";
 import {
   MAX_ANNOTATION_INSTRUCTION_CHARACTERS,
@@ -865,7 +866,7 @@ export function createRuntimeView(
   localePreference: SpotPatchLocalePreference = "auto",
   dataFlowEnabled = false,
   externalAgentEnabled = false,
-  framework: "vite" | "next" = "vite",
+  framework: SpotPatchRuntimeConfig["framework"] = "vite",
   sessionId = "",
   contextualAskEnabled = false,
 ): RuntimeView {

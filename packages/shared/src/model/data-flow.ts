@@ -150,6 +150,7 @@ export interface DataDependency {
   readonly kind: "http" | "graphql" | "rpc" | "server-action" | "unknown";
   readonly direction: "read" | "write" | "read-write" | "unknown";
   readonly execution: ExecutionState;
+  readonly environment?: "server" | "client";
   readonly proof: ProofState;
   readonly association: AssociationKind;
   readonly method?: string;
@@ -336,6 +337,7 @@ export const dataDependencySchema = z.strictObject({
   kind: z.enum(["http", "graphql", "rpc", "server-action", "unknown"]),
   direction: z.enum(["read", "write", "read-write", "unknown"]),
   execution: z.enum(DATA_FLOW_EXECUTION_STATES),
+  environment: z.enum(["server", "client"]).optional(),
   proof: z.enum(DATA_FLOW_PROOF_STATES),
   association: z.enum(DATA_FLOW_ASSOCIATION_KINDS),
   method: boundedText(32).optional(),

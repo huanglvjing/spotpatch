@@ -45,6 +45,7 @@ export interface ContextualAskPanel {
   ) => void;
   readonly readConsent: () => boolean;
   readonly readExecutorId: () => string | undefined;
+  readonly readModel: () => string | undefined;
   readonly readQuestion: () => string;
   readonly renderAnswer: (result: AskAnswerResult, stale: boolean) => void;
   readonly renderCapability: (capability?: ContextualAskCapability) => void;

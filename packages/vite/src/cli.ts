@@ -16,8 +16,8 @@ const VERSION_PATTERN = /^(\d+)\.(\d+)\.(\d+)(?:-[0-9A-Za-z.-]+)?$/u;
 function writeUsage(): void {
   process.stderr.write(
     "Usage: spotpatch-vite <setup|init|check|connect|bridge>\n" +
-      "  setup  Install this CLI's exact @spotpatch/vite version, then initialize it.\n" +
-      "  init   Preview and apply safe Vite integration changes.\n" +
+      "  setup  Install this CLI's exact version, then initialize it.\n" +
+      "  init   Apply safe Vite integration changes; initialize managed Codex project authorization.\n" +
       "  check  Verify the Vite integration without writing files.\n" +
       "  connect codex  Start the zero-setup Codex Agent connector.\n" +
       "  bridge Run the local external-Agent MCP, CLI, or setup commands.\n",
@@ -78,8 +78,11 @@ function writeTrustedModeStatus(available: boolean): void {
 }
 
 async function runInit(arguments_: readonly string[]): Promise<number> {
-  if (arguments_.length !== 0) {
-    throw new Error("SpotPatch init does not accept positional arguments.");
+  if (
+    arguments_.length > 1 ||
+    (arguments_.length === 1 && arguments_[0] !== "--allow-managed-codex")
+  ) {
+    throw new Error("Usage: init");
   }
 
   await inspectViteProject();
@@ -88,7 +91,7 @@ async function runInit(arguments_: readonly string[]): Promise<number> {
   if (plan.changes.length === 0) {
     process.stdout.write("[spotpatch:vite] integration is already up to date.\n");
     writeTrustedModeStatus(plan.trustedFastModeAvailable);
-    return 0;
+    return runSpotPatchBridgeCli(["init"], { adapter: "vite" });
   }
 
   process.stdout.write("[spotpatch:vite] integration preview (resulting files):\n");
@@ -107,17 +110,20 @@ async function runInit(arguments_: readonly string[]): Promise<number> {
   );
   writeTrustedModeStatus(plan.trustedFastModeAvailable);
 
-  return 0;
+  return runSpotPatchBridgeCli(["init"], { adapter: "vite" });
 }
 
 async function runSetup(arguments_: readonly string[]): Promise<number> {
-  if (arguments_.length !== 0) {
-    throw new Error("SpotPatch setup does not accept positional arguments.");
+  if (
+    arguments_.length > 1 ||
+    (arguments_.length === 1 && arguments_[0] !== "--allow-managed-codex")
+  ) {
+    throw new Error("Usage: setup");
   }
 
   const packageManager = await detectPackageManager();
   await installCurrentAdapter(packageManager);
-  return runInit([]);
+  return runInit(arguments_);
 }
 
 async function runCheck(arguments_: readonly string[]): Promise<number> {

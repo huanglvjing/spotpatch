@@ -61,7 +61,7 @@ export async function readSourceContext(
     source,
     sourcePath,
     relativePath: toDisplayPath(await realpath(options.root), sourcePath),
-    language: extension === ".tsx" ? "tsx" : "jsx",
+    language: extension === ".astro" ? "astro" : extension === ".tsx" ? "tsx" : "jsx",
     line: options.request.line,
     column: options.request.column,
     maxLines: Math.min(options.request.maxLines, options.maxLines),

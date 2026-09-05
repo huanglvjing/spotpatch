@@ -1,4 +1,9 @@
-import type { CodeContext, SourceConfidence, StyleContext } from "@spotpatch/shared";
+import type {
+  CodeContext,
+  SourceConfidence,
+  SpotPatchRuntimeConfig,
+  StyleContext,
+} from "@spotpatch/shared";
 
 import type { ElementSourceResolution } from "../source/source-resolver.js";
 
@@ -9,7 +14,7 @@ export interface SelectionSummaryInput {
   readonly apiStatus: ApiConnectionStatus;
   readonly code?: CodeContext;
   readonly collectionStatus: CollectionStatus;
-  readonly framework: "next" | "vite";
+  readonly framework: SpotPatchRuntimeConfig["framework"];
   readonly frameworkVersion: string;
   readonly resolution: ElementSourceResolution;
   readonly spotPatchVersion: string;
@@ -70,7 +75,7 @@ export function createSelectionSummary(
 ): string {
   const lines = [
     `SpotPatch: ${input.spotPatchVersion}`,
-    `${input.framework === "next" ? "Next.js" : "Vite"}: ${input.frameworkVersion}`,
+    `${{ next: "Next.js", vite: "Vite", astro: "Astro" }[input.framework]}: ${input.frameworkVersion}`,
     `${messages.source}: ${sourceLocation(input.resolution, input.code, messages)}`,
     `${messages.confidence}: ${input.resolution.source.confidence} (${messages.confidenceLabels[input.resolution.source.confidence]})`,
     `${messages.origin}: ${input.resolution.source.origin}`,

@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import {
   ERROR_CODES,
   EXTERNAL_HANDOFF_LIMITS,
+  EXTERNAL_HANDOFF_FRAMEWORKS,
   SpotPatchError,
   externalHandoffSnapshotSchema,
   externalHandoffSummarySchema,
@@ -38,7 +39,7 @@ import {
 
 const sessionListItemSchema = z.strictObject({
   sessionId: z.string(),
-  framework: z.enum(["vite", "next"]),
+  framework: z.enum(EXTERNAL_HANDOFF_FRAMEWORKS),
   current: externalHandoffSummarySchema.nullable(),
 });
 export const externalAgentSessionListSchema = z.array(sessionListItemSchema);

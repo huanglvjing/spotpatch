@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 import { formatSourceMarker, parseSourceMarker } from "./source-marker.js";
 
 describe("source marker", () => {
+  it("round-trips Astro while keeping legacy markers unchanged", () => {
+    const marker = { fileId: "opaque", line: 2, column: 3, kind: "astro" as const };
+    expect(formatSourceMarker(marker)).toBe("opaque:2:3:astro");
+    expect(parseSourceMarker(formatSourceMarker(marker))).toEqual(marker);
+    expect(parseSourceMarker("opaque:2:3:vue")).toBeUndefined();
+  });
   it("round-trips a valid marker", () => {
     const marker = Object.freeze({ fileId: "Q7k3pA9vL2s", line: 36, column: 5 });
 

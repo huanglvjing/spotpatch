@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  一个本地优先、仅在开发期运行的 React 页面反馈工作台。
+  一个本地优先、仅在开发期运行的 React 页面反馈工作台，新增 Astro 源码预览适配。
 </p>
 
 <p align="center">
@@ -38,6 +38,7 @@ SpotPatch 把真实 React 页面转换成准确、可复用的开发上下文。
 
 > [!IMPORTANT]
 > `@spotpatch/vite` 是当前正式支持的公共接入包。可安装的 [Next.js 适配器](./packages/next/README.md#简体中文)是 **0.x 公共预览版**，尚未进入公共支持矩阵。
+> 新增 [`@spotpatch/astro`](./packages/astro/README.md#简体中文) **未发布源码预览**，支持原生 Astro 模板，能力边界与 React 适配器不同。
 
 **从这里开始：** [Vite 快速开始](#快速开始vite) · [界面流程](#从页面到源码的四步流程) · [外部 Agent](#外部-agent-交接本地验证) · [数据链路 Beta](#组件数据链路beta) · [可选 AI](#可选-ai-agent)
 
@@ -210,6 +211,12 @@ export default withSpotPatch({ dataFlow: {} })(nextConfig);
 
 ## 可选 AI Agent
 
+首次接入可显式一次授权，之后无需再去开发终端输入 `yes`：在项目根执行对应的 `pnpm exec spotpatch-vite init`、`pnpm exec spotpatch-next init`；Astro 先安装并配置 integration，再执行 `pnpm exec spotpatch-astro init`（Astro 此命令只初始化授权）。
+
+已经接入的项目，三个适配器均支持 `bridge init`，不会重写接入配置。执行初始化即授权隔离快照修改及 SpotPatch 审计、校验后的合规回写；授权保存在当前用户私有目录、绑定规范化项目路径、不进入 Git，可在面板撤销。仍需启用 `externalAgent: true`，并满足本机 Codex 安装、登录和协议检查；无需附加授权参数或交互确认，旧参数仅作为兼容入口保留。
+
+启用 `contextualAsk: true` 后，选中元素即可切换到只读问答。Managed Codex 提供独立的「模型」下拉框，列表来自本机 app-server，不硬编码模型名；提交和执行时校验选择，失效时明确报错，不静默退回默认模型。配置 Key 的模型仍通过服务端配置的执行器档案选择。Vite、Next.js、Astro 共用该实现，不修改全局 Codex 配置；模型可列出不等于所有模型的真实请求都已验证成功。
+
 只有完整的 Provider 配置可用时 AI 才会启用。最小接入只需在 Git 忽略的 `.env.local` 中提供以下内容，不需要修改 `spotPatch()`：
 
 ```dotenv
@@ -312,6 +319,14 @@ pnpm dev
 
 生成文件示例、生产命令、已知限制和证据边界见完整的 [`@spotpatch/next` 公共预览指南](./packages/next/README.md#简体中文)。作出兼容性声明前，必须核对 [Next.js 适配计划](./docs/技术方案/Next适配/00-索引与架构摘要.md)和[剩余支持门禁](./docs/技术方案/Next适配/08-测试验收与实施计划.md)。
 
+## Astro 源码预览
+
+新增 [`@spotpatch/astro`](./packages/astro/README.md#简体中文) 平级适配器，不需要安装 React。复用元素选择、DOM/CSS、双语多目标 Prompt、编辑器跳转和配置 Key 的 AI 审阅流程。版本化 fixture 覆盖 Astro 5.18.2 / 6.4.8 / 7.2.8；要求 Node.js 22.12+。
+
+先在仓库运行 `pnpm --filter @spotpatch/astro... build`，再按[本地链接与配置说明](./packages/astro/README.md#use-the-source-preview)接入。配置放入 Astro 的 `integrations`，不要放入 `vite.plugins`。本次**未执行 npm 发布**，不能用 registry 命令安装这份未发布改动；包 README 已分别说明当前本地命令与未来发布后的安装命令。
+
+已接入 React 岛屿标记、原生/浏览器数据链路、只读 Ask、外部 Agent Inbox/托管控制及 Astro 专用可信快速检查，复用既有公共服务。这些功能按配置启用；服务端请求仍是静态证据，不把 inline 脚本改成模块，外部 Agent 实验模式仍保留原有成熟度限制。详见[功能对齐方案与本轮验收证据](./docs/技术方案/Astro适配/02-功能对齐实施方案.md)。
+
 ## 配置
 
 Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
@@ -354,6 +369,7 @@ Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 | ------------------------------------------------------------------ | ------------------------------------------ | ----------------------- |
 | [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | 正式支持的 Vite 接入                       | **是**                  |
 | [`@spotpatch/next`](./packages/next/README.md#简体中文)            | 可安装的 Next.js 0.x 公共预览              | 仅供预览，尚未正式支持  |
+| [`@spotpatch/astro`](./packages/astro/README.md#简体中文)          | 原生 Astro 模板开发集成                    | 未发布源码预览          |
 | `@spotpatch/compiler`                                              | 框架无关 JSX/TSX 标记编译器                | 适配器基础设施          |
 | `@spotpatch/analyzer`                                              | Node-only 组件/请求语义分析器              | 适配器基础设施，仅 Node |
 | `@spotpatch/dev-server`                                            | 本地会话、源码访问、编辑器与 Agent 编排    | 适配器基础设施，仅 Node |

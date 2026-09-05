@@ -6,6 +6,7 @@ import {
   ASK_SOURCE_CONFIDENCES,
   CONTEXTUAL_ASK_EXECUTOR_KINDS,
   CONTEXTUAL_ASK_EXECUTOR_STATES,
+  CONTEXTUAL_ASK_LIMITS,
   CONTEXTUAL_ASK_SCHEMA_VERSION,
   isErrorCode,
   type AskAnswerBlock,
@@ -88,13 +89,23 @@ function isExecutorCapability(
         "providerDataConsentRequired",
         "readOnlyProven",
       ],
-      ["errorCode"],
+      ["errorCode", "models"],
     ) ||
     !isOpaqueId(value.executorId) ||
     !isEnum(value.kind, CONTEXTUAL_ASK_EXECUTOR_KINDS) ||
     !isNonEmptyString(value.label) ||
     !isNonEmptyString(value.requestedModelLabel) ||
     !isNonEmptyString(value.effectiveModelLabel) ||
+    (value.models !== undefined &&
+      (!Array.isArray(value.models) ||
+        value.models.length === 0 ||
+        value.models.length > CONTEXTUAL_ASK_LIMITS.maximumModels ||
+        !value.models.every(
+          (model: unknown) =>
+            isNonEmptyString(model) &&
+            model.length <= CONTEXTUAL_ASK_LIMITS.maximumLabelCharacters,
+        ) ||
+        !unique(value.models))) ||
     !isEnum(value.state, CONTEXTUAL_ASK_EXECUTOR_STATES) ||
     typeof value.providerDataConsentRequired !== "boolean" ||
     typeof value.readOnlyProven !== "boolean" ||

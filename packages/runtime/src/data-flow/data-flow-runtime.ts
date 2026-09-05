@@ -691,3 +691,12 @@ export function getDataFlowRuntime(
 ): DataFlowRuntime | undefined {
   return target[RUNTIME_KEY];
 }
+
+export function disposeDataFlowPrelude(
+  runtime: DataFlowRuntime,
+  target: GlobalWithDataFlow = globalThis,
+): void {
+  if (target[RUNTIME_KEY] !== runtime) return;
+  runtime.dispose();
+  Reflect.deleteProperty(target, RUNTIME_KEY);
+}

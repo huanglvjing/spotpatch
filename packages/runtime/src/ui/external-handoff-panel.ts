@@ -1,3 +1,4 @@
+import type { SpotPatchRuntimeConfig } from "@spotpatch/shared";
 import type {
   ActiveAdapterSummary,
   DispatchSummary,
@@ -19,7 +20,7 @@ import type { ExternalHandoffPanel } from "./external-handoff-contract.js";
 
 interface PanelOptions {
   readonly document: Document;
-  readonly framework: "vite" | "next";
+  readonly framework: SpotPatchRuntimeConfig["framework"];
   readonly locale: () => SpotPatchLocale;
   readonly onDispatchChange?: (dispatch: DispatchSummary | null) => void;
   readonly onControlChange?: (status: ExternalAgentControlStatus | undefined) => void;
@@ -49,7 +50,7 @@ interface ExternalHandoffMessages {
     state: ExternalAgentControlStatus["connectionState"],
     mode: ExternalAgentControlStatus["mode"],
   ) => string;
-  readonly controlConsentRequired: string;
+  readonly controlConsentRequired: (command: string) => string;
   readonly controlErrorText: Readonly<Record<ExternalAgentErrorCode, string>>;
   readonly controlFailure: (error: string, action: string) => string;
   readonly controlModel: (model: string) => string;
@@ -117,8 +118,8 @@ const MESSAGES = Object.freeze({
       auth: ExternalAgentControlStatus["authReadiness"],
       grant: ExternalAgentControlStatus["grantState"],
     ) => `Auth: ${auth} · Grant: ${grant}`,
-    controlConsentRequired:
-      'Grant required: type "yes" in the terminal that started `pnpm dev`. If no prompt is visible, restart `pnpm dev` in an interactive terminal and connect again.',
+    controlConsentRequired: (command: string) =>
+      `Initialize project access once: run \`${command}\` from this project, then connect again. No dev-terminal confirmation is required. The grant allows isolated snapshot writes and validated application; revoke it here at any time.`,
     controlModel: (model: string) => `Model: ${model}`,
     controlRevision: (task: ControlTask) =>
       `Revision ${String(task.revision)}: ${task.deliveryStatus} / ${task.executionStatus} / ${task.managedPhase}`,
@@ -263,8 +264,8 @@ const MESSAGES = Object.freeze({
       auth: ExternalAgentControlStatus["authReadiness"],
       grant: ExternalAgentControlStatus["grantState"],
     ) => `认证：${auth} · 授权：${grant}`,
-    controlConsentRequired:
-      "需要项目授权：请在启动 `pnpm dev` 的终端输入“yes”。若终端没有出现确认提示，请在可交互终端重新启动 `pnpm dev` 后再连接。",
+    controlConsentRequired: (command: string) =>
+      `请在当前项目执行一次初始化：\`${command}\`，然后重新连接，无需在开发终端输入 yes。授权允许隔离快照修改及校验后的应用，可随时在此撤销。`,
     controlModel: (model: string) => `模型：${model}`,
     controlRevision: (task: ControlTask) =>
       `revision ${String(task.revision)}：${task.deliveryStatus} / ${task.executionStatus} / ${task.managedPhase}`,
@@ -483,6 +484,7 @@ function disclosurePaths(annotation: SpotAnnotation): readonly string[] {
 function controlStatusText(
   value: ExternalAgentControlStatus,
   messages: ExternalHandoffMessages,
+  framework: SpotPatchRuntimeConfig["framework"],
 ): string {
   const model = value.effectiveModel ?? value.requestedModel;
   const task = value.task;
@@ -490,7 +492,11 @@ function controlStatusText(
     messages.controlConnection(value.connectionState, value.mode),
     messages.controlAuth(value.authReadiness, value.grantState),
     ...(value.connectionState === "awaiting-consent" && value.grantState === "missing"
-      ? [messages.controlConsentRequired]
+      ? [
+          messages.controlConsentRequired(
+            `pnpm exec spotpatch-${framework} bridge init`,
+          ),
+        ]
       : []),
     ...(model === undefined ? [] : [messages.controlModel(model)]),
     ...(task === undefined
@@ -538,7 +544,7 @@ function managedResultText(
 
 export function createExternalHandoffPanel(
   document: Document,
-  framework: "vite" | "next",
+  framework: SpotPatchRuntimeConfig["framework"],
   locale: () => SpotPatchLocale,
   sessionId: string,
   subscribeLocale: (listener: () => void) => () => void,
@@ -775,7 +781,7 @@ export function createExternalHandoffPanel(
     cancelManagedButton.textContent = messages.cancelManaged;
     managedResultTitle.textContent = messages.resultTitle;
     if (control !== undefined) {
-      controlStatus.textContent = controlStatusText(control, messages);
+      controlStatus.textContent = controlStatusText(control, messages, framework);
       disclosureNoGuarantee.textContent =
         control.mode === "managed"
           ? messages.disclosureManagedGuarantee
@@ -946,7 +952,7 @@ export function createExternalHandoffPanel(
 
     renderControlStatus(value: ExternalAgentControlStatus): void {
       control = value;
-      controlStatus.textContent = controlStatusText(value, messages);
+      controlStatus.textContent = controlStatusText(value, messages, framework);
       controlStatus.dataset.state = value.connectionState;
       disclosureNoGuarantee.textContent =
         value.mode === "managed"

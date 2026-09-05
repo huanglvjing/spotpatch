@@ -56,7 +56,10 @@ async function authorizeSourceRef(
   registry: SourceRegistry,
   root: string,
 ): Promise<SourceRef> {
-  const markerOrigin = source.origin === "jsx-host" || source.origin === "dom-ancestor";
+  const markerOrigin =
+    source.origin === "jsx-host" ||
+    source.origin === "astro-host" ||
+    source.origin === "dom-ancestor";
 
   if (
     markerOrigin &&

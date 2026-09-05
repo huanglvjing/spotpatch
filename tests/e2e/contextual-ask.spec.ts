@@ -23,6 +23,8 @@ async function installAskRoutes(
   options: Readonly<{
     executorKind?: ExecutorKind;
     includeAlternateExecutor?: boolean;
+    models?: readonly string[];
+    onModel?: (model: string | undefined) => void;
     onCreate?: (targetCount: number) => void;
   }> = {},
 ): Promise<void> {
@@ -61,6 +63,7 @@ async function installAskRoutes(
                 label: executor.label,
                 requestedModelLabel: executor.modelLabel,
                 effectiveModelLabel: executor.modelLabel,
+                ...(options.models === undefined ? {} : { models: options.models }),
                 state: "ready",
                 providerDataConsentRequired: true,
                 readOnlyProven: true,
@@ -95,10 +98,12 @@ async function installAskRoutes(
 
     if (pathname.endsWith("/ask/jobs")) {
       const body = request.postDataJSON() as {
+        model?: string;
         envelope: { selection: { selectionId: string; targets: unknown[] } };
       };
       selectionId = body.envelope.selection.selectionId;
       options.onCreate?.(body.envelope.selection.targets.length);
+      options.onModel?.(body.model);
       await route.fulfill({
         status: 202,
         contentType: "application/json",
@@ -338,6 +343,60 @@ for (const executorKind of ["configured-key", "managed-codex"] as const) {
   });
 }
 
+test("selects a managed model with the keyboard and submits its exact value", async ({
+  page,
+}, testInfo) => {
+  let submitted: string | undefined;
+  await installAskRoutes(page, {
+    executorKind: "managed-codex",
+    models: ["E2E Managed Model", "Alternate Model"],
+    onModel: (model) => {
+      submitted = model;
+    },
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Select element" }).click();
+  await page.getByRole("heading", { name: "SpotPatch Playground" }).click();
+  const dialog = page.locator("spotpatch-root").getByRole("dialog");
+  await dialog.getByRole("tab", { name: "Ask", exact: true }).click();
+  const picker = dialog.getByRole("combobox", { name: "Model", exact: true });
+  await picker.focus();
+  await picker.press("ArrowDown");
+  await expect(
+    dialog.getByRole("listbox", { name: "Model", exact: true }),
+  ).toBeVisible();
+  const menu = dialog.getByRole("listbox", { name: "Model", exact: true });
+  await menu.scrollIntoViewIfNeeded();
+  await expect
+    .poll(async () => {
+      const box = await menu.boundingBox();
+      return box !== null && box.x >= 0 && box.x + box.width <= 390;
+    })
+    .toBe(true);
+  const screenshotPath = testInfo.outputPath("model-picker-mobile.png");
+  await page.screenshot({ path: screenshotPath });
+  await testInfo.attach("model-picker-mobile", {
+    path: screenshotPath,
+    contentType: "image/png",
+  });
+  await picker.press("End");
+  await picker.press("Enter");
+  await expect(picker).toContainText("Alternate Model");
+  await expect(picker).toBeFocused();
+  await expect(
+    dialog.getByRole("listbox", { name: "Model", exact: true }),
+  ).toBeHidden();
+  await dialog
+    .getByRole("textbox", { name: "Question", exact: true })
+    .fill("Explain this heading.");
+  await dialog
+    .getByText("Allow the selected source snapshot", { exact: false })
+    .click();
+  await dialog.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect.poll(() => submitted).toBe("Alternate Model");
+});
+
 test("keeps the custom executor menu in flow below its field", async ({ page }) => {
   await installAskRoutes(page, { includeAlternateExecutor: true });
   await page.goto("/");
@@ -350,7 +409,7 @@ test("keeps the custom executor menu in flow below its field", async ({ page }) 
     name: "Read-only executor",
     exact: true,
   });
-  const menu = dialog.locator(".spotpatch-ask-executor-menu");
+  const menu = dialog.getByRole("listbox", { name: "Read-only executor", exact: true });
   const safety = dialog.locator(".spotpatch-ask-safety");
   await trigger.click();
   await expect(menu).toBeVisible();
@@ -390,6 +449,12 @@ test("retains accessible controls without horizontal overflow at 320px", async (
   await expect(
     dialog.getByRole("combobox", { name: "Read-only executor", exact: true }),
   ).toBeVisible();
+  // The planner is visible before its pill-to-dialog geometry morph finishes.
+  // Measure the settled layout, as the picker geometry tests do.
+  await expect(page.locator(".spotpatch-floating-surface")).not.toHaveAttribute(
+    "data-motion-morphing",
+    "true",
+  );
   const bounds = await dialog.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds?.x ?? -1).toBeGreaterThanOrEqual(0);

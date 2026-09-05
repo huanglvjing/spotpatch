@@ -14,7 +14,7 @@ export const sourceRefSchema = z.strictObject({
   relativePath: boundedString(1_024).optional(),
   line: z.number().int().positive().optional(),
   column: z.number().int().positive().optional(),
-  origin: z.enum(["jsx-host", "react-fiber", "dom-ancestor", "none"]),
+  origin: z.enum(["jsx-host", "astro-host", "react-fiber", "dom-ancestor", "none"]),
   confidence: z.enum(["exact", "probable", "approximate", "unknown"]),
 });
 
@@ -27,7 +27,7 @@ export const matchedStyleRuleSchema = z.strictObject({
 
 export const codeContextSchema = z.strictObject({
   relativePath: boundedString(1_024),
-  language: z.enum(["tsx", "jsx"]),
+  language: z.enum(["tsx", "jsx", "astro"]),
   startLine: z.number().int().positive(),
   endLine: z.number().int().positive(),
   excerpt: boundedString(16_000),

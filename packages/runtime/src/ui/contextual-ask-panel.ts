@@ -8,6 +8,7 @@ import type {
   ErrorCode,
 } from "@spotpatch/shared/contextual-ask-browser";
 
+import { createAskPicker } from "./ask-picker.js";
 import { createButton, createMarkedElement } from "./dom.js";
 import type {
   ContextualAskPanel,
@@ -44,7 +45,8 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-ask-mode button { min-height: 34px; border: 0; border-radius: 7px; color: var(--spotpatch-text-secondary); background: transparent; cursor: pointer; font-size: 12px; font-weight: 700; }
     .spotpatch-ask-mode button[aria-selected="true"] { color: #f7f7ff; background: linear-gradient(135deg, rgb(139 123 255 / 25%), rgb(82 168 255 / 14%)); box-shadow: inset 0 0 0 1px rgb(139 123 255 / 24%); }
     .spotpatch-ask-panel { display: grid; gap: 14px; }
-    .spotpatch-ask-field { display: grid; gap: 7px; }
+    .spotpatch-ask-field { display: grid; gap: 7px; min-width: 0; }
+    .spotpatch-ask-field[hidden] { display: none; }
     .spotpatch-ask-field > label, .spotpatch-ask-label { color: #c9cad2; font-size: 11px; font-weight: 680; }
     .spotpatch-ask-question { box-sizing: border-box; width: 100%; min-height: 92px; resize: vertical; border: 1px solid var(--spotpatch-border); border-radius: 10px; padding: 11px 12px; outline: none; color: var(--spotpatch-text); background: var(--spotpatch-bg-input); line-height: 1.55; }
     .spotpatch-ask-question:focus { border-color: rgb(139 123 255 / 68%); box-shadow: 0 0 0 3px rgb(139 123 255 / 12%); }
@@ -59,10 +61,10 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-ask-executor:focus-visible { border-color: rgb(139 123 255 / 68%); box-shadow: 0 0 0 3px rgb(139 123 255 / 12%); }
     .spotpatch-ask-executor:disabled { color: var(--spotpatch-text); background: rgb(255 255 255 / 3%); cursor: default; opacity: 1; }
     .spotpatch-ask-executor[data-empty="true"]:disabled { color: var(--spotpatch-text-muted); }
-    .spotpatch-ask-executor-menu { display: grid; gap: 3px; border: 1px solid var(--spotpatch-border); border-radius: 9px; padding: 4px; background: #101116; box-shadow: 0 10px 28px rgb(0 0 0 / 28%); }
+    .spotpatch-ask-executor-menu { display: grid; gap: 3px; border: 1px solid var(--spotpatch-border); border-radius: 9px; padding: 4px; background: var(--spotpatch-bg-input); max-height: 224px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; box-shadow: 0 10px 28px rgb(0 0 0 / 28%); }
     .spotpatch-ask-executor-menu[hidden] { display: none; }
-    .spotpatch-ask-executor-option { box-sizing: border-box; min-height: 34px; border: 0; border-radius: 6px; padding: 7px 9px; color: var(--spotpatch-text-secondary); background: transparent; cursor: pointer; font: inherit; text-align: left; }
-    .spotpatch-ask-executor-option:hover, .spotpatch-ask-executor-option:focus-visible { color: #fff; background: rgb(139 123 255 / 13%); outline: none; }
+    .spotpatch-ask-executor-option { box-sizing: border-box; min-height: 34px; border: 0; border-radius: 6px; padding: 7px 9px; color: var(--spotpatch-text-secondary); background: transparent; cursor: pointer; font: inherit; text-align: left; overflow-wrap: anywhere; }
+    .spotpatch-ask-executor-option[data-active="true"], .spotpatch-ask-executor-option:hover { color: #fff; background: rgb(139 123 255 / 13%); outline: none; }
     .spotpatch-ask-executor-option[aria-selected="true"] { color: #f4f1ff; background: rgb(139 123 255 / 20%); }
     .spotpatch-ask-executor-native { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; border: 0; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
     .spotpatch-ask-executor-status { margin: 0; border-left: 2px solid var(--spotpatch-warning); padding-left: 8px; color: #d8b66c; font-size: 10.5px; line-height: 1.45; }
@@ -177,33 +179,21 @@ export function createContextualAskPanel(
   const executorField = createMarkedElement(document, "div");
   executorField.className = "spotpatch-ask-field";
   const executorLabel = createMarkedElement(document, "label");
-  const executorPicker = createMarkedElement(document, "div");
-  executorPicker.className = "spotpatch-ask-executor-picker";
-  const executorTrigger = createButton(document, "", "spotpatch-ask-executor");
-  const executorSelect = createMarkedElement(document, "select");
-  const executorId = `spotpatch-ask-executor-${Math.random().toString(36).slice(2)}`;
-  const executorMenuId = `${executorId}-menu`;
-  executorTrigger.id = executorId;
-  executorTrigger.setAttribute("role", "combobox");
-  executorTrigger.setAttribute("aria-controls", executorMenuId);
-  executorTrigger.setAttribute("aria-expanded", "false");
-  const executorText = createMarkedElement(document, "span");
-  executorTrigger.append(executorText);
-  const executorMenu = createMarkedElement(document, "div");
-  executorMenu.id = executorMenuId;
-  executorMenu.className = "spotpatch-ask-executor-menu";
-  executorMenu.setAttribute("role", "listbox");
-  executorMenu.hidden = true;
-  executorSelect.className = "spotpatch-ask-executor-native";
-  executorSelect.tabIndex = -1;
-  executorSelect.setAttribute("aria-hidden", "true");
-  executorLabel.htmlFor = executorId;
+  const executorPicker = createAskPicker(document, input.onViewChange);
+  const executorSelect = executorPicker.select;
+  executorLabel.htmlFor = executorPicker.trigger.id;
+  const modelField = createMarkedElement(document, "div");
+  modelField.className = "spotpatch-ask-field";
+  const modelLabel = createMarkedElement(document, "label");
+  const modelPicker = createAskPicker(document, input.onViewChange);
+  modelLabel.htmlFor = modelPicker.trigger.id;
+  modelField.append(modelLabel, modelPicker.root);
+  let modelExecutorId: string | undefined;
   const executorStatus = createMarkedElement(document, "p");
   executorStatus.className = "spotpatch-ask-executor-status";
   executorStatus.setAttribute("role", "status");
   executorStatus.hidden = true;
-  executorPicker.append(executorTrigger, executorMenu, executorSelect);
-  executorField.append(executorLabel, executorPicker, executorStatus);
+  executorField.append(executorLabel, executorPicker.root, executorStatus);
 
   const safety = createMarkedElement(document, "div");
   safety.className = "spotpatch-ask-safety";
@@ -265,7 +255,16 @@ export function createContextualAskPanel(
   answerActions.append(copyButton, convertButton);
   answer.append(stale, answerTitle, warnings, blocks, sourcesSection, answerActions);
 
-  askPanel.append(questionField, executorField, safety, status, error, actions, answer);
+  askPanel.append(
+    questionField,
+    executorField,
+    modelField,
+    safety,
+    status,
+    error,
+    actions,
+    answer,
+  );
   root.append(modeSwitch, origin, askPanel);
 
   function hasReadyExecutor(): boolean {
@@ -283,51 +282,28 @@ export function createContextualAskPanel(
     );
   }
 
-  function readyExecutorCount(): number {
-    return (
-      currentCapability?.executors.filter(
-        (candidate) => candidate.state === "ready" && candidate.readOnlyProven,
-      ).length ?? 0
+  function renderModels(): void {
+    const executor = currentCapability?.executors.find(
+      (item) => item.executorId === executorSelect.value,
     );
-  }
-
-  function closeExecutorMenu(focusTrigger = false): void {
-    if (executorMenu.hidden) return;
-    executorMenu.hidden = true;
-    executorTrigger.setAttribute("aria-expanded", "false");
-    if (focusTrigger) executorTrigger.focus({ preventScroll: true });
-    input.onViewChange();
-  }
-
-  function openExecutorMenu(focusSelected = false): void {
-    if (executorTrigger.disabled || !executorMenu.hidden) return;
-    executorMenu.hidden = false;
-    executorTrigger.setAttribute("aria-expanded", "true");
-    if (focusSelected) {
-      const selected = executorMenu.querySelector<HTMLElement>(
-        '.spotpatch-ask-executor-option[aria-selected="true"]',
-      );
-      const first = executorMenu.firstElementChild;
-      const focusTarget = selected ?? (first instanceof HTMLElement ? first : null);
-      focusTarget?.focus({ preventScroll: true });
+    const previous =
+      modelExecutorId === executor?.executorId ? modelPicker.select.value : undefined;
+    modelExecutorId = executor?.executorId;
+    const models = executor?.models;
+    modelField.hidden = models === undefined;
+    modelPicker.select.replaceChildren();
+    for (const model of models ?? []) {
+      const option = document.createElement("option");
+      option.value = model;
+      option.textContent = model;
+      modelPicker.select.append(option);
     }
-    input.onViewChange();
-  }
-
-  function syncExecutorControl(): void {
-    const selectedOption = [...executorSelect.options].find(
-      (option) => option.value === executorSelect.value,
-    );
-    executorText.textContent = selectedOption?.textContent ?? messages.noExecutor;
-    executorTrigger.dataset.empty = String(executorSelect.value.length === 0);
-    for (const option of executorMenu.querySelectorAll<HTMLElement>(
-      ".spotpatch-ask-executor-option",
-    )) {
-      option.setAttribute(
-        "aria-selected",
-        String(option.dataset.executorId === executorSelect.value),
-      );
-    }
+    modelPicker.select.value =
+      models?.find((model) => model === previous) ??
+      models?.find((model) => model === executor?.requestedModelLabel) ??
+      models?.[0] ??
+      "";
+    modelPicker.rebuild();
   }
 
   function refreshSubmitState(): void {
@@ -339,13 +315,10 @@ export function createContextualAskPanel(
       currentPreview.targetCount === 0;
     if (!currentPreview.contextReady) submitButton.disabled = true;
     questionInput.disabled = busy;
-    const readyCount = readyExecutorCount();
     const executorUnavailable =
       busy || currentCapability === undefined || !hasAnyReadyExecutor();
-    executorSelect.disabled = executorUnavailable;
-    executorTrigger.disabled = executorUnavailable || readyCount < 2;
-    executorTrigger.dataset.expandable = String(!executorUnavailable && readyCount > 1);
-    if (executorTrigger.disabled) closeExecutorMenu();
+    executorPicker.setDisabled(executorUnavailable);
+    modelPicker.setDisabled(busy || !hasReadyExecutor());
     consentCheckbox.disabled = busy || !hasReadyExecutor();
     newQuestionButton.hidden = busy || currentResult === undefined;
     cancelButton.hidden = !busy;
@@ -395,6 +368,13 @@ export function createContextualAskPanel(
     questionInput.placeholder = messages.questionPlaceholder;
     suggestions.setAttribute("aria-label", messages.suggestionsLabel);
     executorLabel.textContent = messages.executorLabel;
+    modelLabel.textContent = messages.modelLabel;
+    executorPicker.root
+      .querySelector("[role=listbox]")
+      ?.setAttribute("aria-label", messages.executorLabel);
+    modelPicker.root
+      .querySelector("[role=listbox]")
+      ?.setAttribute("aria-label", messages.modelLabel);
     consentText.textContent = messages.consent;
     safetyText.textContent = messages.safety;
     submitButton.textContent = messages.submit;
@@ -420,8 +400,7 @@ export function createContextualAskPanel(
     currentCapability = capability;
     const previous = executorSelect.value;
     executorSelect.replaceChildren();
-    executorMenu.replaceChildren();
-    closeExecutorMenu();
+    executorPicker.close();
     executorStatus.hidden = true;
     executorStatus.textContent = "";
     if (capability === undefined) {
@@ -444,22 +423,11 @@ export function createContextualAskPanel(
       for (const executor of readyExecutors) {
         const option = document.createElement("option");
         option.value = executor.executorId;
-        option.textContent = `${executor.label} · ${executor.effectiveModelLabel}`;
+        option.textContent =
+          executor.models === undefined
+            ? `${executor.label} · ${executor.effectiveModelLabel}`
+            : executor.label;
         executorSelect.append(option);
-        const menuOption = createButton(
-          document,
-          option.textContent,
-          "spotpatch-ask-executor-option",
-        );
-        menuOption.dataset.executorId = executor.executorId;
-        menuOption.setAttribute("role", "option");
-        menuOption.addEventListener("click", () => {
-          executorSelect.value = executor.executorId;
-          syncExecutorControl();
-          closeExecutorMenu(true);
-          executorSelect.dispatchEvent(new Event("change", { bubbles: true }));
-        });
-        executorMenu.append(menuOption);
       }
       if (readyExecutors.length === 0) {
         const option = document.createElement("option");
@@ -479,7 +447,8 @@ export function createContextualAskPanel(
         executorStatus.hidden = false;
       }
     }
-    syncExecutorControl();
+    executorPicker.rebuild();
+    renderModels();
     refreshSubmitState();
   }
 
@@ -650,52 +619,11 @@ export function createContextualAskPanel(
     applyMode();
   });
   questionInput.addEventListener("input", refreshSubmitState);
-  executorSelect.addEventListener("change", refreshSubmitState);
-  executorTrigger.addEventListener("click", () => {
-    if (executorMenu.hidden) openExecutorMenu();
-    else closeExecutorMenu();
+  executorSelect.addEventListener("change", () => {
+    renderModels();
+    refreshSubmitState();
+    input.onViewChange();
   });
-  executorTrigger.addEventListener("keydown", (event) => {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    event.preventDefault();
-    openExecutorMenu(true);
-  });
-  executorMenu.addEventListener("keydown", (event) => {
-    const options = [
-      ...executorMenu.querySelectorAll<HTMLButtonElement>(
-        ".spotpatch-ask-executor-option",
-      ),
-    ];
-    if (event.key === "Escape") {
-      event.preventDefault();
-      closeExecutorMenu(true);
-      return;
-    }
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const currentIndex = options.indexOf(document.activeElement as HTMLButtonElement);
-    const nextIndex =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? options.length - 1
-          : event.key === "ArrowDown"
-            ? (currentIndex + 1 + options.length) % options.length
-            : (currentIndex - 1 + options.length) % options.length;
-    options[nextIndex]?.focus({ preventScroll: true });
-  });
-  executorPicker.addEventListener("focusout", (event) => {
-    if (
-      !(event.relatedTarget instanceof Node) ||
-      !executorPicker.contains(event.relatedTarget)
-    ) {
-      closeExecutorMenu();
-    }
-  });
-  const closeExecutorMenuOutside = (event: PointerEvent): void => {
-    if (!event.composedPath().includes(executorPicker)) closeExecutorMenu();
-  };
-  document.addEventListener("pointerdown", closeExecutorMenuOutside);
   consentCheckbox.addEventListener("change", refreshSubmitState);
   const unsubscribeLocale = input.subscribeLocale(applyMessages);
   applyMessages();
@@ -715,7 +643,8 @@ export function createContextualAskPanel(
     clear,
     dispose: () => {
       unsubscribeLocale();
-      document.removeEventListener("pointerdown", closeExecutorMenuOutside);
+      executorPicker.dispose();
+      modelPicker.dispose();
     },
     focusQuestion: () => {
       questionInput.focus({ preventScroll: true });
@@ -734,6 +663,7 @@ export function createContextualAskPanel(
     },
     readConsent: () => consentCheckbox.checked,
     readExecutorId: () => executorSelect.value || undefined,
+    readModel: () => modelPicker.select.value || undefined,
     readQuestion: () => questionInput.value.trim(),
     renderAnswer,
     renderCapability,

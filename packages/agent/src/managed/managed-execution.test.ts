@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { DEFAULT_AGENT_LIMITS, ERROR_CODES } from "@spotpatch/shared";
@@ -160,74 +160,108 @@ describe("managed execution runner", () => {
     }
   });
 
-  it("exposes installed dependencies only to a fixed direct TypeScript check", async () => {
-    const repository = await createTestGitRepository({
-      "src/App.tsx": "export const App = () => <button>Before</button>;\n",
-      "tsconfig.json": "{}\n",
-    });
-    const typeScriptCli = path.join(
-      repository.root,
-      "node_modules",
-      "typescript",
-      "bin",
-      "tsc",
-    );
-    await mkdir(path.dirname(typeScriptCli), { recursive: true });
-    await mkdir(path.join(repository.root, "node_modules", "fixture-dependency"), {
-      recursive: true,
-    });
-    await writeFile(
-      path.join(repository.root, "node_modules", "fixture-dependency", "marker"),
-      "installed\n",
-    );
-    await writeFile(
-      typeScriptCli,
-      [
-        'const { existsSync } = require("node:fs");',
-        'const path = require("node:path");',
-        'const marker = path.join(process.cwd(), "node_modules", "fixture-dependency", "marker");',
-        "process.exit(existsSync(marker) ? 0 : 1);",
-      ].join("\n"),
-    );
-    const runner = createManagedExecutionRunner({
-      root: repository.root,
-      checks: Object.freeze({
-        "spotpatch-typecheck": Object.freeze({
-          id: "spotpatch-typecheck",
-          label: "TypeScript",
-          command: process.execPath,
-          args: Object.freeze([
-            typeScriptCli,
-            "--noEmit",
-            "--pretty",
-            "false",
-            "--incremental",
-            "false",
-            "--project",
-            "tsconfig.json",
-          ]),
-          required: true,
-          timeoutMs: 10_000,
-        }),
-      }),
-    });
-
-    try {
-      const task = await runner.prepare(
-        { annotation, revision: 20 },
-        new AbortController().signal,
+  it.each([
+    { framework: "typescript", relativeRoot: "." },
+    { framework: "astro", relativeRoot: "." },
+    { framework: "astro", relativeRoot: "apps/site" },
+  ] as const)(
+    "exposes dependencies to a fixed $framework check in $relativeRoot only after the Agent turn",
+    async ({ framework, relativeRoot }) => {
+      const sourcePath = path.posix.join(relativeRoot, "src/App.tsx");
+      const repository = await createTestGitRepository({
+        [sourcePath]: "export const App = () => <button>Before</button>;\n",
+        [path.posix.join(relativeRoot, "tsconfig.json")]: "{}\n",
+      });
+      const typeScriptCli = path.join(
+        repository.root,
+        "node_modules",
+        ...(framework === "typescript" ? ["typescript"] : ["@astrojs", "check"]),
+        "bin",
+        framework === "typescript" ? "tsc" : "astro-check.js",
       );
-      await writeManagedResult(task.workspaceRoot);
-      const result = await runner.auditAndApply(task, new AbortController().signal);
+      await mkdir(path.dirname(typeScriptCli), { recursive: true });
+      if (framework === "astro") {
+        const packageRoot = path.dirname(path.dirname(typeScriptCli));
+        await mkdir(path.join(packageRoot, "dist"));
+        await writeFile(
+          path.join(packageRoot, "package.json"),
+          JSON.stringify({ main: "dist/index.js" }),
+        );
+        await writeFile(path.join(packageRoot, "dist/index.js"), "");
+      }
+      await mkdir(path.join(repository.root, "node_modules", "fixture-dependency"), {
+        recursive: true,
+      });
+      await writeFile(
+        path.join(repository.root, "node_modules", "fixture-dependency", "marker"),
+        "installed\n",
+      );
+      await writeFile(
+        typeScriptCli,
+        [
+          'const { existsSync } = require("node:fs");',
+          'const path = require("node:path");',
+          'const marker = path.join(process.cwd(), "node_modules", "fixture-dependency", "marker");',
+          "process.exit(existsSync(marker) ? 0 : 1);",
+        ].join("\n"),
+      );
+      const runner = createManagedExecutionRunner({
+        root: path.join(repository.root, relativeRoot),
+        checks: Object.freeze({
+          "spotpatch-typecheck": Object.freeze({
+            id: "spotpatch-typecheck",
+            label: "TypeScript",
+            command: process.execPath,
+            args: Object.freeze([
+              typeScriptCli,
+              ...(framework === "astro"
+                ? [
+                    "--minimumFailingSeverity",
+                    "error",
+                    "--root",
+                    relativeRoot,
+                    "--tsconfig",
+                    "tsconfig.json",
+                  ]
+                : [
+                    "--noEmit",
+                    "--pretty",
+                    "false",
+                    "--incremental",
+                    "false",
+                    "--project",
+                    "tsconfig.json",
+                  ]),
+            ]),
+            required: true,
+            timeoutMs: 10_000,
+          }),
+        }),
+      });
 
-      expect(result.validationOutcome).toBe("passed");
-      expect(result.applied).toBe(true);
-      expect(await repository.read("src/App.tsx")).toContain("After");
-    } finally {
-      await runner.dispose();
-      await repository.cleanup();
-    }
-  });
+      try {
+        const task = await runner.prepare(
+          { annotation, revision: 20 },
+          new AbortController().signal,
+        );
+        await expect(
+          access(path.join(task.workspaceRoot, "node_modules")),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+        await writeManagedResult(task.workspaceRoot);
+        const result = await runner.auditAndApply(task, new AbortController().signal);
+
+        expect(result.validationOutcome).toBe("passed");
+        expect(result.applied).toBe(true);
+        expect(await repository.read(sourcePath)).toContain("After");
+        await expect(
+          access(path.join(task.workspaceRoot, "node_modules")),
+        ).rejects.toMatchObject({ code: "ENOENT" });
+      } finally {
+        await runner.dispose();
+        await repository.cleanup();
+      }
+    },
+  );
 
   it("applies a clean target without exposing or changing unrelated staged work", async () => {
     const repository = await createTestGitRepository({

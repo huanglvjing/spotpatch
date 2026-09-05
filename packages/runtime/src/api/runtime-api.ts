@@ -104,7 +104,9 @@ function isCodeContext(value: unknown): value is CodeContext {
   return (
     isRecord(value) &&
     typeof value.relativePath === "string" &&
-    (value.language === "tsx" || value.language === "jsx") &&
+    (value.language === "tsx" ||
+      value.language === "jsx" ||
+      value.language === "astro") &&
     typeof value.startLine === "number" &&
     typeof value.endLine === "number" &&
     typeof value.excerpt === "string" &&

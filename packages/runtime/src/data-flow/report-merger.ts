@@ -22,6 +22,7 @@ function observationMatchesDependency(
         ? observation.transport === "fetch" || observation.transport === "xhr"
         : false;
   if (
+    dependency.environment === "server" ||
     !transportMatches ||
     observation.freshness !== "current" ||
     origin === undefined ||
@@ -126,10 +127,18 @@ export function mergeComponentDataFlowReport(
   report: ComponentDataFlowReport,
   observations: readonly NetworkObservation[],
 ): ComponentDataFlowReport {
+  // A source-document report may contain several independently compiled browser
+  // scopes. Accept only owners already proven by that authorized static report.
+  const owners = new Set([
+    report.component.componentSourceId,
+    ...report.dependencies
+      .filter((dependency) => dependency.environment !== "server")
+      .map((dependency) => dependency.origin?.componentSourceId),
+  ]);
   const componentObservations = observations.filter(
     (observation) =>
       observation.componentSourceId === undefined ||
-      observation.componentSourceId === report.component.componentSourceId,
+      owners.has(observation.componentSourceId),
   );
   const merged = mergeDependencies(report.dependencies, componentObservations);
   return limitDataFlowReportCollections(

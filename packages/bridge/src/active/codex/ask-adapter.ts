@@ -9,6 +9,7 @@ import {
   type ContextualAskExecutorInput,
 } from "@spotpatch/agent";
 import {
+  CONTEXTUAL_ASK_LIMITS,
   CONTEXTUAL_ASK_PERMISSION_PROFILE,
   type ContextualAskExecutorCapability,
 } from "@spotpatch/shared";
@@ -69,6 +70,7 @@ interface CapabilityProbe {
 }
 
 interface ManagedCodexAskConnectionOptions {
+  readonly model?: string;
   readonly pathValue?: string;
   readonly privateRuntimeBase?: string;
   readonly processShutdownTimeoutMs?: number;
@@ -280,6 +282,7 @@ function managedAskPrompt(input: ContextualAskExecutorInput): string {
 }
 
 class ManagedCodexAskConnection {
+  readonly models: readonly string[];
   readonly requestedModel: string;
   readonly #child: ChildProcessWithoutNullStreams;
   readonly #client: CodexJsonlClient;
@@ -305,8 +308,10 @@ class ManagedCodexAskConnection {
     requestedModel: string,
     reasoningEffort: string | undefined,
     processShutdownTimeoutMs: number,
+    models: readonly string[],
   ) {
     this.#child = child;
+    this.models = models;
     this.#client = client;
     this.#runtime = runtime;
     this.#projection = projection;
@@ -382,16 +387,22 @@ class ManagedCodexAskConnection {
       verifyInitializeResponse(initialize, runtime.codexHome);
       client.notify("initialized");
       verifyAccount(await client.request("account/read", { refreshToken: false }));
-      const modelSelection = await readDefaultModel(client);
+      const catalog = await readModels(client);
+      const selected =
+        options.model === undefined
+          ? (catalog.find((model) => model.isDefault) ?? catalog[0])
+          : catalog.find((model) => model.model === options.model);
+      if (selected === undefined) throw askError("ASK_EXECUTOR_UNAVAILABLE");
       verifyConfigRequirements(await client.request("configRequirements/read", {}));
       connection = new ManagedCodexAskConnection(
         child,
         client,
         runtime,
         projection,
-        modelSelection.model,
-        modelSelection.reasoningEffort,
+        selected.model,
+        selected.reasoningEffort,
         options.processShutdownTimeoutMs ?? DEFAULT_PROCESS_SHUTDOWN_TIMEOUT_MS,
+        Object.freeze(catalog.map((model) => model.model)),
       );
       state.connection = connection;
       if (earlyFatal !== undefined) connection.#handleFatal(earlyFatal);
@@ -510,6 +521,7 @@ class ManagedCodexAskConnection {
 
   async #startThread(): Promise<void> {
     const value = await this.#request("thread/start", {
+      model: this.requestedModel,
       cwd: this.#projection.workspaceRoot,
       runtimeWorkspaceRoots: [this.#projection.workspaceRoot],
       approvalPolicy: "never",
@@ -662,6 +674,8 @@ function modelSelection(value: JsonRecord): ManagedModelSelection {
   if (
     typeof value.model !== "string" ||
     value.model.length === 0 ||
+    value.model.length > CONTEXTUAL_ASK_LIMITS.maximumLabelCharacters ||
+    value.model.trim() !== value.model ||
     typeof value.isDefault !== "boolean"
   ) {
     throw askError("ASK_PROTOCOL_INCOMPATIBLE");
@@ -682,12 +696,12 @@ function modelSelection(value: JsonRecord): ManagedModelSelection {
   });
 }
 
-async function readDefaultModel(
+async function readModels(
   client: CodexJsonlClient,
-): Promise<ManagedModelSelection> {
+): Promise<readonly (ManagedModelSelection & { readonly isDefault: boolean })[]> {
   let cursor: string | null = null;
   const seen = new Set<string>();
-  let first: ManagedModelSelection | undefined;
+  const catalog: (ManagedModelSelection & { readonly isDefault: boolean })[] = [];
   for (let page = 0; page < MAXIMUM_MODEL_PAGES; page += 1) {
     const value = await client.request("model/list", {
       cursor,
@@ -703,24 +717,24 @@ async function readDefaultModel(
     }
     const models = value.data.map((item) => {
       if (!isRecord(item)) throw askError("ASK_PROTOCOL_INCOMPATIBLE");
-      return Object.freeze({ ...modelSelection(item), isDefault: item.isDefault });
+      const selection = modelSelection(item);
+      return Object.freeze({ ...selection, isDefault: item.isDefault === true });
     });
-    first ??= models[0];
-    const selected = models.find((model) => model.isDefault);
-    if (selected !== undefined) {
-      return Object.freeze({
-        model: selected.model,
-        ...(selected.reasoningEffort === undefined
-          ? {}
-          : { reasoningEffort: selected.reasoningEffort }),
-      });
+    for (const model of models) {
+      if (!catalog.some((existing) => existing.model === model.model))
+        catalog.push(model);
     }
-    if (value.nextCursor === null || seen.has(value.nextCursor)) break;
+    if (catalog.length > CONTEXTUAL_ASK_LIMITS.maximumModels)
+      throw askError("ASK_PROTOCOL_INCOMPATIBLE");
+    if (value.nextCursor === null) {
+      if (catalog.length === 0) throw askError("ASK_EXECUTOR_UNAVAILABLE");
+      return Object.freeze(catalog);
+    }
+    if (seen.has(value.nextCursor)) throw askError("ASK_PROTOCOL_INCOMPATIBLE");
     seen.add(value.nextCursor);
     cursor = value.nextCursor;
   }
-  if (first === undefined) throw askError("ASK_EXECUTOR_UNAVAILABLE");
-  return first;
+  throw askError("ASK_PROTOCOL_INCOMPATIBLE");
 }
 
 function isMissingThreadError(error: unknown, threadId: string): boolean {
@@ -810,7 +824,10 @@ export function createManagedCodexAskExecutor(
         projection,
       );
       await projection.verifyUnchanged();
-      const value = capabilityValue(true, connection.requestedModel);
+      const value = Object.freeze({
+        ...capabilityValue(true, connection.requestedModel),
+        models: [...connection.models],
+      });
       await connection.close();
       connection = undefined;
       projection = undefined;
@@ -880,7 +897,10 @@ export function createManagedCodexAskExecutor(
         throwIfAborted(signal);
         projection = await createManagedCodexAskProjection(input);
         connection = await ManagedCodexAskConnection.connect(
-          connectOptions(signal),
+          {
+            ...connectOptions(signal),
+            ...(input.model === undefined ? {} : { model: input.model }),
+          },
           projection,
         );
         const execution = await connection.execute(input, signal);

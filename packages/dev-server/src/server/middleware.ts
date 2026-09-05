@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import type { StaticDataFlowAnalyzerOptions } from "@spotpatch/analyzer";
 
 import {
   ERROR_CODES,
@@ -62,6 +63,7 @@ export interface SpotPatchServerLogger {
 }
 
 export interface CreateMiddlewareOptions {
+  readonly projectDataFlowSource?: StaticDataFlowAnalyzerOptions["projectSource"];
   readonly agentManager?: AgentJobManager;
   readonly contextualAskManager?: ContextualAskManager;
   readonly bootstrap?: RuntimeBootstrapOptions;

@@ -121,6 +121,48 @@ function fakeExecutor(
 }
 
 describe("ContextualAskManager", () => {
+  it("validates the model allowlist, forwards selection and fingerprints it", async () => {
+    const { root, registry, fileId } = await setup();
+    const execute = vi.fn<ContextualAskExecutor["execute"]>(() =>
+      Promise.resolve({
+        blocks: [{ kind: "paragraph", text: "Answer", citations: [] }],
+        warnings: [{ code: "insufficient-evidence" }],
+      }),
+    );
+    const base = fakeExecutor(execute);
+    const manager = createContextualAskManager({
+      enabled: true,
+      root,
+      registry,
+      coordinator: createWorkspaceActivityCoordinator(),
+      executors: [
+        {
+          ...base,
+          capability: async (signal) => ({
+            ...(await base.capability(signal)),
+            models: ["fake-model", "alternate-model"],
+          }),
+        },
+      ],
+    });
+    try {
+      await expect(
+        manager.create({ ...request(fileId), model: "unknown" }),
+      ).rejects.toMatchObject({ code: "ASK_EXECUTOR_UNAVAILABLE" });
+      const created = await manager.create({
+        ...request(fileId),
+        model: "alternate-model",
+      });
+      expect(created.executor.modelLabel).toBe("alternate-model");
+      await manager.result(created.jobId);
+      expect(execute.mock.calls[0]?.[0].model).toBe("alternate-model");
+      await expect(
+        manager.create({ ...request(fileId), model: "fake-model" }),
+      ).rejects.toMatchObject({ code: "ASK_IDEMPOTENCY_CONFLICT" });
+    } finally {
+      await manager.close();
+    }
+  });
   it("keeps healthy executors available when another capability probe fails", async () => {
     const { root, registry } = await setup();
     const healthy = fakeExecutor(() =>

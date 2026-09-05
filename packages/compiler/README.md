@@ -8,6 +8,8 @@ Applications should install a framework adapter such as [`@spotpatch/vite`](http
 
 The compiler does not own framework lifecycle, HTTP transport, UI, credentials, or AI execution. Those responsibilities remain in their dedicated packages.
 
+Data-flow instrumentation also accepts original-coordinate module scopes for processed Astro browser scripts. Native DOM event triggers preserve named-listener identity; shared JS/TS helpers retain invocation attribution. Parsing `.astro` templates and injecting native template markers belong to `@spotpatch/astro`, not this package.
+
 Requires Node.js `>=20.19.0`.
 
 ## 简体中文

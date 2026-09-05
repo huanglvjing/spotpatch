@@ -20,6 +20,8 @@ import { createManagedCodexAskExecutor } from "./ask-adapter.js";
 import { fakeSchemaCommandSource } from "./test-schema-fixture.js";
 
 interface Scenario {
+  readonly paginatedModels?: boolean;
+  readonly cyclicModels?: boolean;
   readonly answerDelayMs?: number;
   readonly cleanupThreadMissing?: boolean;
   readonly crashOnTurn?: boolean;
@@ -97,6 +99,14 @@ input.on("line", (line) => {
     return;
   }
   if (message.method === "model/list") {
+    if (scenario.paginatedModels && message.params.cursor === null) {
+      send({ id: message.id, result: { data: [{ model: "gpt-test", isDefault: true }], nextCursor: "page2" } });
+      return;
+    }
+    if (scenario.paginatedModels) {
+      send({ id: message.id, result: { data: [{ model: "alternate-test", isDefault: false }], nextCursor: scenario.cyclicModels ? "page2" : null } });
+      return;
+    }
     send({ id: message.id, result: { data: [{ model: "gpt-test", isDefault: true, supportedReasoningEfforts: [{ reasoningEffort: "low", description: "Fast" }] }], nextCursor: null } });
     return;
   }
@@ -342,6 +352,36 @@ describeManagedAsk("Managed Codex Ask executor", () => {
     expect(JSON.stringify(records)).toContain('"outputSchema"');
     expect(JSON.stringify(records)).toContain('"effort":"low"');
     await expect(access(privateRuntimeBase)).resolves.toBeUndefined();
+  });
+
+  it("lists all pages and passes the chosen model to the isolated thread", async () => {
+    const value = await executor({ paginatedModels: true });
+    await expect(value.capability(new AbortController().signal)).resolves.toMatchObject(
+      {
+        state: "ready",
+        models: ["gpt-test", "alternate-test"],
+      },
+    );
+    await value.execute(
+      { ...askInput(), model: "alternate-test" },
+      new AbortController().signal,
+    );
+    expect(value.effectiveModelLabel?.()).toBe("alternate-test");
+    const capture = await readFile(capturePath, "utf8");
+    expect(capture).toContain('"model":"alternate-test"');
+    await expect(
+      value.execute({ ...askInput(), model: "unknown" }, new AbortController().signal),
+    ).rejects.toMatchObject({ code: "ASK_EXECUTOR_UNAVAILABLE" });
+  });
+
+  it("fails closed for cyclic model pages", async () => {
+    const value = await executor({ paginatedModels: true, cyclicModels: true });
+    await expect(value.capability(new AbortController().signal)).resolves.toMatchObject(
+      {
+        state: "unavailable",
+        errorCode: "ASK_PROTOCOL_INCOMPATIBLE",
+      },
+    );
   });
 
   it("accepts a newer Codex version after its generated schema passes validation", async () => {

@@ -69,6 +69,7 @@ export interface ContextualAskReadSnapshot {
 }
 
 export interface ContextualAskExecutorInput {
+  readonly model?: string;
   readonly jobId: string;
   readonly envelope: SpotAskTaskEnvelope;
   readonly grant: AskSourceGrant;

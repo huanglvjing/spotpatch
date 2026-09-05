@@ -7,10 +7,11 @@ type GlobalWithSpotPatch = typeof globalThis & {
   [RUNTIME_INSTANCE_KEY]?: SpotPatchController;
 };
 
-export function bootstrapSpotPatch(config: RuntimeConfig): void {
+export function bootstrapSpotPatch(config: RuntimeConfig): SpotPatchController {
   const target = globalThis as GlobalWithSpotPatch;
   target[RUNTIME_INSTANCE_KEY]?.dispose();
   const controller = createController(config);
   target[RUNTIME_INSTANCE_KEY] = controller;
   controller.mount();
+  return controller;
 }

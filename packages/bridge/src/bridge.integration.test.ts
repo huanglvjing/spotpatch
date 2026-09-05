@@ -16,6 +16,7 @@ import {
 import {
   computeExternalHandoffProjectKey,
   externalHandoffDescriptorSchema,
+  initializePrivateExternalHandoffFile,
   resolveExternalHandoffRuntimeDirectory,
 } from "@spotpatch/shared/external-agent-node";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -270,6 +271,7 @@ describe.sequential("external Agent bridge integration", () => {
       createdAt: new Date().toISOString(),
     });
     await writeFile(stalePath, JSON.stringify(descriptor), { mode: 0o600 });
+    await initializePrivateExternalHandoffFile(stalePath);
 
     try {
       await expect(

@@ -1,5 +1,11 @@
 # @spotpatch/astro
 
+## 0.1.1
+
+### Patch Changes
+
+- 2fc5a8f: Publish the Astro integration documentation for registry installation, the verified Astro 5/6/7 compatibility matrix, development-only production isolation, and Managed Codex initialization. Document the official npm registry fallback for mirrors that have not synchronized newly published SpotPatch dependencies.
+
 ## 0.1.0
 
 ### Minor Changes

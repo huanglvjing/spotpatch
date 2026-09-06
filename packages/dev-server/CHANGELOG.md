@@ -1,5 +1,13 @@
 # @spotpatch/dev-server
 
+## 0.10.1
+
+### Patch Changes
+
+- 9c8adbc: Coordinate the external Agent model-catalog protocol across the development server and every framework adapter. This prevents an updated Bridge from returning a catalog that an older strict development-server schema rejects, including projects updating through an existing lockfile.
+- Updated dependencies [1107f62]
+  - @spotpatch/shared@1.14.2
+
 ## 0.10.0
 
 ### Minor Changes

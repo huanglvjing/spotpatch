@@ -1,5 +1,11 @@
 # @spotpatch/compiler
 
+## 0.4.2
+
+### Patch Changes
+
+- Keep body-local invocation tokens out of default parameter initializers and computed method names. Preserve optional-chain short-circuiting by leaving call chains unwrapped, avoiding runtime ReferenceError and TypeError failures in instrumented applications.
+
 ## 0.4.1
 
 ### Patch Changes

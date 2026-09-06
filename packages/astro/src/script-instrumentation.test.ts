@@ -24,6 +24,14 @@ class ChatApi {
   }
 }
 globalThis.api = new ChatApi();
+class ChatStore {
+  state = { get() { return { activeId: 42 }; } };
+  room(id = this.state.get().activeId) { return id; }
+  persist() { return this.persistence?.write().catch(() => undefined); }
+}
+const store = new ChatStore();
+globalThis.room = store.room();
+store.persist();
 globalThis.result = (async () => {
   await globalThis.api.bootstrap();
   return globalThis.api.operation();
@@ -77,6 +85,7 @@ globalThis.result = (async () => {
     vm.runInContext(executable, vm.createContext(context));
     await expect(context.result).resolves.toBe(42);
     expect(context.api).toMatchObject({ csrf: "test-csrf" });
+    expect(context.room).toBe(42);
     expect(calls).toEqual(["/bootstrap", "/operation"]);
     expect(runtime.observations()).toMatchObject([
       { url: { pathname: "/bootstrap" } },

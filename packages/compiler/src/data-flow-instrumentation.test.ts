@@ -20,6 +20,45 @@ function transform(code: string) {
 
 describe("data-flow instrumentation", () => {
   it.each([
+    `class Store { state = { get() { return { activeId: 42 }; } }; room(id = this.state.get().activeId) { return id; } } globalThis.result = new Store().room();`,
+    `function outer() { function inner(value = Number("42")) { return value; } return inner(); } globalThis.result = outer();`,
+    `function outer() { class Store { [String("room")](value = Number("42")) { return value; } } return new Store().room(); } globalThis.result = outer();`,
+    `function run() { const persistence = undefined; return persistence?.write().catch(() => 0) ?? 42; } globalThis.result = run();`,
+    `function run() { const object = { value: 42, method() { return this.value; } }; return object?.method(); } globalThis.result = run();`,
+  ])("preserves runtime scope and optional-chain semantics: %s", (code) => {
+    const result = transform(code);
+    if (result === undefined) throw new Error("Expected instrumentation");
+    const runtime = {
+      captureInvocation: () => undefined,
+      registerComponent: () => undefined,
+      bindInvocation: (_token: unknown, callback: unknown) => callback,
+      withInvocation: (_token: unknown, callback: () => unknown) => callback(),
+      withRequestFrame: (
+        _token: unknown,
+        _metadata: unknown,
+        callback: () => unknown,
+      ) => callback(),
+    };
+    for (const source of [code, result.code]) {
+      const executable = ts.transpileModule(
+        source.replace(
+          /import \{ dataFlowRuntime as __spotpatchDataFlow \} from "virtual:spotpatch\/data-flow-runtime";\n/u,
+          "const __spotpatchDataFlow = runtime;\n",
+        ),
+        {
+          compilerOptions: {
+            target: ts.ScriptTarget.ES2022,
+            module: ts.ModuleKind.None,
+          },
+        },
+      ).outputText;
+      const sandbox: Record<string, unknown> = { runtime };
+      vm.runInContext(executable, vm.createContext(sandbox));
+      expect(sandbox.result).toBe(42);
+    }
+  });
+
+  it.each([
     "(await Promise.resolve(receiver)).json()",
     'receiver[await Promise.resolve("json")]()',
     "(await Promise.resolve(() => receiver.json()))()",

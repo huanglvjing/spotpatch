@@ -1,5 +1,13 @@
 # @spotpatch/astro
 
+## 0.1.4
+
+### Patch Changes
+
+- Keep body-local invocation tokens out of default parameter initializers and computed method names. Preserve optional-chain short-circuiting by leaving call chains unwrapped, avoiding runtime ReferenceError and TypeError failures in instrumented applications.
+- Updated dependencies
+  - @spotpatch/compiler@0.4.2
+
 ## 0.1.3
 
 ### Patch Changes

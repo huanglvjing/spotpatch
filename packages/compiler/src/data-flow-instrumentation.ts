@@ -189,6 +189,7 @@ function isRequestCall(call: ts.CallExpression): boolean {
 
 function unsafeToWrap(call: ts.CallExpression): boolean {
   if (
+    ts.isCallChain(call) ||
     call.expression.kind === ts.SyntaxKind.SuperKeyword ||
     call.expression.kind === ts.SyntaxKind.ImportKeyword ||
     (ts.isIdentifier(call.expression) && call.expression.text === "eval")
@@ -216,12 +217,16 @@ function lexicalFunction(
   node: ts.Node,
   functions: ReadonlyMap<FunctionImplementation, FunctionRecord>,
 ): FunctionRecord | undefined {
+  let child = node;
   let current = node.parent;
   while (!ts.isSourceFile(current)) {
     if (isFunctionImplementation(current)) {
       const record = functions.get(current);
-      if (record !== undefined) return record;
+      // Body-local tokens are not visible in parameter initializers or
+      // computed method names, which execute outside the function body.
+      if (record?.block === child) return record;
     }
+    child = current;
     current = current.parent;
   }
   return undefined;

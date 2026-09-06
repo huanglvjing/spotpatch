@@ -205,7 +205,10 @@ function unsafeToWrap(call: ts.CallExpression): boolean {
     }
     ts.forEachChild(node, visit);
   }
-  for (const argument of call.arguments) visit(argument);
+  // The wrapper moves the entire call into a synchronous arrow, including
+  // its receiver and computed property. Suspension anywhere in that evaluation
+  // must stay in its original scope; nested function bodies own their scope.
+  visit(call);
   return unsafe;
 }
 

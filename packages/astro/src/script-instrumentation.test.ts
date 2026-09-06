@@ -8,6 +8,85 @@ import { expect, it, vi } from "vitest";
 import { injectAstroSourceMarkers } from "./astro-source-markers.js";
 import { projectAstroSource } from "./source-projections.js";
 
+it("preserves nested awaited response parsing in native browser scripts", async () => {
+  const code = `<script>
+class ChatApi {
+  csrf = "";
+  async response(path) { return fetch(path); }
+  async bootstrap() {
+    const value = await (await this.response("/bootstrap")).json();
+    this.csrf = value.csrf;
+    return value;
+  }
+  async operation() {
+    const value = await (await this.response("/operation")).json();
+    return value.data;
+  }
+}
+globalThis.api = new ChatApi();
+globalThis.result = (async () => {
+  await globalThis.api.bootstrap();
+  return globalThis.api.operation();
+})();
+</script>`;
+  const result = injectAstroSourceMarkers({
+    code,
+    root: "/app",
+    absolutePath: "/app/Chat.astro",
+    fileId: "chat",
+    dataFlow: { helperModule: "virtual:test" },
+  });
+  if (result === undefined) throw new Error("Expected native instrumentation");
+  const script = projectAstroSource("/app/Chat.astro", result.code)?.find(
+    (scope) => scope.environment === "client",
+  );
+  if (script === undefined) throw new Error("Expected browser script");
+  const calls: string[] = [];
+  const originalFetch = vi.fn((input: RequestInfo | URL) => {
+    const pathname =
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    calls.push(pathname);
+    return Promise.resolve(
+      new Response(
+        JSON.stringify(
+          pathname === "/bootstrap" ? { csrf: "test-csrf" } : { data: 42 },
+        ),
+      ),
+    );
+  });
+  const target = {
+    fetch: originalFetch,
+    location: { href: "https://fixture.test/" } as Location,
+    performance: { now: () => 1 } as Performance,
+  };
+  const runtime = createDataFlowRuntime(
+    { enabled: true, runtime: "dispatch", limits: DEFAULT_RUNTIME_DATA_FLOW_LIMITS },
+    target,
+  );
+  const context: Record<string, unknown> = { runtime, fetch: target.fetch };
+  try {
+    const executable = ts.transpileModule(
+      script.code.replace(
+        'import { dataFlowRuntime as __spotpatchDataFlow } from "virtual:test";',
+        "const __spotpatchDataFlow = runtime;",
+      ),
+      {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
+      },
+    ).outputText;
+    vm.runInContext(executable, vm.createContext(context));
+    await expect(context.result).resolves.toBe(42);
+    expect(context.api).toMatchObject({ csrf: "test-csrf" });
+    expect(calls).toEqual(["/bootstrap", "/operation"]);
+    expect(runtime.observations()).toMatchObject([
+      { url: { pathname: "/bootstrap" } },
+      { url: { pathname: "/operation" } },
+    ]);
+  } finally {
+    runtime.dispose();
+  }
+});
+
 it("preserves native listener identity, return values and fetch promises", () => {
   const code = `<button>Go</button><script>
 const target = document;

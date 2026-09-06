@@ -1,5 +1,13 @@
 # @spotpatch/astro
 
+## 0.1.3
+
+### Patch Changes
+
+- Preserve calls containing await or yield in their receiver, callee, or computed property during data-flow instrumentation. Skip synchronous wrapping of these calls instead of moving suspension into an invalid callback, while continuing to instrument safe child calls.
+- Updated dependencies
+  - @spotpatch/compiler@0.4.1
+
 ## 0.1.2
 
 ### Patch Changes

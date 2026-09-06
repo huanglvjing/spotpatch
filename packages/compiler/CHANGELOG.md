@@ -1,5 +1,11 @@
 # @spotpatch/compiler
 
+## 0.4.1
+
+### Patch Changes
+
+- Preserve calls containing await or yield in their receiver, callee, or computed property during data-flow instrumentation. Skip synchronous wrapping of these calls instead of moving suspension into an invalid callback, while continuing to instrument safe child calls.
+
 ## 0.4.0
 
 ### Minor Changes

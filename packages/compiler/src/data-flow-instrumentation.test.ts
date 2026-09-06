@@ -19,6 +19,62 @@ function transform(code: string) {
 }
 
 describe("data-flow instrumentation", () => {
+  it.each([
+    "(await Promise.resolve(receiver)).json()",
+    'receiver[await Promise.resolve("json")]()',
+    "(await Promise.resolve(() => receiver.json()))()",
+    'receiver.get(await Promise.resolve("argument"))',
+    "(await Promise.resolve(receiver)).get()",
+    "(await (await Promise.resolve({ response: async () => receiver })).response()).json()",
+    "(await Promise.resolve(receiver))?.json()",
+    'receiver[await Promise.resolve("get")]()',
+    'receiver.json(await Promise.resolve("argument"))',
+  ])("preserves suspended call evaluation: %s", async (expression) => {
+    const code = `async function run() {
+      const receiver = {
+        value: 42,
+        json() { return this.value; },
+        get() { return this.value; }
+      };
+      return ${expression};
+    }
+    globalThis.result = run();`;
+    const transformed = transform(code);
+    expect(transformed).toBeDefined();
+    if (transformed === undefined) throw new Error("Expected instrumentation");
+    expect(transformed.dataFlow?.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "DATA_FLOW_UNSAFE_CALL_UNSUPPORTED" }),
+      ]),
+    );
+    const runtime = {
+      captureInvocation: () => undefined,
+      withInvocation: (_token: unknown, callback: () => unknown) => callback(),
+      withRequestFrame: (
+        _token: unknown,
+        _metadata: unknown,
+        callback: () => unknown,
+      ) => callback(),
+    };
+    for (const source of [code, transformed.code]) {
+      const executable = ts.transpileModule(
+        source.replace(
+          /import \{ dataFlowRuntime as __spotpatchDataFlow \} from "virtual:spotpatch\/data-flow-runtime";\n/u,
+          "const __spotpatchDataFlow = runtime;\n",
+        ),
+        {
+          compilerOptions: {
+            target: ts.ScriptTarget.ES2022,
+            module: ts.ModuleKind.None,
+          },
+        },
+      ).outputText;
+      const sandbox: Record<string, unknown> = { runtime };
+      vm.runInContext(executable, vm.createContext(sandbox));
+      await expect(sandbox.result).resolves.toBe(42);
+    }
+  });
+
   it("keeps module directives before the injected helper import", () => {
     const result = transform(`"use client";
 

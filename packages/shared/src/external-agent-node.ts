@@ -42,6 +42,8 @@ export const EXTERNAL_HANDOFF_PROJECT_KEY_SALT =
   "spotpatch-external-agent-project-v1" as const;
 
 const execFileAsync = promisify(execFile);
+const WINDOWS_ACL_VERIFY_ATTEMPTS = 3;
+const WINDOWS_ACL_RETRY_DELAY_MS = 25;
 const WINDOWS_ACL_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
 $target = $env:SPOTPATCH_ACL_TARGET
@@ -281,7 +283,33 @@ export async function assertPrivateExternalHandoffPath(
   }
 
   if (process.platform === "win32") {
-    await verifyWindowsAcl(candidate, kind, false);
+    for (let attempt = 0; attempt < WINDOWS_ACL_VERIFY_ATTEMPTS; attempt += 1) {
+      try {
+        await verifyWindowsAcl(candidate, kind, false);
+        return status;
+      } catch (error: unknown) {
+        if (attempt === WINDOWS_ACL_VERIFY_ATTEMPTS - 1) throw error;
+        let current: Stats;
+        try {
+          current = await lstat(candidate);
+        } catch {
+          throw error;
+        }
+        const sameKind =
+          kind === "directory" ? current.isDirectory() : current.isFile();
+        if (
+          !sameKind ||
+          current.isSymbolicLink() ||
+          current.dev !== status.dev ||
+          current.ino !== status.ino
+        ) {
+          throw error;
+        }
+        await new Promise<void>((resolve) => {
+          setTimeout(resolve, WINDOWS_ACL_RETRY_DELAY_MS * (attempt + 1));
+        });
+      }
+    }
     return status;
   }
 

@@ -223,37 +223,41 @@ describe.sequential("external Agent bridge integration", () => {
     ).rejects.toMatchObject({ code: ERROR_CODES.SESSION_NOT_FOUND });
   });
 
-  it("pins active discovery to the exact nested Session without ancestor fallback", async () => {
-    const nested = path.join(projectRoot, "apps", "web");
-    const nestedSessionId = "fedcba9876543210fedcba";
-    await mkdir(nested, { recursive: true });
-    const nestedService = createExternalHandoffService({
-      framework: "vite",
-      root: nested,
-      sessionId: nestedSessionId,
-    });
-    await nestedService.start();
+  it(
+    "pins active discovery to the exact nested Session without ancestor fallback",
+    async () => {
+      const nested = path.join(projectRoot, "apps", "web");
+      const nestedSessionId = "fedcba9876543210fedcba";
+      await mkdir(nested, { recursive: true });
+      const nestedService = createExternalHandoffService({
+        framework: "vite",
+        root: nested,
+        sessionId: nestedSessionId,
+      });
+      await nestedService.start();
 
-    try {
-      const selectedSessionId = await resolveExactProjectSessionId(nested);
-      expect(selectedSessionId).toBe(nestedSessionId);
+      try {
+        const selectedSessionId = await resolveExactProjectSessionId(nested);
+        expect(selectedSessionId).toBe(nestedSessionId);
 
-      const client = createSpotPatchBridgeClient(nested);
-      const lease = await client.activeClaim("claude-channel", selectedSessionId);
-      expect(lease.sessionId).toBe(nestedSessionId);
-      await client.activeRelease(lease);
+        const client = createSpotPatchBridgeClient(nested);
+        const lease = await client.activeClaim("claude-channel", selectedSessionId);
+        expect(lease.sessionId).toBe(nestedSessionId);
+        await client.activeRelease(lease);
 
-      await nestedService.close();
-      await expect(
-        createSpotPatchBridgeClient(nested).activeClaim(
-          "claude-channel",
-          selectedSessionId,
-        ),
-      ).rejects.toMatchObject({ code: ERROR_CODES.SESSION_NOT_FOUND });
-    } finally {
-      await nestedService.close();
-    }
-  });
+        await nestedService.close();
+        await expect(
+          createSpotPatchBridgeClient(nested).activeClaim(
+            "claude-channel",
+            selectedSessionId,
+          ),
+        ).rejects.toMatchObject({ code: ERROR_CODES.SESSION_NOT_FOUND });
+      } finally {
+        await nestedService.close();
+      }
+    },
+    BRIDGE_LIFECYCLE_TIMEOUT_MS,
+  );
 
   it("removes only an unchanged private descriptor after its Broker is unreachable", async () => {
     const stalledBroker = await stalledLoopbackBroker();

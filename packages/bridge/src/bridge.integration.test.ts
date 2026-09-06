@@ -28,6 +28,7 @@ import { resolveExactProjectSessionId } from "./discovery.js";
 import { createSpotPatchMcpServer } from "./mcp.js";
 
 const SESSION_ID = "0123456789abcdef012345";
+const BRIDGE_LIFECYCLE_TIMEOUT_MS = 30_000;
 let publishSequence = 0;
 
 async function publishHandoff(service: ExternalHandoffService, value: SpotAnnotation) {
@@ -167,7 +168,7 @@ describe.sequential("external Agent bridge integration", () => {
       sessionId: SESSION_ID,
     });
     await service.start();
-  });
+  }, BRIDGE_LIFECYCLE_TIMEOUT_MS);
 
   afterEach(async () => {
     await service?.close();
@@ -177,7 +178,7 @@ describe.sequential("external Agent bridge integration", () => {
       rm(projectRoot, { force: true, recursive: true }),
       rm(runtimeRoot, { force: true, recursive: true }),
     ]);
-  });
+  }, BRIDGE_LIFECYCLE_TIMEOUT_MS);
 
   it("discovers only the current project and treats an empty inbox as normal", async () => {
     const bridge = createSpotPatchBridgeClient(projectRoot);

@@ -29,6 +29,7 @@ import { connectManagedCodexAppServer } from "./managed-adapter.js";
 import { fakeSchemaCommandSource } from "./test-schema-fixture.js";
 
 interface Scenario {
+  readonly alternateModel?: boolean;
   readonly cleanupThreadMissing?: boolean;
   readonly hookConfigured?: boolean;
   readonly mcpConfigured?: boolean;
@@ -93,7 +94,7 @@ input.on("line", (line) => {
   }
   if (message.method === "model/list") {
     send({ id: message.id, result: {
-      data: scenario.noModels ? [] : [{ model: "gpt-test", isDefault: true }],
+      data: scenario.noModels ? [] : [{ model: "gpt-test", isDefault: true }, ...(scenario.alternateModel ? [{ model: "other-model", isDefault: false }] : [])],
       nextCursor: null,
     } });
     return;
@@ -379,12 +380,14 @@ describeManaged("managed Codex App Server adapter", () => {
   async function connect(
     scenario: Scenario = {},
     journal: ManagedThreadCleanupJournal = cleanupJournal(),
+    model?: string,
   ) {
     await writeFile(scenarioPath, JSON.stringify(scenario));
     const managed = execution(workspaceRoot);
     const events: unknown[] = [];
     const connection = await connectManagedCodexAppServer({
       bridgeAdapter: "next",
+      ...(model === undefined ? {} : { model }),
       cleanupJournal: journal,
       execution: managed.port,
       onEvent: (event) => events.push(event),
@@ -399,6 +402,56 @@ describeManaged("managed Codex App Server adapter", () => {
     });
     return { connection, events, managed };
   }
+
+  it("passes the selected model to thread and turn without changing credentials", async () => {
+    const authPath = path.join(sourceCodexHome, "auth.json");
+    const originalAuth = await readFile(authPath, "utf8");
+    const { connection } = await connect(
+      { alternateModel: true },
+      cleanupJournal(),
+      "other-model",
+    );
+    try {
+      expect(connection).toMatchObject({
+        requestedModel: "other-model",
+        effectiveModel: "other-model",
+        models: ["gpt-test", "other-model"],
+      });
+      await connection.adapter.deliver(
+        handoff(1),
+        lifecycle().value,
+        new AbortController().signal,
+      );
+    } finally {
+      await connection.adapter.close();
+    }
+    const messages = (await readFile(capturePath, "utf8"))
+      .trim()
+      .split("\n")
+      .map(
+        (line) =>
+          JSON.parse(line) as {
+            message?: { method: string; params: Record<string, unknown> };
+          },
+      )
+      .flatMap((record) => (record.message ? [record.message] : []))
+      .filter(
+        (message) =>
+          message.method === "thread/start" || message.method === "turn/start",
+      );
+    expect(messages).toHaveLength(2);
+    for (const message of messages) expect(message.params.model).toBe("other-model");
+    expect(await readFile(authPath, "utf8")).toBe(originalAuth);
+  });
+
+  it("rejects an unavailable explicit model instead of silently using the default", async () => {
+    await expect(connect({}, cleanupJournal(), "removed-model")).rejects.toMatchObject({
+      code: "CODEX_MODEL_UNAVAILABLE",
+    });
+    expect(await readFile(capturePath, "utf8")).not.toContain(
+      '"method":"thread/start"',
+    );
+  });
 
   it("uses isolated process config, per-revision threads, and a fixed permission profile", async () => {
     const { connection, events, managed } = await connect();
@@ -481,6 +534,7 @@ describeManaged("managed Codex App Server adapter", () => {
     expect(threads).toHaveLength(2);
     expect(threads[0]).toMatchObject({
       params: {
+        model: "gpt-test",
         config: {
           default_permissions: "spotpatch-managed",
           permissions: {
@@ -505,6 +559,7 @@ describeManaged("managed Codex App Server adapter", () => {
     ).toHaveLength(2);
     expect(turns).toHaveLength(2);
     expect(turns[0]?.params).toMatchObject({
+      model: "gpt-test",
       approvalPolicy: "never",
       cwd: workspaceRoot,
       threadId: "thread-1",

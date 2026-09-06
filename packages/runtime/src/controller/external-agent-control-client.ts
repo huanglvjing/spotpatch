@@ -196,6 +196,15 @@ function parseTask(value: unknown): NonNullable<ExternalAgentControlStatus["task
   });
 }
 
+function validModel(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= EXTERNAL_AGENT_CONTROL_LIMITS.maximumModelCharacters &&
+    value.trim() === value
+  );
+}
+
 export function parseExternalAgentControlStatus(
   value: unknown,
 ): ExternalAgentControlStatus {
@@ -213,7 +222,7 @@ export function parseExternalAgentControlStatus(
         "sequence",
         "updatedAt",
       ],
-      ["effectiveModel", "error", "requestedModel", "task"],
+      ["effectiveModel", "error", "requestedModel", "task", "models"],
     ) ||
     value.schemaVersion !== 1 ||
     !integer(value.sequence) ||
@@ -222,14 +231,14 @@ export function parseExternalAgentControlStatus(
     !member(AUTH_STATES, value.authReadiness) ||
     !member(GRANT_STATES, value.grantState) ||
     !validTimestamp(value.updatedAt) ||
-    (value.requestedModel !== undefined &&
-      (typeof value.requestedModel !== "string" ||
-        value.requestedModel.length === 0 ||
-        value.requestedModel.length > 128)) ||
-    (value.effectiveModel !== undefined &&
-      (typeof value.effectiveModel !== "string" ||
-        value.effectiveModel.length === 0 ||
-        value.effectiveModel.length > 128)) ||
+    (value.requestedModel !== undefined && !validModel(value.requestedModel)) ||
+    (value.effectiveModel !== undefined && !validModel(value.effectiveModel)) ||
+    (value.models !== undefined &&
+      (!Array.isArray(value.models) ||
+        value.models.length === 0 ||
+        value.models.length > EXTERNAL_AGENT_CONTROL_LIMITS.maximumModels ||
+        !value.models.every(validModel) ||
+        new Set(value.models).size !== value.models.length)) ||
     !record(value.adapter) ||
     !exactKeys(value.adapter, ["availability", "kind", "maturity"]) ||
     value.adapter.kind !== "codex" ||
@@ -270,6 +279,9 @@ export function parseExternalAgentControlStatus(
     connectionState: value.connectionState,
     authReadiness: value.authReadiness,
     grantState: value.grantState,
+    ...(value.models === undefined
+      ? {}
+      : { models: Object.freeze([...value.models] as string[]) }),
     ...(value.requestedModel === undefined
       ? {}
       : { requestedModel: value.requestedModel }),

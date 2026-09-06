@@ -37,6 +37,26 @@ function envelope(data: unknown): Response {
 }
 
 describe("external Agent control browser client", () => {
+  it("accepts bounded model catalogs and rejects malformed catalogs", () => {
+    expect(
+      parseExternalAgentControlStatus({ ...STATUS, models: ["a", "b"] }).models,
+    ).toEqual(["a", "b"]);
+    for (const models of [
+      [],
+      ["a", "a"],
+      [" a"],
+      [1],
+      ["x".repeat(EXTERNAL_AGENT_CONTROL_LIMITS.maximumModelCharacters + 1)],
+      Array.from(
+        { length: EXTERNAL_AGENT_CONTROL_LIMITS.maximumModels + 1 },
+        (_, index) => String(index),
+      ),
+    ]) {
+      expect(() => parseExternalAgentControlStatus({ ...STATUS, models })).toThrow(
+        "Invalid external Agent control status",
+      );
+    }
+  });
   it("strictly accepts the managed status and rejects response drift", () => {
     expect(parseExternalAgentControlStatus(STATUS)).toMatchObject({
       sequence: 7,

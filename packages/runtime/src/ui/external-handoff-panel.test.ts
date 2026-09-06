@@ -397,6 +397,57 @@ describe("external handoff Runtime extension", () => {
     panel.sendButton.remove();
   });
 
+  it("selects only catalog models and requires applying changes before publishing", () => {
+    const panel = createExternalHandoffPanel(
+      document,
+      "next",
+      () => "en-US",
+      `${SESSION_ID}-models`,
+      () => () => undefined,
+      () => undefined,
+    );
+    const select = panel.root.querySelectorAll("select")[1];
+    if (!(select instanceof HTMLSelectElement))
+      throw new Error("Missing model selector");
+    expect(select.disabled).toBe(true);
+    expect(panel.readModel()).toBeUndefined();
+    const ready = {
+      ...managedControlStatus(),
+      requestedModel: "first",
+      effectiveModel: "first",
+      models: ["first", "second"],
+    };
+    panel.renderControlStatus(ready);
+    expect(select.disabled).toBe(false);
+    expect(panel.readModel()).toBe("first");
+    expect(panel.connectButton.disabled).toBe(true);
+    select.value = "second";
+    select.dispatchEvent(new Event("change"));
+    expect(panel.readModel()).toBe("second");
+    expect(panel.connectButton.disabled).toBe(false);
+    expect(panel.connectButton.textContent).toBe("Apply model");
+    expect(panel.sendButton.disabled).toBe(true);
+    panel.renderControlStatus({ ...ready, sequence: 2 });
+    expect(panel.readModel()).toBe("second");
+    panel.setControlBusy(true);
+    expect(select.disabled).toBe(true);
+    expect(panel.connectButton.disabled).toBe(true);
+    panel.setControlBusy(false);
+    panel.renderControlStatus({
+      ...ready,
+      sequence: 3,
+      requestedModel: "second",
+      effectiveModel: "second",
+    });
+    expect(panel.connectButton.disabled).toBe(true);
+    panel.renderControlStatus({ ...ready, connectionState: "busy" });
+    expect(select.disabled).toBe(true);
+    panel.renderControlStatus({ ...ready, models: ["first"] });
+    expect(panel.readModel()).toBe("first");
+    expect(panel.root.textContent).toContain("not API Key settings");
+    panel.dispose();
+  });
+
   it("renders managed connection evidence and an audited result", () => {
     const onControlChange = vi.fn();
     const panel = createExternalHandoffPanel(
@@ -574,6 +625,7 @@ describe("external handoff Runtime extension", () => {
     const controlBodies: unknown[] = [];
     let control: ExternalAgentControlStatus = {
       ...managedControlStatus(1, "disconnected"),
+      models: ["first", "second"],
       mode: "inbox" as const,
     };
     const fetchMock = vi.fn<typeof fetch>((input, init) => {
@@ -611,9 +663,15 @@ describe("external handoff Runtime extension", () => {
         controlBodies.push(body);
         control =
           endpoint === SPOTPATCH_ENDPOINTS.externalAgentControlConnect
-            ? { ...managedControlStatus(control.sequence + 1, "ready") }
+            ? {
+                ...managedControlStatus(control.sequence + 1, "ready"),
+                models: ["first", "second"],
+                requestedModel: String(body.model),
+                effectiveModel: String(body.model),
+              }
             : {
                 ...managedControlStatus(control.sequence + 1, "disconnected"),
+                models: ["first", "second"],
                 mode: "inbox" as const,
                 grantState: body.revokeGrant === true ? ("missing" as const) : "valid",
               };
@@ -664,6 +722,7 @@ describe("external handoff Runtime extension", () => {
     expect(controlBodies[0]).toMatchObject({
       adapterKind: "codex",
       profile: "managed-apply-v1",
+      model: "first",
     });
     expect(controlBodies[1]).toMatchObject({
       adapterKind: "codex",

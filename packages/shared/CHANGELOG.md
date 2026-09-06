@@ -1,5 +1,11 @@
 # @spotpatch/shared
 
+## 1.14.1
+
+### Patch Changes
+
+- Add a managed Codex model selector backed by the local App Server catalog. Validate model choices, pass the selected model to thread and turn requests, and prevent switching during active execution without modifying configured-key provider settings. Share bounded catalog discovery with Contextual Ask and add protocol, lifecycle, UI, and credential-isolation regressions.
+
 ## 1.14.0
 
 ### Minor Changes

@@ -71,6 +71,8 @@ export const EXTERNAL_HANDOFF_LIMITS = Object.freeze({
 >);
 
 export const EXTERNAL_AGENT_CONTROL_LIMITS = Object.freeze({
+  maximumModels: 128,
+  maximumModelCharacters: 128,
   maximumEventSubscribers: 4,
   eventHeartbeatMs: 15_000,
   eventReconnectMinimumMs: 500,

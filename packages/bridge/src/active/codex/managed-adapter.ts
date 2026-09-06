@@ -32,12 +32,12 @@ import {
 import { resolveCodexExecutable } from "./executable.js";
 import { prepareManagedCodexRuntimeHome } from "./managed-runtime.js";
 import { CodexJsonlClient, type CodexProtocolDiagnostics } from "./protocol.js";
+import { readCodexModelCatalog } from "./model-catalog.js";
 
 const CLIENT_NAME = "spotpatch";
 const CLIENT_TITLE = "SpotPatch";
 const MANAGED_PERMISSION_PROFILE = "spotpatch-managed";
 const DEFAULT_PROCESS_SHUTDOWN_TIMEOUT_MS = 2_000;
-const MAXIMUM_MODEL_PAGES = 8;
 const MAXIMUM_MCP_STATUS_PAGES = 8;
 
 const MANAGED_SHELL_ENVIRONMENT_NAMES = Object.freeze([
@@ -297,31 +297,6 @@ function parseAuthReadiness(value: unknown): ManagedAdapterConnection["authReadi
   return value.requiresOpenaiAuth ? "signed-out" : "auth-not-required";
 }
 
-function parseModelPage(value: unknown): Readonly<{
-  models: readonly Readonly<{ model: string; isDefault: boolean }>[];
-  nextCursor: string | null;
-}> {
-  if (
-    !isRecord(value) ||
-    !Array.isArray(value.data) ||
-    (value.nextCursor !== null && typeof value.nextCursor !== "string")
-  ) {
-    throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.PROTOCOL);
-  }
-  const models = value.data.map((item) => {
-    if (
-      !isRecord(item) ||
-      typeof item.model !== "string" ||
-      item.model.length === 0 ||
-      typeof item.isDefault !== "boolean"
-    ) {
-      throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.PROTOCOL);
-    }
-    return Object.freeze({ model: item.model, isDefault: item.isDefault });
-  });
-  return Object.freeze({ models: Object.freeze(models), nextCursor: value.nextCursor });
-}
-
 function verifyConfigRequirements(value: unknown): void {
   if (!isRecord(value) || !hasOnlyKeys(value, ["requirements"])) {
     throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.PROTOCOL);
@@ -425,6 +400,7 @@ export class ManagedCodexAppServerAdapter implements AgentAdapter {
   #closed = false;
   #closePromise: Promise<void> | undefined;
   #fatalError: CodexAdapterError | undefined;
+  #model: string | undefined;
 
   private constructor(
     child: ChildProcessWithoutNullStreams,
@@ -448,6 +424,7 @@ export class ManagedCodexAppServerAdapter implements AgentAdapter {
       authReadiness: ManagedAdapterConnection["authReadiness"];
       requestedModel: string;
       effectiveModel: string;
+      models: readonly string[];
     }>
   > {
     throwIfAborted(options.signal);
@@ -527,7 +504,20 @@ export class ManagedCodexAppServerAdapter implements AgentAdapter {
       if (account === "signed-out") {
         throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.AUTH_REQUIRED);
       }
-      const requestedModel = await adapter.#readDefaultModel();
+      const catalog = await readCodexModelCatalog({
+        request: (params) => adapter.#request("model/list", params),
+        protocolError: () => new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.PROTOCOL),
+        unavailableError: () =>
+          new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.MODEL_UNAVAILABLE),
+      });
+      const selected =
+        options.model === undefined
+          ? (catalog.find((entry) => entry.isDefault) ?? catalog[0])
+          : catalog.find((entry) => entry.model === options.model);
+      if (selected === undefined)
+        throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.MODEL_UNAVAILABLE);
+      const requestedModel = selected.model;
+      adapter.#model = requestedModel;
       verifyConfigRequirements(await adapter.#request("configRequirements/read", {}));
       await adapter.#recoverThreadCleanup();
       throwIfAborted(options.signal);
@@ -536,6 +526,7 @@ export class ManagedCodexAppServerAdapter implements AgentAdapter {
         authReadiness: account,
         requestedModel,
         effectiveModel: requestedModel,
+        models: Object.freeze(catalog.map((entry) => entry.model)),
       });
     } catch (error: unknown) {
       await adapter.close();
@@ -581,6 +572,7 @@ export class ManagedCodexAppServerAdapter implements AgentAdapter {
     let threadId: string | undefined;
     try {
       const thread = await this.#request("thread/start", {
+        model: this.#model,
         cwd: task.workspaceRoot,
         runtimeWorkspaceRoots: [task.workspaceRoot],
         approvalPolicy: "never",
@@ -628,32 +620,6 @@ export class ManagedCodexAppServerAdapter implements AgentAdapter {
   close(): Promise<void> {
     this.#closePromise ??= this.#closeResources();
     return this.#closePromise;
-  }
-
-  async #readDefaultModel(): Promise<string> {
-    let cursor: string | null = null;
-    const seen = new Set<string>();
-    let first: string | undefined;
-
-    for (let page = 0; page < MAXIMUM_MODEL_PAGES; page += 1) {
-      const value = parseModelPage(
-        await this.#request("model/list", {
-          cursor,
-          limit: 100,
-          includeHidden: false,
-        }),
-      );
-      first ??= value.models[0]?.model;
-      const selected = value.models.find((model) => model.isDefault)?.model;
-      if (selected !== undefined) return selected;
-      if (value.nextCursor === null || seen.has(value.nextCursor)) break;
-      seen.add(value.nextCursor);
-      cursor = value.nextCursor;
-    }
-    if (first === undefined) {
-      throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.MODEL_UNAVAILABLE);
-    }
-    return first;
   }
 
   async #assertNoMcpServers(threadId: string): Promise<void> {
@@ -775,6 +741,7 @@ export class ManagedCodexAppServerAdapter implements AgentAdapter {
         {
           threadId,
           input: [{ type: "text", text: task.prompt, text_elements: [] }],
+          model: this.#model,
           cwd: task.workspaceRoot,
           approvalPolicy: "never",
         },

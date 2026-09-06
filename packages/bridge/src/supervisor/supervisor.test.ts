@@ -35,7 +35,7 @@ let service: ExternalHandoffService | undefined;
 const supervisors: ExternalAgentSupervisor[] = [];
 
 function fakeConnector(): ConnectManagedAdapter {
-  return vi.fn(() => {
+  return vi.fn<ConnectManagedAdapter>((options) => {
     const adapter: AgentAdapter = {
       kind: "codex-app-server",
       close: vi.fn(() => Promise.resolve()),
@@ -44,8 +44,9 @@ function fakeConnector(): ConnectManagedAdapter {
     const connection: ManagedAdapterConnection = {
       adapter,
       authReadiness: "authenticated",
-      requestedModel: "requested-model",
+      requestedModel: options.model ?? "requested-model",
       effectiveModel: "effective-model",
+      models: ["requested-model", "alternate-model"],
     };
     return Promise.resolve(connection);
   });
@@ -124,6 +125,75 @@ describeExternalAgentSupervisor("external Agent Supervisor", () => {
         grantState: "valid",
       });
     });
+  });
+
+  it("switches an idle connection once, forwards the chosen model, and rejects unknown choices", async () => {
+    const connector = fakeConnector();
+    const supervisor = await createSupervisor(connector, () => Promise.resolve(true));
+    const signal = new AbortController().signal;
+    await supervisor.connect(request, signal);
+    await vi.waitFor(() => {
+      expect(supervisor.getStatus().connectionState).toBe("ready");
+    });
+    const firstResult = vi.mocked(connector).mock.results[0];
+    if (firstResult?.type !== "return") throw new Error("Connection did not return");
+    const first = await firstResult.value;
+    const change = {
+      ...request,
+      requestId: "change-model-request-001",
+      model: "alternate-model",
+    };
+    await supervisor.connect(change, signal);
+    await vi.waitFor(() => {
+      expect(supervisor.getStatus().connectionState).toBe("ready");
+    });
+    expect(first.adapter.close).toHaveBeenCalledOnce();
+    expect(connector).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(connector).mock.calls[1]?.[0].model).toBe("alternate-model");
+    expect(supervisor.getStatus().requestedModel).toBe("alternate-model");
+    await supervisor.connect(change, signal);
+    await supervisor.connect(
+      { ...change, requestId: "same-model-request-0001" },
+      signal,
+    );
+    expect(connector).toHaveBeenCalledTimes(2);
+    await expect(
+      supervisor.connect(
+        { ...change, requestId: "unknown-model-request-01", model: "unknown" },
+        signal,
+      ),
+    ).resolves.toMatchObject({
+      connectionState: "ready",
+      requestedModel: "alternate-model",
+      error: { code: "AGENT_MODEL_UNAVAILABLE" },
+    });
+    expect(connector).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects model switching while work is in progress without closing the adapter", async () => {
+    const connector = fakeConnector();
+    const supervisor = await createSupervisor(connector, () => Promise.resolve(true));
+    const signal = new AbortController().signal;
+    await supervisor.connect(request, signal);
+    await vi.waitFor(() => {
+      expect(supervisor.getStatus().connectionState).toBe("ready");
+    });
+    vi.mocked(connector).mock.calls[0]?.[0].onEvent({
+      type: "phase",
+      phase: "running",
+      revision: 1,
+    });
+    await expect(
+      supervisor.connect(
+        { ...request, requestId: "busy-model-request-0001", model: "alternate-model" },
+        signal,
+      ),
+    ).rejects.toMatchObject({ code: "EXTERNAL_AGENT_BUSY" });
+    expect(connector).toHaveBeenCalledOnce();
+    const firstResult = vi.mocked(connector).mock.results[0];
+    if (firstResult?.type !== "return") throw new Error("Connection did not return");
+    const first = await firstResult.value;
+    expect(first.adapter.close).not.toHaveBeenCalled();
   });
 
   it("keeps Inbox mode when out-of-browser consent is declined", async () => {

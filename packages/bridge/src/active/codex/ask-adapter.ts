@@ -36,6 +36,7 @@ import {
   type ManagedCodexAskRuntime,
 } from "./ask-runtime.js";
 import { CodexJsonlClient } from "./protocol.js";
+import { readCodexModelCatalog, type CodexModel } from "./model-catalog.js";
 
 const CLIENT_NAME = "spotpatch-contextual-ask";
 const CLIENT_TITLE = "SpotPatch Contextual Ask";
@@ -43,7 +44,6 @@ const EXECUTOR_ID = "ask_managed_codex_v1";
 const CAPABILITY_CACHE_TTL_MS = 5 * 60_000;
 const CAPABILITY_FAILURE_CACHE_TTL_MS = 30_000;
 const DEFAULT_PROCESS_SHUTDOWN_TIMEOUT_MS = 2_000;
-const MAXIMUM_MODEL_PAGES = 8;
 const MAXIMUM_MCP_STATUS_PAGES = 8;
 const PREFERRED_ASK_REASONING_EFFORT = "low";
 const WRITE_REVERSE_REQUESTS = new Set([
@@ -665,76 +665,15 @@ class ManagedCodexAskConnection {
   }
 }
 
-interface ManagedModelSelection {
-  readonly model: string;
-  readonly reasoningEffort?: string;
-}
-
-function modelSelection(value: JsonRecord): ManagedModelSelection {
-  if (
-    typeof value.model !== "string" ||
-    value.model.length === 0 ||
-    value.model.length > CONTEXTUAL_ASK_LIMITS.maximumLabelCharacters ||
-    value.model.trim() !== value.model ||
-    typeof value.isDefault !== "boolean"
-  ) {
-    throw askError("ASK_PROTOCOL_INCOMPATIBLE");
-  }
-  const efforts = value.supportedReasoningEfforts;
-  if (efforts !== undefined && !Array.isArray(efforts)) {
-    throw askError("ASK_PROTOCOL_INCOMPATIBLE");
-  }
-  const supportsPreferred =
-    Array.isArray(efforts) &&
-    efforts.some(
-      (entry) =>
-        isRecord(entry) && entry.reasoningEffort === PREFERRED_ASK_REASONING_EFFORT,
-    );
-  return Object.freeze({
-    model: value.model,
-    ...(supportsPreferred ? { reasoningEffort: PREFERRED_ASK_REASONING_EFFORT } : {}),
+async function readModels(client: CodexJsonlClient): Promise<readonly CodexModel[]> {
+  return readCodexModelCatalog({
+    request: (params) => client.request("model/list", params),
+    protocolError: () => askError("ASK_PROTOCOL_INCOMPATIBLE"),
+    unavailableError: () => askError("ASK_EXECUTOR_UNAVAILABLE"),
+    preferredReasoningEffort: PREFERRED_ASK_REASONING_EFFORT,
+    maximumModels: CONTEXTUAL_ASK_LIMITS.maximumModels,
+    maximumModelCharacters: CONTEXTUAL_ASK_LIMITS.maximumLabelCharacters,
   });
-}
-
-async function readModels(
-  client: CodexJsonlClient,
-): Promise<readonly (ManagedModelSelection & { readonly isDefault: boolean })[]> {
-  let cursor: string | null = null;
-  const seen = new Set<string>();
-  const catalog: (ManagedModelSelection & { readonly isDefault: boolean })[] = [];
-  for (let page = 0; page < MAXIMUM_MODEL_PAGES; page += 1) {
-    const value = await client.request("model/list", {
-      cursor,
-      limit: 100,
-      includeHidden: false,
-    });
-    if (
-      !isRecord(value) ||
-      !Array.isArray(value.data) ||
-      (value.nextCursor !== null && typeof value.nextCursor !== "string")
-    ) {
-      throw askError("ASK_PROTOCOL_INCOMPATIBLE");
-    }
-    const models = value.data.map((item) => {
-      if (!isRecord(item)) throw askError("ASK_PROTOCOL_INCOMPATIBLE");
-      const selection = modelSelection(item);
-      return Object.freeze({ ...selection, isDefault: item.isDefault === true });
-    });
-    for (const model of models) {
-      if (!catalog.some((existing) => existing.model === model.model))
-        catalog.push(model);
-    }
-    if (catalog.length > CONTEXTUAL_ASK_LIMITS.maximumModels)
-      throw askError("ASK_PROTOCOL_INCOMPATIBLE");
-    if (value.nextCursor === null) {
-      if (catalog.length === 0) throw askError("ASK_EXECUTOR_UNAVAILABLE");
-      return Object.freeze(catalog);
-    }
-    if (seen.has(value.nextCursor)) throw askError("ASK_PROTOCOL_INCOMPATIBLE");
-    seen.add(value.nextCursor);
-    cursor = value.nextCursor;
-  }
-  throw askError("ASK_PROTOCOL_INCOMPATIBLE");
 }
 
 function isMissingThreadError(error: unknown, threadId: string): boolean {

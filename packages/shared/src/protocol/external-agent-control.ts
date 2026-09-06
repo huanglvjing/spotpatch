@@ -117,6 +117,8 @@ export const EXTERNAL_AGENT_ACTIONS = Object.freeze([
 ] as const);
 export const EXTERNAL_AGENT_MANAGED_PROFILE = "managed-apply-v1" as const;
 export const EXTERNAL_AGENT_CONTROL_LIMITS = Object.freeze({
+  maximumModels: 128,
+  maximumModelCharacters: 128,
   maximumEventSubscribers: 4,
   eventHeartbeatMs: 15_000,
   eventReconnectMinimumMs: 500,
@@ -128,6 +130,11 @@ export const EXTERNAL_AGENT_CONTROL_LIMITS = Object.freeze({
 } as const);
 
 const isoTimestampSchema = z.iso.datetime();
+const modelSchema = z
+  .string()
+  .min(1)
+  .max(EXTERNAL_AGENT_CONTROL_LIMITS.maximumModelCharacters)
+  .refine((value) => value.trim() === value);
 const requestIdSchema = z
   .string()
   .min(22)
@@ -206,8 +213,15 @@ export const externalAgentControlStatusSchema = z.strictObject({
   connectionState: z.enum(EXTERNAL_AGENT_CONNECTION_STATES),
   authReadiness: z.enum(EXTERNAL_AGENT_AUTH_READINESS),
   grantState: z.enum(EXTERNAL_AGENT_GRANT_STATES),
-  requestedModel: z.string().min(1).max(128).optional(),
-  effectiveModel: z.string().min(1).max(128).optional(),
+  requestedModel: modelSchema.optional(),
+  effectiveModel: modelSchema.optional(),
+  models: z
+    .array(modelSchema)
+    .min(1)
+    .max(EXTERNAL_AGENT_CONTROL_LIMITS.maximumModels)
+    .refine((values) => new Set(values).size === values.length)
+    .readonly()
+    .optional(),
   task: managedTaskStatusSchema.optional(),
   error: externalAgentErrorSchema.optional(),
   updatedAt: isoTimestampSchema,
@@ -218,6 +232,7 @@ export const externalAgentControlConnectRequestSchema = z.strictObject({
   requestId: requestIdSchema,
   adapterKind: z.literal("codex"),
   profile: z.literal(EXTERNAL_AGENT_MANAGED_PROFILE),
+  model: modelSchema.optional(),
 });
 export const externalAgentControlDisconnectRequestSchema = z.strictObject({
   requestId: requestIdSchema,

@@ -36,6 +36,10 @@ type ManagedValidationOutcome = ExternalAgentManagedResult["validationOutcome"];
 interface ExternalHandoffMessages {
   readonly activeReady: (agent: string) => string;
   readonly agentLabel: string;
+  readonly modelLabel: string;
+  readonly modelLoading: string;
+  readonly modelHint: string;
+  readonly applyModel: string;
   readonly cancel: string;
   readonly cancelManaged: string;
   readonly codexManaged: string;
@@ -104,6 +108,11 @@ const MESSAGES = Object.freeze({
   "en-US": Object.freeze({
     title: "External Agent connection",
     agentLabel: "Agent",
+    modelLabel: "Managed Codex model",
+    modelLoading: "Connect to load available models",
+    modelHint:
+      "Applies only to this managed connection, not API Key settings. Apply changes before publishing; switching reconnects Codex.",
+    applyModel: "Apply model",
     codexManaged: "Codex · managed (experimental)",
     connectManaged: "Connect Codex",
     disconnectManaged: "Disconnect",
@@ -158,7 +167,7 @@ const MESSAGES = Object.freeze({
       "install-agent": "Install Codex and retry.",
       "use-supported-version": "Use a schema-compatible Codex version.",
       "sign-in": "Sign in with Codex, then retry.",
-      "choose-available-model": "Choose an available model in Codex configuration.",
+      "choose-available-model": "Choose an available model and reconnect Codex.",
       "use-inbox": "Continue with the Agent inbox fallback.",
       "confirm-managed-access": "Revoke the invalid grant and confirm access again.",
       "review-candidate-diff": "Review the candidate diff and validation output.",
@@ -250,6 +259,11 @@ const MESSAGES = Object.freeze({
   "zh-CN": Object.freeze({
     title: "外部 Agent 连接",
     agentLabel: "Agent",
+    modelLabel: "受管 Codex 模型",
+    modelLoading: "连接后加载可用模型",
+    modelHint:
+      "仅作用于此受管连接，不修改 API Key 配置。更换后请先应用模型，再发布任务；应用时会重新连接 Codex。",
+    applyModel: "应用模型",
     codexManaged: "Codex · 受管模式（实验性）",
     connectManaged: "连接 Codex",
     disconnectManaged: "断开连接",
@@ -299,7 +313,7 @@ const MESSAGES = Object.freeze({
       "install-agent": "安装 Codex 后重试。",
       "use-supported-version": "改用 Schema 兼容的 Codex 版本。",
       "sign-in": "登录 Codex 后重试。",
-      "choose-available-model": "在 Codex 配置中选择可用模型。",
+      "choose-available-model": "选择可用模型后重新连接 Codex。",
       "use-inbox": "继续使用 Agent 收件箱降级路径。",
       "confirm-managed-access": "撤销无效授权并重新确认。",
       "review-candidate-diff": "检查候选 diff 和验证输出。",
@@ -601,6 +615,11 @@ export function createExternalHandoffPanel(
   codexOption.value = "codex";
   agentSelect.append(codexOption);
   agentLabel.append(agentLabelText, agentSelect);
+  const modelLabel = createMarkedElement(document, "label");
+  const modelLabelText = createMarkedElement(document, "span");
+  const modelSelect = createMarkedElement(document, "select");
+  const modelHint = createMarkedElement(document, "p");
+  modelLabel.append(modelLabelText, modelSelect);
   const controlStatus = createMarkedElement(document, "p");
   controlStatus.className = "spotpatch-external-control-status";
   controlStatus.setAttribute("role", "status");
@@ -623,7 +642,14 @@ export function createExternalHandoffPanel(
   const managedResultSummary = createMarkedElement(document, "p");
   const managedResultDiff = createMarkedElement(document, "pre");
   managedResult.append(managedResultTitle, managedResultSummary, managedResultDiff);
-  controlRoot.append(agentLabel, controlStatus, controlActions, managedResult);
+  controlRoot.append(
+    agentLabel,
+    modelLabel,
+    modelHint,
+    controlStatus,
+    controlActions,
+    managedResult,
+  );
   const resolveButton = createButton(document, "", "spotpatch-external-resolve");
   resolveButton.hidden = true;
   const settings = createMarkedElement(document, "details");
@@ -683,6 +709,15 @@ export function createExternalHandoffPanel(
       // A blocked storage API only means the disclosure is shown again next time.
     }
   };
+  const modelPending = (): boolean =>
+    control?.mode === "managed" &&
+    modelSelect.value !== "" &&
+    modelSelect.value !== control.requestedModel;
+  const controlPending = (): boolean =>
+    controlOperationBusy ||
+    control?.connectionState === "diagnosing" ||
+    control?.connectionState === "connecting" ||
+    control?.connectionState === "disconnecting";
   const refreshActions = (): void => {
     sendButton.textContent = retryable
       ? messages.retry
@@ -694,6 +729,8 @@ export function createExternalHandoffPanel(
       !brokerReady ||
       !contextReady ||
       operationBusy ||
+      controlPending() ||
+      modelPending() ||
       (!retryable && dispatchBlocksSend);
     sendButton.setAttribute("aria-busy", String(operationBusy));
     refreshButton.disabled = !visible || operationBusy;
@@ -701,6 +738,10 @@ export function createExternalHandoffPanel(
     resolveButton.disabled = !visible || operationBusy || !unknownDelivery;
   };
   const refreshControlActions = (): void => {
+    connectButton.textContent = modelPending()
+      ? messages.applyModel
+      : messages.connectManaged;
+    modelSelect.disabled = true;
     if (control === undefined) {
       connectButton.disabled = true;
       disconnectButton.disabled = true;
@@ -709,12 +750,11 @@ export function createExternalHandoffPanel(
       return;
     }
     const state = control.connectionState;
-    const operationPending =
-      controlOperationBusy ||
-      state === "diagnosing" ||
-      state === "connecting" ||
-      state === "disconnecting";
-    connectButton.disabled = operationPending || state === "ready" || state === "busy";
+    const operationPending = controlPending();
+    modelSelect.disabled =
+      operationPending || state === "busy" || !control.models?.length;
+    connectButton.disabled =
+      operationPending || (state === "ready" && !modelPending()) || state === "busy";
     disconnectButton.disabled = operationPending || state === "disconnected";
     revokeButton.disabled = operationPending || control.grantState !== "valid";
     const phase = control.task?.managedPhase;
@@ -774,6 +814,11 @@ export function createExternalHandoffPanel(
     disclosureProvider.textContent = messages.disclosureProvider;
     disclosureNoGuarantee.textContent = messages.disclosureNoGuarantee;
     agentLabelText.textContent = messages.agentLabel;
+    modelLabelText.textContent = messages.modelLabel;
+    modelHint.textContent = messages.modelHint;
+    if (modelSelect.options.length === 1 && modelSelect.options[0]?.value === "") {
+      modelSelect.options[0].textContent = messages.modelLoading;
+    }
     codexOption.textContent = messages.codexManaged;
     connectButton.textContent = messages.connectManaged;
     disconnectButton.textContent = messages.disconnectManaged;
@@ -809,6 +854,27 @@ export function createExternalHandoffPanel(
   disclosure.addEventListener("keydown", handleDisclosureKeydown);
   settings.addEventListener("toggle", options.onViewChange);
   managedResult.addEventListener("toggle", options.onViewChange);
+  const handleModelChange = (): void => {
+    refreshControlActions();
+    refreshActions();
+  };
+  modelSelect.addEventListener("change", handleModelChange);
+  const renderModels = (): void => {
+    const previous = modelSelect.value;
+    const models = control?.models ?? [];
+    modelSelect.replaceChildren(
+      ...(models.length ? models : [""]).map((model) => {
+        const option = createMarkedElement(document, "option");
+        option.value = model;
+        option.textContent = model || messages.modelLoading;
+        return option;
+      }),
+    );
+    modelSelect.value = models.includes(previous)
+      ? previous
+      : (control?.requestedModel ?? models[0] ?? "");
+  };
+  renderModels();
   const unsubscribeLocale = options.subscribeLocale(applyMessages);
   applyMessages();
   status.textContent = messages.ready;
@@ -878,6 +944,7 @@ export function createExternalHandoffPanel(
     resolveButton,
     cancelManagedButton,
     connectButton,
+    readModel: () => modelSelect.value || undefined,
     disconnectButton,
     revokeButton,
 
@@ -952,6 +1019,7 @@ export function createExternalHandoffPanel(
 
     renderControlStatus(value: ExternalAgentControlStatus): void {
       control = value;
+      renderModels();
       controlStatus.textContent = controlStatusText(value, messages, framework);
       controlStatus.dataset.state = value.connectionState;
       disclosureNoGuarantee.textContent =
@@ -959,17 +1027,20 @@ export function createExternalHandoffPanel(
           ? messages.disclosureManagedGuarantee
           : messages.disclosureNoGuarantee;
       refreshControlActions();
+      refreshActions();
       options.onControlChange?.(value);
       options.onViewChange();
     },
 
     renderControlUnavailable(): void {
       control = undefined;
+      renderModels();
       controlStatus.dataset.state = "unavailable";
       controlStatus.textContent = messages.controlUnavailable;
       disclosureNoGuarantee.textContent = messages.disclosureNoGuarantee;
       refreshControlActions();
       options.onControlChange?.(undefined);
+      refreshActions();
       options.onViewChange();
     },
 
@@ -1003,6 +1074,7 @@ export function createExternalHandoffPanel(
     setControlBusy(nextBusy: boolean): void {
       controlOperationBusy = nextBusy;
       refreshControlActions();
+      refreshActions();
     },
 
     setContextReady(ready: boolean): void {
@@ -1023,6 +1095,7 @@ export function createExternalHandoffPanel(
       disclosure.removeEventListener("keydown", handleDisclosureKeydown);
       settings.removeEventListener("toggle", options.onViewChange);
       managedResult.removeEventListener("toggle", options.onViewChange);
+      modelSelect.removeEventListener("change", handleModelChange);
       unsubscribeLocale();
     },
   });

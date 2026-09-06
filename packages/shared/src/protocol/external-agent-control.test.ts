@@ -8,6 +8,29 @@ import {
 } from "./external-agent-control.js";
 
 describe("external Agent control protocol", () => {
+  it("accepts only a bounded model selector, never browser-supplied provider credentials", () => {
+    const request = {
+      requestId: "abcdefghijklmnopqrstuv",
+      adapterKind: "codex",
+      profile: "managed-apply-v1",
+      model: "available-model",
+    };
+    expect(externalAgentControlConnectRequestSchema.parse(request)).toEqual(request);
+    for (const model of ["", " model", "x".repeat(129), 1]) {
+      expect(
+        externalAgentControlConnectRequestSchema.safeParse({ ...request, model })
+          .success,
+      ).toBe(false);
+    }
+    for (const field of ["apiKey", "baseURL", "provider", "config"]) {
+      expect(
+        externalAgentControlConnectRequestSchema.safeParse({
+          ...request,
+          [field]: "untrusted",
+        }).success,
+      ).toBe(false);
+    }
+  });
   it("accepts the minimal disconnected managed status", () => {
     expect(
       externalAgentControlStatusSchema.parse({

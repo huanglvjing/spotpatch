@@ -69,9 +69,11 @@ export interface ManagedAdapterConnection {
     "authenticated" | "auth-not-required" | "signed-out" | "unknown";
   readonly requestedModel?: string;
   readonly effectiveModel?: string;
+  readonly models?: readonly string[];
 }
 
 export interface ConnectManagedAdapterOptions {
+  readonly model?: string;
   readonly bridgeAdapter: BridgeCliAdapter;
   readonly execution: ManagedExecutionPort;
   readonly cleanupJournal: ManagedThreadCleanupJournal;
@@ -427,9 +429,27 @@ export async function createExternalAgentSupervisor(
 
   const connectInternal = async (
     allowPrompt: boolean,
+    model?: string,
   ): Promise<ExternalAgentControlStatus> => {
     if (disposed) throw new SpotPatchError(ERROR_CODES.SESSION_CLOSED);
-    if (connection !== undefined) return status;
+    if (connection !== undefined) {
+      if (model === undefined || model === status.requestedModel) return status;
+      if (status.connectionState !== "ready")
+        throw new SpotPatchError(ERROR_CODES.EXTERNAL_AGENT_BUSY);
+      // Reject stale/forged choices before tearing down the healthy connection.
+      if (!status.models?.includes(model)) {
+        return publish({
+          error: managedError(
+            "AGENT_MODEL_UNAVAILABLE",
+            "model",
+            "user-action",
+            "choose-available-model",
+          ),
+        });
+      }
+      publish({ connectionState: "disconnecting", mode: "inbox" });
+      await stopConnection();
+    }
     if (process.platform === "win32") {
       return publish({
         mode: "inbox",
@@ -473,6 +493,8 @@ export async function createExternalAgentSupervisor(
       grantState,
       connectionState: "connecting",
       mode: "inbox",
+      requestedModel: undefined,
+      effectiveModel: undefined,
       error: undefined,
     });
     const controller = new AbortController();
@@ -487,6 +509,7 @@ export async function createExternalAgentSupervisor(
         options.connectManagedAdapter ?? connectManagedCodexAppServer
       )({
         bridgeAdapter: options.bridgeAdapter,
+        ...(model === undefined ? {} : { model }),
         execution,
         cleanupJournal,
         onEvent(event) {
@@ -527,6 +550,7 @@ export async function createExternalAgentSupervisor(
           const current =
             status.task?.revision === event.revision ? status.task : undefined;
           publish({
+            connectionState: "busy",
             task: taskStatus(event.revision, event.phase, current),
           });
         },
@@ -617,6 +641,7 @@ export async function createExternalAgentSupervisor(
           availability: "available",
         },
         authReadiness: adapterConnection.authReadiness,
+        models: adapterConnection.models,
         ...(adapterConnection.requestedModel === undefined
           ? {}
           : { requestedModel: adapterConnection.requestedModel }),
@@ -632,6 +657,7 @@ export async function createExternalAgentSupervisor(
       return publish({
         mode: "inbox",
         connectionState: "degraded",
+        models: undefined,
         ...(classified.code === "AGENT_AUTH_REQUIRED"
           ? { authReadiness: "signed-out" as const }
           : {}),
@@ -676,7 +702,7 @@ export async function createExternalAgentSupervisor(
     connect(request: ExternalAgentControlConnectRequest, signal: AbortSignal) {
       return idempotent(request.requestId, requestFingerprint(request), async () => {
         if (signal.aborted) throw new SpotPatchError(ERROR_CODES.AGENT_CANCELLED);
-        return connectInternal(true);
+        return connectInternal(true, request.model);
       });
     },
     disconnect(request: ExternalAgentControlDisconnectRequest) {
@@ -699,6 +725,7 @@ export async function createExternalAgentSupervisor(
           authReadiness: "unknown",
           requestedModel: undefined,
           effectiveModel: undefined,
+          ...(request.revokeGrant ? { models: undefined } : {}),
           error: undefined,
         });
       });

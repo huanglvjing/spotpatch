@@ -14,6 +14,7 @@ import type {
 export interface ExternalHandoffPanel {
   readonly cancelManagedButton: HTMLButtonElement;
   readonly connectButton: HTMLButtonElement;
+  readonly readModel: () => string | undefined;
   readonly disconnectButton: HTMLButtonElement;
   readonly refreshButton: HTMLButtonElement;
   readonly root: HTMLElement;

@@ -533,11 +533,13 @@ export function createExternalHandoffWorkflow(
     }
   };
   const handleConnectClick = (): void => {
+    const model = options.panel.readModel();
     void performControlAction(() =>
       controlClient.connect({
         requestId: createRequestId(options.window),
         adapterKind: "codex",
         profile: EXTERNAL_AGENT_MANAGED_PROFILE,
+        ...(model === undefined ? {} : { model }),
       }),
     );
   };

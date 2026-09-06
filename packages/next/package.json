@@ -1,6 +1,6 @@
 {
   "name": "@spotpatch/next",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Development-only Next.js adapter and CLI for SpotPatch.",
   "license": "MIT",
   "repository": {

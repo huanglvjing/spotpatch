@@ -1,5 +1,11 @@
 # @spotpatch/vite
 
+## 1.15.1
+
+### Patch Changes
+
+- Ship the managed Codex model picker through framework integrations, including the Astro and Vite bundled browser panels, with updated shared control protocol and Bridge dependencies.
+
 ## 1.15.0
 
 ### Minor Changes

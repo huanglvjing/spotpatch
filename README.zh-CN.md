@@ -212,7 +212,7 @@ export default withSpotPatch({ dataFlow: {} })(nextConfig);
 
 ## 可选 AI Agent
 
-首次接入可显式一次授权，之后无需再去开发终端输入 `yes`：在项目根执行对应的 `pnpm exec spotpatch-vite init`、`pnpm exec spotpatch-next init`；Astro 先安装并配置 integration，再执行 `pnpm exec spotpatch-astro init`（Astro 此命令只初始化授权）。
+首次接入可显式一次授权，之后无需再去开发终端输入 `yes`：在项目根执行对应的 `pnpm exec spotpatch-vite init`、`pnpm exec spotpatch-next init` 或 `pnpm exec spotpatch-astro init`；Astro 命令还会安全更新可支持的静态 `astro.config.*`。
 
 已经接入的项目，三个适配器均支持 `bridge init`，不会重写接入配置。执行初始化即授权隔离快照修改及 SpotPatch 审计、校验后的合规回写；授权保存在当前用户私有目录、绑定规范化项目路径、不进入 Git，可在面板撤销。仍需启用 `externalAgent: true`，并满足本机 Codex 安装、登录和协议检查；无需附加授权参数或交互确认，旧参数仅作为兼容入口保留。
 
@@ -332,7 +332,7 @@ pnpm exec spotpatch-astro init
 pnpm dev
 ```
 
-`init` 只创建 Managed Codex 使用的私有项目授权，不会修改 `astro.config.*`。若第三方 registry 镜像尚未同步全部新发布的 SpotPatch 包，安装命令临时增加 `--registry=https://registry.npmjs.org`。
+`init` 会安全更新可支持的静态 `astro.config.*`，开启数据链路、Contextual Ask 与外部 Agent，在可发现 Astro checker 时开启可信极速，并创建 Managed Codex 私有项目授权。动态或含糊配置会无写入失败；`spotpatch-astro check` 提供只读核验。若第三方 registry 镜像尚未同步全部新发布的 SpotPatch 包，安装命令临时增加 `--registry=https://registry.npmjs.org`。
 
 已接入 React 岛屿标记、原生/浏览器数据链路、只读 Ask、外部 Agent Inbox/托管控制及 Astro 专用可信快速检查，复用既有公共服务。这些功能按配置启用；服务端请求仍是静态证据，不把 inline 脚本改成模块，外部 Agent 实验模式仍保留原有成熟度限制。详见[功能对齐方案与本轮验收证据](./docs/技术方案/Astro适配/02-功能对齐实施方案.md)。
 

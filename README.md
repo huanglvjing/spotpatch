@@ -357,7 +357,7 @@ pnpm exec spotpatch-astro init
 pnpm dev
 ```
 
-`init` creates the private project grant used by Managed Codex; it does not edit `astro.config.*`. If a third-party registry mirror has not synchronized all newly published SpotPatch packages, retry installation once with `--registry=https://registry.npmjs.org`.
+`init` safely updates a supported static `astro.config.*`, enables data flow, Contextual Ask and external-Agent controls, enables Trusted direct when an Astro checker is discoverable, and creates the private Managed Codex project grant. Ambiguous dynamic configurations fail without writing; `spotpatch-astro check` provides read-only verification. If a third-party registry mirror has not synchronized all newly published SpotPatch packages, retry installation once with `--registry=https://registry.npmjs.org`.
 
 The integration also implements React-island markers, native/browser data flow, read-only Contextual Ask, external-Agent Inbox/managed controls and Astro-aware Trusted direct validation using the shared services. These are opt-in; server-side requests remain static evidence, inline scripts are not converted into modules, and experimental external-Agent modes keep their existing maturity restrictions. See the [feature parity plan and acceptance evidence](./docs/技术方案/Astro适配/02-功能对齐实施方案.md).
 

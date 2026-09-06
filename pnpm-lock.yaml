@@ -234,6 +234,9 @@ importers:
       magic-string:
         specifier: 1.1.0
         version: 1.1.0
+      oxc-parser:
+        specifier: 0.143.0
+        version: 0.143.0
       vite:
         specifier: 8.2.2
         version: 8.2.2(@types/node@20.19.33)(esbuild@0.28.1)(jiti@1.21.7)(yaml@2.9.0)

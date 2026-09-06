@@ -12,6 +12,7 @@ Install the adapter as a development dependency from the npm registry:
 
 ```bash
 pnpm add -D @spotpatch/astro@latest
+pnpm exec spotpatch-astro init
 ```
 
 If a third-party registry mirror has not synchronized every newly published SpotPatch dependency, retry against the official npm registry instead of weakening dependency ranges or adding SpotPatch internals directly:
@@ -20,7 +21,9 @@ If a third-party registry mirror has not synchronized every newly published Spot
 pnpm add -D @spotpatch/astro@latest --registry=https://registry.npmjs.org
 ```
 
-Add the integration to the existing config; preserve all other integrations, adapters, `base` and Vite settings:
+`init` safely adds the integration to a supported static `astro.config.*`, enables data flow, Contextual Ask and external-Agent controls, enables Trusted direct when an Astro project check is discoverable, and initializes the private Managed Codex project grant. It preserves existing integrations, adapters, `base`, Vite settings and explicit SpotPatch options. Ambiguous dynamic configurations fail without writing; use `pnpm exec spotpatch-astro check` for a read-only verification.
+
+The resulting configuration has this shape (or add it manually if the initializer reports an unsupported dynamic configuration):
 
 ```js
 // astro.config.mjs
@@ -74,7 +77,7 @@ spotPatch({
 
 Use the shared in-page managed controls for the normal external-Agent workflow. From the linked host project, inspect the adapter's bridge CLI:
 
-Before connecting for the first time, run `pnpm exec spotpatch-astro init` from the already-integrated project. This initializes a private project grant only; it does not install the integration or modify Astro configuration. The equivalent `pnpm exec spotpatch-astro bridge init` is shared with the Vite and Next adapters. There is no subsequent dev-terminal `yes` prompt. Grants remain revocable, and authentication/security checks remain mandatory.
+Before connecting for the first time, run `pnpm exec spotpatch-astro init`. It safely updates the integration and initializes the private project grant. For an already-integrated project that needs authorization only, `pnpm exec spotpatch-astro bridge init` uses the shared Vite/Next authorization path without changing integration files. There is no subsequent dev-terminal `yes` prompt. Grants remain revocable, and authentication/security checks remain mandatory.
 
 ```bash
 pnpm exec spotpatch-astro bridge --help
@@ -122,7 +125,7 @@ This checks preservation and compilation of template source, not the host's auth
 
 ## 简体中文
 
-这是已发布到 npm 的 Astro 公共集成，不要求 React。通过 `pnpm add -D @spotpatch/astro@latest` 安装；若第三方镜像尚未同步完整依赖，临时增加 `--registry=https://registry.npmjs.org`，不要直接安装内部包规避依赖约束。保留原配置，在 `integrations` 中增加 `spotPatch({ ai: false })`，不要放入 `vite.plugins`。
+这是已发布到 npm 的 Astro 公共集成，不要求 React。执行 `pnpm add -D @spotpatch/astro@latest` 和 `pnpm exec spotpatch-astro init`；初始化器会安全更新静态 `astro.config.*`、开启数据链路/Ask/外部 Agent、在可发现 Astro 检查时开启可信极速，并完成 Managed Codex 私有项目授权。动态或含糊配置会无写入失败，可用 `spotpatch-astro check` 只读核验或按上方示例手动配置。不要放入 `vite.plugins`。若第三方镜像尚未同步完整依赖，临时增加 `--registry=https://registry.npmjs.org`，不要直接安装内部包规避依赖约束。
 
 正式验证矩阵为 Node.js 22.12+ 与 Astro 5.18.2、6.4.8、7.2.8，并覆盖 Linux、macOS、Windows；该声明不自动扩展到任意补丁版本、SSR adapter 或第三方 UI 框架内部。原生模板与 React 岛屿复用定位、编辑器、DOM/CSS、Prompt 和 AI 审阅/应用/回滚；通过 `dataFlow: {}`、`contextualAsk: {}`、`externalAgent: true` 启用数据链路、只读问答和外部 Agent。可信快速模式需要已配置的必需检查或完整的本地 Astro checker，不能用 `tsc` 冒充模板验收。
 

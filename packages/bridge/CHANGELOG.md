@@ -1,5 +1,13 @@
 # @spotpatch/bridge
 
+## 0.4.2
+
+### Patch Changes
+
+- 1107f62: Retry transient Windows ACL reads only while the exact same descriptor path and filesystem identity still exist. Validation remains fail-closed for changed, missing, insecure, or repeatedly unreadable paths, while avoiding sporadic Windows error-code-3 failures during connector discovery.
+- Updated dependencies [1107f62]
+  - @spotpatch/shared@1.14.2
+
 ## 0.4.1
 
 ### Patch Changes

@@ -155,6 +155,7 @@ function structured(result: {
 
 describe.sequential(
   "external Agent bridge integration",
+  { timeout: BRIDGE_LIFECYCLE_TIMEOUT_MS },
   () => {
     let projectRoot: string;
     let runtimeRoot: string;
@@ -554,5 +555,4 @@ describe.sequential(
       }
     });
   },
-  BRIDGE_LIFECYCLE_TIMEOUT_MS,
 );

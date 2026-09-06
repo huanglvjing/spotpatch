@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  一个本地优先、仅在开发期运行的 React 页面反馈工作台，新增 Astro 源码预览适配。
+  一个本地优先、仅在开发期运行的 React 与 Astro 页面反馈工作台。
 </p>
 
 <p align="center">
@@ -20,6 +20,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@spotpatch/vite"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fvite?logo=npm&label=%40spotpatch%2Fvite" alt="npm 版本" /></a>
+  <a href="https://www.npmjs.com/package/@spotpatch/astro"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fastro?logo=npm&label=%40spotpatch%2Fastro" alt="Astro npm 版本" /></a>
   <a href="https://www.npmjs.com/package/@spotpatch/next"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fnext?logo=npm&label=%40spotpatch%2Fnext" alt="Next.js 预览版本" /></a>
   <a href="https://www.npmjs.com/package/@spotpatch/vite"><img src="https://img.shields.io/npm/dm/%40spotpatch%2Fvite?logo=npm&label=downloads" alt="npm 下载量" /></a>
   <a href="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml"><img src="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI 状态" /></a>
@@ -38,7 +39,7 @@ SpotPatch 把真实 React 页面转换成准确、可复用的开发上下文。
 
 > [!IMPORTANT]
 > `@spotpatch/vite` 是当前正式支持的公共接入包。可安装的 [Next.js 适配器](./packages/next/README.md#简体中文)是 **0.x 公共预览版**，尚未进入公共支持矩阵。
-> 新增 [`@spotpatch/astro`](./packages/astro/README.md#简体中文) **未发布源码预览**，支持原生 Astro 模板，能力边界与 React 适配器不同。
+> [`@spotpatch/astro`](./packages/astro/README.md#简体中文) 是已发布的公共集成，正式覆盖文档列出的 Astro 5/6/7 验证矩阵；其源码与运行边界不同于 React 适配器。
 
 **从这里开始：** [Vite 快速开始](#快速开始vite) · [界面流程](#从页面到源码的四步流程) · [外部 Agent](#外部-agent-交接本地验证) · [数据链路 Beta](#组件数据链路beta) · [可选 AI](#可选-ai-agent)
 
@@ -319,11 +320,19 @@ pnpm dev
 
 生成文件示例、生产命令、已知限制和证据边界见完整的 [`@spotpatch/next` 公共预览指南](./packages/next/README.md#简体中文)。作出兼容性声明前，必须核对 [Next.js 适配计划](./docs/技术方案/Next适配/00-索引与架构摘要.md)和[剩余支持门禁](./docs/技术方案/Next适配/08-测试验收与实施计划.md)。
 
-## Astro 源码预览
+## Astro
 
 新增 [`@spotpatch/astro`](./packages/astro/README.md#简体中文) 平级适配器，不需要安装 React。复用元素选择、DOM/CSS、双语多目标 Prompt、编辑器跳转和配置 Key 的 AI 审阅流程。版本化 fixture 覆盖 Astro 5.18.2 / 6.4.8 / 7.2.8；要求 Node.js 22.12+。
 
-先在仓库运行 `pnpm --filter @spotpatch/astro... build`，再按[本地链接与配置说明](./packages/astro/README.md#use-the-source-preview)接入。配置放入 Astro 的 `integrations`，不要放入 `vite.plugins`。本次**未执行 npm 发布**，不能用 registry 命令安装这份未发布改动；包 README 已分别说明当前本地命令与未来发布后的安装命令。
+安装已发布的适配器，并把配置放入 Astro 的 `integrations`，不要放入 `vite.plugins`：
+
+```bash
+pnpm add -D @spotpatch/astro@latest
+pnpm exec spotpatch-astro init
+pnpm dev
+```
+
+`init` 只创建 Managed Codex 使用的私有项目授权，不会修改 `astro.config.*`。若第三方 registry 镜像尚未同步全部新发布的 SpotPatch 包，安装命令临时增加 `--registry=https://registry.npmjs.org`。
 
 已接入 React 岛屿标记、原生/浏览器数据链路、只读 Ask、外部 Agent Inbox/托管控制及 Astro 专用可信快速检查，复用既有公共服务。这些功能按配置启用；服务端请求仍是静态证据，不把 inline 脚本改成模块，外部 Agent 实验模式仍保留原有成熟度限制。详见[功能对齐方案与本轮验收证据](./docs/技术方案/Astro适配/02-功能对齐实施方案.md)。
 
@@ -365,19 +374,19 @@ Vite 公共入口导出 `spotPatch(options)`，重要默认值如下：
 
 业务应用通常只需要安装一个框架适配器。
 
-| 包                                                                 | 职责                                       | 业务应用是否直接使用    |
-| ------------------------------------------------------------------ | ------------------------------------------ | ----------------------- |
-| [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | 正式支持的 Vite 接入                       | **是**                  |
-| [`@spotpatch/next`](./packages/next/README.md#简体中文)            | 可安装的 Next.js 0.x 公共预览              | 仅供预览，尚未正式支持  |
-| [`@spotpatch/astro`](./packages/astro/README.md#简体中文)          | 原生 Astro 模板开发集成                    | 未发布源码预览          |
-| `@spotpatch/compiler`                                              | 框架无关 JSX/TSX 标记编译器                | 适配器基础设施          |
-| `@spotpatch/analyzer`                                              | Node-only 组件/请求语义分析器              | 适配器基础设施，仅 Node |
-| `@spotpatch/dev-server`                                            | 本地会话、源码访问、编辑器与 Agent 编排    | 适配器基础设施，仅 Node |
-| `@spotpatch/bridge`                                                | 外部 Agent Inbox、CLI、事件泵和宿主适配器  | 适配器基础设施，仅 Node |
-| `@spotpatch/runtime`                                               | 浏览器选择器、采集器、工作台和 Prompt 生成 | 由适配器安装            |
-| `@spotpatch/react-adapter`                                         | 隔离的 React/Fiber 兼容边界                | 由适配器安装            |
-| `@spotpatch/agent`                                                 | Provider、受限工具、worktree 和检查引擎    | 由适配器安装，仅 Node   |
-| `@spotpatch/shared`                                                | 不可变模型、协议 Schema 和错误码           | 内部共享契约            |
+| 包                                                                   | 职责                                       | 业务应用是否直接使用    |
+| -------------------------------------------------------------------- | ------------------------------------------ | ----------------------- |
+| [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite)   | 正式支持的 Vite 接入                       | **是**                  |
+| [`@spotpatch/next`](./packages/next/README.md#简体中文)              | 可安装的 Next.js 0.x 公共预览              | 仅供预览，尚未正式支持  |
+| [`@spotpatch/astro`](https://www.npmjs.com/package/@spotpatch/astro) | 已发布的原生 Astro 开发集成                | **是**，限文档验证矩阵  |
+| `@spotpatch/compiler`                                                | 框架无关 JSX/TSX 标记编译器                | 适配器基础设施          |
+| `@spotpatch/analyzer`                                                | Node-only 组件/请求语义分析器              | 适配器基础设施，仅 Node |
+| `@spotpatch/dev-server`                                              | 本地会话、源码访问、编辑器与 Agent 编排    | 适配器基础设施，仅 Node |
+| `@spotpatch/bridge`                                                  | 外部 Agent Inbox、CLI、事件泵和宿主适配器  | 适配器基础设施，仅 Node |
+| `@spotpatch/runtime`                                                 | 浏览器选择器、采集器、工作台和 Prompt 生成 | 由适配器安装            |
+| `@spotpatch/react-adapter`                                           | 隔离的 React/Fiber 兼容边界                | 由适配器安装            |
+| `@spotpatch/agent`                                                   | Provider、受限工具、worktree 和检查引擎    | 由适配器安装，仅 Node   |
+| `@spotpatch/shared`                                                  | 不可变模型、协议 Schema 和错误码           | 内部共享契约            |
 
 某个包为了形成完整依赖图而公开发布，不代表它自动成为独立的用户接入入口。
 

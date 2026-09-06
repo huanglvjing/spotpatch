@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  A local-first, development-only feedback workspace for React, with an Astro source preview.
+  A local-first, development-only feedback workspace for React and Astro.
 </p>
 
 <p align="center">
@@ -20,6 +20,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/@spotpatch/vite"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fvite?logo=npm&label=%40spotpatch%2Fvite" alt="npm version" /></a>
+  <a href="https://www.npmjs.com/package/@spotpatch/astro"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fastro?logo=npm&label=%40spotpatch%2Fastro" alt="Astro npm version" /></a>
   <a href="https://www.npmjs.com/package/@spotpatch/next"><img src="https://img.shields.io/npm/v/%40spotpatch%2Fnext?logo=npm&label=%40spotpatch%2Fnext" alt="Next.js preview version" /></a>
   <a href="https://www.npmjs.com/package/@spotpatch/vite"><img src="https://img.shields.io/npm/dm/%40spotpatch%2Fvite?logo=npm&label=downloads" alt="npm downloads" /></a>
   <a href="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml"><img src="https://github.com/huanglvjing/spotpatch/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI status" /></a>
@@ -38,7 +39,7 @@ SpotPatch turns rendered React UI into precise, reusable development context. Se
 
 > [!IMPORTANT]
 > `@spotpatch/vite` is the supported public integration. The installable [Next.js adapter](./packages/next/README.md) is a **0.x public preview**, not yet part of the public support matrix.
-> Native Astro support is available as an **unreleased source preview** in [`@spotpatch/astro`](./packages/astro/README.md); its support boundaries differ from the React integrations.
+> [`@spotpatch/astro`](./packages/astro/README.md) is a published public integration for the documented Astro 5/6/7 matrix; its source and runtime boundaries differ from the React integrations.
 
 **Start here:** [Vite quick start](#quick-start-vite) · [Visual workflow](#visual-workflow) · [External Agents](#external-agent-handoff-local-validation) · [Data flow Beta](#component-data-flow-beta) · [Optional AI](#optional-ai-agent)
 
@@ -344,11 +345,19 @@ A successful startup prints a line beginning with `[spotpatch:next] ready`. Open
 
 See the complete [`@spotpatch/next` public-preview guide](./packages/next/README.md) for generated file examples, production commands, known restrictions, and the exact evidence boundary. Follow the [Next.js adapter plan](./docs/技术方案/Next适配/00-索引与架构摘要.md) and [remaining support gates](./docs/技术方案/Next适配/08-测试验收与实施计划.md) before making compatibility claims.
 
-## Astro source preview
+## Astro
 
 The new [`@spotpatch/astro`](./packages/astro/README.md) integration targets native `.astro` templates without requiring React. It shares the picker, DOM/CSS context, bilingual prompts, editor navigation and configured-key review workflow. Versioned fixtures cover Astro 5.18.2 / 6.4.8 / 7.2.8; Node.js 22.12+ is required.
 
-Build the checkout with `pnpm --filter @spotpatch/astro... build`, then follow the [local linking and configuration instructions](./packages/astro/README.md#use-the-source-preview). The package has **not been published** by this change; registry installation commands are documented separately for a future release. Add `spotPatch({ ai: false })` to Astro's `integrations`, not `vite.plugins`.
+Install the published adapter, then add `spotPatch({ ai: false })` to Astro's `integrations`, not `vite.plugins`:
+
+```bash
+pnpm add -D @spotpatch/astro@latest
+pnpm exec spotpatch-astro init
+pnpm dev
+```
+
+`init` creates the private project grant used by Managed Codex; it does not edit `astro.config.*`. If a third-party registry mirror has not synchronized all newly published SpotPatch packages, retry installation once with `--registry=https://registry.npmjs.org`.
 
 The integration also implements React-island markers, native/browser data flow, read-only Contextual Ask, external-Agent Inbox/managed controls and Astro-aware Trusted direct validation using the shared services. These are opt-in; server-side requests remain static evidence, inline scripts are not converted into modules, and experimental external-Agent modes keep their existing maturity restrictions. See the [feature parity plan and acceptance evidence](./docs/技术方案/Astro适配/02-功能对齐实施方案.md).
 
@@ -391,19 +400,19 @@ Read the complete [local protocol and security specification](./docs/技术方�
 
 Applications should normally install only a framework adapter.
 
-| Package                                                            | Role                                                          | Direct application use                  |
-| ------------------------------------------------------------------ | ------------------------------------------------------------- | --------------------------------------- |
-| [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite) | Supported Vite integration                                    | **Yes**                                 |
-| [`@spotpatch/next`](./packages/next/README.md)                     | Installable Next.js 0.x public preview                        | Preview only; not formally supported    |
-| [`@spotpatch/astro`](./packages/astro/README.md)                   | Native Astro source integration                               | Unreleased source preview               |
-| `@spotpatch/compiler`                                              | Framework-neutral JSX/TSX marker compiler                     | Adapter infrastructure                  |
-| `@spotpatch/analyzer`                                              | Node-only component/request semantic analyzer                 | Adapter infrastructure; Node only       |
-| `@spotpatch/dev-server`                                            | Local sessions, source access, editor and Agent orchestration | Adapter infrastructure; Node only       |
-| `@spotpatch/bridge`                                                | External-Agent Inbox, CLI, event pump and host adapters       | Adapter infrastructure; Node only       |
-| `@spotpatch/runtime`                                               | Browser picker, collectors, workbench and prompt composer     | Installed through an adapter            |
-| `@spotpatch/react-adapter`                                         | Isolated React/Fiber compatibility boundary                   | Installed through an adapter            |
-| `@spotpatch/agent`                                                 | Provider, bounded tools, worktree and validation engine       | Installed through an adapter; Node only |
-| `@spotpatch/shared`                                                | Immutable models, protocol schemas and error codes            | Shared internal contract                |
+| Package                                                              | Role                                                          | Direct application use                  |
+| -------------------------------------------------------------------- | ------------------------------------------------------------- | --------------------------------------- |
+| [`@spotpatch/vite`](https://www.npmjs.com/package/@spotpatch/vite)   | Supported Vite integration                                    | **Yes**                                 |
+| [`@spotpatch/next`](./packages/next/README.md)                       | Installable Next.js 0.x public preview                        | Preview only; not formally supported    |
+| [`@spotpatch/astro`](https://www.npmjs.com/package/@spotpatch/astro) | Published native Astro integration                            | **Yes**, within its documented matrix   |
+| `@spotpatch/compiler`                                                | Framework-neutral JSX/TSX marker compiler                     | Adapter infrastructure                  |
+| `@spotpatch/analyzer`                                                | Node-only component/request semantic analyzer                 | Adapter infrastructure; Node only       |
+| `@spotpatch/dev-server`                                              | Local sessions, source access, editor and Agent orchestration | Adapter infrastructure; Node only       |
+| `@spotpatch/bridge`                                                  | External-Agent Inbox, CLI, event pump and host adapters       | Adapter infrastructure; Node only       |
+| `@spotpatch/runtime`                                                 | Browser picker, collectors, workbench and prompt composer     | Installed through an adapter            |
+| `@spotpatch/react-adapter`                                           | Isolated React/Fiber compatibility boundary                   | Installed through an adapter            |
+| `@spotpatch/agent`                                                   | Provider, bounded tools, worktree and validation engine       | Installed through an adapter; Node only |
+| `@spotpatch/shared`                                                  | Immutable models, protocol schemas and error codes            | Shared internal contract                |
 
 Packages that are publicly published to complete the dependency graph are not automatically separate user-facing integration surfaces.
 

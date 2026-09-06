@@ -4,24 +4,21 @@ Development-only Astro integration for native templates and React islands. Share
 
 ## Status and compatibility
 
-This is an **unreleased source preview, not a published npm release**. The manifest accepts Astro 5/6/7; compatibility fixtures pin **5.18.2, 6.4.8 and 7.2.8**, with React **18.3.1** and their corresponding official React integrations. Require **Node.js 22.12+**, including when using Astro 5. Other patch/React versions and SSR deployment adapters are not independently certified. See the [current plan and acceptance evidence](../../docs/技术方案/Astro适配/02-功能对齐实施方案.md); the initial source-only plan is retained as history.
+`@spotpatch/astro` is a published public integration. The supported matrix is Astro **5.18.2, 6.4.8 and 7.2.8** on Node.js **22.12+**, validated on Linux, macOS and Windows; the React-island fixtures use React **18.3.1** and the matching official Astro React integrations. Other Astro patches, React versions, SSR deployment adapters and third-party UI framework internals are outside the verified matrix unless documented otherwise. See the [current plan and acceptance evidence](../../docs/技术方案/Astro适配/02-功能对齐实施方案.md); the initial source-only plan is retained as history.
 
-## Use the source preview
+## Install
 
-In a checkout of SpotPatch, with the repository's declared pnpm version:
-
-```bash
-pnpm install --frozen-lockfile
-pnpm --filter @spotpatch/astro... build
-```
-
-Then, from your Astro project, link that built checkout (replace the example path):
+Install the adapter as a development dependency from the npm registry:
 
 ```bash
-pnpm link /absolute/path/to/SpotPatch/packages/astro
+pnpm add -D @spotpatch/astro@latest
 ```
 
-Keep the checkout and its dependencies available while linked. Review pnpm's changes to the host manifest/workspace configuration and lockfile. Rebuild SpotPatch and restart Astro after changing the integration. This development link is not a standalone distributable package.
+If a third-party registry mirror has not synchronized every newly published SpotPatch dependency, retry against the official npm registry instead of weakening dependency ranges or adding SpotPatch internals directly:
+
+```bash
+pnpm add -D @spotpatch/astro@latest --registry=https://registry.npmjs.org
+```
 
 Add the integration to the existing config; preserve all other integrations, adapters, `base` and Vite settings:
 
@@ -36,8 +33,6 @@ export default defineConfig({
 ```
 
 Start your normal development command (`pnpm dev`, or your existing programmatic `astro.dev()` launcher). Use the picker button or `Mod+Shift+S`. Do **not** put this integration into `vite.plugins`, and do not add the Vite/React adapter to an Astro project just to enable SpotPatch.
-
-After a future npm release, the intended official Astro installer is `pnpm exec astro add @spotpatch/astro` (npm: `npx astro add @spotpatch/astro`). Manual installation will be `pnpm add -D @spotpatch/astro` or `npm install --save-dev @spotpatch/astro`, followed by the config above. **These registry commands do not install this unreleased checkout.**
 
 ## Options and boundaries
 
@@ -127,8 +122,8 @@ This checks preservation and compilation of template source, not the host's auth
 
 ## 简体中文
 
-这是未发布的源码预览适配器，不需要 React。先在 SpotPatch 仓库安装依赖并构建，再在 Astro 项目通过 `pnpm link /实际路径/SpotPatch/packages/astro` 引用；保留原配置，在 `integrations` 中增加 `spotPatch({ ai: false })`。不要放入 `vite.plugins`。
+这是已发布到 npm 的 Astro 公共集成，不要求 React。通过 `pnpm add -D @spotpatch/astro@latest` 安装；若第三方镜像尚未同步完整依赖，临时增加 `--registry=https://registry.npmjs.org`，不要直接安装内部包规避依赖约束。保留原配置，在 `integrations` 中增加 `spotPatch({ ai: false })`，不要放入 `vite.plugins`。
 
-要求 Node.js 22.12+；fixture 固定 Astro 5.18.2、6.4.8、7.2.8。原生模板与 React 岛屿复用定位、编辑器、DOM/CSS、Prompt 和 AI 审阅/应用/回滚；通过 `dataFlow: {}`、`contextualAsk: {}`、`externalAgent: true` 启用数据链路、只读问答和外部 Agent。可信快速模式需要已配置的必需检查或完整的本地 Astro checker，不能用 `tsc` 冒充模板验收。
+正式验证矩阵为 Node.js 22.12+ 与 Astro 5.18.2、6.4.8、7.2.8，并覆盖 Linux、macOS、Windows；该声明不自动扩展到任意补丁版本、SSR adapter 或第三方 UI 框架内部。原生模板与 React 岛屿复用定位、编辑器、DOM/CSS、Prompt 和 AI 审阅/应用/回滚；通过 `dataFlow: {}`、`contextualAsk: {}`、`externalAgent: true` 启用数据链路、只读问答和外部 Agent。可信快速模式需要已配置的必需检查或完整的本地 Astro checker，不能用 `tsc` 冒充模板验收。
 
-前后端作用域隔离，浏览器不能证明服务端执行；inline 脚本不改成模块，动态 DOM/其他 UI 框架不能伪报精确定位。外部 Agent 的实验性限制继续有效。生产不注入 SpotPatch。安装、连接命令见上文；当前仍未发布 npm。完整边界、测试替身及真实宿主未验证项见[本轮技术方案与验收](../../docs/技术方案/Astro适配/02-功能对齐实施方案.md)。
+前后端作用域隔离，浏览器不能证明服务端执行；inline 脚本不改成模块，动态 DOM/其他 UI 框架不能伪报精确定位。外部 Agent 的实验性限制继续有效。生产不注入 SpotPatch。安装、连接命令见上文；完整边界、测试替身及真实宿主未验证项见[本轮技术方案与验收](../../docs/技术方案/Astro适配/02-功能对齐实施方案.md)。

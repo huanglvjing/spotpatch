@@ -252,9 +252,9 @@ describe("contextual Ask panel", () => {
     panel.renderCapability(capability);
 
     const trigger = panel.root.querySelector<HTMLButtonElement>(
-      '.spotpatch-ask-executor[role="combobox"]',
+      '.spotpatch-select-trigger[role="combobox"]',
     );
-    const menu = panel.root.querySelector<HTMLElement>(".spotpatch-ask-executor-menu");
+    const menu = panel.root.querySelector<HTMLElement>(".spotpatch-select-menu");
     expect(trigger?.disabled).toBe(true);
     expect(menu?.hidden).toBe(true);
 
@@ -278,8 +278,7 @@ describe("contextual Ask panel", () => {
     trigger?.click();
     expect(menu?.hidden).toBe(false);
     const options = [
-      ...(menu?.querySelectorAll<HTMLButtonElement>(".spotpatch-ask-executor-option") ??
-        []),
+      ...(menu?.querySelectorAll<HTMLButtonElement>(".spotpatch-select-option") ?? []),
     ];
     expect(options).toHaveLength(2);
     options[1]?.click();

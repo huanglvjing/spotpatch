@@ -17,6 +17,7 @@ import type {
 
 import { createButton, createMarkedElement } from "./dom.js";
 import type { ExternalHandoffPanel } from "./external-handoff-contract.js";
+import { createSelectPicker, SELECT_PICKER_STYLES } from "./ask-picker.js";
 
 interface PanelOptions {
   readonly document: Document;
@@ -405,6 +406,7 @@ const MESSAGES = Object.freeze({
 function createStyles(document: Document): HTMLStyleElement {
   const styles = document.createElement("style");
   styles.textContent = `
+    ${SELECT_PICKER_STYLES}
     .spotpatch-external-handoff { margin-top: 12px; padding: 12px; border: 1px solid var(--spotpatch-border); border-radius: var(--spotpatch-radius-card); background: rgb(82 168 255 / 5%); }
     .spotpatch-external-handoff[hidden] { display: none; }
     .spotpatch-external-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -414,8 +416,10 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-external-status[data-state="error"] { border-color: var(--spotpatch-danger); color: #fecdd3; }
     .spotpatch-external-status[data-state="picked-up"] { border-color: var(--spotpatch-success); color: #a7f3d0; }
     .spotpatch-external-control { margin-top: 9px; padding: 9px; border: 1px solid var(--spotpatch-border); border-radius: 8px; background: rgb(3 7 18 / 28%); }
-    .spotpatch-external-control label { display: grid; gap: 4px; color: var(--spotpatch-text-secondary); font-size: 10px; }
-    .spotpatch-external-control select { width: 100%; padding: 6px 8px; border: 1px solid var(--spotpatch-border); border-radius: 6px; background: var(--spotpatch-bg-input); color: var(--spotpatch-text); font: inherit; }
+    .spotpatch-external-control-field { display: grid; gap: 5px; min-width: 0; }
+    .spotpatch-external-control-field + .spotpatch-external-control-field { margin-top: 9px; }
+    .spotpatch-external-control-field > label { color: var(--spotpatch-text-secondary); font-size: 10px; }
+    .spotpatch-external-agent-value { box-sizing: border-box; display: flex; width: 100%; min-height: 38px; align-items: center; border: 1px solid var(--spotpatch-border); border-radius: 9px; padding: 0 11px; overflow: hidden; color: var(--spotpatch-text); background: rgb(255 255 255 / 3%); font: inherit; text-overflow: ellipsis; white-space: nowrap; }
     .spotpatch-external-control-status { margin: 7px 0 0; color: #cbd5e1; font-size: 10.5px; line-height: 1.5; white-space: pre-wrap; }
     .spotpatch-external-control-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .spotpatch-external-control-actions button { padding: 5px 8px; border: 1px solid var(--spotpatch-border); border-radius: 6px; background: var(--spotpatch-bg-active); color: var(--spotpatch-text); font: inherit; font-size: 10px; cursor: pointer; }
@@ -608,18 +612,24 @@ export function createExternalHandoffPanel(
   status.setAttribute("aria-live", "polite");
   const controlRoot = createMarkedElement(document, "div");
   controlRoot.className = "spotpatch-external-control";
+  const agentField = createMarkedElement(document, "div");
+  agentField.className = "spotpatch-external-control-field";
   const agentLabel = createMarkedElement(document, "label");
   const agentLabelText = createMarkedElement(document, "span");
-  const agentSelect = createMarkedElement(document, "select");
-  const codexOption = createMarkedElement(document, "option");
-  codexOption.value = "codex";
-  agentSelect.append(codexOption);
-  agentLabel.append(agentLabelText, agentSelect);
+  const agentValue = createMarkedElement(document, "div");
+  agentValue.className = "spotpatch-external-agent-value";
+  agentLabel.append(agentLabelText);
+  agentField.append(agentLabel, agentValue);
+  const modelField = createMarkedElement(document, "div");
+  modelField.className = "spotpatch-external-control-field";
   const modelLabel = createMarkedElement(document, "label");
   const modelLabelText = createMarkedElement(document, "span");
-  const modelSelect = createMarkedElement(document, "select");
+  const modelPicker = createSelectPicker(document, options.onViewChange);
+  const modelSelect = modelPicker.select;
+  modelLabel.htmlFor = modelPicker.trigger.id;
   const modelHint = createMarkedElement(document, "p");
-  modelLabel.append(modelLabelText, modelSelect);
+  modelLabel.append(modelLabelText);
+  modelField.append(modelLabel, modelPicker.root);
   const controlStatus = createMarkedElement(document, "p");
   controlStatus.className = "spotpatch-external-control-status";
   controlStatus.setAttribute("role", "status");
@@ -643,8 +653,8 @@ export function createExternalHandoffPanel(
   const managedResultDiff = createMarkedElement(document, "pre");
   managedResult.append(managedResultTitle, managedResultSummary, managedResultDiff);
   controlRoot.append(
-    agentLabel,
-    modelLabel,
+    agentField,
+    modelField,
     modelHint,
     controlStatus,
     controlActions,
@@ -713,6 +723,8 @@ export function createExternalHandoffPanel(
     control?.mode === "managed" &&
     modelSelect.value !== "" &&
     modelSelect.value !== control.requestedModel;
+  const modelChangeBlocksSend = (): boolean =>
+    activeAdapter?.canDispatch === true && modelPending();
   const controlPending = (): boolean =>
     controlOperationBusy ||
     control?.connectionState === "diagnosing" ||
@@ -729,8 +741,7 @@ export function createExternalHandoffPanel(
       !brokerReady ||
       !contextReady ||
       operationBusy ||
-      controlPending() ||
-      modelPending() ||
+      modelChangeBlocksSend() ||
       (!retryable && dispatchBlocksSend);
     sendButton.setAttribute("aria-busy", String(operationBusy));
     refreshButton.disabled = !visible || operationBusy;
@@ -741,7 +752,7 @@ export function createExternalHandoffPanel(
     connectButton.textContent = modelPending()
       ? messages.applyModel
       : messages.connectManaged;
-    modelSelect.disabled = true;
+    modelPicker.setDisabled(true);
     if (control === undefined) {
       connectButton.disabled = true;
       disconnectButton.disabled = true;
@@ -751,8 +762,9 @@ export function createExternalHandoffPanel(
     }
     const state = control.connectionState;
     const operationPending = controlPending();
-    modelSelect.disabled =
-      operationPending || state === "busy" || !control.models?.length;
+    modelPicker.setDisabled(
+      controlOperationBusy || state === "busy" || !control.models?.length,
+    );
     connectButton.disabled =
       operationPending || (state === "ready" && !modelPending()) || state === "busy";
     disconnectButton.disabled = operationPending || state === "disconnected";
@@ -819,7 +831,7 @@ export function createExternalHandoffPanel(
     if (modelSelect.options.length === 1 && modelSelect.options[0]?.value === "") {
       modelSelect.options[0].textContent = messages.modelLoading;
     }
-    codexOption.textContent = messages.codexManaged;
+    agentValue.textContent = messages.codexManaged;
     connectButton.textContent = messages.connectManaged;
     disconnectButton.textContent = messages.disconnectManaged;
     revokeButton.textContent = messages.revokeManaged;
@@ -873,6 +885,7 @@ export function createExternalHandoffPanel(
     modelSelect.value = models.includes(previous)
       ? previous
       : (control?.requestedModel ?? models[0] ?? "");
+    modelPicker.rebuild();
   };
   renderModels();
   const unsubscribeLocale = options.subscribeLocale(applyMessages);
@@ -1096,6 +1109,7 @@ export function createExternalHandoffPanel(
       settings.removeEventListener("toggle", options.onViewChange);
       managedResult.removeEventListener("toggle", options.onViewChange);
       modelSelect.removeEventListener("change", handleModelChange);
+      modelPicker.dispose();
       unsubscribeLocale();
     },
   });

@@ -8,7 +8,7 @@ import type {
   ErrorCode,
 } from "@spotpatch/shared/contextual-ask-browser";
 
-import { createAskPicker } from "./ask-picker.js";
+import { createSelectPicker, SELECT_PICKER_STYLES } from "./ask-picker.js";
 import { createButton, createMarkedElement } from "./dom.js";
 import type {
   ContextualAskPanel,
@@ -41,6 +41,7 @@ interface CreateContextualAskPanelInput {
 function createStyles(document: Document): HTMLStyleElement {
   const style = document.createElement("style");
   style.textContent = `
+    ${SELECT_PICKER_STYLES}
     .spotpatch-ask-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 14px; padding: 4px; border: 1px solid var(--spotpatch-border-subtle); border-radius: 10px; background: #0a0a0e; }
     .spotpatch-ask-mode button { min-height: 34px; border: 0; border-radius: 7px; color: var(--spotpatch-text-secondary); background: transparent; cursor: pointer; font-size: 12px; font-weight: 700; }
     .spotpatch-ask-mode button[aria-selected="true"] { color: #f7f7ff; background: linear-gradient(135deg, rgb(139 123 255 / 25%), rgb(82 168 255 / 14%)); box-shadow: inset 0 0 0 1px rgb(139 123 255 / 24%); }
@@ -53,20 +54,6 @@ function createStyles(document: Document): HTMLStyleElement {
     .spotpatch-ask-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
     .spotpatch-ask-suggestions button { border: 1px solid var(--spotpatch-border-subtle); border-radius: 999px; padding: 5px 9px; color: var(--spotpatch-text-secondary); background: rgb(255 255 255 / 2%); cursor: pointer; font-size: 10.5px; }
     .spotpatch-ask-suggestions button:hover { border-color: rgb(139 123 255 / 42%); color: #fff; }
-    .spotpatch-ask-executor-picker { display: grid; gap: 5px; min-width: 0; }
-    .spotpatch-ask-executor { box-sizing: border-box; display: flex; width: 100%; min-height: 38px; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--spotpatch-border); border-radius: 9px; padding: 0 11px; overflow: hidden; color: var(--spotpatch-text); background: var(--spotpatch-bg-input); cursor: pointer; font: inherit; outline: none; text-align: left; }
-    .spotpatch-ask-executor > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .spotpatch-ask-executor[data-expandable="true"]::after { width: 7px; height: 7px; flex: 0 0 auto; border-right: 1.5px solid #8f96a3; border-bottom: 1.5px solid #8f96a3; content: ""; transform: translateY(-2px) rotate(45deg); }
-    .spotpatch-ask-executor[aria-expanded="true"]::after { transform: translateY(2px) rotate(225deg); }
-    .spotpatch-ask-executor:focus-visible { border-color: rgb(139 123 255 / 68%); box-shadow: 0 0 0 3px rgb(139 123 255 / 12%); }
-    .spotpatch-ask-executor:disabled { color: var(--spotpatch-text); background: rgb(255 255 255 / 3%); cursor: default; opacity: 1; }
-    .spotpatch-ask-executor[data-empty="true"]:disabled { color: var(--spotpatch-text-muted); }
-    .spotpatch-ask-executor-menu { display: grid; gap: 3px; border: 1px solid var(--spotpatch-border); border-radius: 9px; padding: 4px; background: var(--spotpatch-bg-input); max-height: 224px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; box-shadow: 0 10px 28px rgb(0 0 0 / 28%); }
-    .spotpatch-ask-executor-menu[hidden] { display: none; }
-    .spotpatch-ask-executor-option { box-sizing: border-box; min-height: 34px; border: 0; border-radius: 6px; padding: 7px 9px; color: var(--spotpatch-text-secondary); background: transparent; cursor: pointer; font: inherit; text-align: left; overflow-wrap: anywhere; }
-    .spotpatch-ask-executor-option[data-active="true"], .spotpatch-ask-executor-option:hover { color: #fff; background: rgb(139 123 255 / 13%); outline: none; }
-    .spotpatch-ask-executor-option[aria-selected="true"] { color: #f4f1ff; background: rgb(139 123 255 / 20%); }
-    .spotpatch-ask-executor-native { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; border: 0; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
     .spotpatch-ask-executor-status { margin: 0; border-left: 2px solid var(--spotpatch-warning); padding-left: 8px; color: #d8b66c; font-size: 10.5px; line-height: 1.45; }
     .spotpatch-ask-safety { display: grid; gap: 8px; border: 1px solid rgb(82 168 255 / 16%); border-radius: 10px; padding: 10px 11px; background: rgb(82 168 255 / 4%); }
     .spotpatch-ask-data { display: flex; justify-content: space-between; gap: 10px; color: #aab3c2; font-size: 10.5px; }
@@ -179,13 +166,13 @@ export function createContextualAskPanel(
   const executorField = createMarkedElement(document, "div");
   executorField.className = "spotpatch-ask-field";
   const executorLabel = createMarkedElement(document, "label");
-  const executorPicker = createAskPicker(document, input.onViewChange);
+  const executorPicker = createSelectPicker(document, input.onViewChange);
   const executorSelect = executorPicker.select;
   executorLabel.htmlFor = executorPicker.trigger.id;
   const modelField = createMarkedElement(document, "div");
   modelField.className = "spotpatch-ask-field";
   const modelLabel = createMarkedElement(document, "label");
-  const modelPicker = createAskPicker(document, input.onViewChange);
+  const modelPicker = createSelectPicker(document, input.onViewChange);
   modelLabel.htmlFor = modelPicker.trigger.id;
   modelField.append(modelLabel, modelPicker.root);
   let modelExecutorId: string | undefined;

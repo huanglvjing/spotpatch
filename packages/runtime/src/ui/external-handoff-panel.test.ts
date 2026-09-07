@@ -397,7 +397,7 @@ describe("external handoff Runtime extension", () => {
     panel.sendButton.remove();
   });
 
-  it("selects only catalog models and requires applying changes before publishing", () => {
+  it("selects only catalog models without blocking the inbox fallback", () => {
     const panel = createExternalHandoffPanel(
       document,
       "next",
@@ -406,9 +406,13 @@ describe("external handoff Runtime extension", () => {
       () => () => undefined,
       () => undefined,
     );
-    const select = panel.root.querySelectorAll("select")[1];
+    const select = panel.root.querySelector(".spotpatch-select-native");
     if (!(select instanceof HTMLSelectElement))
       throw new Error("Missing model selector");
+    expect(panel.root.querySelectorAll("select")).toHaveLength(1);
+    expect(
+      panel.root.querySelector(".spotpatch-external-agent-value")?.textContent,
+    ).toBe("Codex · managed (experimental)");
     expect(select.disabled).toBe(true);
     expect(panel.readModel()).toBeUndefined();
     const ready = {
@@ -418,6 +422,9 @@ describe("external handoff Runtime extension", () => {
       models: ["first", "second"],
     };
     panel.renderControlStatus(ready);
+    panel.setSelectionVisible(true);
+    panel.setContextReady(true);
+    panel.renderCapability(capability());
     expect(select.disabled).toBe(false);
     expect(panel.readModel()).toBe("first");
     expect(panel.connectButton.disabled).toBe(true);
@@ -426,7 +433,18 @@ describe("external handoff Runtime extension", () => {
     expect(panel.readModel()).toBe("second");
     expect(panel.connectButton.disabled).toBe(false);
     expect(panel.connectButton.textContent).toBe("Apply model");
+    expect(panel.sendButton.disabled).toBe(false);
+
+    panel.renderCapability({
+      ...capability(),
+      activeAdapter: activeAdapter("ready"),
+    });
+    expect(panel.sendButton.textContent).toBe("Send to Agent");
     expect(panel.sendButton.disabled).toBe(true);
+
+    panel.renderCapability(capability());
+    expect(panel.sendButton.textContent).toBe("Publish to Agent inbox");
+    expect(panel.sendButton.disabled).toBe(false);
     panel.renderControlStatus({ ...ready, sequence: 2 });
     expect(panel.readModel()).toBe("second");
     panel.setControlBusy(true);
@@ -445,6 +463,15 @@ describe("external handoff Runtime extension", () => {
     panel.renderControlStatus({ ...ready, models: ["first"] });
     expect(panel.readModel()).toBe("first");
     expect(panel.root.textContent).toContain("not API Key settings");
+
+    panel.renderControlStatus({
+      ...ready,
+      mode: "inbox",
+      connectionState: "connecting",
+    });
+    expect(select.disabled).toBe(false);
+    expect(panel.sendButton.textContent).toBe("Publish to Agent inbox");
+    expect(panel.sendButton.disabled).toBe(false);
     panel.dispose();
   });
 

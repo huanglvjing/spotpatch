@@ -63,19 +63,22 @@ test("managed model picker applies a server catalog choice without publishing wo
     exact: true,
   });
   await expect(model).toBeVisible();
-  await expect(model).toHaveValue("fixture-default");
-  await model.selectOption("fixture-alternative");
-  await expect(
-    dialog.getByRole("button", { name: "Publish to Agent inbox" }),
-  ).toBeDisabled();
+  await expect(model).toHaveText("fixture-default");
+  const inboxButton = dialog.getByRole("button", {
+    name: "Publish to Agent inbox",
+  });
+  await expect(inboxButton).toBeEnabled();
+  await model.click();
+  await dialog
+    .getByRole("option", { name: "fixture-alternative", exact: true })
+    .click();
+  await expect(inboxButton).toBeEnabled();
   await dialog.getByRole("button", { name: "Apply model", exact: true }).click();
-  await expect(model).toHaveValue("fixture-alternative");
+  await expect(model).toHaveText("fixture-alternative");
   await expect(
     dialog.getByRole("button", { name: "Connect Codex", exact: true }),
   ).toBeDisabled();
-  await expect(
-    dialog.getByRole("button", { name: "Publish to Agent inbox" }),
-  ).toBeEnabled();
+  await expect(inboxButton).toBeEnabled();
   expect(requests).toHaveLength(1);
   expect(errors).toEqual([]);
 });

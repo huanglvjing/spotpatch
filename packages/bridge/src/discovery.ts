@@ -112,7 +112,7 @@ export async function discoverProjectDescriptors(
 ): Promise<readonly SecureExternalHandoffDescriptor[]> {
   const directory = await resolveExternalHandoffRuntimeDirectory(false);
   const keys = await projectKeys(cwd);
-  const descriptorPaths: string[] = [];
+  const matched: SecureExternalHandoffDescriptor[] = [];
   const entries = await opendir(directory);
 
   try {
@@ -123,9 +123,11 @@ export async function discoverProjectDescriptors(
         throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
       }
 
-      descriptorPaths.push(path.join(directory, entry.name));
+      const candidate = await readSecureDescriptor(path.join(directory, entry.name));
+      if (!keys.has(candidate.descriptor.projectKey)) continue;
 
-      if (descriptorPaths.length > EXTERNAL_HANDOFF_LIMITS.maximumDescriptorsPerScan) {
+      matched.push(candidate);
+      if (matched.length > EXTERNAL_HANDOFF_LIMITS.maximumDescriptorsPerScan) {
         throw new SpotPatchError(ERROR_CODES.BRIDGE_BUSY);
       }
     }
@@ -133,18 +135,13 @@ export async function discoverProjectDescriptors(
     await entries.close().catch(() => undefined);
   }
 
-  const descriptors = await Promise.all(
-    descriptorPaths.sort().map(readSecureDescriptor),
-  );
-  const matched = descriptors.filter(({ descriptor }) =>
-    keys.has(descriptor.projectKey),
-  );
-
   if (matched.length === 0) {
     throw new SpotPatchError(ERROR_CODES.SESSION_NOT_FOUND);
   }
 
-  return Object.freeze(matched);
+  return Object.freeze(
+    matched.sort((left, right) => left.path.localeCompare(right.path)),
+  );
 }
 
 export async function resolveExactProjectSessionId(

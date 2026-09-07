@@ -211,6 +211,37 @@ describe.sequential("external Agent bridge integration", () => {
     await expect(bridge.sessions()).resolves.toEqual([]);
   });
 
+  it("bounds descriptors for the requested project instead of unrelated projects", async () => {
+    const runtimeDirectory = await resolveExternalHandoffRuntimeDirectory(false);
+    const unrelatedProjectKey = "f".repeat(64);
+
+    await Promise.all(
+      Array.from({ length: 33 }, async (_, index) => {
+        const sessionId = `unrelated${String(index).padStart(13, "0")}`;
+        const descriptorPath = path.join(runtimeDirectory, `${sessionId}.json`);
+        const descriptor = externalHandoffDescriptorSchema.parse({
+          schemaVersion: 1,
+          brokerProtocolVersion: EXTERNAL_HANDOFF_BROKER_PROTOCOL_VERSION,
+          projectKey: unrelatedProjectKey,
+          sessionId,
+          framework: "vite",
+          endpoint: "http://127.0.0.1:43123",
+          bridgeToken: "u".repeat(43),
+          pid: process.pid,
+          createdAt: new Date().toISOString(),
+        });
+        await writeFile(descriptorPath, `${JSON.stringify(descriptor)}\n`, {
+          mode: 0o600,
+        });
+        await initializePrivateExternalHandoffFile(descriptorPath);
+      }),
+    );
+
+    await expect(createSpotPatchBridgeClient(projectRoot).sessions()).resolves.toEqual([
+      expect.objectContaining({ sessionId: SESSION_ID }),
+    ]);
+  });
+
   it("requires active connectors to start at the exact project root", async () => {
     const nested = path.join(projectRoot, "src");
     await mkdir(nested);

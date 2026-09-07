@@ -113,7 +113,23 @@ export async function discoverProjectDescriptors(
   const directory = await resolveExternalHandoffRuntimeDirectory(false);
   const keys = await projectKeys(cwd);
   const matched: SecureExternalHandoffDescriptor[] = [];
+  const descriptorPaths: string[] = [];
   const entries = await opendir(directory);
+
+  const readBatch = async (): Promise<void> => {
+    const candidates = await Promise.all(
+      descriptorPaths.splice(0).sort().map(readSecureDescriptor),
+    );
+
+    for (const candidate of candidates) {
+      if (!keys.has(candidate.descriptor.projectKey)) continue;
+
+      matched.push(candidate);
+      if (matched.length > EXTERNAL_HANDOFF_LIMITS.maximumDescriptorsPerScan) {
+        throw new SpotPatchError(ERROR_CODES.BRIDGE_BUSY);
+      }
+    }
+  };
 
   try {
     for await (const entry of entries) {
@@ -123,14 +139,16 @@ export async function discoverProjectDescriptors(
         throw new SpotPatchError(ERROR_CODES.BRIDGE_UNAUTHORIZED);
       }
 
-      const candidate = await readSecureDescriptor(path.join(directory, entry.name));
-      if (!keys.has(candidate.descriptor.projectKey)) continue;
+      descriptorPaths.push(path.join(directory, entry.name));
 
-      matched.push(candidate);
-      if (matched.length > EXTERNAL_HANDOFF_LIMITS.maximumDescriptorsPerScan) {
-        throw new SpotPatchError(ERROR_CODES.BRIDGE_BUSY);
+      if (
+        descriptorPaths.length === EXTERNAL_HANDOFF_LIMITS.maximumDescriptorsPerScan
+      ) {
+        await readBatch();
       }
     }
+
+    if (descriptorPaths.length > 0) await readBatch();
   } finally {
     await entries.close().catch(() => undefined);
   }

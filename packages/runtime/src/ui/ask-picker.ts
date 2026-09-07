@@ -91,9 +91,10 @@ export function createSelectPicker(document: Document, onViewChange: () => void)
   }
 
   function rebuild(): void {
-    close();
+    const expanded = !menu.hidden;
+    const nativeOptions = [...select.options];
     menu.replaceChildren();
-    for (const [index, option] of [...select.options].entries()) {
+    for (const [index, option] of nativeOptions.entries()) {
       const item = createMarkedElement(document, "div");
       item.id = `${menu.id}-${String(index)}`;
       item.className = "spotpatch-select-option";
@@ -110,6 +111,10 @@ export function createSelectPicker(document: Document, onViewChange: () => void)
       menu.append(item);
     }
     sync();
+    if (expanded) {
+      activate(Math.max(0, select.selectedIndex));
+      onViewChange();
+    }
   }
 
   trigger.addEventListener("click", () => {

@@ -445,7 +445,15 @@ describe("external handoff Runtime extension", () => {
     panel.renderCapability(capability());
     expect(panel.sendButton.textContent).toBe("Publish to Agent inbox");
     expect(panel.sendButton.disabled).toBe(false);
+
+    const trigger = panel.root.querySelector<HTMLButtonElement>(
+      ".spotpatch-select-trigger",
+    );
+    const menu = panel.root.querySelector<HTMLElement>(".spotpatch-select-menu");
+    trigger?.click();
+    expect(menu?.hidden).toBe(false);
     panel.renderControlStatus({ ...ready, sequence: 2 });
+    expect(menu?.hidden).toBe(false);
     expect(panel.readModel()).toBe("second");
     panel.setControlBusy(true);
     expect(select.disabled).toBe(true);

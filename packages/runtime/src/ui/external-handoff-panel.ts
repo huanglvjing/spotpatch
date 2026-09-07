@@ -752,8 +752,8 @@ export function createExternalHandoffPanel(
     connectButton.textContent = modelPending()
       ? messages.applyModel
       : messages.connectManaged;
-    modelPicker.setDisabled(true);
     if (control === undefined) {
+      modelPicker.setDisabled(true);
       connectButton.disabled = true;
       disconnectButton.disabled = true;
       revokeButton.disabled = true;

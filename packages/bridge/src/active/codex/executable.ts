@@ -21,7 +21,7 @@ const VERSION_OUTPUT_LIMIT_BYTES = 8 * 1_024;
 const VERSION_PROBE_TIMEOUT_MS = 5_000;
 const SCHEMA_OUTPUT_LIMIT_BYTES = 8 * 1_024;
 const SCHEMA_FILE_LIMIT_BYTES = 1_048_576;
-const SCHEMA_PROBE_TIMEOUT_MS = 10_000;
+const SCHEMA_PROBE_TIMEOUT_MS = process.platform === "win32" ? 30_000 : 10_000;
 
 export const REQUIRED_CODEX_SCHEMA_METHODS = Object.freeze({
   "ClientNotification.json": Object.freeze(["initialized"]),

@@ -304,5 +304,5 @@ it.runIf(process.env.SPOTPATCH_RUN_CODEX_DISTRIBUTION === "1")(
       /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/u,
     );
   },
-  20_000,
+  process.platform === "win32" ? 45_000 : 20_000,
 );

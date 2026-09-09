@@ -1,5 +1,11 @@
 # @spotpatch/runtime
 
+## 1.15.4
+
+### Patch Changes
+
+- 04d3b5b: Accept Astro handoff summaries in the browser runtime so a successfully started managed Agent revision is rendered as running instead of being misreported as an unpublished retryable request.
+
 ## 1.15.3
 
 ### Patch Changes

@@ -3,6 +3,7 @@ import {
   EXTERNAL_AGENT_CONTROL_LIMITS,
   EXTERNAL_AGENT_MANAGED_PROFILE,
   EXTERNAL_HANDOFF_BROKER_PROTOCOL_VERSION,
+  EXTERNAL_HANDOFF_FRAMEWORKS,
   EXTERNAL_HANDOFF_LIMITS,
   EXTERNAL_HANDOFF_SNAPSHOT_SCHEMA_VERSION,
   SPOTPATCH_ENDPOINTS,
@@ -14,6 +15,7 @@ import {
   type ExternalAgentControlStatus,
   type ExternalAgentEvent,
   type ExternalHandoffCapability,
+  type ExternalHandoffFramework,
   type ExternalHandoffPublishResult,
   type ExternalHandoffStatusResult,
   type ExternalHandoffSummary,
@@ -204,6 +206,10 @@ function parseStatusResult(value: unknown): ExternalHandoffStatusResult {
   });
 }
 
+function isExternalHandoffFramework(value: unknown): value is ExternalHandoffFramework {
+  return EXTERNAL_HANDOFF_FRAMEWORKS.some((framework) => framework === value);
+}
+
 function parseSummary(value: unknown): ExternalHandoffSummary {
   if (!record(value)) throw new ExternalHandoffApiError();
   const expectedKeys = [
@@ -224,7 +230,7 @@ function parseSummary(value: unknown): ExternalHandoffSummary {
     !exactKeys(value, expectedKeys) ||
     typeof value.sessionId !== "string" ||
     !OPAQUE_ID_PATTERN.test(value.sessionId) ||
-    (value.framework !== "vite" && value.framework !== "next") ||
+    !isExternalHandoffFramework(value.framework) ||
     !Number.isSafeInteger(value.revision) ||
     (value.revision as number) <= 0 ||
     typeof value.cursor !== "string" ||

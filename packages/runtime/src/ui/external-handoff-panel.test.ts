@@ -5,6 +5,7 @@ import {
   SPOTPATCH_ENDPOINTS,
   SPOTPATCH_TOKEN_HEADER,
   type ExternalAgentControlStatus,
+  type ExternalHandoffFramework,
   type SpotAnnotation,
 } from "@spotpatch/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -93,10 +94,10 @@ function capability() {
   } as const;
 }
 
-function summary(pickupCount = 0) {
+function summary(pickupCount = 0, framework: ExternalHandoffFramework = "vite") {
   return {
     sessionId: SESSION_ID,
-    framework: "vite",
+    framework,
     revision: 1,
     cursor: CURSOR,
     targetCount: 1,
@@ -768,6 +769,116 @@ describe("external handoff Runtime extension", () => {
       revokeGrant: true,
     });
     expect(JSON.stringify(controlBodies)).toMatch(/"requestId":"[a-f0-9]{48}"/u);
+    workflow.dispose();
+    panel.dispose();
+    panel.root.remove();
+    panel.sendButton.remove();
+  });
+
+  it("accepts an Astro active publish response without offering a duplicate retry", async () => {
+    let publishRequests = 0;
+    const connectedAt = "2026-08-23T00:00:00.000Z";
+    const updatedAt = "2026-08-23T00:00:02.000Z";
+    const readyAdapter = {
+      kind: "codex-app-server",
+      state: "ready",
+      canDispatch: true,
+      connectedAt,
+      updatedAt,
+    } as const;
+    const busyAdapter = {
+      ...readyAdapter,
+      state: "busy",
+      canDispatch: false,
+    } as const;
+    const workingDispatch = {
+      adapterKind: "codex-app-server",
+      revision: 1,
+      phase: "working",
+      updatedAt,
+    } as const;
+    const fetchMock = vi.fn<typeof fetch>((input) => {
+      const endpoint =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+
+      if (endpoint === SPOTPATCH_ENDPOINTS.externalHandoffCapability) {
+        return Promise.resolve(
+          envelope({
+            ...capability(),
+            activeWaitCount: 0,
+            activeAdapter: readyAdapter,
+          }),
+        );
+      }
+      if (endpoint === SPOTPATCH_ENDPOINTS.externalHandoffPublish) {
+        publishRequests += 1;
+        return Promise.resolve(
+          envelope(
+            {
+              handoff: summary(0, "astro"),
+              delivery: {
+                mode: "active",
+                adapter: busyAdapter,
+                dispatch: workingDispatch,
+              },
+              replayed: false,
+            },
+            201,
+          ),
+        );
+      }
+      if (endpoint === SPOTPATCH_ENDPOINTS.externalHandoffStatus) {
+        return Promise.resolve(
+          envelope({
+            handoff: summary(0, "astro"),
+            activeAdapter: busyAdapter,
+            dispatch: workingDispatch,
+          }),
+        );
+      }
+      return Promise.reject(new Error(`Unexpected endpoint: ${endpoint}`));
+    });
+    const panel = createExternalHandoffPanel(
+      document,
+      "astro",
+      () => "en-US",
+      `${SESSION_ID}-astro-active`,
+      () => () => undefined,
+      () => undefined,
+    );
+    document.body.append(panel.root, panel.sendButton);
+    panel.setSelectionVisible(true);
+    panel.setContextReady(true);
+    const workflow = createExternalHandoffWorkflow(
+      fetchMock,
+      panel,
+      annotation,
+      "runtime-session-token",
+      window,
+    );
+    workflow.mount();
+    await vi.waitFor(() => {
+      expect(panel.sendButton.disabled).toBe(false);
+    });
+
+    panel.sendButton.click();
+    panel.root
+      .querySelector<HTMLButtonElement>(
+        ".spotpatch-external-disclosure-actions .spotpatch-primary",
+      )
+      ?.click();
+
+    await vi.waitFor(() => {
+      expect(panel.root.textContent).toContain("Codex is working on revision 1");
+    });
+    expect(panel.root.textContent).not.toContain("handoff request failed");
+    expect(panel.sendButton.textContent).toBe("Publish to Agent inbox");
+    expect(panel.sendButton.textContent).not.toBe("Retry same send");
+    expect(publishRequests).toBe(1);
     workflow.dispose();
     panel.dispose();
     panel.root.remove();

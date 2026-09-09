@@ -346,15 +346,29 @@ function collectInstalledSpotPatchPackages(tree, result = new Map()) {
 }
 
 async function verifyDependencyTree(consumerRoot) {
-  const result = await runNpm(["ls", "--all", "--json"], {
+  const manifests = await Promise.all(
+    PACKAGE_DIRECTORIES.map(async (directory) => {
+      const manifest = JSON.parse(
+        await readFile(
+          path.join(repositoryRoot, "packages", directory, "package.json"),
+          "utf8",
+        ),
+      );
+      assert.equal(typeof manifest.name, "string");
+      assert.equal(typeof manifest.version, "string");
+      return manifest;
+    }),
+  );
+  const packageNames = manifests.map((manifest) => manifest.name);
+  // Query only the packages this gate owns. A full `npm ls --all` can fail on
+  // platform-specific optional dependencies of unrelated hosts (for example,
+  // Astro's Sharp WASM fallback) before we can inspect the SpotPatch graph.
+  const result = await runNpm(["ls", "--all", "--json", ...packageNames], {
     cwd: consumerRoot,
     capture: true,
   });
   const packages = collectInstalledSpotPatchPackages(JSON.parse(result.stdout));
-  for (const directory of PACKAGE_DIRECTORIES) {
-    const manifest = JSON.parse(
-      await readFile(path.join(repositoryRoot, "packages", directory, "package.json")),
-    );
+  for (const manifest of manifests) {
     assert.deepEqual(
       [...(packages.get(manifest.name) ?? [])],
       [manifest.version],

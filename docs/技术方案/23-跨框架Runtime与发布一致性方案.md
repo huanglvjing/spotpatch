@@ -2,7 +2,7 @@
 doc-id: "23-framework-runtime-release-parity"
 title: "跨框架 Runtime 与发布一致性方案"
 status: "active"
-version: "1.0.0"
+version: "1.0.1"
 last-updated: "2026-09-09"
 implementation-status: "implemented-pending-release"
 source-range: "Vite、Astro、Next 共享浏览器 Runtime 的源码所有权、构建快照、Changeset 扇出、packed npm 消费验证与发布门禁"
@@ -74,6 +74,8 @@ Node 22.12+ 的 packed npm consumer 必须把 Astro 与所有公共依赖一起�
 - Next client 必须继续加载公共 `@spotpatch/runtime/external-handoff-panel`，不得内置第二套面板；
 - packed Astro 包能在一次性真实 Astro 宿主中启动开发模式并注入源码 marker，生产构建不得残留 SpotPatch。
 
+依赖唯一性检查只查询本仓库负责的 `@spotpatch/*` 包。不得使用无过滤的 `npm ls --all` 充当该断言：Astro 的 Sharp 等宿主依赖包含平台可选包，npm 在部分 Next/Vite 组合下会把有效安装中的 WASM fallback 报为第三方 `extraneous/invalid`，导致尚未检查 SpotPatch 就误失败。第三方宿主依赖是否真正可用，继续由后续 Vite/Astro/Next 开发启动与生产构建证明。
+
 Node 20 低于 Astro 包声明的 `>=22.12.0`，其 packed consumer 继续只验证 Vite/Next，不能把跳过 Astro 写成 Astro 通过证据。
 
 ### 4.4 构建产物门禁
@@ -119,7 +121,7 @@ pnpm test:package-beta
 | Prettier / ESLint / TypeScript | 通过；TypeScript 覆盖根工程及 21 个带 typecheck 的工作区 |
 | Unit | 141 个测试文件通过，982 个测试通过；2 个文件/6 个显式条件测试跳过 |
 | Package validate | 11 个公共包的 build、publint、Are the Types Wrong 与 4 条产物一致性检查通过 |
-| Packed npm consumer | Node 26.0.0 下，Vite 7.3.6、Astro 7.2.8、Next 16.3.0、React 19.2.8 通过 |
+| Packed npm consumer | Node 26.0.0 + Vite 7.3.6/Next 16.3.0，以及 Node 22.23.2 + Vite 6.4.3 或 7.3.6/Next 15.3.9；Astro 7.2.8 均通过 |
 | Astro browser | Astro 5/6/7 共 15 条 Chromium 测试通过 |
 | Astro production compatibility | Astro 5.18.2、6.4.8、7.2.8 构建及零 Runtime 残留验证通过 |
 | Vite production compatibility | Vite 5.4.21、6.4.3 构建及验证通过 |

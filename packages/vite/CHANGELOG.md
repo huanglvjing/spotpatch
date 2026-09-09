@@ -1,5 +1,14 @@
 # @spotpatch/vite
 
+## 1.15.4
+
+### Patch Changes
+
+- af1bb1b: Allow Codex schema generation and Windows ACL verification enough time to complete on slower hosts while preserving the existing compatibility and access-control checks.
+- Updated dependencies [af1bb1b]
+  - @spotpatch/bridge@0.4.4
+  - @spotpatch/shared@1.14.3
+
 ## 1.15.3
 
 ### Patch Changes

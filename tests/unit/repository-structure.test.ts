@@ -9,6 +9,17 @@ const NPM_REGISTRY_URL = "https://registry.npmjs.org/";
 const NPM_README_ICON_PATH = "docs/assets/spotpatch-npm-icon.png";
 const NPM_README_ICON_URL =
   "https://raw.githubusercontent.com/huanglvjing/spotpatch/main/docs/assets/spotpatch-npm-icon.png";
+const FRAMEWORK_ADAPTER_PACKAGES = Object.freeze([
+  "@spotpatch/astro",
+  "@spotpatch/next",
+  "@spotpatch/vite",
+]);
+const SHARED_DELIVERY_PACKAGES = Object.freeze([
+  "@spotpatch/bridge",
+  "@spotpatch/dev-server",
+  "@spotpatch/runtime",
+  "@spotpatch/shared",
+]);
 
 const workspacePackages = [
   { directory: "packages/astro", name: "@spotpatch/astro" },
@@ -169,6 +180,18 @@ describe("repository structure", () => {
       if (manifest.version === "0.0.0") {
         expect(pendingPackageNames, manifest.name).toContain(manifest.name);
       }
+    }
+  });
+
+  it("publishes shared delivery changes through every framework adapter", async () => {
+    const pendingPackageNames = await readPendingChangesetPackageNames();
+    const changesSharedDelivery = SHARED_DELIVERY_PACKAGES.some((name) =>
+      pendingPackageNames.has(name),
+    );
+    if (!changesSharedDelivery) return;
+
+    for (const frameworkPackage of FRAMEWORK_ADAPTER_PACKAGES) {
+      expect(pendingPackageNames, frameworkPackage).toContain(frameworkPackage);
     }
   });
 });

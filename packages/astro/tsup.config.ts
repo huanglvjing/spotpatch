@@ -26,6 +26,9 @@ export default defineConfig([
       "src/runtime-data-flow.ts",
     ],
     format: ["esm"],
+    esbuildOptions(options) {
+      options.charset = "utf8";
+    },
     platform: "browser",
     minify: true,
     splitting: false,

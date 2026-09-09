@@ -120,7 +120,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup
         with:
           node-version: 22
+      - name: Require a release plan for package changes
+        if: github.event_name == 'pull_request' && !startsWith(github.head_ref, 'changeset-release/')
+        run: pnpm exec changeset status --since=${{ github.event.pull_request.base.sha }}
       - run: pnpm package:validate

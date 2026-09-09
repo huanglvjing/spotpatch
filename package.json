@@ -25,7 +25,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint packages playgrounds experiments/next-adapter scripts tests *.ts --max-warnings 0",
-    "package:validate": "pnpm build && pnpm --filter './packages/*' exec publint && pnpm --filter './packages/*' exec attw --pack .",
+    "package:validate": "pnpm build && vitest run tests/production/framework-ui-parity.test.ts && pnpm --filter './packages/*' exec publint && pnpm --filter './packages/*' exec attw --pack .",
     "release": "pnpm build && changeset publish",
     "test": "pnpm test:unit",
     "test:compatibility": "pnpm --filter './playgrounds/compat-vite*' build && pnpm --filter './playgrounds/compat-vite*' verify",

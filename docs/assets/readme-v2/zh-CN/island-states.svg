@@ -1,0 +1,341 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1000" viewBox="0 0 1440 1000" role="img" aria-labelledby="title desc"><title id="title">灵动岛状态规范</title><desc id="desc">SpotPatch 规范重绘与立体概念展示。基于项目功能，不是实际运行截图。</desc><defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#151723"/><stop offset="1" stop-color="#080a11"/></linearGradient><linearGradient id="glass" x2=".4" y2="1"><stop stop-color="#292b3b"/><stop offset="1" stop-color="#10131d"/></linearGradient><linearGradient id="violet"><stop stop-color="#8253f4"/><stop offset="1" stop-color="#6240df"/></linearGradient><linearGradient id="rim"><stop stop-color="#c1abff"/><stop offset=".5" stop-color="#4f4372"/><stop offset="1" stop-color="#7caec6"/></linearGradient><linearGradient id="slab" x2=".7" y2="1"><stop stop-color="#393947"/><stop offset="1" stop-color="#171924"/></linearGradient><filter id="shadow" x="-60%" y="-60%" width="220%" height="240%"><feDropShadow dx="0" dy="22" stdDeviation="26" flood-color="#000" flood-opacity=".3"/></filter></defs><g font-family="Inter,-apple-system,BlinkMacSystemFont,Segoe UI,PingFang SC,Microsoft YaHei,sans-serif"><rect x="0" y="0" width="1440" height="1000" rx="0" fill="url(#bg)" stroke="none"/><g transform="translate(64 42)"><svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="40"
+  height="40"
+  viewBox="0 0 512 512"
+  fill="none"
+  role="img"
+  aria-labelledby="spotpatch-title spotpatch-description"
+>
+  <title id="spotpatch-title">SpotPatch logo mark</title>
+  <desc id="spotpatch-description">
+    A gradient source-code locator containing angle brackets and a lightning bolt.
+  </desc>
+
+  <defs>
+    <linearGradient id="locator-gradient" x1="76" y1="92" x2="436" y2="374" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B61CFF" />
+      <stop offset="0.38" stop-color="#6D35FF" />
+      <stop offset="0.72" stop-color="#168EFF" />
+      <stop offset="1" stop-color="#00D9E9" />
+    </linearGradient>
+
+    <linearGradient id="left-code-gradient" x1="165" y1="166" x2="236" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A51EFF" />
+      <stop offset="1" stop-color="#653BFF" />
+    </linearGradient>
+
+    <linearGradient id="right-code-gradient" x1="276" y1="166" x2="347" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#158DFF" />
+      <stop offset="1" stop-color="#00D8E9" />
+    </linearGradient>
+
+    <linearGradient id="bolt-gradient" x1="270" y1="111" x2="252" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6840FF" />
+      <stop offset="0.48" stop-color="#257BFF" />
+      <stop offset="1" stop-color="#00CBEF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Locator body. The inner path is subtracted to keep the logo transparent. -->
+  <path
+    fill="url(#locator-gradient)"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M256 52C345.47 52 418 124.53 418 214C418 267.55 391.98 316.24 354.04 348.02L256 468L157.96 348.02C120.02 316.24 94 267.55 94 214C94 124.53 166.53 52 256 52ZM256 88C186.41 88 130 144.41 130 214C130 258.2 152.76 297.08 187.2 319.57L256 403.8L324.8 319.57C359.24 297.08 382 258.2 382 214C382 144.41 325.59 88 256 88Z"
+  />
+
+  <!-- Cardinal locator ticks. -->
+  <rect x="238" y="20" width="36" height="84" rx="4" fill="url(#locator-gradient)" />
+  <rect x="62" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+  <rect x="366" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+
+  <!-- Source-code angle brackets. -->
+  <path
+    d="M213.5 160L158 211.5L213.5 263L238 236.5L211 211.5L238 186.5L213.5 160Z"
+    fill="url(#left-code-gradient)"
+  />
+  <path
+    d="M298.5 160L354 211.5L298.5 263L274 236.5L301 211.5L274 186.5L298.5 160Z"
+    fill="url(#right-code-gradient)"
+  />
+
+  <!-- Central patch/lightning seam. -->
+  <path
+    d="M283 108L232 212L266 253L238 369L302 237L267 198L283 108Z"
+    fill="url(#bolt-gradient)"
+  />
+</svg>
+</g><text x="116" y="70" font-size="25" font-weight="650" fill="#edf0fa">SpotPatch</text><text x="64" y="180" font-size="44" font-weight="650" fill="#edf0fa">一个浮动实体，贯穿整次修改。</text><text x="64" y="225" font-size="21" font-weight="400" fill="#9ea7bd">灵动岛 / 紧凑入口、执行反馈和工作台共享锚点</text><text x="64" y="334" font-size="14" font-weight="550" fill="#8c95aa">01</text><g filter="url(#shadow)"><rect x="150" y="304" width="380" height="72" rx="36" fill="url(#glass)" stroke="url(#rim)"/></g><g transform="translate(165 319)"><svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="40"
+  height="40"
+  viewBox="0 0 512 512"
+  fill="none"
+  role="img"
+  aria-labelledby="spotpatch-title spotpatch-description"
+>
+  <title id="spotpatch-title">SpotPatch logo mark</title>
+  <desc id="spotpatch-description">
+    A gradient source-code locator containing angle brackets and a lightning bolt.
+  </desc>
+
+  <defs>
+    <linearGradient id="locator-gradient" x1="76" y1="92" x2="436" y2="374" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B61CFF" />
+      <stop offset="0.38" stop-color="#6D35FF" />
+      <stop offset="0.72" stop-color="#168EFF" />
+      <stop offset="1" stop-color="#00D9E9" />
+    </linearGradient>
+
+    <linearGradient id="left-code-gradient" x1="165" y1="166" x2="236" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A51EFF" />
+      <stop offset="1" stop-color="#653BFF" />
+    </linearGradient>
+
+    <linearGradient id="right-code-gradient" x1="276" y1="166" x2="347" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#158DFF" />
+      <stop offset="1" stop-color="#00D8E9" />
+    </linearGradient>
+
+    <linearGradient id="bolt-gradient" x1="270" y1="111" x2="252" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6840FF" />
+      <stop offset="0.48" stop-color="#257BFF" />
+      <stop offset="1" stop-color="#00CBEF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Locator body. The inner path is subtracted to keep the logo transparent. -->
+  <path
+    fill="url(#locator-gradient)"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M256 52C345.47 52 418 124.53 418 214C418 267.55 391.98 316.24 354.04 348.02L256 468L157.96 348.02C120.02 316.24 94 267.55 94 214C94 124.53 166.53 52 256 52ZM256 88C186.41 88 130 144.41 130 214C130 258.2 152.76 297.08 187.2 319.57L256 403.8L324.8 319.57C359.24 297.08 382 258.2 382 214C382 144.41 325.59 88 256 88Z"
+  />
+
+  <!-- Cardinal locator ticks. -->
+  <rect x="238" y="20" width="36" height="84" rx="4" fill="url(#locator-gradient)" />
+  <rect x="62" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+  <rect x="366" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+
+  <!-- Source-code angle brackets. -->
+  <path
+    d="M213.5 160L158 211.5L213.5 263L238 236.5L211 211.5L238 186.5L213.5 160Z"
+    fill="url(#left-code-gradient)"
+  />
+  <path
+    d="M298.5 160L354 211.5L298.5 263L274 236.5L301 211.5L274 186.5L298.5 160Z"
+    fill="url(#right-code-gradient)"
+  />
+
+  <!-- Central patch/lightning seam. -->
+  <path
+    d="M283 108L232 212L266 253L238 369L302 237L267 198L283 108Z"
+    fill="url(#bolt-gradient)"
+  />
+</svg>
+</g><text x="219" y="334" font-size="18" font-weight="600" fill="#f3f1fa">选择元素</text><text x="219" y="356" font-size="12" font-weight="400" fill="#a5a8ba">点选页面，建立目标上下文</text><circle cx="425" cy="334" r="4" fill="#a988ff"/><text x="436" y="338" font-size="10" font-weight="650" fill="#a988ff">READY</text><text x="497" y="352" font-size="20" font-weight="400" fill="#bfc3d1">···</text><text x="715" y="332" font-size="24" font-weight="550" fill="#edf0fa">紧凑入口</text><text x="715" y="369" font-size="17" font-weight="400" fill="#9ba5ba">默认右下角；可拖拽与边缘吸附。</text><text x="64" y="472" font-size="14" font-weight="550" fill="#8c95aa">02</text><g filter="url(#shadow)"><rect x="150" y="442" width="430" height="72" rx="36" fill="url(#glass)" stroke="url(#rim)"/></g><g transform="translate(165 457)"><svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="40"
+  height="40"
+  viewBox="0 0 512 512"
+  fill="none"
+  role="img"
+  aria-labelledby="spotpatch-title spotpatch-description"
+>
+  <title id="spotpatch-title">SpotPatch logo mark</title>
+  <desc id="spotpatch-description">
+    A gradient source-code locator containing angle brackets and a lightning bolt.
+  </desc>
+
+  <defs>
+    <linearGradient id="locator-gradient" x1="76" y1="92" x2="436" y2="374" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B61CFF" />
+      <stop offset="0.38" stop-color="#6D35FF" />
+      <stop offset="0.72" stop-color="#168EFF" />
+      <stop offset="1" stop-color="#00D9E9" />
+    </linearGradient>
+
+    <linearGradient id="left-code-gradient" x1="165" y1="166" x2="236" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A51EFF" />
+      <stop offset="1" stop-color="#653BFF" />
+    </linearGradient>
+
+    <linearGradient id="right-code-gradient" x1="276" y1="166" x2="347" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#158DFF" />
+      <stop offset="1" stop-color="#00D8E9" />
+    </linearGradient>
+
+    <linearGradient id="bolt-gradient" x1="270" y1="111" x2="252" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6840FF" />
+      <stop offset="0.48" stop-color="#257BFF" />
+      <stop offset="1" stop-color="#00CBEF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Locator body. The inner path is subtracted to keep the logo transparent. -->
+  <path
+    fill="url(#locator-gradient)"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M256 52C345.47 52 418 124.53 418 214C418 267.55 391.98 316.24 354.04 348.02L256 468L157.96 348.02C120.02 316.24 94 267.55 94 214C94 124.53 166.53 52 256 52ZM256 88C186.41 88 130 144.41 130 214C130 258.2 152.76 297.08 187.2 319.57L256 403.8L324.8 319.57C359.24 297.08 382 258.2 382 214C382 144.41 325.59 88 256 88Z"
+  />
+
+  <!-- Cardinal locator ticks. -->
+  <rect x="238" y="20" width="36" height="84" rx="4" fill="url(#locator-gradient)" />
+  <rect x="62" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+  <rect x="366" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+
+  <!-- Source-code angle brackets. -->
+  <path
+    d="M213.5 160L158 211.5L213.5 263L238 236.5L211 211.5L238 186.5L213.5 160Z"
+    fill="url(#left-code-gradient)"
+  />
+  <path
+    d="M298.5 160L354 211.5L298.5 263L274 236.5L301 211.5L274 186.5L298.5 160Z"
+    fill="url(#right-code-gradient)"
+  />
+
+  <!-- Central patch/lightning seam. -->
+  <path
+    d="M283 108L232 212L266 253L238 369L302 237L267 198L283 108Z"
+    fill="url(#bolt-gradient)"
+  />
+</svg>
+</g><text x="219" y="472" font-size="18" font-weight="600" fill="#f3f1fa">正在接收上下文</text><text x="219" y="494" font-size="12" font-weight="400" fill="#a5a8ba">采集与编辑互不阻塞</text><circle cx="475" cy="472" r="4" fill="#ba9dff"/><text x="486" y="476" font-size="10" font-weight="650" fill="#ba9dff">CAPTURE</text><text x="547" y="490" font-size="20" font-weight="400" fill="#bfc3d1">···</text><text x="715" y="470" font-size="24" font-weight="550" fill="#edf0fa">上下文采集</text><text x="715" y="507" font-size="17" font-weight="400" fill="#9ba5ba">选择目标后立即开放编辑，不等待动效。</text><text x="64" y="610" font-size="14" font-weight="550" fill="#8c95aa">03</text><g filter="url(#shadow)"><rect x="150" y="580" width="468" height="72" rx="36" fill="url(#glass)" stroke="url(#rim)"/></g><g transform="translate(165 595)"><svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="40"
+  height="40"
+  viewBox="0 0 512 512"
+  fill="none"
+  role="img"
+  aria-labelledby="spotpatch-title spotpatch-description"
+>
+  <title id="spotpatch-title">SpotPatch logo mark</title>
+  <desc id="spotpatch-description">
+    A gradient source-code locator containing angle brackets and a lightning bolt.
+  </desc>
+
+  <defs>
+    <linearGradient id="locator-gradient" x1="76" y1="92" x2="436" y2="374" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B61CFF" />
+      <stop offset="0.38" stop-color="#6D35FF" />
+      <stop offset="0.72" stop-color="#168EFF" />
+      <stop offset="1" stop-color="#00D9E9" />
+    </linearGradient>
+
+    <linearGradient id="left-code-gradient" x1="165" y1="166" x2="236" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A51EFF" />
+      <stop offset="1" stop-color="#653BFF" />
+    </linearGradient>
+
+    <linearGradient id="right-code-gradient" x1="276" y1="166" x2="347" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#158DFF" />
+      <stop offset="1" stop-color="#00D8E9" />
+    </linearGradient>
+
+    <linearGradient id="bolt-gradient" x1="270" y1="111" x2="252" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6840FF" />
+      <stop offset="0.48" stop-color="#257BFF" />
+      <stop offset="1" stop-color="#00CBEF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Locator body. The inner path is subtracted to keep the logo transparent. -->
+  <path
+    fill="url(#locator-gradient)"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M256 52C345.47 52 418 124.53 418 214C418 267.55 391.98 316.24 354.04 348.02L256 468L157.96 348.02C120.02 316.24 94 267.55 94 214C94 124.53 166.53 52 256 52ZM256 88C186.41 88 130 144.41 130 214C130 258.2 152.76 297.08 187.2 319.57L256 403.8L324.8 319.57C359.24 297.08 382 258.2 382 214C382 144.41 325.59 88 256 88Z"
+  />
+
+  <!-- Cardinal locator ticks. -->
+  <rect x="238" y="20" width="36" height="84" rx="4" fill="url(#locator-gradient)" />
+  <rect x="62" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+  <rect x="366" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+
+  <!-- Source-code angle brackets. -->
+  <path
+    d="M213.5 160L158 211.5L213.5 263L238 236.5L211 211.5L238 186.5L213.5 160Z"
+    fill="url(#left-code-gradient)"
+  />
+  <path
+    d="M298.5 160L354 211.5L298.5 263L274 236.5L301 211.5L274 186.5L298.5 160Z"
+    fill="url(#right-code-gradient)"
+  />
+
+  <!-- Central patch/lightning seam. -->
+  <path
+    d="M283 108L232 212L266 253L238 369L302 237L267 198L283 108Z"
+    fill="url(#bolt-gradient)"
+  />
+</svg>
+</g><text x="219" y="610" font-size="18" font-weight="600" fill="#f3f1fa">Agent 正在处理</text><text x="219" y="632" font-size="12" font-weight="400" fill="#a5a8ba">展示真实阶段与有界活动</text><circle cx="513" cy="610" r="4" fill="#96b6ed"/><text x="524" y="614" font-size="10" font-weight="650" fill="#96b6ed">RUNNING</text><text x="585" y="628" font-size="20" font-weight="400" fill="#bfc3d1">···</text><text x="715" y="608" font-size="24" font-weight="550" fill="#edf0fa">执行状态</text><text x="715" y="645" font-size="17" font-weight="400" fill="#9ba5ba">同一个 Shell 变形，按真实事件更新。</text><text x="64" y="748" font-size="14" font-weight="550" fill="#8c95aa">04</text><g filter="url(#shadow)"><rect x="150" y="718" width="410" height="72" rx="36" fill="url(#glass)" stroke="url(#rim)"/></g><g transform="translate(165 733)"><svg
+  xmlns="http://www.w3.org/2000/svg"
+  width="40"
+  height="40"
+  viewBox="0 0 512 512"
+  fill="none"
+  role="img"
+  aria-labelledby="spotpatch-title spotpatch-description"
+>
+  <title id="spotpatch-title">SpotPatch logo mark</title>
+  <desc id="spotpatch-description">
+    A gradient source-code locator containing angle brackets and a lightning bolt.
+  </desc>
+
+  <defs>
+    <linearGradient id="locator-gradient" x1="76" y1="92" x2="436" y2="374" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#B61CFF" />
+      <stop offset="0.38" stop-color="#6D35FF" />
+      <stop offset="0.72" stop-color="#168EFF" />
+      <stop offset="1" stop-color="#00D9E9" />
+    </linearGradient>
+
+    <linearGradient id="left-code-gradient" x1="165" y1="166" x2="236" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#A51EFF" />
+      <stop offset="1" stop-color="#653BFF" />
+    </linearGradient>
+
+    <linearGradient id="right-code-gradient" x1="276" y1="166" x2="347" y2="258" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#158DFF" />
+      <stop offset="1" stop-color="#00D8E9" />
+    </linearGradient>
+
+    <linearGradient id="bolt-gradient" x1="270" y1="111" x2="252" y2="365" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6840FF" />
+      <stop offset="0.48" stop-color="#257BFF" />
+      <stop offset="1" stop-color="#00CBEF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Locator body. The inner path is subtracted to keep the logo transparent. -->
+  <path
+    fill="url(#locator-gradient)"
+    fill-rule="evenodd"
+    clip-rule="evenodd"
+    d="M256 52C345.47 52 418 124.53 418 214C418 267.55 391.98 316.24 354.04 348.02L256 468L157.96 348.02C120.02 316.24 94 267.55 94 214C94 124.53 166.53 52 256 52ZM256 88C186.41 88 130 144.41 130 214C130 258.2 152.76 297.08 187.2 319.57L256 403.8L324.8 319.57C359.24 297.08 382 258.2 382 214C382 144.41 325.59 88 256 88Z"
+  />
+
+  <!-- Cardinal locator ticks. -->
+  <rect x="238" y="20" width="36" height="84" rx="4" fill="url(#locator-gradient)" />
+  <rect x="62" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+  <rect x="366" y="196" width="84" height="36" rx="4" fill="url(#locator-gradient)" />
+
+  <!-- Source-code angle brackets. -->
+  <path
+    d="M213.5 160L158 211.5L213.5 263L238 236.5L211 211.5L238 186.5L213.5 160Z"
+    fill="url(#left-code-gradient)"
+  />
+  <path
+    d="M298.5 160L354 211.5L298.5 263L274 236.5L301 211.5L274 186.5L298.5 160Z"
+    fill="url(#right-code-gradient)"
+  />
+
+  <!-- Central patch/lightning seam. -->
+  <path
+    d="M283 108L232 212L266 253L238 369L302 237L267 198L283 108Z"
+    fill="url(#bolt-gradient)"
+  />
+</svg>
+</g><text x="219" y="748" font-size="18" font-weight="600" fill="#f3f1fa">等待你审阅</text><text x="219" y="770" font-size="12" font-weight="400" fill="#a5a8ba">查看 Diff 后再应用</text><circle cx="455" cy="748" r="4" fill="#7ce0bd"/><text x="466" y="752" font-size="10" font-weight="650" fill="#7ce0bd">REVIEW</text><text x="527" y="766" font-size="20" font-weight="400" fill="#bfc3d1">···</text><text x="715" y="746" font-size="24" font-weight="550" fill="#edf0fa">待审阅结果</text><text x="715" y="783" font-size="17" font-weight="400" fill="#9ba5ba">停留并提供审阅入口，不自动当作已完成。</text><text x="64" y="946" font-size="14" font-weight="400" fill="#929db2">界面状态示意 · 多个岛体仅用于并列说明；产品同一时刻只有一个浮动 Shell。</text></g></svg>

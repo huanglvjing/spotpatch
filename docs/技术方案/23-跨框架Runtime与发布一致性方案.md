@@ -84,6 +84,8 @@ Node 20 低于 Astro 包声明的 `>=22.12.0`，其 packed consumer 继续只验
 
 ## 5. 本轮发布计划
 
+2026-09-09 文档复核：版本 PR #23 已合入 `71700d6`，源码清单已采用下表版本；同次官方 registry 查询仍返回旧的 `latest`，因此保留 `implemented-pending-release`。这只更新发布进度事实，不替代 release run 或 dist-tag 完成证据。
+
 本轮 Changeset 显式 patch bump：
 
 | 包 | 预期版本 | 原因 |

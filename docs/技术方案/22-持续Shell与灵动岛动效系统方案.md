@@ -21,6 +21,12 @@ source-range: "参考 Motion Demo；独立 Motion browser bundle、持续 Shell�
 
 # 持续 Shell 与灵动岛动效系统方案
 
+## 2026-09-09 文档配图
+
+![灵动岛规范概念示意](../assets/readme-v2/zh-CN/island-shell.svg)
+
+本图按实现职责重绘，不是实际运行截图，也不更新本页 `implementation-status` 中的待验收项。README 的 GIF 是预设演示状态，不能代替真实事件驱动、拖拽、触摸、缩放或性能验收。英文配图在同目录 `en-US` 下；素材来源见 [事实核对记录](./24-文档与素材事实核对.md)。
+
 ## 1. 文档目的与当前状态
 
 本文定义 SpotPatch 下一版灵动岛动效系统。目标不是增加若干彼此无关的进入/退出动画，而是把入口、上下文采集、Planner、Agent 派发、运行和结果反馈组织成同一个持续存在的浮动实体：

@@ -1,0 +1,87 @@
+{
+  "created": "2026-09-09",
+  "source": "User-approved bilingual V2 media kit; original SpotPatch brand mark retained",
+  "notice": "Concept illustrations and scripted animation, not runtime captures or validation evidence. Architecture image shows responsibilities, not package dependency edges.",
+  "assets": [
+    {
+      "path": "en-US/hero.png",
+      "kind": "generated-concept",
+      "sha256": "f3fa73d38eab42442a7f4c98f6b957c6d41ebc54a549fb5e09ebfa71faeec1f5"
+    },
+    {
+      "path": "en-US/architecture.png",
+      "kind": "generated-concept",
+      "sha256": "747bde7783bbf94898cd268d6138d1ba0567430b119faa2688792707ee4afcd6"
+    },
+    {
+      "path": "en-US/planner.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "d268c77acf72a09367ccae6edc6a67cb72864fe35cbda57d56d34509203c9307"
+    },
+    {
+      "path": "en-US/data-flow.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "0ea58ddcdbdb5c19662f1e2bb54ca935448d118f54c95b029213cf1f00cf22c7"
+    },
+    {
+      "path": "en-US/review.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "ecb00e5531172e5e523ecae0167ac530db09ad40ae625463d42a2632ae336367"
+    },
+    {
+      "path": "en-US/island-states.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "b8915fdd8746fd8ca86f2a05ba79a90f1d4972182f69e2af81f38deff9f5df8f"
+    },
+    {
+      "path": "en-US/island-shell.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "e983caec77ce02043735758eeedca5aba49bc9c13a0af057121b65a3e68d5a2c"
+    },
+    {
+      "path": "en-US/island-morph.gif",
+      "kind": "scripted-concept-animation",
+      "sha256": "da1127cd7be636b2c79231038b5da4a101412ca18c9dc80781fc5d9b20013c4f"
+    },
+    {
+      "path": "zh-CN/hero.png",
+      "kind": "generated-concept",
+      "sha256": "86fea4c6b477db0529d97546cb20793d63cb91e8d3c98d9e0926ffeefdf8d0f0"
+    },
+    {
+      "path": "zh-CN/architecture.png",
+      "kind": "generated-concept",
+      "sha256": "8c4de2a7abc48478b896056dc3ec0040b9b3d2eeabf7e43f9eb6021824378f4e"
+    },
+    {
+      "path": "zh-CN/planner.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "13e73efbd8d6197d7e775cec96079f53fd66e08d753dc35ff8f70fad3dd1bc7d"
+    },
+    {
+      "path": "zh-CN/data-flow.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "9b6b295a9ec17700dd152b4e0f01c90350ae86482fd38518dc54698779009224"
+    },
+    {
+      "path": "zh-CN/review.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "ec0eb739b2df5c9ebf24a0640be28af0719e412192507155bdca85f32f9e9fbe"
+    },
+    {
+      "path": "zh-CN/island-states.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "22146457130b58a113d73811a1a3f23972b212ba74f76b6d8a83352a920570dc"
+    },
+    {
+      "path": "zh-CN/island-shell.svg",
+      "kind": "editable-design-illustration",
+      "sha256": "fc56bf3addf2306e13e0a13e00c24ee7f50edd989c75a6dce2425a5d0ca4e11e"
+    },
+    {
+      "path": "zh-CN/island-morph.gif",
+      "kind": "scripted-concept-animation",
+      "sha256": "066b97ffa98d930996244251cdcf3c8cb167f4c3486275d95da2f21a17ec6904"
+    }
+  ]
+}

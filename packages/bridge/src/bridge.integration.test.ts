@@ -28,8 +28,12 @@ import { resolveExactProjectSessionId } from "./discovery.js";
 import { createSpotPatchMcpServer } from "./mcp.js";
 
 const SESSION_ID = "0123456789abcdef012345";
-const BRIDGE_LIFECYCLE_TIMEOUT_MS = 30_000;
+const BRIDGE_LIFECYCLE_TIMEOUT_MS = process.platform === "win32" ? 120_000 : 30_000;
 let publishSequence = 0;
+
+if (process.platform === "win32") {
+  vi.setConfig({ testTimeout: BRIDGE_LIFECYCLE_TIMEOUT_MS });
+}
 
 async function publishHandoff(service: ExternalHandoffService, value: SpotAnnotation) {
   publishSequence += 1;

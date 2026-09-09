@@ -42,6 +42,7 @@ export const EXTERNAL_HANDOFF_PROJECT_KEY_SALT =
   "spotpatch-external-agent-project-v1" as const;
 
 const execFileAsync = promisify(execFile);
+const WINDOWS_ACL_COMMAND_TIMEOUT_MS = 30_000;
 const WINDOWS_ACL_VERIFY_ATTEMPTS = 3;
 const WINDOWS_ACL_RETRY_DELAY_MS = 25;
 const WINDOWS_ACL_SCRIPT = String.raw`
@@ -260,7 +261,7 @@ async function verifyWindowsAcl(
           SPOTPATCH_ACL_OPERATION: initialize ? "initialize" : "verify",
           SPOTPATCH_ACL_TARGET: candidate,
         },
-        timeout: 10_000,
+        timeout: WINDOWS_ACL_COMMAND_TIMEOUT_MS,
         windowsHide: true,
       },
     );

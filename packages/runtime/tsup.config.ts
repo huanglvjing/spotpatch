@@ -6,6 +6,9 @@ export default defineConfig({
     __SPOTPATCH_INLINE_BRAND_MARK__: "true",
   },
   dts: true,
+  esbuildOptions(options) {
+    options.charset = "utf8";
+  },
   entry: {
     index: "src/index.ts",
     "contextual-ask-panel": "src/contextual-ask-panel-entry.ts",

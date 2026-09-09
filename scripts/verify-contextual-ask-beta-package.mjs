@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer as createHttpServer } from "node:http";
+import { createRequire } from "node:module";
 import {
   mkdtemp,
   mkdir,
@@ -16,6 +17,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const [nodeMajor = 0, nodeMinor = 0] = process.versions.node
+  .split(".")
+  .map((part) => Number.parseInt(part, 10));
+const VERIFY_ASTRO = nodeMajor > 22 || (nodeMajor === 22 && nodeMinor >= 12);
 const PACKAGE_DIRECTORIES = Object.freeze([
   "shared",
   "compiler",
@@ -27,6 +32,7 @@ const PACKAGE_DIRECTORIES = Object.freeze([
   "bridge",
   "vite",
   "next",
+  ...(VERIFY_ASTRO ? ["astro"] : []),
 ]);
 const SPOTPATCH_RESIDUE = Object.freeze([
   "data-spotpatch-source",
@@ -36,14 +42,17 @@ const SPOTPATCH_RESIDUE = Object.freeze([
   "ASK_EXECUTOR_UNAVAILABLE",
 ]);
 const HOST_MATRIX = Object.freeze({
+  astro: process.env.SPOTPATCH_Q7_ASTRO_VERSION ?? "7.2.8",
   next: process.env.SPOTPATCH_Q7_NEXT_VERSION ?? "16.3.0",
   react: process.env.SPOTPATCH_Q7_REACT_VERSION ?? "19.2.8",
   vite: process.env.SPOTPATCH_Q7_VITE_VERSION ?? "7.3.6",
 });
 const ALLOWED_VITE_VERSIONS = new Set(["5.4.21", "6.4.3", "7.3.6"]);
+const ALLOWED_ASTRO_VERSIONS = new Set(["5.18.2", "6.4.8", "7.2.8"]);
 const ALLOWED_NEXT_REACT_PAIRS = new Set(["15.3.9:18.3.1", "16.3.0:19.2.8"]);
 
 if (
+  (VERIFY_ASTRO && !ALLOWED_ASTRO_VERSIONS.has(HOST_MATRIX.astro)) ||
   !ALLOWED_VITE_VERSIONS.has(HOST_MATRIX.vite) ||
   !ALLOWED_NEXT_REACT_PAIRS.has(`${HOST_MATRIX.next}:${HOST_MATRIX.react}`)
 ) {
@@ -231,11 +240,27 @@ async function stopChild(child) {
     return;
   }
   child.kill("SIGTERM");
-  await Promise.race([
-    new Promise((resolve) => child.once("exit", resolve)),
-    new Promise((resolve) => setTimeout(resolve, 5_000)),
-  ]);
-  if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+  const exitedAfterTerminate = await waitForChildExit(child, 5_000);
+  if (exitedAfterTerminate) return;
+  child.kill("SIGKILL");
+  if (!(await waitForChildExit(child, 5_000))) {
+    throw new Error(`Failed to stop host process ${String(child.pid)}.`);
+  }
+}
+
+async function waitForChildExit(child, timeoutMs) {
+  if (child.exitCode !== null || child.signalCode !== null) return true;
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      child.off("exit", onExit);
+      resolve(false);
+    }, timeoutMs);
+    const onExit = () => {
+      clearTimeout(timer);
+      resolve(true);
+    };
+    child.once("exit", onExit);
+  });
 }
 
 async function packPackages(packRoot) {
@@ -273,6 +298,7 @@ async function writeConsumer(consumerRoot, tarballs) {
     "react-dom": HOST_MATRIX.react,
     vite: HOST_MATRIX.vite,
   });
+  if (VERIFY_ASTRO) dependencies.astro = HOST_MATRIX.astro;
   await writeFile(
     path.join(consumerRoot, "package.json"),
     `${JSON.stringify(
@@ -354,12 +380,17 @@ assert.equal(typeof require("@spotpatch/next/loader"), "function");
   await run(process.execPath, [probePath], { cwd: consumerRoot });
 
   const esmProbePath = path.join(consumerRoot, "exports-probe.mjs");
+  const astroProbe = VERIFY_ASTRO
+    ? `import { spotPatch as astroSpotPatch } from "@spotpatch/astro";
+assert.equal(astroSpotPatch({ enabled: false }).name, "@spotpatch/astro");`
+    : "";
   await writeFile(
     esmProbePath,
     `import assert from "node:assert/strict";
 import { spotPatch } from "@spotpatch/vite";
 import { withSpotPatch } from "@spotpatch/next";
 import { createManagedCodexAskExecutor } from "@spotpatch/bridge";
+${astroProbe}
 assert.deepEqual(spotPatch({ enabled: false }), []);
 assert.equal(typeof withSpotPatch, "function");
 assert.equal(typeof createManagedCodexAskExecutor, "function");
@@ -368,9 +399,66 @@ assert.equal(typeof createManagedCodexAskExecutor, "function");
   await run(process.execPath, [esmProbePath], { cwd: consumerRoot });
 }
 
+async function verifyFrameworkUiReleaseArtifacts(consumerRoot) {
+  const installedRoot = path.join(consumerRoot, "node_modules", "@spotpatch");
+  const runtimeDist = path.join(installedRoot, "runtime", "dist");
+  const runtimeArtifacts = (await readdir(runtimeDist))
+    .filter((fileName) => fileName.endsWith(".js"))
+    .map((fileName) => path.join(runtimeDist, fileName));
+  const artifactPaths = Object.freeze({
+    runtime: runtimeArtifacts,
+    vite: [
+      path.join(installedRoot, "vite", "dist", "runtime-external-handoff-panel.js"),
+    ],
+    ...(VERIFY_ASTRO
+      ? {
+          astro: [
+            path.join(installedRoot, "astro", "dist", "runtime-external-handoff.js"),
+          ],
+        }
+      : {}),
+  });
+  const requiredSignatures = Object.freeze([
+    "spotpatch-select-trigger",
+    "spotpatch-select-menu",
+    "spotpatch-external-agent-value",
+    "Managed Codex model",
+    "受管 Codex 模型",
+    "Send to Agent",
+    "发送给 Agent",
+  ]);
+
+  for (const [framework, paths] of Object.entries(artifactPaths)) {
+    const source = (
+      await Promise.all(paths.map((artifactPath) => readFile(artifactPath, "utf8")))
+    ).join("\n");
+    for (const signature of requiredSignatures) {
+      assert(
+        source.includes(signature),
+        `${framework} release artifact must contain shared UI signature: ${signature}`,
+      );
+    }
+    assert(
+      !source.includes(".spotpatch-external-control select"),
+      `${framework} release artifact must not contain the retired native control UI`,
+    );
+  }
+
+  const nextClient = await readFile(
+    path.join(installedRoot, "next", "dist", "client.js"),
+    "utf8",
+  );
+  assert(
+    nextClient.includes("@spotpatch/runtime/external-handoff-panel"),
+    "Next must load the same published external-handoff Runtime entry",
+  );
+}
+
 async function verifyBins(consumerRoot) {
   const suffix = process.platform === "win32" ? ".cmd" : "";
-  for (const name of ["spotpatch-bridge", "spotpatch-next", "spotpatch-vite"]) {
+  const names = ["spotpatch-bridge", "spotpatch-next", "spotpatch-vite"];
+  if (VERIFY_ASTRO) names.push("spotpatch-astro");
+  for (const name of names) {
     const metadata = await lstat(
       path.join(consumerRoot, "node_modules", ".bin", `${name}${suffix}`),
     );
@@ -453,6 +541,69 @@ try {
     )
   ).join("\n");
   for (const signature of SPOTPATCH_RESIDUE) assert(!output.includes(signature));
+}
+
+async function verifyAstroHost(consumerRoot) {
+  if (!VERIFY_ASTRO) return;
+  const hostRoot = path.join(consumerRoot, "astro-host");
+  await mkdir(path.join(hostRoot, "src", "pages"), { recursive: true });
+  await writeFile(
+    path.join(hostRoot, "src", "pages", "index.astro"),
+    '---\nconst title = "Astro package fixture";\n---\n<main><h1>{title}</h1></main>\n',
+  );
+  await writeFile(
+    path.join(hostRoot, "astro.config.mjs"),
+    `import { defineConfig } from "astro/config";
+import spotPatch from "@spotpatch/astro";
+export default defineConfig({
+  devToolbar: { enabled: false },
+  integrations: [spotPatch({ ai: false, contextualAsk: {}, dataFlow: {}, externalAgent: true })],
+});
+`,
+  );
+  const port = await reserveLoopbackPort();
+  const requireFromConsumer = createRequire(path.join(consumerRoot, "package.json"));
+  const astroManifestPath = requireFromConsumer.resolve("astro/package.json");
+  const astroManifest = JSON.parse(await readFile(astroManifestPath, "utf8"));
+  assert.equal(typeof astroManifest.bin?.astro, "string");
+  const astroCli = path.resolve(
+    path.dirname(astroManifestPath),
+    astroManifest.bin.astro,
+  );
+  const child = spawn(
+    process.execPath,
+    [astroCli, "dev", "--host", "127.0.0.1", "--port", String(port)],
+    {
+      cwd: hostRoot,
+      env: process.env,
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    },
+  );
+  const logs = [];
+  child.stdout.on("data", (chunk) => logs.push(Buffer.from(chunk)));
+  child.stderr.on("data", (chunk) => logs.push(Buffer.from(chunk)));
+  try {
+    const origin = `http://127.0.0.1:${String(port)}`;
+    await waitForHttp(origin, child, () => Buffer.concat(logs).toString("utf8"));
+    const response = await fetch(origin);
+    assert.equal(response.status, 200, Buffer.concat(logs).toString("utf8"));
+    const html = await response.text();
+    assert.match(html, /Astro package fixture/);
+    assert.match(html, /data-spotpatch-source/);
+  } finally {
+    await stopChild(child);
+  }
+
+  await run(process.execPath, [astroCli, "build"], { cwd: hostRoot });
+  const productionHtml = await readFile(
+    path.join(hostRoot, "dist", "index.html"),
+    "utf8",
+  );
+  for (const signature of SPOTPATCH_RESIDUE) {
+    assert(!productionHtml.includes(signature));
+  }
 }
 
 async function verifyNextHost(consumerRoot) {
@@ -591,13 +742,20 @@ async function main() {
     await verifyDependencyTree(consumerRoot);
     await verifyExports(consumerRoot);
     await verifyBins(consumerRoot);
+    await verifyFrameworkUiReleaseArtifacts(consumerRoot);
     await verifyViteHost(consumerRoot);
+    await verifyAstroHost(consumerRoot);
     await verifyNextHost(consumerRoot);
     process.stdout.write(
-      `[spotpatch:q7] packed npm consumer passed on ${process.platform} / Node ${process.versions.node} / Vite ${HOST_MATRIX.vite} / Next ${HOST_MATRIX.next} / React ${HOST_MATRIX.react}.\n`,
+      `[spotpatch:q7] packed npm consumer passed on ${process.platform} / Node ${process.versions.node} / Vite ${HOST_MATRIX.vite} / Next ${HOST_MATRIX.next} / React ${HOST_MATRIX.react}${VERIFY_ASTRO ? ` / Astro ${HOST_MATRIX.astro}` : ""}.\n`,
     );
   } finally {
-    await rm(temporaryRoot, { recursive: true, force: true });
+    await rm(temporaryRoot, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
   }
 }
 

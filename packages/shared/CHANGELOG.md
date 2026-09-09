@@ -1,5 +1,11 @@
 # @spotpatch/shared
 
+## 1.14.3
+
+### Patch Changes
+
+- af1bb1b: Allow Codex schema generation and Windows ACL verification enough time to complete on slower hosts while preserving the existing compatibility and access-control checks.
+
 ## 1.14.2
 
 ### Patch Changes

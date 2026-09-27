@@ -212,14 +212,22 @@ async function authorizeSeeds(
 ): Promise<AuthorizedSeed[]> {
   const byPath = new Map<string, AuthorizedSeed>();
   for (const target of selection.targets) {
-    let fileId = target.react.source?.fileId ?? target.source.fileId;
+    // The claimed path must describe the same location as the file id. The
+    // React fiber source is where the component is rendered, which is usually
+    // a different file from the selected host element.
+    const location =
+      target.react.source?.fileId === undefined ? target.source : target.react.source;
+    let fileId = location.fileId;
+    let claimedRelative = location.relativePath;
     let sourceVersion: string | undefined;
     if (target.react.componentSourceId !== undefined) {
       const anchor = registry.resolveDataFlowComponent(target.react.componentSourceId);
       if (anchor === undefined || target.react.sourceVersion !== anchor.sourceVersion) {
         deny("ASK_SELECTION_STALE");
       }
+      // The registry, not the browser, owns the component anchor's file.
       fileId = anchor.fileId;
+      claimedRelative = undefined;
       sourceVersion = anchor.sourceVersion;
     }
     if (fileId === undefined) continue;
@@ -229,8 +237,6 @@ async function authorizeSeeds(
     if (canonical === undefined) deny("ASK_SELECTION_STALE");
     const absolutePath = path.normalize(canonical);
     const registeredRelative = toPosixRelative(realRoot, absolutePath);
-    const claimedRelative =
-      target.react.source?.relativePath ?? target.source.relativePath;
     if (
       claimedRelative !== undefined &&
       claimedRelative.split("\\").join("/") !== registeredRelative

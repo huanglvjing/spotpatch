@@ -30,6 +30,8 @@ function selection(
   overrides: Readonly<{
     componentSourceId?: string;
     matchedStyleSource?: string;
+    renderedFrom?: string;
+    sourcePath?: string;
     sourceVersion?: string;
   }> = {},
 ): SpotSelectionContext {
@@ -51,7 +53,7 @@ function selection(
         },
         source: {
           fileId,
-          relativePath: "src/App.tsx",
+          relativePath: overrides.sourcePath ?? "src/App.tsx",
           line: 1,
           column: 1,
           origin: "jsx-host",
@@ -60,6 +62,17 @@ function selection(
         react: {
           supported: true,
           componentStack: ["App"],
+          ...(overrides.renderedFrom === undefined
+            ? {}
+            : {
+                source: {
+                  relativePath: overrides.renderedFrom,
+                  line: 8,
+                  column: 5,
+                  origin: "react-fiber",
+                  confidence: "probable",
+                },
+              }),
           ...(overrides.componentSourceId === undefined
             ? {}
             : { componentSourceId: overrides.componentSourceId }),
@@ -140,6 +153,61 @@ describe("captureAskReadSnapshot", () => {
     expect(() => captured.snapshot.read("forged-handle")).toThrowError(
       ContextualAskError,
     );
+  });
+
+  it.each([
+    ["the host element", {}],
+    ["the component anchor", { componentSourceId: "component-1" }],
+  ] as const)(
+    "authorizes %s when the component is rendered from another file",
+    async (_label, anchor) => {
+      const root = await fixture();
+      const appPath = path.join(root, "src/App.tsx");
+      await writeFile(
+        appPath,
+        "import { label } from './label';\nexport const App = () => <button>{label}</button>;\n",
+      );
+      await writeFile(
+        path.join(root, "src/label.ts"),
+        "export const label = 'Save';\n",
+      );
+      const registry = createSourceRegistry();
+      const fileId = registry.register(appPath);
+      registry.registerDataFlowComponents(appPath, "version-current", [
+        { componentSourceId: "component-1", line: 2, column: 14 },
+      ]);
+
+      const captured = await captureAskReadSnapshot({
+        root,
+        registry,
+        selection: selection(fileId, {
+          ...anchor,
+          renderedFrom: "src/main.tsx",
+          sourceVersion: "version-current",
+        }),
+      });
+
+      expect(captured.grant.sources[0]).toMatchObject({
+        relativePath: "src/App.tsx",
+        targetIds: ["target-1"],
+      });
+    },
+  );
+
+  it("rejects a host path that disagrees with its file id", async () => {
+    const root = await fixture();
+    const appPath = path.join(root, "src/App.tsx");
+    await writeFile(appPath, "export const App = () => null;\n");
+    const registry = createSourceRegistry();
+    const fileId = registry.register(appPath);
+
+    await expect(
+      captureAskReadSnapshot({
+        root,
+        registry,
+        selection: selection(fileId, { sourcePath: "src/Other.tsx" }),
+      }),
+    ).rejects.toMatchObject({ code: "ASK_SELECTION_STALE" });
   });
 
   it("rejects a stale component sourceVersion", async () => {

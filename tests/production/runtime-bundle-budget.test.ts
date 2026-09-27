@@ -17,9 +17,10 @@ const RUNTIME_GZIP_BUDGET_BYTES = 50 * 1024;
 // a bounded cross-platform margin without relaxing the Vite budget.
 const ASTRO_RUNTIME_GZIP_BUDGET_BYTES = 54 * 1024;
 // Browser validation, NDJSON transport, localized UI, and answer rendering are
-// intentionally isolated. Ubuntu Node 22 measured 14,344 bytes, so 15 KiB
-// keeps a bounded cross-platform zlib margin.
-const CONTEXTUAL_ASK_PANEL_GZIP_BUDGET_BYTES = 15 * 1024;
+// intentionally isolated. macOS Node 26 measured 15,657 bytes after adding the
+// answered-state recap, inline code, staggered answer entrance and sliding
+// mode indicator; 16 KiB keeps a bounded cross-platform zlib margin.
+const CONTEXTUAL_ASK_PANEL_GZIP_BUDGET_BYTES = 16 * 1024;
 const DATA_FLOW_PRELUDE_GZIP_BUDGET_BYTES = 8 * 1024;
 const DATA_FLOW_PANEL_GZIP_BUDGET_BYTES = 10 * 1024;
 // ADR-038 keeps the managed-control UI in its existing dev-only lazy bundle.

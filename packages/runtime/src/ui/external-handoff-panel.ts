@@ -407,41 +407,45 @@ function createStyles(document: Document): HTMLStyleElement {
   const styles = document.createElement("style");
   styles.textContent = `
     ${SELECT_PICKER_STYLES}
-    .spotpatch-external-handoff { margin-top: 12px; padding: 12px; border: 1px solid var(--spotpatch-border); border-radius: var(--spotpatch-radius-card); background: rgb(82 168 255 / 5%); }
-    .spotpatch-external-handoff[hidden] { display: none; }
+    .spotpatch-external-handoff { margin-top: 10px; padding: 12px; border: 1px solid var(--spotpatch-cyan-line); border-radius: var(--spotpatch-radius-card); background: var(--spotpatch-cyan-tint); }
     .spotpatch-external-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .spotpatch-external-heading strong { font-size: 12px; font-weight: 680; color: var(--spotpatch-text); }
-    .spotpatch-external-description, .spotpatch-external-status, .spotpatch-external-settings p { margin: 6px 0 0; font-size: 11px; line-height: 1.5; color: var(--spotpatch-text-secondary); }
-    .spotpatch-external-status { padding-left: 10px; border-left: 2px solid var(--spotpatch-accent-cyan); color: #cbd5e1; }
-    .spotpatch-external-status[data-state="error"] { border-color: var(--spotpatch-danger); color: #fecdd3; }
-    .spotpatch-external-status[data-state="picked-up"] { border-color: var(--spotpatch-success); color: #a7f3d0; }
-    .spotpatch-external-control { margin-top: 9px; padding: 9px; border: 1px solid var(--spotpatch-border); border-radius: 8px; background: rgb(3 7 18 / 28%); }
+    .spotpatch-external-heading strong { font-size: 13px; font-weight: 620; }
+    .spotpatch-external-description, .spotpatch-external-status, .spotpatch-external-settings p { margin: 6px 0 0; color: var(--spotpatch-text-secondary); font-size: 12px; line-height: 1.5; }
+    .spotpatch-external-status { border-left: 2px solid var(--spotpatch-accent-cyan); padding-left: 10px; color: var(--spotpatch-text); }
+    .spotpatch-external-status[data-state="error"] { border-color: var(--spotpatch-danger); color: var(--spotpatch-danger-text); }
+    .spotpatch-external-status[data-state="picked-up"] { border-color: var(--spotpatch-success); color: var(--spotpatch-success-text); }
+    .spotpatch-external-control { margin-top: 10px; padding: 10px; border: 1px solid var(--spotpatch-border-subtle); border-radius: var(--spotpatch-radius-md); background: var(--spotpatch-bg-input); }
     .spotpatch-external-control-field { display: grid; gap: 5px; min-width: 0; }
-    .spotpatch-external-control-field + .spotpatch-external-control-field { margin-top: 9px; }
-    .spotpatch-external-control-field > label { color: var(--spotpatch-text-secondary); font-size: 10px; }
-    .spotpatch-external-agent-value { box-sizing: border-box; display: flex; width: 100%; min-height: 38px; align-items: center; border: 1px solid var(--spotpatch-border); border-radius: 9px; padding: 0 11px; overflow: hidden; color: var(--spotpatch-text); background: rgb(255 255 255 / 3%); font: inherit; text-overflow: ellipsis; white-space: nowrap; }
-    .spotpatch-external-control-status { margin: 7px 0 0; color: #cbd5e1; font-size: 10.5px; line-height: 1.5; white-space: pre-wrap; }
+    .spotpatch-external-control-field + .spotpatch-external-control-field { margin-top: 10px; }
+    .spotpatch-external-control-field > label { color: var(--spotpatch-text-secondary); font-size: 11px; }
+    .spotpatch-external-agent-value { box-sizing: border-box; display: flex; width: 100%; min-height: 38px; align-items: center; overflow: hidden; border: 1px solid var(--spotpatch-border); border-radius: var(--spotpatch-radius-md); padding: 0 12px; color: var(--spotpatch-text); background: var(--spotpatch-hover); font: inherit; text-overflow: ellipsis; white-space: nowrap; }
+    .spotpatch-external-control-status { margin: 8px 0 0; color: var(--spotpatch-text-secondary); font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; }
     .spotpatch-external-control-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .spotpatch-external-control-actions button { padding: 5px 8px; border: 1px solid var(--spotpatch-border); border-radius: 6px; background: var(--spotpatch-bg-active); color: var(--spotpatch-text); font: inherit; font-size: 10px; cursor: pointer; }
-    .spotpatch-external-control-actions button:disabled { cursor: default; opacity: .45; }
-    .spotpatch-external-result { margin-top: 8px; color: var(--spotpatch-text-secondary); font-size: 10px; }
-    .spotpatch-external-result pre { max-height: 180px; overflow: auto; margin: 6px 0 0; padding: 7px; border-radius: 6px; background: var(--spotpatch-bg-input); color: #d8d6ff; font: 9px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; }
-    .spotpatch-external-settings { margin-top: 9px; }
-    .spotpatch-external-settings summary { cursor: pointer; color: #c4b5fd; font-size: 11px; }
-    .spotpatch-external-refresh { padding: 3px 7px; border: 1px solid var(--spotpatch-border); border-radius: 6px; background: transparent; color: var(--spotpatch-text-secondary); font: inherit; font-size: 10px; cursor: pointer; }
-    .spotpatch-external-refresh:disabled { cursor: default; opacity: .45; }
-    .spotpatch-external-resolve { margin-top: 8px; padding: 6px 8px; border: 1px solid #f59e0b; border-radius: 6px; background: rgb(245 158 11 / 10%); color: #fde68a; font: inherit; font-size: 10px; cursor: pointer; }
-    .spotpatch-external-resolve[hidden] { display: none; }
-    .spotpatch-external-resolve:disabled { cursor: default; opacity: .45; }
-    .spotpatch-external-disclosure { position: fixed; inset: 0; z-index: 4; display: grid; place-items: center; padding: 20px; background: rgb(3 3 8 / 72%); backdrop-filter: blur(3px); }
-    .spotpatch-external-disclosure[hidden] { display: none; }
-    .spotpatch-external-disclosure-card { width: min(420px, calc(100vw - 40px)); max-height: calc(100vh - 40px); overflow: auto; padding: 18px; border: 1px solid rgb(139 123 255 / 55%); border-radius: 14px; background: var(--spotpatch-bg-raised); box-shadow: var(--spotpatch-shadow-panel); }
-    .spotpatch-external-disclosure-card h3 { margin: 0; color: var(--spotpatch-text); font-size: 15px; }
-    .spotpatch-external-disclosure-card p { margin: 9px 0 0; color: #c4c7d0; font-size: 11.5px; line-height: 1.55; }
-    .spotpatch-external-files { max-height: 96px; overflow: auto; color: #a5b4fc; font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
-    .spotpatch-external-disclosure-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 15px; }
-    .spotpatch-external-disclosure-actions button { padding: 7px 10px; border: 1px solid var(--spotpatch-border); border-radius: 7px; background: var(--spotpatch-bg-active); color: var(--spotpatch-text); font: inherit; cursor: pointer; }
-    .spotpatch-external-disclosure-actions .spotpatch-primary { border-color: transparent; background: var(--spotpatch-accent); color: var(--spotpatch-text-on-accent); }
+    .spotpatch-external-control-actions button,
+    .spotpatch-external-refresh,
+    .spotpatch-external-disclosure-actions button { border: 1px solid var(--spotpatch-border); border-radius: var(--spotpatch-radius-sm); color: var(--spotpatch-text); background: var(--spotpatch-bg-raised); cursor: pointer; font: inherit; transition: border-color var(--spotpatch-duration-fast) ease, background var(--spotpatch-duration-fast) ease; }
+    .spotpatch-external-control-actions button { padding: 5px 10px; font-size: 11.5px; }
+    .spotpatch-external-refresh { padding: 3px 8px; color: var(--spotpatch-text-secondary); background: transparent; font-size: 11px; }
+    .spotpatch-external-control-actions button:hover:not(:disabled),
+    .spotpatch-external-refresh:hover:not(:disabled),
+    .spotpatch-external-disclosure-actions button:hover:not(:disabled) { border-color: var(--spotpatch-border-strong); background: var(--spotpatch-bg-active); }
+    .spotpatch-external-control-actions button:disabled,
+    .spotpatch-external-refresh:disabled,
+    .spotpatch-external-resolve:disabled { cursor: default; opacity: .4; }
+    .spotpatch-external-result { margin-top: 8px; color: var(--spotpatch-text-secondary); font-size: 11px; }
+    .spotpatch-external-result pre { max-height: 180px; overflow: auto; margin: 6px 0 0; border-radius: var(--spotpatch-radius-xs); padding: 8px; color: var(--spotpatch-text); background: var(--spotpatch-bg); font: 10.5px/1.5 var(--spotpatch-font-mono); white-space: pre; }
+    .spotpatch-external-settings { margin-top: 10px; }
+    .spotpatch-external-settings summary { color: var(--spotpatch-accent-soft); cursor: pointer; font-size: 12px; }
+    .spotpatch-external-resolve { margin-top: 8px; border: 1px solid var(--spotpatch-warning-line); border-radius: var(--spotpatch-radius-sm); padding: 6px 10px; color: var(--spotpatch-warning-text); background: var(--spotpatch-warning-tint); cursor: pointer; font: inherit; font-size: 11.5px; }
+    .spotpatch-external-disclosure { position: fixed; inset: 0; z-index: 4; display: grid; place-items: center; padding: 20px; background: var(--spotpatch-scrim); backdrop-filter: blur(4px); }
+    .spotpatch-external-disclosure-card { width: min(420px, calc(100vw - 40px)); max-height: calc(100vh - 40px); overflow: auto; border: 1px solid var(--spotpatch-border); border-radius: var(--spotpatch-radius-panel); padding: 20px; background: var(--spotpatch-surface-fill); box-shadow: var(--spotpatch-shadow-panel), var(--spotpatch-shadow-inset); animation: spotpatch-pop var(--spotpatch-duration-base) var(--spotpatch-ease-spring) both; }
+    .spotpatch-external-disclosure-card h3 { margin: 0; font-size: 15px; font-weight: 650; }
+    .spotpatch-external-disclosure-card p { margin: 9px 0 0; color: var(--spotpatch-text-secondary); font-size: 12px; line-height: 1.55; }
+    .spotpatch-external-files { max-height: 96px; overflow: auto; color: var(--spotpatch-accent-soft); font: 11px/1.5 var(--spotpatch-font-mono); white-space: pre-wrap; }
+    .spotpatch-external-disclosure-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+    .spotpatch-external-disclosure-actions button { min-height: 34px; padding: 0 12px; font-size: 12.5px; font-weight: 600; }
+    .spotpatch-external-disclosure-actions .spotpatch-primary { border-color: transparent; color: var(--spotpatch-text-on-accent); background: var(--spotpatch-primary-fill); }
+    .spotpatch-external-disclosure-actions .spotpatch-primary:hover:not(:disabled) { border-color: transparent; background: var(--spotpatch-primary-fill); filter: brightness(1.1); }
   `;
   return styles;
 }

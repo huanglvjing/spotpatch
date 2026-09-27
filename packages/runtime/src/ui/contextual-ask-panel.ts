@@ -38,52 +38,84 @@ interface CreateContextualAskPanelInput {
   readonly onViewChange: () => void;
 }
 
+/** Later answer items share the last delay so long answers settle quickly. */
+const MAXIMUM_STAGGERED_ANSWER_ITEMS = 8;
+
 function createStyles(document: Document): HTMLStyleElement {
   const style = document.createElement("style");
   style.textContent = `
     ${SELECT_PICKER_STYLES}
-    .spotpatch-ask-mode { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-bottom: 14px; padding: 4px; border: 1px solid var(--spotpatch-border-subtle); border-radius: 10px; background: #0a0a0e; }
-    .spotpatch-ask-mode button { min-height: 34px; border: 0; border-radius: 7px; color: var(--spotpatch-text-secondary); background: transparent; cursor: pointer; font-size: 12px; font-weight: 700; }
-    .spotpatch-ask-mode button[aria-selected="true"] { color: #f7f7ff; background: linear-gradient(135deg, rgb(139 123 255 / 25%), rgb(82 168 255 / 14%)); box-shadow: inset 0 0 0 1px rgb(139 123 255 / 24%); }
+    .spotpatch-ask-mode { position: relative; isolation: isolate; display: grid; grid-template-columns: 1fr 1fr; gap: 3px; margin-bottom: 14px; padding: 3px; border: 1px solid var(--spotpatch-border-subtle); border-radius: var(--spotpatch-radius-md); background: var(--spotpatch-bg-input); }
+    .spotpatch-ask-mode::before { position: absolute; z-index: -1; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 4.5px); border-radius: var(--spotpatch-radius-sm); background: var(--spotpatch-bg-active); box-shadow: var(--spotpatch-shadow-inset), 0 0 0 1px var(--spotpatch-border); content: ""; transition: transform var(--spotpatch-duration-slow) var(--spotpatch-ease-out); }
+    .spotpatch-ask-mode[data-mode="change"]::before { transform: translateX(calc(100% + 3px)); }
+    .spotpatch-ask-mode button { min-height: 32px; border: 0; border-radius: var(--spotpatch-radius-sm); color: var(--spotpatch-text-secondary); background: transparent; cursor: pointer; font-size: 12.5px; font-weight: 600; transition: color var(--spotpatch-duration-base) ease; }
+    .spotpatch-ask-mode button:hover, .spotpatch-ask-mode button[aria-selected="true"] { color: var(--spotpatch-text); }
     .spotpatch-ask-panel { display: grid; gap: 14px; }
+    .spotpatch-ask-panel[data-phase="answered"] > :is(.spotpatch-ask-field, .spotpatch-ask-safety) { display: none; }
     .spotpatch-ask-field { display: grid; gap: 7px; min-width: 0; }
-    .spotpatch-ask-field[hidden] { display: none; }
-    .spotpatch-ask-field > label, .spotpatch-ask-label { color: #c9cad2; font-size: 11px; font-weight: 680; }
-    .spotpatch-ask-question { box-sizing: border-box; width: 100%; min-height: 92px; resize: vertical; border: 1px solid var(--spotpatch-border); border-radius: 10px; padding: 11px 12px; outline: none; color: var(--spotpatch-text); background: var(--spotpatch-bg-input); line-height: 1.55; }
-    .spotpatch-ask-question:focus { border-color: rgb(139 123 255 / 68%); box-shadow: 0 0 0 3px rgb(139 123 255 / 12%); }
+    .spotpatch-ask-field > label, .spotpatch-ask-label { color: var(--spotpatch-text-secondary); font-size: 11.5px; font-weight: 600; }
+    .spotpatch-ask-question { box-sizing: border-box; width: 100%; min-height: 92px; resize: vertical; border: 1px solid var(--spotpatch-border); border-radius: var(--spotpatch-radius-md); padding: 10px 12px; outline: none; color: var(--spotpatch-text); background: var(--spotpatch-bg-input); font-size: 13px; line-height: 1.55; transition: border-color var(--spotpatch-duration-fast) ease, box-shadow var(--spotpatch-duration-fast) ease; }
+    .spotpatch-ask-question::placeholder { color: var(--spotpatch-text-muted); }
+    .spotpatch-ask-question:focus { border-color: var(--spotpatch-accent-line); box-shadow: 0 0 0 3px var(--spotpatch-accent-tint); }
     .spotpatch-ask-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
-    .spotpatch-ask-suggestions button { border: 1px solid var(--spotpatch-border-subtle); border-radius: 999px; padding: 5px 9px; color: var(--spotpatch-text-secondary); background: rgb(255 255 255 / 2%); cursor: pointer; font-size: 10.5px; }
-    .spotpatch-ask-suggestions button:hover { border-color: rgb(139 123 255 / 42%); color: #fff; }
-    .spotpatch-ask-executor-status { margin: 0; border-left: 2px solid var(--spotpatch-warning); padding-left: 8px; color: #d8b66c; font-size: 10.5px; line-height: 1.45; }
-    .spotpatch-ask-safety { display: grid; gap: 8px; border: 1px solid rgb(82 168 255 / 16%); border-radius: 10px; padding: 10px 11px; background: rgb(82 168 255 / 4%); }
-    .spotpatch-ask-data { display: flex; justify-content: space-between; gap: 10px; color: #aab3c2; font-size: 10.5px; }
-    .spotpatch-ask-data strong { color: #9fe3c4; font-weight: 650; white-space: nowrap; }
-    .spotpatch-ask-consent { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; color: var(--spotpatch-text-secondary); cursor: pointer; font-size: 10.5px; line-height: 1.45; }
+    .spotpatch-ask-suggestions button { border: 1px dashed var(--spotpatch-accent-line); border-radius: var(--spotpatch-radius-pill); padding: 4px 10px; color: var(--spotpatch-accent-soft); background: transparent; cursor: pointer; font-size: 11.5px; transition: background var(--spotpatch-duration-fast) ease; }
+    .spotpatch-ask-suggestions button:hover { background: var(--spotpatch-accent-tint); }
+    .spotpatch-ask-executor-status { margin: 0; border-left: 2px solid var(--spotpatch-warning); padding-left: 8px; color: var(--spotpatch-warning-text); font-size: 11.5px; line-height: 1.45; }
+    .spotpatch-ask-safety { display: grid; gap: 8px; border: 1px solid var(--spotpatch-cyan-line); border-radius: var(--spotpatch-radius-md); padding: 10px 12px; background: var(--spotpatch-cyan-tint); }
+    .spotpatch-ask-data { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; color: var(--spotpatch-text-secondary); font-size: 11.5px; }
+    .spotpatch-ask-data strong { color: var(--spotpatch-success-text); font-weight: 600; white-space: nowrap; }
+    .spotpatch-ask-consent { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; color: var(--spotpatch-text-secondary); cursor: pointer; font-size: 11.5px; line-height: 1.45; }
     .spotpatch-ask-consent input { margin: 2px 0 0; accent-color: var(--spotpatch-accent); }
-    .spotpatch-ask-actions, .spotpatch-ask-answer-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
-    .spotpatch-ask-actions button, .spotpatch-ask-answer-actions button { min-height: 34px; border: 1px solid var(--spotpatch-border); border-radius: 8px; padding: 0 12px; color: #d6d6de; background: var(--spotpatch-bg-raised); cursor: pointer; font-size: 11px; font-weight: 680; }
-    .spotpatch-ask-actions .spotpatch-primary, .spotpatch-ask-answer-actions .spotpatch-primary { border-color: transparent; color: var(--spotpatch-text-on-accent); background: linear-gradient(135deg, #a99cff, #65b7ff); }
-    .spotpatch-ask-actions button:disabled, .spotpatch-ask-answer-actions button:disabled { opacity: .45; cursor: not-allowed; }
-    .spotpatch-ask-status { display: grid; gap: 7px; border-left: 2px solid var(--spotpatch-accent); padding: 2px 0 2px 10px; color: #c8c9d2; font-size: 11px; }
-    .spotpatch-ask-activity { display: grid; gap: 4px; color: var(--spotpatch-text-muted); font: 500 10px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .spotpatch-ask-error, .spotpatch-ask-stale, .spotpatch-ask-warning { border-radius: 8px; padding: 9px 10px; font-size: 10.5px; }
-    .spotpatch-ask-error { color: #fecaca; background: rgb(251 113 133 / 9%); }
-    .spotpatch-ask-stale, .spotpatch-ask-warning { color: #f9d68a; background: rgb(245 158 11 / 8%); }
-    .spotpatch-ask-answer { display: grid; gap: 12px; border: 1px solid var(--spotpatch-border-subtle); border-radius: 11px; padding: 12px; background: var(--spotpatch-bg); box-shadow: 0 12px 30px rgb(0 0 0 / 18%); }
-    .spotpatch-ask-answer h3, .spotpatch-ask-sources h4 { margin: 0; color: var(--spotpatch-text); font-size: 13px; }
-    .spotpatch-ask-blocks { display: grid; gap: 10px; color: #d9dae2; font-size: 12px; line-height: 1.65; overflow-wrap: anywhere; }
+    .spotpatch-ask-actions { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; padding: 10px 0 2px; background: var(--spotpatch-bg); box-shadow: 0 -14px 14px -6px var(--spotpatch-bg); }
+    .spotpatch-ask-actions button { min-height: 36px; border: 1px solid var(--spotpatch-border); border-radius: var(--spotpatch-radius-md); padding: 0 12px; color: var(--spotpatch-text); background: var(--spotpatch-bg-raised); cursor: pointer; font-size: 12.5px; font-weight: 600; transition: border-color var(--spotpatch-duration-fast) ease, background var(--spotpatch-duration-fast) ease; }
+    .spotpatch-ask-actions button:hover:not(:disabled) { border-color: var(--spotpatch-border-strong); background: var(--spotpatch-bg-active); }
+    .spotpatch-ask-actions .spotpatch-primary { border-color: transparent; color: var(--spotpatch-text-on-accent); background: var(--spotpatch-primary-fill); box-shadow: var(--spotpatch-shadow-accent), var(--spotpatch-shadow-inset); }
+    .spotpatch-ask-actions .spotpatch-primary:hover:not(:disabled) { border-color: transparent; background: var(--spotpatch-primary-fill); filter: brightness(1.1); }
+    .spotpatch-ask-actions button:disabled { box-shadow: none; cursor: not-allowed; opacity: .4; }
+    .spotpatch-ask-status { display: grid; gap: 7px; border-left: 2px solid var(--spotpatch-accent); padding: 2px 0 2px 10px; color: var(--spotpatch-text-secondary); font-size: 12px; animation: spotpatch-enter var(--spotpatch-duration-slow) var(--spotpatch-ease-out) both; }
+    .spotpatch-ask-activity { display: grid; gap: 4px; color: var(--spotpatch-text-muted); font: 500 11px/1.45 var(--spotpatch-font-mono); }
+    .spotpatch-ask-error, .spotpatch-ask-stale, .spotpatch-ask-warning { border-radius: var(--spotpatch-radius-sm); padding: 9px 10px; font-size: 11.5px; }
+    .spotpatch-ask-error { color: var(--spotpatch-danger-text); background: var(--spotpatch-danger-tint); }
+    .spotpatch-ask-stale, .spotpatch-ask-warning { color: var(--spotpatch-warning-text); background: var(--spotpatch-warning-tint); }
+    .spotpatch-ask-answer { display: grid; gap: 12px; border: 1px solid var(--spotpatch-border-subtle); border-radius: var(--spotpatch-radius-card); padding: 14px; background: var(--spotpatch-bg-raised); box-shadow: var(--spotpatch-shadow-inset); }
+    .spotpatch-ask-answer[data-entering="true"] { animation: spotpatch-enter var(--spotpatch-duration-slow) var(--spotpatch-ease-out) both; }
+    .spotpatch-ask-answer[data-entering="true"] [data-ask-order] { --spotpatch-ask-order: 0; animation: spotpatch-enter var(--spotpatch-duration-slow) var(--spotpatch-ease-out) both; animation-delay: calc(140ms + var(--spotpatch-ask-order) * 55ms); }
+    .spotpatch-ask-recap { display: grid; gap: 3px; border-left: 2px solid var(--spotpatch-accent-line); padding: 1px 0 1px 10px; }
+    .spotpatch-ask-recap span { color: var(--spotpatch-text-muted); font-size: 10.5px; font-weight: 600; letter-spacing: .02em; }
+    .spotpatch-ask-recap p { margin: 0; color: var(--spotpatch-text-secondary); font-size: 12.5px; line-height: 1.5; overflow-wrap: anywhere; }
+    .spotpatch-ask-answer-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
+    .spotpatch-ask-answer-meta { overflow: hidden; color: var(--spotpatch-text-muted); font: 500 10.5px/1.3 var(--spotpatch-font-mono); text-overflow: ellipsis; white-space: nowrap; }
+    .spotpatch-ask-answer h3, .spotpatch-ask-sources h4 { margin: 0; font-size: 13px; font-weight: 620; }
+    .spotpatch-ask-blocks { display: grid; gap: 10px; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
     .spotpatch-ask-blocks p, .spotpatch-ask-blocks ul { margin: 0; }
     .spotpatch-ask-blocks ul { padding-left: 18px; }
-    .spotpatch-ask-blocks pre { max-width: 100%; overflow: auto; margin: 0; border: 1px solid var(--spotpatch-border-subtle); border-radius: 9px; padding: 10px; color: #dbeafe; background: #08090d; font: 500 10.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
-    .spotpatch-ask-citations, .spotpatch-ask-source-list { display: flex; flex-wrap: wrap; gap: 5px; }
-    .spotpatch-ask-source { max-width: 100%; overflow: hidden; border: 1px solid rgb(82 168 255 / 22%); border-radius: 999px; padding: 4px 8px; color: #b8dcff; background: rgb(82 168 255 / 7%); cursor: pointer; font: 550 9.5px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
+    .spotpatch-ask-inline-code { border: 1px solid var(--spotpatch-border-subtle); border-radius: var(--spotpatch-radius-xs); padding: 1px 5px; color: var(--spotpatch-accent-soft); background: var(--spotpatch-bg-input); font: 500 .88em/1.4 var(--spotpatch-font-mono); }
+    .spotpatch-ask-blocks pre { max-width: 100%; overflow: auto; margin: 0; border: 1px solid var(--spotpatch-border-subtle); border-radius: var(--spotpatch-radius-sm); padding: 10px; background: var(--spotpatch-bg-input); font: 500 11px/1.55 var(--spotpatch-font-mono); }
+    .spotpatch-ask-citations, .spotpatch-ask-source-list { display: flex; flex-wrap: wrap; gap: 6px; }
+    .spotpatch-ask-source { max-width: 100%; overflow: hidden; border: 1px solid var(--spotpatch-cyan-line); border-radius: var(--spotpatch-radius-pill); padding: 4px 9px; color: var(--spotpatch-cyan-text); background: var(--spotpatch-cyan-tint); cursor: pointer; font: 500 10.5px/1.3 var(--spotpatch-font-mono); text-overflow: ellipsis; white-space: nowrap; transition: border-color var(--spotpatch-duration-fast) ease; }
+    .spotpatch-ask-source:hover { border-color: var(--spotpatch-accent-cyan); }
     .spotpatch-ask-sources { display: grid; gap: 7px; }
-    .spotpatch-ask-origin { margin-bottom: 12px; border: 1px solid rgb(139 123 255 / 22%); border-radius: 10px; padding: 10px 11px; color: var(--spotpatch-text-secondary); background: rgb(139 123 255 / 6%); font-size: 10.5px; }
-    .spotpatch-ask-origin strong { display: block; margin-bottom: 2px; color: #d9d4ff; font-size: 11px; }
-    @media (max-width: 420px) { .spotpatch-ask-data { display: grid; } .spotpatch-ask-actions, .spotpatch-ask-answer-actions { justify-content: stretch; } .spotpatch-ask-actions button, .spotpatch-ask-answer-actions button { flex: 1 1 auto; } }
-    @media (prefers-reduced-motion: reduce) { .spotpatch-ask-panel *, .spotpatch-ask-mode * { scroll-behavior: auto !important; transition: none !important; } }
+    .spotpatch-ask-origin { margin-bottom: 12px; border: 1px solid var(--spotpatch-accent-line); border-radius: var(--spotpatch-radius-md); padding: 10px 12px; color: var(--spotpatch-text-secondary); background: var(--spotpatch-accent-tint); font-size: 11.5px; }
+    .spotpatch-ask-origin strong { display: block; margin-bottom: 2px; color: var(--spotpatch-accent-soft); font-size: 12px; }
+    @media (max-width: 420px) { .spotpatch-ask-actions { justify-content: stretch; } .spotpatch-ask-actions button { flex: 1 1 auto; } }
   `;
   return style;
+}
+
+const INLINE_CODE = /`([^`\n]+)`/gu;
+
+/** Renders `code` spans as text-only elements; nothing is parsed as HTML. */
+function appendInlineText(document: Document, root: HTMLElement, text: string): void {
+  let offset = 0;
+  for (const match of text.matchAll(INLINE_CODE)) {
+    root.append(text.slice(offset, match.index));
+    const code = createMarkedElement(document, "code");
+    code.className = "spotpatch-ask-inline-code";
+    code.textContent = match[1] ?? "";
+    root.append(code);
+    offset = match.index + match[0].length;
+  }
+  root.append(text.slice(offset));
 }
 
 function appendSourceChips(
@@ -129,6 +161,7 @@ export function createContextualAskPanel(
     sourceCount: 0,
   });
   let busy = false;
+  let renderedJobId: string | undefined;
 
   const root = createMarkedElement(document, "section");
   const modeSwitch = createMarkedElement(document, "div");
@@ -215,9 +248,17 @@ export function createContextualAskPanel(
   actions.className = "spotpatch-ask-actions";
   const newQuestionButton = createButton(document, "");
   const cancelButton = createButton(document, "");
+  const copyButton = createButton(document, "");
+  const convertButton = createButton(document, "", "spotpatch-primary");
   const submitButton = createButton(document, "", "spotpatch-primary");
   cancelButton.hidden = true;
-  actions.append(newQuestionButton, cancelButton, submitButton);
+  actions.append(
+    newQuestionButton,
+    cancelButton,
+    copyButton,
+    convertButton,
+    submitButton,
+  );
 
   const answer = createMarkedElement(document, "article");
   answer.className = "spotpatch-ask-answer";
@@ -225,7 +266,17 @@ export function createContextualAskPanel(
   const stale = createMarkedElement(document, "div");
   stale.className = "spotpatch-ask-stale";
   stale.hidden = true;
+  const recap = createMarkedElement(document, "div");
+  recap.className = "spotpatch-ask-recap";
+  const recapLabel = createMarkedElement(document, "span");
+  const recapText = createMarkedElement(document, "p");
+  recap.append(recapLabel, recapText);
+  const answerHead = createMarkedElement(document, "div");
+  answerHead.className = "spotpatch-ask-answer-head";
   const answerTitle = createMarkedElement(document, "h3");
+  const answerMeta = createMarkedElement(document, "span");
+  answerMeta.className = "spotpatch-ask-answer-meta";
+  answerHead.append(answerTitle, answerMeta);
   const warnings = createMarkedElement(document, "div");
   const blocks = createMarkedElement(document, "div");
   blocks.className = "spotpatch-ask-blocks";
@@ -235,22 +286,19 @@ export function createContextualAskPanel(
   const sourceList = createMarkedElement(document, "div");
   sourceList.className = "spotpatch-ask-source-list";
   sourcesSection.append(sourcesTitle, sourceList);
-  const answerActions = createMarkedElement(document, "div");
-  answerActions.className = "spotpatch-ask-answer-actions";
-  const copyButton = createButton(document, "");
-  const convertButton = createButton(document, "", "spotpatch-primary");
-  answerActions.append(copyButton, convertButton);
-  answer.append(stale, answerTitle, warnings, blocks, sourcesSection, answerActions);
+  answer.append(stale, recap, answerHead, warnings, blocks, sourcesSection);
 
+  // Outcomes lead (the body scrolls back to the top when the planner
+  // returns from the execution island); actions stay pinned last.
   askPanel.append(
+    error,
+    answer,
     questionField,
     executorField,
     modelField,
     safety,
     status,
-    error,
     actions,
-    answer,
   );
   root.append(modeSwitch, origin, askPanel);
 
@@ -307,12 +355,18 @@ export function createContextualAskPanel(
     executorPicker.setDisabled(executorUnavailable);
     modelPicker.setDisabled(busy || !hasReadyExecutor());
     consentCheckbox.disabled = busy || !hasReadyExecutor();
-    newQuestionButton.hidden = busy || currentResult === undefined;
+    const answered = !busy && currentResult !== undefined;
+    askPanel.dataset.phase = busy ? "running" : answered ? "answered" : "compose";
+    newQuestionButton.hidden = !answered;
+    copyButton.hidden = !answered;
+    convertButton.hidden = !answered;
+    submitButton.hidden = answered;
     cancelButton.hidden = !busy;
   }
 
   function applyMode(): void {
     const asking = currentMode === "ask";
+    modeSwitch.dataset.mode = currentMode;
     askTab.setAttribute("aria-selected", String(asking));
     changeTab.setAttribute("aria-selected", String(!asking));
     askPanel.hidden = !asking;
@@ -352,6 +406,7 @@ export function createContextualAskPanel(
     askTab.textContent = messages.mode.ask;
     changeTab.textContent = messages.mode.change;
     questionLabel.textContent = messages.questionLabel;
+    recapLabel.textContent = messages.questionLabel;
     questionInput.placeholder = messages.questionPlaceholder;
     suggestions.setAttribute("aria-label", messages.suggestionsLabel);
     executorLabel.textContent = messages.executorLabel;
@@ -520,7 +575,7 @@ export function createContextualAskPanel(
     for (const block of result.blocks) {
       if (block.kind === "paragraph") {
         const paragraph = createMarkedElement(document, "p");
-        paragraph.textContent = block.text;
+        appendInlineText(document, paragraph, block.text);
         blocks.append(paragraph);
         appendSourceChips(document, blocks, block.sourceIds, sourceMap, messages);
       } else if (block.kind === "code") {
@@ -535,7 +590,7 @@ export function createContextualAskPanel(
         const list = createMarkedElement(document, "ul");
         for (const item of block.items) {
           const listItem = createMarkedElement(document, "li");
-          listItem.textContent = item.text;
+          appendInlineText(document, listItem, item.text);
           appendSourceChips(document, listItem, item.sourceIds, sourceMap, messages);
           list.append(listItem);
         }
@@ -553,6 +608,29 @@ export function createContextualAskPanel(
       sourceList.append(button);
     }
     sourcesSection.hidden = result.sources.length === 0;
+    warnings.hidden = result.warnings.length === 0;
+    const question = questionInput.value.trim();
+    recapText.textContent = question;
+    recap.hidden = question.length === 0;
+    answerMeta.textContent = `${result.executor.label} · ${result.executor.modelLabel}`;
+    // A new answer cascades in; re-renders of the same answer (locale, stale)
+    // update in place.
+    answer.dataset.entering = String(result.jobId !== renderedJobId);
+    renderedJobId = result.jobId;
+    const sequence = [
+      recap,
+      answerHead,
+      ...warnings.querySelectorAll<HTMLElement>(":scope > *"),
+      ...blocks.querySelectorAll<HTMLElement>(":scope > *"),
+      sourcesSection,
+    ];
+    for (const [order, element] of sequence.entries()) {
+      element.dataset.askOrder = "";
+      element.style.setProperty(
+        "--spotpatch-ask-order",
+        String(Math.min(order, MAXIMUM_STAGGERED_ANSWER_ITEMS)),
+      );
+    }
     answer.hidden = false;
     status.hidden = true;
     busy = false;

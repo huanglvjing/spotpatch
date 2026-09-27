@@ -355,6 +355,85 @@ describe("contextual Ask panel", () => {
     expect(panel.sourceById("source_1")?.fileId).toBe("file_form");
   });
 
+  it("renders backtick spans as inert inline code and keeps the plain-text copy", () => {
+    const panel = createContextualAskPanel({
+      document,
+      locale: () => "en-US",
+      subscribeLocale: () => () => undefined,
+      changeRoot: document.createElement("div"),
+      changeActions: document.createElement("footer"),
+      announce: vi.fn(),
+      onModeChange: vi.fn(),
+      onExecutionChange: vi.fn(),
+      onViewChange: vi.fn(),
+    });
+    document.body.append(panel.root);
+    const text = "Renders `<img src=x onerror=alert(1)>` inside `App`, not `unclosed.";
+
+    panel.renderAnswer(
+      { ...result, blocks: [{ kind: "paragraph", text, sourceIds: [] }] },
+      false,
+    );
+
+    const paragraph = panel.root.querySelector(".spotpatch-ask-blocks p");
+    expect(
+      [...(paragraph?.querySelectorAll(".spotpatch-ask-inline-code") ?? [])].map(
+        (code) => code.textContent,
+      ),
+    ).toEqual(["<img src=x onerror=alert(1)>", "App"]);
+    expect(paragraph?.querySelector("img")).toBeNull();
+    expect(paragraph?.textContent).toBe(
+      "Renders <img src=x onerror=alert(1)> inside App, not `unclosed.",
+    );
+    expect(panel.answerPlainText()).toContain(text);
+  });
+
+  it("collapses the composer into a question recap once answered", () => {
+    const panel = createContextualAskPanel({
+      document,
+      locale: () => "en-US",
+      subscribeLocale: () => () => undefined,
+      changeRoot: document.createElement("div"),
+      changeActions: document.createElement("footer"),
+      announce: vi.fn(),
+      onModeChange: vi.fn(),
+      onExecutionChange: vi.fn(),
+      onViewChange: vi.fn(),
+    });
+    document.body.append(panel.root);
+    panel.questionInput.value = "What does this submit?";
+    const phase = () =>
+      panel.root.querySelector<HTMLElement>(".spotpatch-ask-panel")?.dataset.phase;
+
+    expect(phase()).toBe("compose");
+    panel.setBusy(true);
+    expect(phase()).toBe("running");
+    panel.renderAnswer(result, false);
+
+    expect(phase()).toBe("answered");
+    expect(panel.root.querySelector(".spotpatch-ask-recap p")?.textContent).toBe(
+      "What does this submit?",
+    );
+    expect(panel.root.querySelector(".spotpatch-ask-answer-meta")?.textContent).toBe(
+      "Trusted Relay · Coder",
+    );
+    expect(panel.submitButton.hidden).toBe(true);
+    expect(panel.copyButton.hidden).toBe(false);
+    expect(panel.convertButton.hidden).toBe(false);
+    expect(
+      panel.root.querySelector<HTMLElement>(".spotpatch-ask-answer")?.dataset.entering,
+    ).toBe("true");
+    panel.renderAnswer(result, true);
+    expect(
+      panel.root.querySelector<HTMLElement>(".spotpatch-ask-answer")?.dataset.entering,
+    ).toBe("false");
+
+    panel.clear();
+    expect(phase()).toBe("compose");
+    expect(panel.submitButton.hidden).toBe(false);
+    expect(panel.copyButton.hidden).toBe(true);
+  });
+
   it("renders the maximum answer text budget without blocking the UI", () => {
     const panel = createContextualAskPanel({
       document,

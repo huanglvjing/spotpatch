@@ -5,6 +5,7 @@ import type {
   FloatingSurfaceMotionElements,
   FloatingSurfaceProjection,
 } from "./motion-extension-contract.js";
+import { THEME_MOTION_COLORS } from "./theme.js";
 
 const MOTION = Object.freeze({
   contentMilliseconds: 220,
@@ -15,8 +16,9 @@ const MOTION = Object.freeze({
   expandSeconds: 0.54,
   morphSeconds: 0.48,
   pressSeconds: 0.12,
-  revealSeconds: 0.26,
-  sceneRevealDelaySeconds: 0.06,
+  revealSeconds: 0.36,
+  revealStaggerSeconds: 0.05,
+  sceneRevealDelaySeconds: 0.12,
   sweepSeconds: 0.68,
   targetFeedbackDelaySeconds: 0.08,
   targetFeedbackSeconds: 0.22,
@@ -137,52 +139,23 @@ export function createFloatingSurfaceMotionStyles(
   const style = document.createElement("style");
   style.textContent = `
     .spotpatch-floating-surface {
-      --spotpatch-island-surface: #050608;
-      --spotpatch-island-primary: #f7f7fb;
-      --spotpatch-island-subtle: #5f646e;
-      --spotpatch-island-line: rgb(255 255 255 / 10%);
-      --spotpatch-island-violet: #8b67ff;
-      --spotpatch-island-cyan: #4dc8ff;
-      --spotpatch-island-mint: #59dcb6;
-      --spotpatch-island-error: #ef6f88;
       --spotpatch-island-compact-height: ${String(ISLAND_SIZE.compactHeight)}px;
       --spotpatch-island-compact-width: ${String(ISLAND_SIZE.runningWidth)}px;
       --spotpatch-island-expanded-height: ${String(ISLAND_SIZE.expandedHeight)}px;
       --spotpatch-island-expanded-width: ${String(ISLAND_SIZE.expandedWidth)}px;
-      --spotpatch-island-ease: cubic-bezier(.22, 1, .36, 1);
-      position: fixed;
-      box-sizing: border-box;
-      color-scheme: dark;
-      -webkit-font-smoothing: antialiased;
-      overflow: hidden;
-      border: 1px solid var(--spotpatch-island-line);
-      background:
-        linear-gradient(180deg, rgb(255 255 255 / 2.8%), transparent 24%),
-        rgb(5 6 8 / 98.8%);
-      box-shadow:
-        0 24px 60px rgb(13 17 28 / 18%),
-        0 3px 10px rgb(13 17 28 / 10%),
-        inset 0 1px rgb(255 255 255 / 6.5%),
-        inset 0 0 0 1px rgb(255 255 255 / 1.2%);
-      transform-origin: 100% 100%;
     }
     .spotpatch-floating-surface::before {
       position: absolute;
       z-index: 0;
       inset: 0;
       background:
-        radial-gradient(180px 70px at 0% 50%, rgb(139 103 255 / 7%), transparent 72%),
-        radial-gradient(180px 70px at 100% 50%, rgb(77 200 255 / 4.5%), transparent 72%);
+        radial-gradient(160px 70px at 0% 50%, var(--spotpatch-accent-tint), transparent 72%),
+        radial-gradient(160px 70px at 100% 50%, var(--spotpatch-cyan-tint), transparent 72%);
       content: "";
       opacity: 0;
       pointer-events: none;
+      transition: opacity var(--spotpatch-duration-slow) ease;
     }
-    .spotpatch-floating-surface[data-scene="pill"],
-    .spotpatch-floating-surface[data-scene="capturing"] {
-      width: max-content;
-      border-radius: 999px;
-    }
-    .spotpatch-floating-surface[data-scene="planner"] { border-radius: 18px; }
     .spotpatch-floating-surface[data-scene="agent-charging"],
     .spotpatch-floating-surface[data-scene="handoff"],
     .spotpatch-floating-surface[data-scene="running"],
@@ -191,17 +164,17 @@ export function createFloatingSurfaceMotionStyles(
       width: min(var(--spotpatch-island-compact-width), calc(100vw - 32px));
       height: var(--spotpatch-island-compact-height);
       max-width: calc(100vw - 32px);
-      border-radius: 31px;
+      border-radius: var(--spotpatch-radius-pill);
     }
     .spotpatch-floating-surface[data-scene="agent-charging"]::before,
     .spotpatch-floating-surface[data-scene="handoff"]::before,
-    .spotpatch-floating-surface[data-scene="running"]::before,
-    .spotpatch-floating-surface[data-scene="success"]::before,
-    .spotpatch-floating-surface[data-scene="failed"]::before { opacity: .82; }
+    .spotpatch-floating-surface[data-scene="running"]::before { opacity: 1; }
+    .spotpatch-floating-surface[data-scene="success"] { border-color: color-mix(in srgb, var(--spotpatch-success) 32%, transparent); }
+    .spotpatch-floating-surface[data-scene="failed"] { border-color: var(--spotpatch-danger-line); }
     .spotpatch-floating-surface:has(.spotpatch-execution-island[data-expanded="true"]) {
       width: min(var(--spotpatch-island-expanded-width), calc(100vw - 32px));
       height: min(var(--spotpatch-island-expanded-height), calc(100vh - 32px));
-      border-radius: 30px;
+      border-radius: 28px;
     }
     .spotpatch-floating-surface > .spotpatch-trigger,
     .spotpatch-floating-surface > .spotpatch-dialog,
@@ -209,75 +182,8 @@ export function createFloatingSurfaceMotionStyles(
       position: relative;
       z-index: 1;
     }
-    .spotpatch-floating-surface > .spotpatch-trigger {
-      display: inline-flex;
-      min-height: 44px;
-      align-items: center;
-      gap: 10px;
-      border: 0;
-      border-radius: 999px;
-      padding: 10px 17px;
-      color: #f8fafc;
-      background: transparent;
-      box-shadow: none;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 650;
-      touch-action: none;
-      user-select: none;
-    }
-    .spotpatch-trigger::before {
-      width: 9px;
-      height: 9px;
-      border-radius: 999px;
-      background: var(--spotpatch-accent);
-      box-shadow: 0 0 0 4px rgb(99 102 241 / 10%);
-      content: "";
-    }
-    .spotpatch-trigger:hover { transform: translateY(-1px); }
-    .spotpatch-trigger[aria-pressed="true"] { background: rgb(139 123 255 / 14%); }
-    .spotpatch-trigger[aria-pressed="true"]::before {
-      animation: spotpatch-motion-pill-pulse 1.8s ease-in-out infinite;
-    }
-    .spotpatch-trigger[data-dragging="true"] {
-      cursor: grabbing;
-      transform: scale(.98);
-    }
-    .spotpatch-floating-surface .spotpatch-dialog { filter: none; }
-    .spotpatch-floating-surface .spotpatch-shell {
-      border: 0;
-      border-radius: 0;
-      background: transparent;
-      box-shadow: none;
-    }
-    .spotpatch-brand-name {
-      color: #fff;
-      font-size: 13.5px;
-      font-weight: 680;
-      letter-spacing: -.01em;
-    }
-    .spotpatch-brand-context {
-      color: #8e98aa;
-      font-size: 10.5px;
-      font-weight: 560;
-      letter-spacing: .02em;
-    }
-    .spotpatch-title {
-      margin: 0;
-      color: #fff;
-      font-size: 18px;
-      font-weight: 680;
-      letter-spacing: -.015em;
-    }
-    .spotpatch-subtitle {
-      max-width: 390px;
-      margin: 4px 0 0;
-      color: var(--spotpatch-text-secondary);
-      font-size: 12.5px;
-      line-height: 1.5;
-    }
+
     .spotpatch-execution-island {
-      position: relative;
       display: grid;
       box-sizing: border-box;
       width: 100%;
@@ -289,7 +195,7 @@ export function createFloatingSurfaceMotionStyles(
       border: 0;
       border-radius: inherit;
       padding: 0 18px;
-      color: var(--spotpatch-island-primary);
+      color: var(--spotpatch-text);
       background: transparent;
       cursor: pointer;
       text-align: left;
@@ -297,17 +203,15 @@ export function createFloatingSurfaceMotionStyles(
     }
     .spotpatch-execution-island[data-expanded="true"] {
       min-height: var(--spotpatch-island-expanded-height);
-      grid-template-columns: auto minmax(0, 1fr) auto;
       grid-template-rows: auto 1fr;
       align-items: start;
       row-gap: 16px;
-      border-radius: 30px;
       padding: 18px 20px 16px;
     }
     .spotpatch-execution-mark {
       display: grid;
-      width: 23px;
-      height: 23px;
+      width: 24px;
+      height: 24px;
       flex: none;
       place-items: center;
     }
@@ -315,7 +219,11 @@ export function createFloatingSurfaceMotionStyles(
       width: 22px;
       height: 22px;
       overflow: visible;
-      filter: drop-shadow(0 0 7px rgb(139 103 255 / 16%));
+    }
+    [data-execution-scene="agent-charging"] .spotpatch-execution-logo,
+    [data-execution-scene="handoff"] .spotpatch-execution-logo,
+    [data-execution-scene="running"] .spotpatch-execution-logo {
+      animation: spotpatch-motion-logo-glow 2.4s ease-in-out infinite;
     }
     .spotpatch-execution-content {
       display: flex;
@@ -344,17 +252,15 @@ export function createFloatingSurfaceMotionStyles(
     }
     .spotpatch-execution-headline,
     .spotpatch-execution-headline-outgoing {
-      color: var(--spotpatch-island-primary);
-      font-size: 15px;
-      font-weight: 690;
-      letter-spacing: -.018em;
+      font-size: 14.5px;
+      font-weight: 650;
+      letter-spacing: -.015em;
       line-height: 1.35;
     }
     .spotpatch-execution-action,
     .spotpatch-execution-action-outgoing {
-      color: #696f79;
-      font-size: 11px;
-      font-weight: 400;
+      color: var(--spotpatch-text-muted);
+      font-size: 11.5px;
       line-height: 1.35;
     }
     .spotpatch-execution-headline-outgoing,
@@ -366,7 +272,7 @@ export function createFloatingSurfaceMotionStyles(
     }
     .spotpatch-execution-copy-changing .spotpatch-execution-headline,
     .spotpatch-execution-copy-changing .spotpatch-execution-action {
-      animation: spotpatch-motion-copy-in ${String(MOTION.contentMilliseconds)}ms var(--spotpatch-island-ease) both;
+      animation: spotpatch-motion-copy-in ${String(MOTION.contentMilliseconds)}ms var(--spotpatch-ease-out) both;
     }
     .spotpatch-execution-copy-changing .spotpatch-execution-headline-outgoing,
     .spotpatch-execution-copy-changing .spotpatch-execution-action-outgoing {
@@ -374,13 +280,13 @@ export function createFloatingSurfaceMotionStyles(
     }
     .spotpatch-execution-meta {
       display: inline-flex;
+      flex: none;
       align-items: center;
       justify-content: flex-end;
       gap: 10px;
-      flex: none;
-      color: #989da8;
-      font-size: 11px;
-      font-weight: 620;
+      color: var(--spotpatch-text-secondary);
+      font-size: 11.5px;
+      font-weight: 600;
       white-space: nowrap;
     }
     .spotpatch-execution-meta-dot {
@@ -388,49 +294,53 @@ export function createFloatingSurfaceMotionStyles(
       height: 6px;
       flex: none;
       border-radius: 50%;
-      background: var(--spotpatch-island-violet);
-      box-shadow: 0 0 8px rgb(139 103 255 / 38%);
+      background: var(--spotpatch-accent);
+      box-shadow: 0 0 10px var(--spotpatch-accent-line);
     }
     [data-execution-scene="agent-charging"] .spotpatch-execution-meta-dot,
     [data-execution-scene="handoff"] .spotpatch-execution-meta-dot,
     [data-execution-scene="running"] .spotpatch-execution-meta-dot {
       animation: spotpatch-motion-status-breathe 1.8s ease-in-out infinite;
     }
+    .spotpatch-execution-meta[data-tone="success"] { color: var(--spotpatch-success-text); }
     .spotpatch-execution-meta[data-tone="success"] .spotpatch-execution-meta-dot {
-      background: var(--spotpatch-island-mint);
-      box-shadow: 0 0 8px rgb(89 220 182 / 24%);
+      background: var(--spotpatch-success);
+      box-shadow: 0 0 10px color-mix(in srgb, var(--spotpatch-success) 45%, transparent);
     }
+    .spotpatch-execution-meta[data-tone="danger"] { color: var(--spotpatch-danger-text); }
     .spotpatch-execution-meta[data-tone="danger"] .spotpatch-execution-meta-dot {
-      background: var(--spotpatch-island-error);
-      box-shadow: 0 0 8px rgb(239 111 136 / 22%);
+      background: var(--spotpatch-danger);
+      box-shadow: 0 0 10px var(--spotpatch-danger-line);
     }
     .spotpatch-execution-timer {
-      width: 34px;
-      color: #737985;
-      font: 400 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      width: 36px;
+      color: var(--spotpatch-text-muted);
+      font: 500 11px/1 var(--spotpatch-font-mono);
+      font-variant-numeric: tabular-nums;
       text-align: right;
     }
     .spotpatch-execution-more {
       display: grid;
       width: 24px;
       height: 24px;
-      padding: 0;
+      place-items: center;
       border: 0;
+      border-radius: 50%;
+      padding: 0;
+      color: var(--spotpatch-text-muted);
       background: transparent;
-      color: #686e78;
       font-size: 15px;
       line-height: 1;
-      place-items: center;
+      transition: background var(--spotpatch-duration-fast) ease;
     }
+    .spotpatch-execution-island:hover .spotpatch-execution-more { background: var(--spotpatch-hover); }
     [data-expanded="true"] .spotpatch-execution-meta-dot,
     [data-expanded="true"] .spotpatch-execution-meta-label,
     [data-expanded="true"] .spotpatch-execution-timer { display: none; }
     [data-expanded="true"] .spotpatch-execution-more {
       width: 28px;
       height: 28px;
-      border-radius: 50%;
-      background: rgb(255 255 255 / 4.5%);
-      color: #828894;
+      background: var(--spotpatch-hover);
     }
     .spotpatch-execution-recent {
       position: absolute;
@@ -438,82 +348,66 @@ export function createFloatingSurfaceMotionStyles(
       right: 20px;
       left: 20px;
       display: grid;
-      margin-top: 0;
     }
-    .spotpatch-execution-recent[hidden] { display: none; }
     .spotpatch-execution-recent-item {
       display: grid;
       min-height: 28px;
-      grid-template-columns: 52px minmax(0, 1fr) auto;
+      grid-template-columns: 56px minmax(0, 1fr) auto;
       align-items: center;
-      border-top: 1px solid rgb(255 255 255 / 5.5%);
+      border-top: 1px solid var(--spotpatch-border-subtle);
     }
     .spotpatch-execution-recent-item:first-child { border-top: 0; }
-    .spotpatch-execution-recent-kind {
-      color: #666c76;
-      font: 600 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-      text-transform: uppercase;
+    .spotpatch-execution-recent-kind,
+    .spotpatch-execution-recent-state {
+      color: var(--spotpatch-text-muted);
+      font: 500 10.5px/1 var(--spotpatch-font-mono);
     }
+    .spotpatch-execution-recent-kind { text-transform: uppercase; }
     .spotpatch-execution-recent-detail {
       overflow: hidden;
-      color: #b2b6bf;
-      font-size: 11px;
+      color: var(--spotpatch-text-secondary);
+      font-size: 11.5px;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .spotpatch-execution-recent-state {
-      color: #626974;
-      font: 500 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
-    .spotpatch-execution-recent-item[data-state="active"] .spotpatch-execution-recent-kind {
-      color: var(--spotpatch-island-violet);
-    }
-    .spotpatch-execution-recent-item[data-state="active"] .spotpatch-execution-recent-detail {
-      color: #f2f3f7;
-    }
-    .spotpatch-execution-recent-item[data-state="failure"] .spotpatch-execution-recent-kind {
-      color: var(--spotpatch-island-error);
-    }
+    .spotpatch-execution-recent-item[data-state="active"] .spotpatch-execution-recent-kind { color: var(--spotpatch-accent-soft); }
+    .spotpatch-execution-recent-item[data-state="active"] .spotpatch-execution-recent-detail { color: var(--spotpatch-text); }
+    .spotpatch-execution-recent-item[data-state="failure"] .spotpatch-execution-recent-kind { color: var(--spotpatch-danger-text); }
     .spotpatch-island-sweep {
       position: absolute;
       z-index: 2;
       bottom: 0;
       left: 44px;
-      width: 20%;
+      width: 22%;
       height: 1px;
-      border-radius: 999px;
-      background: linear-gradient(90deg, transparent, var(--spotpatch-island-violet), var(--spotpatch-island-cyan), transparent);
-      box-shadow: 0 0 7px rgb(139 103 255 / 18%);
+      border-radius: var(--spotpatch-radius-pill);
+      background: linear-gradient(90deg, transparent, var(--spotpatch-accent), var(--spotpatch-accent-cyan), transparent);
+      box-shadow: 0 0 8px var(--spotpatch-accent-line);
       opacity: 0;
       pointer-events: none;
       transform: translate3d(-160%, 0, 0);
     }
     @keyframes spotpatch-motion-copy-in {
-      from { opacity: 0; filter: blur(2px); transform: translate3d(0, 3px, 0); }
-      to { opacity: 1; filter: blur(0); transform: translate3d(0, 0, 0); }
+      from { opacity: 0; filter: blur(2px); transform: translate3d(0, 4px, 0); }
     }
     @keyframes spotpatch-motion-copy-out {
-      from { opacity: 1; filter: blur(0); transform: translate3d(0, 0, 0); }
-      to { opacity: 0; filter: blur(2px); transform: translate3d(0, -3px, 0); }
+      to { opacity: 0; filter: blur(2px); transform: translate3d(0, -4px, 0); }
     }
     @keyframes spotpatch-motion-status-breathe {
-      50% { opacity: .42; transform: scale(.82); }
+      50% { opacity: .4; transform: scale(.8); }
     }
-    @keyframes spotpatch-motion-pill-pulse {
-      50% { box-shadow: 0 0 0 6px rgb(99 102 241 / 5%); opacity: .72; }
+    @keyframes spotpatch-motion-logo-glow {
+      50% { filter: drop-shadow(0 0 7px var(--spotpatch-accent-line)); }
     }
-    .spotpatch-floating-surface[data-motion-paused="true"] .spotpatch-execution-meta-dot,
-    .spotpatch-floating-surface[data-motion-paused="true"] .spotpatch-trigger::before {
+    .spotpatch-floating-surface[data-motion-paused="true"] *,
+    .spotpatch-floating-surface[data-motion-paused="true"] *::before {
       animation-play-state: paused;
     }
     @media (prefers-reduced-motion: reduce) {
-      .spotpatch-trigger::before,
-      .spotpatch-execution-meta-dot,
       .spotpatch-execution-headline,
       .spotpatch-execution-headline-outgoing,
       .spotpatch-execution-action,
       .spotpatch-execution-action-outgoing {
-        animation: none !important;
         filter: none !important;
         transform: none !important;
       }
@@ -521,7 +415,6 @@ export function createFloatingSurfaceMotionStyles(
     }
     @media (max-width: 520px) {
       .spotpatch-execution-island {
-        grid-template-columns: auto minmax(0, 1fr) auto;
         gap: 10px;
         padding-right: 14px;
         padding-left: 14px;
@@ -554,10 +447,17 @@ export function createFloatingSurfaceMotionController(
   document.addEventListener("visibilitychange", handleVisibility);
   handleVisibility();
 
+  // Header, body and actions are created once with the planner, so they can
+  // be captured here for the staggered reveal and for interruption cleanup.
+  const plannerSections = Array.from(
+    elements.planner.querySelectorAll<HTMLElement>(".spotpatch-shell > *"),
+  );
+
   const morphElements = [
     elements.surface,
     elements.pill,
     elements.planner,
+    ...plannerSections,
     elements.execution.root,
     elements.execution.mark,
     elements.execution.content,
@@ -796,14 +696,21 @@ export function createFloatingSurfaceMotionController(
     }
 
     if (reveal) {
+      // The planner rises in sections (header, body, actions); compact
+      // scenes reveal as one piece.
+      const revealTargets =
+        activeScene === elements.planner && plannerSections.length > 0
+          ? plannerSections
+          : [activeScene];
       morphTimeline.fromTo(
-        activeScene,
-        { autoAlpha: 0, y: 4 },
+        revealTargets,
+        { autoAlpha: 0, y: 8 },
         {
           autoAlpha: 1,
           y: 0,
           duration: MOTION.revealSeconds,
-          ease: "power2.out",
+          ease: "power3.out",
+          stagger: MOTION.revealStaggerSeconds,
           clearProps: "transform,opacity,visibility",
         },
         MOTION.sceneRevealDelaySeconds,
@@ -966,9 +873,9 @@ export function createFloatingSurfaceMotionController(
     );
     dispatchTimeline.fromTo(
       target,
-      { boxShadow: "0 0 0 rgb(100 120 255 / 0%)" },
+      { boxShadow: THEME_MOTION_COLORS.dispatchGlowRest },
       {
-        boxShadow: "0 0 18px rgb(100 120 255 / 14%)",
+        boxShadow: THEME_MOTION_COLORS.dispatchGlow,
         duration: MOTION.targetFeedbackSeconds,
         yoyo: true,
         repeat: 1,

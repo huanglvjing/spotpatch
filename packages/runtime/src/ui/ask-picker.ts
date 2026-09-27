@@ -2,18 +2,18 @@ import { createButton, createMarkedElement } from "./dom.js";
 
 export const SELECT_PICKER_STYLES = `
   .spotpatch-select-picker { position: relative; display: grid; gap: 5px; min-width: 0; }
-  .spotpatch-select-trigger { box-sizing: border-box; display: flex; width: 100%; min-height: 38px; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--spotpatch-border); border-radius: 9px; padding: 0 11px; overflow: hidden; color: var(--spotpatch-text); background: var(--spotpatch-bg-input); cursor: pointer; font: inherit; outline: none; text-align: left; }
+  .spotpatch-select-trigger { box-sizing: border-box; display: flex; width: 100%; min-height: 38px; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--spotpatch-border); border-radius: var(--spotpatch-radius-md); padding: 0 12px; overflow: hidden; color: var(--spotpatch-text); background: var(--spotpatch-bg-input); cursor: pointer; font: inherit; outline: none; text-align: left; transition: border-color var(--spotpatch-duration-fast) ease, box-shadow var(--spotpatch-duration-fast) ease; }
+  .spotpatch-select-trigger:hover:not(:disabled) { border-color: var(--spotpatch-border-strong); }
   .spotpatch-select-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .spotpatch-select-trigger[data-expandable="true"]::after { width: 7px; height: 7px; flex: 0 0 auto; border-right: 1.5px solid #8f96a3; border-bottom: 1.5px solid #8f96a3; content: ""; transform: translateY(-2px) rotate(45deg); }
+  .spotpatch-select-trigger[data-expandable="true"]::after { width: 7px; height: 7px; flex: 0 0 auto; border-right: 1.5px solid var(--spotpatch-text-muted); border-bottom: 1.5px solid var(--spotpatch-text-muted); content: ""; transform: translateY(-2px) rotate(45deg); transition: transform var(--spotpatch-duration-base) var(--spotpatch-ease-out); }
   .spotpatch-select-trigger[aria-expanded="true"]::after { transform: translateY(2px) rotate(225deg); }
-  .spotpatch-select-trigger:focus-visible { border-color: rgb(139 123 255 / 68%); box-shadow: 0 0 0 3px rgb(139 123 255 / 12%); }
-  .spotpatch-select-trigger:disabled { color: var(--spotpatch-text); background: rgb(255 255 255 / 3%); cursor: default; opacity: 1; }
+  .spotpatch-select-trigger:focus-visible { border-color: var(--spotpatch-accent-line); box-shadow: 0 0 0 3px var(--spotpatch-accent-tint); }
+  .spotpatch-select-trigger:disabled { color: var(--spotpatch-text); background: var(--spotpatch-hover); cursor: default; opacity: 1; }
   .spotpatch-select-trigger[data-empty="true"]:disabled { color: var(--spotpatch-text-muted); }
-  .spotpatch-select-menu { position: relative; z-index: 1; display: grid; gap: 3px; max-height: 224px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--spotpatch-border); border-radius: 9px; padding: 4px; background: var(--spotpatch-bg-input); box-shadow: 0 10px 28px rgb(0 0 0 / 28%); scrollbar-width: thin; }
-  .spotpatch-select-menu[hidden] { display: none; }
-  .spotpatch-select-option { box-sizing: border-box; min-height: 34px; border: 0; border-radius: 6px; padding: 7px 9px; overflow-wrap: anywhere; color: var(--spotpatch-text-secondary); background: transparent; cursor: pointer; font: inherit; text-align: left; }
-  .spotpatch-select-option[data-active="true"], .spotpatch-select-option:hover { color: #fff; background: rgb(139 123 255 / 13%); outline: none; }
-  .spotpatch-select-option[aria-selected="true"] { color: #f4f1ff; background: rgb(139 123 255 / 20%); }
+  .spotpatch-select-menu { position: relative; z-index: 1; display: grid; gap: 2px; max-height: 224px; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--spotpatch-border); border-radius: var(--spotpatch-radius-md); padding: 4px; background: var(--spotpatch-bg-raised); box-shadow: var(--spotpatch-shadow-panel); animation: spotpatch-enter var(--spotpatch-duration-base) var(--spotpatch-ease-out) both; }
+  .spotpatch-select-option { box-sizing: border-box; min-height: 34px; border: 0; border-radius: var(--spotpatch-radius-xs); padding: 7px 10px; overflow-wrap: anywhere; color: var(--spotpatch-text-secondary); background: transparent; cursor: pointer; font: inherit; text-align: left; }
+  .spotpatch-select-option[data-active="true"], .spotpatch-select-option:hover { color: var(--spotpatch-text); background: var(--spotpatch-hover); outline: none; }
+  .spotpatch-select-option[aria-selected="true"] { color: var(--spotpatch-text); background: var(--spotpatch-accent-tint); }
   .spotpatch-select-native { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; border: 0; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 `;
 

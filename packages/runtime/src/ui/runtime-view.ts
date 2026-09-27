@@ -34,6 +34,7 @@ import {
   type DataFlowViewState,
 } from "./data-flow-panel-contract.js";
 import { createButton, createMarkedElement } from "./dom.js";
+import { THEME_STYLES } from "./theme.js";
 import {
   getExternalHandoffExtension,
   type ExternalHandoffPanel,
@@ -189,67 +190,102 @@ function resolveStyleNonce(document: Document): string | undefined {
 function createStyles(document: Document): HTMLStyleElement {
   const style = document.createElement("style");
   style.textContent = `
-    :host {
-      all: initial;
-      --spotpatch-bg: #0e0e12;
-      --spotpatch-bg-raised: #17171c;
-      --spotpatch-bg-active: #1c1c22;
-      --spotpatch-bg-input: #0b0b0f;
-      --spotpatch-border: #2a2a32;
-      --spotpatch-border-subtle: #232329;
-      --spotpatch-text: #f2f2f5;
-      --spotpatch-text-secondary: #96969f;
-      --spotpatch-text-muted: #686872;
-      --spotpatch-accent: #8b7bff;
-      --spotpatch-accent-strong: #6a5ce8;
-      --spotpatch-accent-cyan: #52a8ff;
-      --spotpatch-danger: #fb7185;
-      --spotpatch-success: #34d399;
-      --spotpatch-warning: #f59e0b;
-      --spotpatch-text-on-accent: #0b0b12;
-      --spotpatch-radius-card: 10px;
-      color: var(--spotpatch-text);
-      font-family: Inter, "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-    [hidden] { display: none !important; }
-    button, textarea, select { font: inherit; }
+    ${THEME_STYLES}
     .spotpatch-floating-surface {
       position: fixed;
       right: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
       bottom: ${String(FLOATING_SURFACE_LAYOUT.desktopInset)}px;
       z-index: ${String(UI_Z_INDEX.controls)};
+      box-sizing: border-box;
+      overflow: hidden;
       isolation: isolate;
+      border: 1px solid var(--spotpatch-border);
+      background: var(--spotpatch-surface-fill);
+      box-shadow: var(--spotpatch-shadow-float), var(--spotpatch-shadow-inset);
+      transform-origin: 100% 100%;
     }
-    .spotpatch-highlight {
+    .spotpatch-floating-surface[data-scene="pill"],
+    .spotpatch-floating-surface[data-scene="capturing"] {
+      width: max-content;
+      border-radius: var(--spotpatch-radius-pill);
+    }
+    .spotpatch-floating-surface[data-scene="planner"] {
+      border-radius: var(--spotpatch-radius-panel);
+      box-shadow: var(--spotpatch-shadow-panel), var(--spotpatch-shadow-inset);
+    }
+
+    .spotpatch-trigger {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      gap: 10px;
+      border: 0;
+      border-radius: var(--spotpatch-radius-pill);
+      padding: 0 18px 0 16px;
+      color: var(--spotpatch-text);
+      background: transparent;
+      cursor: pointer;
+      font-size: 13.5px;
+      font-weight: 620;
+      letter-spacing: -.005em;
+      touch-action: none;
+      user-select: none;
+      transition: background var(--spotpatch-duration-fast) ease;
+    }
+    .spotpatch-trigger::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--spotpatch-accent);
+      box-shadow: 0 0 0 4px var(--spotpatch-accent-tint);
+      content: "";
+      transition: background var(--spotpatch-duration-base) ease;
+    }
+    .spotpatch-trigger:hover { background: var(--spotpatch-hover); }
+    .spotpatch-trigger[aria-pressed="true"]::before {
+      background: var(--spotpatch-accent-cyan);
+      animation: spotpatch-trigger-pulse 1.6s var(--spotpatch-ease-standard) infinite;
+    }
+    .spotpatch-trigger[data-dragging="true"] { cursor: grabbing; }
+    @keyframes spotpatch-trigger-pulse {
+      0% { box-shadow: 0 0 0 0 var(--spotpatch-cyan-line); }
+      100% { box-shadow: 0 0 0 9px transparent; }
+    }
+
+    .spotpatch-highlight,
+    .spotpatch-selection-highlight {
       position: fixed;
       top: 0;
       left: 0;
-      z-index: ${String(UI_Z_INDEX.highlight)};
       box-sizing: border-box;
-      border: 2px solid var(--spotpatch-accent);
-      border-radius: 6px;
-      background: rgb(109 93 246 / 8%);
-      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 22%), 0 0 0 1px rgb(109 93 246 / 10%);
+      border-radius: var(--spotpatch-radius-xs);
       pointer-events: none;
     }
-    .spotpatch-highlight-label {
+    .spotpatch-highlight {
+      z-index: ${String(UI_Z_INDEX.highlight)};
+      border: 1.5px solid var(--spotpatch-accent);
+      background: var(--spotpatch-accent-tint);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--spotpatch-accent) 12%, transparent);
+      transition:
+        transform var(--spotpatch-duration-fast) var(--spotpatch-ease-out),
+        width var(--spotpatch-duration-fast) var(--spotpatch-ease-out),
+        height var(--spotpatch-duration-fast) var(--spotpatch-ease-out);
+    }
+    .spotpatch-highlight-label,
+    .spotpatch-selection-highlight > span {
       position: absolute;
-      top: -30px;
-      left: -2px;
-      max-width: min(380px, 80vw);
+      bottom: calc(100% + 6px);
+      left: -1.5px;
       overflow: hidden;
-      border: 1px solid rgb(255 255 255 / 14%);
-      border-radius: 8px 8px 8px 3px;
-      padding: 6px 10px;
-      color: #fff;
-      background: #5546dc;
-      box-shadow: 0 8px 20px rgb(49 46 129 / 22%);
-      font: 650 12px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+      border-radius: var(--spotpatch-radius-xs);
+      padding: 4px 8px;
+      color: var(--spotpatch-text-on-accent);
+      background: var(--spotpatch-accent-strong);
+      font: 600 11px/1.3 var(--spotpatch-font-mono);
       text-overflow: ellipsis;
       white-space: nowrap;
     }
+    .spotpatch-highlight-label { max-width: min(380px, 80vw); }
     .spotpatch-selection-highlights {
       position: fixed;
       inset: 0;
@@ -257,37 +293,27 @@ function createStyles(document: Document): HTMLStyleElement {
       pointer-events: none;
     }
     .spotpatch-selection-highlight {
-      position: fixed;
-      top: 0;
-      left: 0;
-      box-sizing: border-box;
-      border: 2px solid var(--spotpatch-accent-cyan);
-      border-radius: 6px;
-      background: rgb(8 182 214 / 5%);
-      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 16%);
+      border: 1.5px solid var(--spotpatch-accent-cyan);
+      background: var(--spotpatch-cyan-tint);
     }
     .spotpatch-selection-highlight[data-active="true"] {
-      border-color: #7768f7;
-      background: rgb(109 93 246 / 8%);
-      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 20%);
+      border-color: var(--spotpatch-accent);
+      background: var(--spotpatch-accent-tint);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--spotpatch-accent) 12%, transparent);
+    }
+    .spotpatch-selection-highlight[data-entering="true"] {
+      animation: spotpatch-pop var(--spotpatch-duration-base) var(--spotpatch-ease-spring) both;
     }
     .spotpatch-selection-highlight > span {
-      position: absolute;
-      top: -24px;
-      left: -2px;
       max-width: min(300px, 70vw);
-      overflow: hidden;
-      border-radius: 7px 7px 7px 2px;
-      padding: 4px 8px;
-      color: #ecfeff;
-      background: rgb(14 67 82 / 96%);
-      font: 650 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      color: var(--spotpatch-bg);
+      background: var(--spotpatch-accent-cyan);
     }
     .spotpatch-selection-highlight[data-active="true"] > span {
-      background: #5546dc;
+      color: var(--spotpatch-text-on-accent);
+      background: var(--spotpatch-accent-strong);
     }
+
     .spotpatch-dialog {
       position: relative;
       box-sizing: border-box;
@@ -295,18 +321,14 @@ function createStyles(document: Document): HTMLStyleElement {
       outline: none;
     }
     .spotpatch-shell {
-      position: relative;
-      z-index: 1;
       display: flex;
       box-sizing: border-box;
       max-height: min(${String(FLOATING_SURFACE_LAYOUT.workbenchMaxHeight)}px, calc(100vh - ${String(FLOATING_SURFACE_LAYOUT.desktopInset * 2)}px));
       overflow: hidden;
       flex-direction: column;
     }
-    .spotpatch-header {
-      position: relative;
-      padding: 0 18px 14px;
-    }
+
+    .spotpatch-header { padding: 0 18px 16px; }
     .spotpatch-header[data-spotpatch-drag-handle] { cursor: grab; touch-action: none; user-select: none; }
     .spotpatch-header[data-dragging="true"] { cursor: grabbing; }
     .spotpatch-header button,
@@ -316,133 +338,114 @@ function createStyles(document: Document): HTMLStyleElement {
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      margin: 0 -18px 18px;
-      padding: 14px 18px 13px;
+      margin: 0 -18px 16px;
+      padding: 12px 14px 12px 18px;
       border-bottom: 1px solid var(--spotpatch-border-subtle);
     }
-    .spotpatch-brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-      color: #f8fafc;
-    }
-    .spotpatch-brand-mark {
-      width: 30px;
-      height: 30px;
-      flex: none;
-      filter: drop-shadow(0 6px 12px rgb(76 29 149 / 22%));
-    }
+    .spotpatch-brand { display: inline-flex; min-width: 0; align-items: center; gap: 10px; }
+    .spotpatch-brand-mark { width: 28px; height: 28px; flex: none; }
     .spotpatch-brand-copy { display: grid; min-width: 0; gap: 1px; }
-    .spotpatch-header-controls {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      flex: none;
-    }
+    .spotpatch-brand-name { font-size: 13.5px; font-weight: 650; letter-spacing: -.01em; }
+    .spotpatch-brand-context { color: var(--spotpatch-text-muted); font-size: 11px; font-weight: 520; }
+    .spotpatch-header-controls { display: inline-flex; flex: none; align-items: center; gap: 2px; }
     .spotpatch-repository,
     .spotpatch-locale,
     .spotpatch-reset-position,
     .spotpatch-close {
-      height: 27px;
-      border: 1px solid rgb(255 255 255 / 11%);
-      border-radius: 7px;
+      display: inline-grid;
+      box-sizing: border-box;
+      min-width: 28px;
+      height: 28px;
+      place-items: center;
+      border: 0;
+      border-radius: var(--spotpatch-radius-sm);
+      padding: 0 7px;
+      color: var(--spotpatch-text-muted);
       background: transparent;
-    }
-    .spotpatch-repository {
-      display: inline-flex;
-      align-items: center;
-      padding: 0 9px;
-      color: var(--spotpatch-text-secondary);
-      font-size: 11px;
-      font-weight: 680;
-      text-decoration: none;
-    }
-    .spotpatch-locale {
-      min-width: 34px;
-      padding: 0 8px;
-      color: #c5cad5;
-      cursor: pointer;
       font-size: 12px;
-      font-weight: 650;
-    }
-    .spotpatch-reset-position {
-      display: inline-grid;
-      width: 27px;
-      padding: 0;
-      place-items: center;
-      color: #c5cad5;
-      cursor: pointer;
-      font-size: 15px;
+      font-weight: 600;
       line-height: 1;
+      text-decoration: none;
+      transition:
+        color var(--spotpatch-duration-fast) ease,
+        background var(--spotpatch-duration-fast) ease;
     }
-    .spotpatch-close {
-      display: inline-grid;
-      width: 27px;
-      padding: 0;
-      place-items: center;
-      color: #9da5b4;
-      cursor: pointer;
-      font-size: 15px;
-      line-height: 1;
-      transition: border-color 150ms ease, color 150ms ease, background 150ms ease;
-    }
-    .spotpatch-close:hover,
+    .spotpatch-reset-position,
+    .spotpatch-close { padding: 0; font-size: 15px; }
+    .spotpatch-repository:hover,
     .spotpatch-locale:hover,
     .spotpatch-reset-position:hover,
-    .spotpatch-repository:hover { border-color: rgb(129 112 247 / 45%); color: #fff; background: rgb(109 93 246 / 10%); }
+    .spotpatch-close:hover { color: var(--spotpatch-text); background: var(--spotpatch-hover); }
+
+    .spotpatch-title {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 650;
+      letter-spacing: -.02em;
+      line-height: 1.3;
+    }
+    .spotpatch-subtitle {
+      max-width: 400px;
+      margin: 4px 0 0;
+      color: var(--spotpatch-text-secondary);
+      font-size: 12.5px;
+      line-height: 1.55;
+    }
     .spotpatch-target-row {
       display: flex;
-      align-items: center;
-      gap: 8px;
       min-width: 0;
+      align-items: center;
+      gap: 10px;
       margin-top: 14px;
     }
     .spotpatch-target-label {
       min-width: 0;
       overflow: hidden;
-      border: 1px solid rgb(129 112 247 / 24%);
-      border-radius: 999px;
-      padding: 4px 10px;
-      color: #cdd2ff;
-      background: rgb(109 93 246 / 10%);
-      font: 600 11px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+      border: 1px solid var(--spotpatch-accent-line);
+      border-radius: var(--spotpatch-radius-pill);
+      padding: 3px 10px;
+      color: var(--spotpatch-accent-soft);
+      background: var(--spotpatch-accent-tint);
+      font: 600 11px/1.4 var(--spotpatch-font-mono);
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .spotpatch-context-state {
       display: inline-flex;
+      flex: none;
       align-items: center;
       gap: 6px;
-      flex: none;
-      color: #a5adba;
-      font-size: 11px;
+      color: var(--spotpatch-warning-text);
+      font-size: 11.5px;
       white-space: nowrap;
     }
     .spotpatch-context-state::before {
       width: 6px;
       height: 6px;
-      border-radius: 999px;
-      background: #f59e0b;
+      border-radius: 50%;
+      background: var(--spotpatch-warning);
       content: "";
     }
+    .spotpatch-context-state[data-state="loading"]::before {
+      animation: spotpatch-dot-breathe 1.4s ease-in-out infinite;
+    }
     .spotpatch-context-state[data-state="ready"],
-    .spotpatch-editor-feedback[data-state="success"] { color: #9fe3c4; }
+    .spotpatch-editor-feedback[data-state="success"] { color: var(--spotpatch-success-text); }
     .spotpatch-context-state[data-state="ready"]::before,
-    .spotpatch-editor-feedback[data-state="success"]::before { background: #34d399; }
+    .spotpatch-editor-feedback[data-state="success"]::before { background: var(--spotpatch-success); }
     .spotpatch-context-state[data-state="warning"],
-    .spotpatch-editor-feedback[data-state="error"] { color: #fecaca; }
+    .spotpatch-editor-feedback[data-state="error"] { color: var(--spotpatch-danger-text); }
     .spotpatch-context-state[data-state="warning"]::before,
-    .spotpatch-editor-feedback[data-state="error"]::before { background: #fb7185; }
+    .spotpatch-editor-feedback[data-state="error"]::before { background: var(--spotpatch-danger); }
+    @keyframes spotpatch-dot-breathe {
+      50% { opacity: .35; }
+    }
+
     .spotpatch-body {
       min-height: 0;
       overflow: auto;
-      padding: 0 18px 14px;
-      scrollbar-color: rgb(100 116 139 / 50%) transparent;
-      scrollbar-width: thin;
-    }
-    .spotpatch-targets {
-      margin: 0;
+      overscroll-behavior: contain;
+      padding: 0 18px 16px;
     }
     .spotpatch-targets-heading {
       display: flex;
@@ -450,71 +453,73 @@ function createStyles(document: Document): HTMLStyleElement {
       justify-content: space-between;
       gap: 10px;
       margin-bottom: 8px;
-      color: var(--spotpatch-text-secondary);
+      color: var(--spotpatch-text-muted);
       font-size: 11px;
-      font-weight: 650;
-      letter-spacing: .04em;
+      font-weight: 600;
+      letter-spacing: .06em;
       text-transform: uppercase;
     }
     .spotpatch-targets-meta {
       display: flex;
+      min-width: 0;
       align-items: center;
       gap: 8px;
-      min-width: 0;
       letter-spacing: 0;
       text-transform: none;
     }
-    .spotpatch-target-complete { color: var(--spotpatch-text-muted); font-size: 11px; font-weight: 560; }
-    .spotpatch-target-budget {
-      color: var(--spotpatch-text-muted);
-      font: 550 10.5px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
+    .spotpatch-target-budget { font: 500 11px/1.4 var(--spotpatch-font-mono); }
     .spotpatch-target-budget[data-state="ready"] { display: none; }
-    .spotpatch-target-budget[data-state="over"] { color: #fda4af; }
+    .spotpatch-target-budget[data-state="over"] { color: var(--spotpatch-danger-text); }
     .spotpatch-target-count {
       margin-left: auto;
-      border-radius: 999px;
-      padding: 3px 8px;
       color: var(--spotpatch-text-muted);
-      font: 600 10.5px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+      font: 500 11px/1.4 var(--spotpatch-font-mono);
     }
     .spotpatch-target-progress {
-      height: 3px;
-      margin-bottom: 13px;
+      height: 2px;
+      margin-bottom: 12px;
       overflow: hidden;
-      border-radius: 999px;
+      border-radius: var(--spotpatch-radius-pill);
       background: var(--spotpatch-border-subtle);
     }
     .spotpatch-target-progress-fill {
       width: 0;
       height: 100%;
       border-radius: inherit;
-      background: linear-gradient(90deg, var(--spotpatch-accent), var(--spotpatch-accent-cyan));
-      transition: width 180ms ease;
+      background: var(--spotpatch-brand-line);
+      transition: width var(--spotpatch-duration-slow) var(--spotpatch-ease-out);
     }
     .spotpatch-target-list {
       display: grid;
       gap: 8px;
       max-height: min(340px, 48vh);
       overflow: auto;
-      padding-right: 2px;
+      padding: 2px;
+      margin: -2px;
     }
+
     .spotpatch-target-item {
       overflow: hidden;
       border: 1px solid var(--spotpatch-border-subtle);
       border-radius: var(--spotpatch-radius-card);
       background: var(--spotpatch-bg-raised);
-      transition: border-color 150ms ease, background 150ms ease;
+      transition:
+        border-color var(--spotpatch-duration-base) ease,
+        background var(--spotpatch-duration-base) ease,
+        box-shadow var(--spotpatch-duration-base) ease;
     }
     .spotpatch-target-item[data-active="true"] {
-      border-color: rgb(139 123 255 / 34%);
+      border-color: var(--spotpatch-accent-line);
       background: var(--spotpatch-bg-active);
-      box-shadow: 0 0 0 3px rgb(139 123 255 / 10%);
+      box-shadow: 0 0 0 3px var(--spotpatch-accent-tint);
+    }
+    .spotpatch-target-item[data-entering="true"] {
+      animation: spotpatch-enter var(--spotpatch-duration-slow) var(--spotpatch-ease-out) both;
     }
     .spotpatch-target-summary {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 28px 28px;
-      align-items: stretch;
+      grid-template-columns: minmax(0, 1fr) 30px 30px;
+      align-items: center;
       gap: 2px;
       padding: 4px;
     }
@@ -522,27 +527,31 @@ function createStyles(document: Document): HTMLStyleElement {
       display: grid;
       grid-template-columns: 24px minmax(0, 1fr) auto;
       align-items: center;
-      gap: 9px;
+      gap: 10px;
       min-width: 0;
       border: 0;
-      border-radius: 8px;
-      padding: 8px;
+      border-radius: var(--spotpatch-radius-sm);
+      padding: 7px 8px;
       color: inherit;
       background: transparent;
       cursor: pointer;
       text-align: left;
+      transition: background var(--spotpatch-duration-fast) ease;
     }
-    .spotpatch-target-select:hover { background: rgb(255 255 255 / 3.5%); }
+    .spotpatch-target-select:hover { background: var(--spotpatch-hover); }
     .spotpatch-target-index {
       display: inline-grid;
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
       place-items: center;
-      border: 1px solid rgb(68 202 224 / 25%);
-      border-radius: 6px;
+      border-radius: var(--spotpatch-radius-xs);
       color: var(--spotpatch-text-secondary);
-      background: var(--spotpatch-bg);
-      font: 650 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+      background: var(--spotpatch-hover);
+      font: 600 11px/1 var(--spotpatch-font-mono);
+    }
+    [data-active="true"] .spotpatch-target-index {
+      color: var(--spotpatch-text-on-accent);
+      background: var(--spotpatch-accent-strong);
     }
     .spotpatch-target-copy { min-width: 0; }
     .spotpatch-target-name,
@@ -552,37 +561,49 @@ function createStyles(document: Document): HTMLStyleElement {
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .spotpatch-target-name { color: #f2f2f5; font-size: 13px; font-weight: 650; }
-    .spotpatch-target-source { margin-top: 1px; color: var(--spotpatch-text-muted); font: 500 10.5px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .spotpatch-target-name { font-size: 13px; font-weight: 620; }
+    .spotpatch-target-source {
+      margin-top: 1px;
+      color: var(--spotpatch-text-muted);
+      font: 500 11px/1.4 var(--spotpatch-font-mono);
+    }
     .spotpatch-target-state {
-      border-radius: 999px;
+      border-radius: var(--spotpatch-radius-pill);
       padding: 3px 8px;
-      color: #a7f3d0;
-      background: rgb(16 185 129 / 9%);
-      font-size: 10.5px;
-      font-weight: 650;
+      color: var(--spotpatch-success-text);
+      background: var(--spotpatch-success-tint);
+      font-size: 11px;
+      font-weight: 600;
       white-space: nowrap;
     }
-    .spotpatch-target-state[data-complete="false"] { color: #f5c97a; background: rgb(245 158 11 / 9%); }
+    .spotpatch-target-state[data-complete="false"] {
+      color: var(--spotpatch-warning-text);
+      background: var(--spotpatch-warning-tint);
+    }
     .spotpatch-target-open,
     .spotpatch-target-remove {
       display: inline-grid;
-      width: 28px;
-      height: 100%;
-      min-height: 34px;
-      padding: 0;
+      width: 30px;
+      height: 30px;
       place-items: center;
-      border: 1px solid transparent;
-      border-radius: 7px;
-      color: #7f899a;
+      border: 0;
+      border-radius: var(--spotpatch-radius-sm);
+      padding: 0;
+      color: var(--spotpatch-text-muted);
       background: transparent;
       cursor: pointer;
+      transition:
+        color var(--spotpatch-duration-fast) ease,
+        background var(--spotpatch-duration-fast) ease;
     }
-    .spotpatch-target-open { color: #79d9e7; }
-    .spotpatch-target-open:hover:not(:disabled) { border-color: rgb(68 202 224 / 30%); color: #c8f7ff; background: rgb(8 145 178 / 11%); }
-    .spotpatch-target-remove:hover:not(:disabled) { border-color: rgb(251 113 133 / 24%); color: #fda4af; background: rgb(127 29 29 / 12%); }
+    .spotpatch-target-open:hover:not(:disabled) { color: var(--spotpatch-cyan-text); background: var(--spotpatch-cyan-tint); }
+    .spotpatch-target-remove:hover:not(:disabled) { color: var(--spotpatch-danger-text); background: var(--spotpatch-danger-tint); }
+    .spotpatch-target-open:disabled,
+    .spotpatch-target-remove:disabled { cursor: not-allowed; opacity: .35; }
+
     .spotpatch-target-editor {
-      padding: 0 12px 12px;
+      display: block;
+      padding: 2px 12px 12px;
     }
     .spotpatch-target-editor-head {
       display: flex;
@@ -591,179 +612,178 @@ function createStyles(document: Document): HTMLStyleElement {
       gap: 12px;
       margin-bottom: 6px;
     }
-    .spotpatch-target-editor-label { color: var(--spotpatch-text-secondary); font-size: 11px; font-weight: 650; }
-    .spotpatch-target-editor-count { color: var(--spotpatch-text-muted); font: 500 10.5px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .spotpatch-target-editor-label { color: var(--spotpatch-text-secondary); font-size: 11.5px; font-weight: 600; }
+    .spotpatch-target-editor-count { color: var(--spotpatch-text-muted); font: 500 11px/1.3 var(--spotpatch-font-mono); }
     .spotpatch-target-editor textarea {
+      display: block;
       box-sizing: border-box;
       width: 100%;
-      min-height: 74px;
+      min-height: 76px;
       resize: vertical;
       border: 1px solid var(--spotpatch-border);
-      border-radius: 7px;
-      padding: 9px 10px;
-      color: #f8fafc;
-      caret-color: #8b7cf7;
+      border-radius: var(--spotpatch-radius-md);
+      padding: 10px 12px;
+      color: var(--spotpatch-text);
+      caret-color: var(--spotpatch-accent-soft);
       background: var(--spotpatch-bg-input);
-      font-size: 12.5px;
+      font-size: 13px;
       line-height: 1.55;
       outline: none;
-      transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+      transition:
+        border-color var(--spotpatch-duration-fast) ease,
+        box-shadow var(--spotpatch-duration-fast) ease;
     }
-    .spotpatch-target-editor textarea::placeholder { color: #687284; }
-    .spotpatch-target-editor textarea:hover { border-color: rgb(139 124 247 / 34%); }
+    .spotpatch-target-editor textarea::placeholder { color: var(--spotpatch-text-muted); }
+    .spotpatch-target-editor textarea:hover { border-color: var(--spotpatch-border-strong); }
     .spotpatch-target-editor textarea:focus {
-      border-color: rgb(139 124 247 / 68%);
-      background: rgb(3 7 18 / 65%);
-      box-shadow: 0 0 0 2px rgb(109 93 246 / 10%);
+      border-color: var(--spotpatch-accent-line);
+      box-shadow: 0 0 0 3px var(--spotpatch-accent-tint);
     }
+
     .spotpatch-diagnostics {
       margin-top: 10px;
       overflow: hidden;
-      border: 1px solid rgb(255 255 255 / 8%);
-      border-radius: 9px;
-      background: rgb(255 255 255 / 2.5%);
+      border: 1px solid var(--spotpatch-border-subtle);
+      border-radius: var(--spotpatch-radius-md);
     }
     .spotpatch-diagnostics > summary {
       display: flex;
       align-items: center;
       gap: 8px;
-      padding: 9px 11px;
-      color: #bfc5d0;
+      padding: 9px 12px;
+      color: var(--spotpatch-text-secondary);
       cursor: pointer;
-      font-size: 11px;
-      font-weight: 650;
+      font-size: 11.5px;
+      font-weight: 600;
       list-style: none;
       user-select: none;
     }
     .spotpatch-diagnostics > summary::-webkit-details-marker { display: none; }
     .spotpatch-diagnostics > summary::before {
-      color: #778193;
+      color: var(--spotpatch-text-muted);
       content: "›";
       font-size: 16px;
       line-height: 1;
-      transform: rotate(0deg);
-      transition: transform 150ms ease;
+      transition: transform var(--spotpatch-duration-base) var(--spotpatch-ease-out);
     }
     .spotpatch-diagnostics[open] > summary::before { transform: rotate(90deg); }
     .spotpatch-source-peek {
       min-width: 0;
-      overflow: hidden;
       margin-left: auto;
-      color: #64748b;
-      font: 500 10.5px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+      overflow: hidden;
+      color: var(--spotpatch-text-muted);
+      font: 500 11px/1.3 var(--spotpatch-font-mono);
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .spotpatch-summary {
-      max-height: 170px;
+    .spotpatch-summary,
+    .spotpatch-prompt {
       margin: 0;
       overflow: auto;
-      border-top: 1px solid rgb(255 255 255 / 7%);
-      padding: 10px 11px 11px;
-      color: #9ca5b5;
-      font: 10.5px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
       overflow-wrap: anywhere;
       white-space: pre-wrap;
       user-select: text;
+      font: 11px/1.6 var(--spotpatch-font-mono);
+    }
+    .spotpatch-summary {
+      max-height: 170px;
+      border-top: 1px solid var(--spotpatch-border-subtle);
+      padding: 10px 12px 12px;
+      color: var(--spotpatch-text-secondary);
     }
     .spotpatch-prompt {
       max-height: min(500px, 60vh);
-      margin: 0;
-      overflow: auto;
-      border: 1px solid rgb(255 255 255 / 9%);
-      border-radius: 9px;
-      padding: 11px;
-      color: #d8ddeb;
-      background: rgb(3 7 18 / 55%);
-      font: 11px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
-      overflow-wrap: anywhere;
-      white-space: pre-wrap;
-      user-select: text;
+      border: 1px solid var(--spotpatch-border-subtle);
+      border-radius: var(--spotpatch-radius-md);
+      padding: 12px;
+      color: var(--spotpatch-text);
+      background: var(--spotpatch-bg-input);
     }
+
     .spotpatch-actions {
       display: grid;
       gap: 8px;
-      padding: 10px 18px 14px;
-      border-top: 1px solid rgb(255 255 255 / 8%);
-      background: rgb(8 8 12 / 86%);
+      border-top: 1px solid var(--spotpatch-border-subtle);
+      padding: 12px 18px 16px;
     }
-    .spotpatch-editor-feedback {
-      white-space: normal;
-    }
+    .spotpatch-editor-feedback { white-space: normal; }
     .spotpatch-secondary-actions,
-    .spotpatch-primary-actions {
-      display: flex;
-      align-items: center;
-      gap: 7px;
-    }
-    .spotpatch-secondary-actions { min-height: 30px; }
+    .spotpatch-primary-actions { display: flex; align-items: center; gap: 8px; }
+    .spotpatch-secondary-actions { gap: 2px; margin: 0 -8px; }
     .spotpatch-actions button {
       display: inline-flex;
-      min-height: 34px;
+      min-height: 36px;
       align-items: center;
       justify-content: center;
-      border: 1px solid rgb(255 255 255 / 10%);
-      border-radius: 9px;
-      padding: 7px 11px;
-      color: var(--spotpatch-text-secondary);
-      background: rgb(255 255 255 / 4%);
+      gap: 6px;
+      border: 1px solid var(--spotpatch-border);
+      border-radius: var(--spotpatch-radius-md);
+      padding: 0 12px;
+      color: var(--spotpatch-text);
+      background: var(--spotpatch-bg-raised);
       cursor: pointer;
-      font-size: 12px;
-      font-weight: 650;
-      transition: border-color 150ms ease, box-shadow 150ms ease, color 150ms ease, transform 150ms ease;
+      font-size: 12.5px;
+      font-weight: 600;
+      white-space: nowrap;
+      transition:
+        border-color var(--spotpatch-duration-fast) ease,
+        background var(--spotpatch-duration-fast) ease,
+        box-shadow var(--spotpatch-duration-base) ease,
+        transform var(--spotpatch-duration-fast) ease;
     }
     .spotpatch-actions button:hover:not(:disabled) {
-      border-color: rgb(139 124 247 / 45%);
-      color: #fff;
-      transform: translateY(-1px);
+      border-color: var(--spotpatch-border-strong);
+      background: var(--spotpatch-bg-active);
     }
+    .spotpatch-actions button:active:not(:disabled) { transform: scale(.98); }
     .spotpatch-actions .spotpatch-primary {
-      min-width: 138px;
+      min-width: 140px;
       flex: 1;
       border-color: transparent;
       color: var(--spotpatch-text-on-accent);
-      background: linear-gradient(135deg, var(--spotpatch-accent), var(--spotpatch-accent-strong));
-      box-shadow: 0 8px 20px -8px rgb(139 123 255 / 55%);
+      background: var(--spotpatch-primary-fill);
+      box-shadow: var(--spotpatch-shadow-accent), var(--spotpatch-shadow-inset);
     }
-    .spotpatch-actions .spotpatch-primary:hover:not(:disabled) { color: var(--spotpatch-text-on-accent); filter: brightness(1.08); }
-    .spotpatch-actions .spotpatch-primary::after { margin-left: 8px; content: "↗"; font-size: 12px; }
+    .spotpatch-actions .spotpatch-primary:hover:not(:disabled) {
+      border-color: transparent;
+      background: var(--spotpatch-primary-fill);
+      filter: brightness(1.1);
+    }
+    .spotpatch-actions .spotpatch-primary::after { content: "↗"; font-size: 12px; opacity: .8; }
     .spotpatch-actions .spotpatch-secondary-action {
       min-height: 30px;
-      border-style: dashed;
-      padding: 5px 10px;
-      color: var(--spotpatch-text-muted);
+      border-color: transparent;
+      padding: 0 8px;
+      color: var(--spotpatch-text-secondary);
       background: transparent;
-      font-size: 11px;
+      font-size: 12px;
+      font-weight: 550;
+    }
+    .spotpatch-actions .spotpatch-secondary-action:hover:not(:disabled) {
+      border-color: transparent;
+      color: var(--spotpatch-text);
+      background: var(--spotpatch-hover);
     }
     .spotpatch-actions .spotpatch-icon-action {
-      width: 34px;
-      min-width: 34px;
+      width: 36px;
+      min-width: 36px;
       padding: 0;
       font-size: 0;
     }
     .spotpatch-actions .spotpatch-icon-action::before {
       color: var(--spotpatch-text-secondary);
       content: attr(data-compact-icon);
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 400;
       line-height: 1;
     }
-    .spotpatch-actions button:disabled { cursor: not-allowed; opacity: .4; transform: none; }
-    .spotpatch-actions button:focus-visible,
-    .spotpatch-repository:focus-visible,
-    .spotpatch-target-open:focus-visible,
-    .spotpatch-target-remove:focus-visible,
-    .spotpatch-close:focus-visible,
-    .spotpatch-reset-position:focus-visible,
-    .spotpatch-trigger:focus-visible,
-    .spotpatch-target-select:focus-visible,
-    .spotpatch-target-editor textarea:focus-visible,
-    .spotpatch-locale:focus-visible,
-    .spotpatch-prompt:focus-visible,
-    .spotpatch-diagnostics > summary:focus-visible {
-      outline: 2px solid #8b7cf7;
-      outline-offset: 2px;
+    .spotpatch-actions button:disabled {
+      box-shadow: none;
+      cursor: not-allowed;
+      filter: none;
+      opacity: .4;
     }
+
     .spotpatch-live {
       position: absolute;
       width: 1px;
@@ -773,16 +793,11 @@ function createStyles(document: Document): HTMLStyleElement {
       clip-path: inset(50%);
       white-space: nowrap;
     }
-    @media (prefers-reduced-motion: reduce) {
-      .spotpatch-trigger,
-      .spotpatch-actions button,
-      .spotpatch-diagnostics > summary::before { transition: none; }
-    }
     @media (max-width: 520px) {
       .spotpatch-dialog { width: calc(100vw - 16px); }
       .spotpatch-shell { max-height: calc(100dvh - 16px); }
-      .spotpatch-header, .spotpatch-body { padding-left: 14px; padding-right: 14px; }
-      .spotpatch-brand-row { margin-right: -14px; margin-left: -14px; padding-right: 14px; padding-left: 14px; }
+      .spotpatch-header, .spotpatch-body { padding-right: 14px; padding-left: 14px; }
+      .spotpatch-brand-row { margin-right: -14px; margin-left: -14px; padding-right: 10px; padding-left: 14px; }
       .spotpatch-actions { padding-right: 14px; padding-left: 14px; }
       .spotpatch-target-select { grid-template-columns: 24px minmax(0, 1fr); }
       .spotpatch-target-state { display: none; }
@@ -1209,6 +1224,10 @@ export function createRuntimeView(
   let editingEnabled = true;
   let currentTargets: readonly SelectionTargetView[] = [];
   let currentMaximum = 0;
+  // Lists are rebuilt on every render; only ids absent from the previous
+  // render play the entrance animation.
+  let renderedTargetIds: ReadonlySet<string> = new Set();
+  let renderedHighlightIds: ReadonlySet<string> = new Set();
   let currentEditorFeedbackState: "idle" | "opening" | "success" | "error" = "idle";
   let currentDataFlowState: DataFlowViewState = Object.freeze({
     component: Object.freeze({
@@ -1672,6 +1691,8 @@ export function createRuntimeView(
     const selectionEnd = focusedInstruction?.selectionEnd;
     currentTargets = targets.map((target) => Object.freeze({ ...target }));
     currentMaximum = maximum;
+    const previousTargetIds = renderedTargetIds;
+    renderedTargetIds = new Set(targets.map((target) => target.id));
     targetList.replaceChildren();
     const completeCount = targets.filter(
       (target) => target.instruction.trim().length > 0,
@@ -1714,6 +1735,7 @@ export function createRuntimeView(
       item.dataset.active = String(target.active);
       item.dataset.status = target.status;
       item.dataset.targetId = target.id;
+      item.dataset.entering = String(!previousTargetIds.has(target.id));
       const targetSummary = createMarkedElement(document, "div");
       targetSummary.className = "spotpatch-target-summary";
       const select = createButton(document, "", "spotpatch-target-select");
@@ -1855,12 +1877,15 @@ export function createRuntimeView(
   }
 
   function showSelectionHighlights(targets: readonly SelectionHighlightView[]): void {
+    const previousHighlightIds = renderedHighlightIds;
+    renderedHighlightIds = new Set(targets.map((target) => target.id));
     selectionHighlights.replaceChildren();
 
     for (const [index, target] of targets.entries()) {
       const box = createMarkedElement(document, "div");
       box.className = "spotpatch-selection-highlight";
       box.dataset.targetId = target.id;
+      box.dataset.entering = String(!previousHighlightIds.has(target.id));
       box.dataset.active = String(target.active);
       box.style.transform = `translate(${String(target.rect.x)}px, ${String(target.rect.y)}px)`;
       box.style.width = `${String(target.rect.width)}px`;

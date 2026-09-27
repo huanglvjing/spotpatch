@@ -2,8 +2,8 @@
 doc-id: "context-qa-06-managed-codex"
 title: "上下文问答：Managed Codex 只读适配器"
 status: "proposed"
-version: "1.2.0"
-last-updated: "2026-09-02"
+version: "1.3.0"
+last-updated: "2026-09-27"
 source-range: "Codex App Server Ask profile、只读源码投影、事件/答案合同、线程与清理"
 参考文献/依赖:
   - "context-qa-02-audit-compatibility"
@@ -153,6 +153,8 @@ Ask 不需要让 Codex 调用 SpotPatch MCP 回传工具；App Server 的 answer
 ## 模型和 capability
 
 requested/effective model 分开记录；`model/rerouted` 只更新安全 label 和诊断，不改变 Job ID。账户 readiness 继续使用完整 `account/read` 契约，不能从 `account: null` 单字段猜测。
+
+2026-09-27：Codex 0.156 为 `account/read` 增加 `workspaceRouting`。支持范围是开放的 `>=0.149.0`，因此 `packages/bridge/src/active/codex/account.ts` 的 `parseCodexAuthReadiness` 只校验 `requiresOpenaiAuth`（布尔）与 `account`（对象或 `null`），忽略新增字段；Ask 与 managed 写模式共用该解析器。已用 codex-cli 0.156.1 重新通过 `pnpm test:contextual-ask-q6:live`。
 
 连接级 capability 必须绑定 executable realpath、精确版本、生成 Schema hash、平台、read-only profile、answer event fixture 和 cleanup fixture。升级 Codex 后重新探测；不能用无上限 semver 加“字段看起来没变”直接沿用。
 

@@ -126,7 +126,7 @@ Static analysis and runtime evidence jointly constrain attribution. Runtime obse
 spotPatch({ contextualAsk: true });
 ```
 
-Select at least one element, then explicitly switch **Ask / Change** in the planner. Ask can use a configured-key executor or a compatible Managed Codex installation, returning one answer with server-validated source citations.
+Select at least one element, then explicitly switch **Ask / Change** in the planner. Ask can use a configured-key executor, a compatible Managed Codex installation, or a signed-in local Claude Code (2.1.283+), returning one answer with server-validated source citations. Claude Code runs headless with no tools, MCP servers or settings; the selected source snapshot is sent through your Claude account after you consent.
 
 Ask does not write files, create a worktree, run project checks or produce Diff / Apply / Revert. Converting an answer to a change only creates an editable draft; another submission is required to enter a write workflow. It is not target-free repository chat and does not provide persistent chat history or follow-up conversations. A visible model listing does not establish that every model request succeeds. See the [Ask topic](./docs/技术方案/上下文问答/00-索引与决策摘要.md) for maturity and release evidence.
 

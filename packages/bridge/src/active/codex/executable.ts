@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 
+import { isPathWithin } from "../trusted-path.js";
 import { CODEX_ADAPTER_ERROR_CODES, CodexAdapterError } from "./errors.js";
 
 interface SemanticVersion {
@@ -98,26 +99,6 @@ function formatVersion(version: SemanticVersion): string {
 
 export interface ResolveCodexExecutableOptions {
   readonly pathValue?: string | undefined;
-}
-
-interface PathSemantics {
-  readonly isAbsolute: (value: string) => boolean;
-  readonly relative: (from: string, to: string) => string;
-  readonly sep: string;
-}
-
-export function isPathWithin(
-  root: string,
-  candidate: string,
-  semantics: PathSemantics = path,
-): boolean {
-  const relative = semantics.relative(root, candidate);
-  return (
-    relative === "" ||
-    (!semantics.isAbsolute(relative) &&
-      !relative.startsWith(`..${semantics.sep}`) &&
-      relative !== "..")
-  );
 }
 
 function isMissingFileError(error: unknown): boolean {

@@ -20,6 +20,10 @@ export {
   type CreateManagedCodexAskExecutorOptions,
 } from "./active/codex/ask-adapter.js";
 export {
+  createClaudeCodeAskExecutor,
+  type CreateClaudeCodeAskExecutorOptions,
+} from "./active/claude/ask-adapter.js";
+export {
   applyBridgeSetupPlan,
   createBridgeSetupPlan,
   type BridgeCliAdapter,

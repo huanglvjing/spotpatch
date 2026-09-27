@@ -37,6 +37,7 @@ export const CONTEXTUAL_ASK_LIMITS = Object.freeze({
 export const CONTEXTUAL_ASK_EXECUTOR_KINDS = Object.freeze([
   "configured-key",
   "managed-codex",
+  "claude-code",
 ] as const);
 export type ContextualAskExecutorKind = (typeof CONTEXTUAL_ASK_EXECUTOR_KINDS)[number];
 

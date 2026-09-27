@@ -12,9 +12,9 @@ import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { isPathWithin } from "../trusted-path.js";
 import { CODEX_ADAPTER_ERROR_CODES } from "./errors.js";
 import {
-  isPathWithin,
   resolveCodexExecutable,
   resolveWindowsNpmCodexExecutable,
 } from "./executable.js";

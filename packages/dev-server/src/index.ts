@@ -74,6 +74,7 @@ export {
 export {
   composeContextualAskExecutors,
   type ComposeContextualAskExecutorsOptions,
+  type ManagedAskExecutors,
 } from "./contextual-ask/executors.js";
 export {
   createWorkspaceActivityCoordinator,

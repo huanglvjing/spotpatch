@@ -6,6 +6,7 @@ import {
   type SpotPatchSession,
 } from "@spotpatch/dev-server";
 import {
+  createClaudeCodeAskExecutor,
   createManagedCodexAskExecutor,
   createExternalAgentSupervisor,
 } from "@spotpatch/bridge";
@@ -35,8 +36,10 @@ export function createServerPlugin(input: ServerPluginInput): Plugin {
         framework: "vite",
         environment: input.context.getCredentialEnvironment(),
         logger: server.config.logger,
-        createManagedAskExecutor: () =>
-          createManagedCodexAskExecutor({ projectRoot: root }),
+        createManagedAskExecutors: () => ({
+          codex: createManagedCodexAskExecutor({ projectRoot: root }),
+          claudeCode: createClaudeCodeAskExecutor({ projectRoot: root }),
+        }),
         createExternalAgentControl: (validation) =>
           createExternalAgentSupervisor({
             bridgeAdapter: "vite",

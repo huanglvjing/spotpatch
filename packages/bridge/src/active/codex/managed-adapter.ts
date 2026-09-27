@@ -29,6 +29,7 @@ import {
   CodexAdapterError,
   CodexRemoteRequestError,
 } from "./errors.js";
+import { parseCodexAuthReadiness } from "./account.js";
 import { resolveCodexExecutable } from "./executable.js";
 import { prepareManagedCodexRuntimeHome } from "./managed-runtime.js";
 import { CodexJsonlClient, type CodexProtocolDiagnostics } from "./protocol.js";
@@ -284,19 +285,6 @@ function verifyInitializeResponse(value: unknown, codexHome: string): void {
   }
 }
 
-function parseAuthReadiness(value: unknown): ManagedAdapterConnection["authReadiness"] {
-  if (
-    !isRecord(value) ||
-    !hasOnlyKeys(value, ["account", "requiresOpenaiAuth"]) ||
-    typeof value.requiresOpenaiAuth !== "boolean" ||
-    (value.account !== null && !isRecord(value.account))
-  ) {
-    throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.PROTOCOL);
-  }
-  if (value.account !== null) return "authenticated";
-  return value.requiresOpenaiAuth ? "signed-out" : "auth-not-required";
-}
-
 function verifyConfigRequirements(value: unknown): void {
   if (!isRecord(value) || !hasOnlyKeys(value, ["requirements"])) {
     throw new CodexAdapterError(CODEX_ADAPTER_ERROR_CODES.PROTOCOL);
@@ -498,7 +486,7 @@ export class ManagedCodexAppServerAdapter implements AgentAdapter {
       });
       verifyInitializeResponse(initialized, codexHome);
       client.notify("initialized");
-      const account = parseAuthReadiness(
+      const account = parseCodexAuthReadiness(
         await adapter.#request("account/read", { refreshToken: false }),
       );
       if (account === "signed-out") {

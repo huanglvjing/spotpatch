@@ -16,6 +16,7 @@ import {
   type ResolvedSpotPatchOptions,
 } from "@spotpatch/dev-server";
 import {
+  createClaudeCodeAskExecutor,
   createManagedCodexAskExecutor,
   createExternalAgentSupervisor,
 } from "@spotpatch/bridge";
@@ -385,8 +386,10 @@ export async function createNextSidecar(
             process.stderr.write(`${message}\n`);
           },
         },
-        createManagedAskExecutor: () =>
-          createManagedCodexAskExecutor({ projectRoot: input.appRoot }),
+        createManagedAskExecutors: () => ({
+          codex: createManagedCodexAskExecutor({ projectRoot: input.appRoot }),
+          claudeCode: createClaudeCodeAskExecutor({ projectRoot: input.appRoot }),
+        }),
         createExternalAgentControl: (validation) =>
           createExternalAgentSupervisor({
             bridgeAdapter: "next",

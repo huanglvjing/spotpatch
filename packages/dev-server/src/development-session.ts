@@ -1,10 +1,12 @@
-import type { ContextualAskExecutor } from "@spotpatch/agent";
 import type { ExternalHandoffFramework } from "@spotpatch/shared";
 
 import { createAgentJobManager } from "./agent/job-manager.js";
 import { createWorkspaceActivityCoordinator } from "./workspace/activity-coordinator.js";
 import { createConfiguredKeyAskExecutors } from "./contextual-ask/configured-key-executors.js";
-import { composeContextualAskExecutors } from "./contextual-ask/executors.js";
+import {
+  composeContextualAskExecutors,
+  type ManagedAskExecutors,
+} from "./contextual-ask/executors.js";
 import {
   createContextualAskManager,
   type CreateContextualAskManagerOptions,
@@ -32,7 +34,7 @@ export interface DevelopmentSessionInput extends Omit<
   readonly resolveSourceImports?: CreateContextualAskManagerOptions["resolveSourceImports"];
   readonly environment: Readonly<Record<string, string | undefined>>;
   readonly executionRoot?: string;
-  readonly createManagedAskExecutor: () => ContextualAskExecutor;
+  readonly createManagedAskExecutors: () => ManagedAskExecutors;
   readonly createExternalAgentControl: (
     validation: ResolvedManagedExecutionValidation,
   ) => Promise<ExternalAgentControlPort>;
@@ -107,7 +109,7 @@ export async function createDevelopmentSession(
                     environment: input.environment,
                     ...preference,
                   }),
-            managedCodex: input.createManagedAskExecutor(),
+            managed: input.createManagedAskExecutors(),
             ...preference,
           }),
         });

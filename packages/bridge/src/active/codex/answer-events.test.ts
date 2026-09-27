@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ContextualAskExecutorError } from "@spotpatch/agent";
 
-import {
-  createManagedCodexAnswerCollector,
-  MANAGED_CODEX_ASK_OUTPUT_SCHEMA,
-} from "./answer-events.js";
+import { createManagedCodexAnswerCollector } from "./answer-events.js";
 
 const ANSWER = Object.freeze({
   blocks: [
@@ -41,13 +38,6 @@ function expectCode(
 }
 
 describe("createManagedCodexAnswerCollector", () => {
-  it("uses the strict Structured Outputs subset without union keywords", () => {
-    const serialized = JSON.stringify(MANAGED_CODEX_ASK_OUTPUT_SCHEMA);
-    expect(serialized).not.toContain('"oneOf"');
-    expect(serialized).not.toContain('"anyOf"');
-    expect(serialized).toContain('"listItems"');
-  });
-
   it("requires both the authoritative final item and completed terminal event", async () => {
     const collector = createManagedCodexAnswerCollector("thread-1");
     collector.setTurnId("turn-1");

@@ -60,6 +60,7 @@ export const contextualAskExecutorPreferenceSchema = z.discriminatedUnion("kind"
     modelProfileId: profileIdSchema,
   }),
   z.strictObject({ kind: z.literal("managed-codex") }),
+  z.strictObject({ kind: z.literal("claude-code") }),
 ]);
 
 export const contextualAskOptionsSchema = z.union([

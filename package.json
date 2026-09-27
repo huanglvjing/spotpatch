@@ -34,6 +34,7 @@
     "test:contextual-ask-q1:browser": "pnpm --filter @spotpatch/contextual-ask-q1-experiments test:browser",
     "test:contextual-ask-q1:live": "pnpm --filter @spotpatch/contextual-ask-q1-experiments test:codex-live",
     "test:contextual-ask-q6:live": "SPOTPATCH_RUN_CODEX_Q6_LIVE=1 vitest run packages/bridge/src/active/codex/ask-adapter.live.test.ts",
+    "test:contextual-ask-claude:live": "SPOTPATCH_RUN_CLAUDE_ASK_LIVE=1 vitest run packages/bridge/src/active/claude/ask-adapter.live.test.ts",
     "test:e2e": "playwright test",
     "test:e2e:chromium": "playwright test --project=chromium",
     "test:astro": "playwright test --config playwright.astro.config.ts",

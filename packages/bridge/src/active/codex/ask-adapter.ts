@@ -20,11 +20,15 @@ import {
   CodexAdapterError,
   CodexRemoteRequestError,
 } from "./errors.js";
+import {
+  ASK_ANSWER_WIRE_INSTRUCTIONS,
+  ASK_ANSWER_WIRE_SCHEMA,
+} from "../ask-answer-wire.js";
+import { parseCodexAuthReadiness } from "./account.js";
 import { resolveCodexExecutable } from "./executable.js";
 import {
   createManagedCodexAnswerCollector,
   managedCodexActivityViolation,
-  MANAGED_CODEX_ASK_OUTPUT_SCHEMA,
 } from "./answer-events.js";
 import {
   createManagedCodexAskProbeProjection,
@@ -201,20 +205,6 @@ function verifyInitializeResponse(value: unknown, codexHome: string): void {
   }
 }
 
-function verifyAccount(value: unknown): void {
-  if (
-    !isRecord(value) ||
-    !hasOnlyKeys(value, ["account", "requiresOpenaiAuth"]) ||
-    typeof value.requiresOpenaiAuth !== "boolean" ||
-    (value.account !== null && !isRecord(value.account))
-  ) {
-    throw askError("ASK_PROTOCOL_INCOMPATIBLE");
-  }
-  if (value.account === null && value.requiresOpenaiAuth) {
-    throw askError("ASK_EXECUTOR_UNAVAILABLE");
-  }
-}
-
 function verifyConfigRequirements(value: unknown): void {
   if (!isRecord(value) || !hasOnlyKeys(value, ["requirements"])) {
     throw askError("ASK_PROTOCOL_INCOMPATIBLE");
@@ -275,7 +265,7 @@ function managedAskPrompt(input: ContextualAskExecutorInput): string {
     "Do not modify files, request permissions, use network/web/MCP/apps/plugins/hooks/subagents, or read outside the workspace.",
     "Use only read-only local commands when source inspection is necessary. Cite the manifest handleId and the smallest exact 1-based line range supporting each claim.",
     "If evidence is insufficient, state the limitation and include the insufficient-evidence warning.",
-    "For each output block, populate every required wire field. paragraph uses text plus citations and sets listItems=[], code=null, language=null. list uses non-empty listItems and sets text=null, code=null, language=null, citations=[]. code uses code plus citations, optional language as string or null, and sets text=null, listItems=[].",
+    ASK_ANSWER_WIRE_INSTRUCTIONS,
     "Return exactly one JSON object matching outputSchema. Do not wrap it in Markdown.",
     preview,
   ].join("\n\n");
@@ -386,7 +376,10 @@ class ManagedCodexAskConnection {
       });
       verifyInitializeResponse(initialize, runtime.codexHome);
       client.notify("initialized");
-      verifyAccount(await client.request("account/read", { refreshToken: false }));
+      const authReadiness = parseCodexAuthReadiness(
+        await client.request("account/read", { refreshToken: false }),
+      );
+      if (authReadiness === "signed-out") throw askError("ASK_EXECUTOR_UNAVAILABLE");
       const catalog = await readModels(client);
       const selected =
         options.model === undefined
@@ -459,7 +452,7 @@ class ManagedCodexAskConnection {
         ...(this.#reasoningEffort === undefined
           ? {}
           : { effort: this.#reasoningEffort }),
-        outputSchema: MANAGED_CODEX_ASK_OUTPUT_SCHEMA,
+        outputSchema: ASK_ANSWER_WIRE_SCHEMA,
       });
       const turnId = parseTurnStart(value);
       this.#turnId = turnId;

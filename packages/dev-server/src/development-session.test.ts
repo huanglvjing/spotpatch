@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ContextualAskExecutor } from "@spotpatch/agent";
 
+import type { ManagedAskExecutors } from "./contextual-ask/executors.js";
 import { createDevelopmentSession } from "./development-session.js";
 import type { ExternalAgentControlPort } from "./external-agent/control-port.js";
 import { resolveOptions } from "./options.js";
@@ -71,7 +72,10 @@ describe("shared development session", () => {
     async (framework) => {
       const clear = vi.fn();
       const registry = { ...createSourceRegistry(), clear };
-      const managed = { executorId: "fixture" } as ContextualAskExecutor;
+      const managed = {
+        codex: { executorId: "codex-fixture" } as ContextualAskExecutor,
+        claudeCode: { executorId: "claude-code-fixture" } as ContextualAskExecutor,
+      };
       const control = {
         dispose: vi.fn(() => {
           fake.order.push("control");
@@ -94,7 +98,7 @@ describe("shared development session", () => {
         registry,
         session,
         environment: { TEST_SECRET: "never-forward-to-http" },
-        createManagedAskExecutor: () => managed,
+        createManagedAskExecutors: () => managed,
         createExternalAgentControl: () => Promise.resolve(control),
         resolveValidation: () => Promise.resolve({ checks: {}, limits }),
       });
@@ -130,7 +134,7 @@ describe("shared development session", () => {
   it("continues cleanup after a failing resource and does not start disabled features", async () => {
     const clear = vi.fn();
     const registry = { ...createSourceRegistry(), clear };
-    const createManagedAskExecutor = vi.fn<() => ContextualAskExecutor>();
+    const createManagedAskExecutors = vi.fn<() => ManagedAskExecutors>();
     const createExternalAgentControl = vi.fn<() => Promise<ExternalAgentControlPort>>();
     const services = await createDevelopmentSession({
       framework: "astro",
@@ -143,7 +147,7 @@ describe("shared development session", () => {
       registry,
       session: createSession(),
       environment: {},
-      createManagedAskExecutor,
+      createManagedAskExecutors,
       createExternalAgentControl,
     });
     fake.middleware.dispose.mockImplementationOnce(() => {
@@ -151,7 +155,7 @@ describe("shared development session", () => {
     });
     await expect(services.close()).rejects.toThrow("cleanup failed");
     expect(clear).toHaveBeenCalledOnce();
-    expect(createManagedAskExecutor).not.toHaveBeenCalled();
+    expect(createManagedAskExecutors).not.toHaveBeenCalled();
     expect(createExternalAgentControl).not.toHaveBeenCalled();
     expect(fake.createAgent).not.toHaveBeenCalled();
     expect(fake.createAsk).not.toHaveBeenCalled();

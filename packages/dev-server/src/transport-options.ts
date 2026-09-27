@@ -260,9 +260,12 @@ function parseContextualAsk(value: unknown): ContextualAskOptions {
     throw new TypeError("The SpotPatch contextual Ask transport is invalid.");
   }
   const preference = value.defaultExecutor;
-  if (preference.kind === "managed-codex" && hasExactKeys(preference, ["kind"])) {
+  if (
+    (preference.kind === "managed-codex" || preference.kind === "claude-code") &&
+    hasExactKeys(preference, ["kind"])
+  ) {
     return Object.freeze({
-      defaultExecutor: Object.freeze({ kind: "managed-codex" }),
+      defaultExecutor: Object.freeze({ kind: preference.kind }),
     });
   }
   if (

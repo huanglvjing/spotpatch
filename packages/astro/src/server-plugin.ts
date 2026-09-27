@@ -2,6 +2,7 @@ import path from "node:path";
 
 import {
   createExternalAgentSupervisor,
+  createClaudeCodeAskExecutor,
   createManagedCodexAskExecutor,
 } from "@spotpatch/bridge";
 import {
@@ -17,7 +18,7 @@ import { projectAstroSource, astroSourceImports } from "./source-projections.js"
 
 type AstroSessionInput = Omit<
   DevelopmentSessionInput,
-  "createManagedAskExecutor" | "createExternalAgentControl" | "framework" | "logger"
+  "createManagedAskExecutors" | "createExternalAgentControl" | "framework" | "logger"
 >;
 
 export function createAstroServerPlugin(input: () => AstroSessionInput): Plugin {
@@ -43,8 +44,10 @@ export function createAstroServerPlugin(input: () => AstroSessionInput): Plugin 
           });
           return Object.freeze({ checks, limits });
         },
-        createManagedAskExecutor: () =>
-          createManagedCodexAskExecutor({ projectRoot: resolved.root }),
+        createManagedAskExecutors: () => ({
+          codex: createManagedCodexAskExecutor({ projectRoot: resolved.root }),
+          claudeCode: createClaudeCodeAskExecutor({ projectRoot: resolved.root }),
+        }),
         createExternalAgentControl: (validation) =>
           createExternalAgentSupervisor({
             bridgeAdapter: "astro",

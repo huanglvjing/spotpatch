@@ -126,7 +126,7 @@ spotPatch({ dataFlow: {} });
 spotPatch({ contextualAsk: true });
 ```
 
-选中至少一个元素后，在工作台显式切换 **Ask / Change**。Ask 可使用配置 Key 的执行器或通过兼容检查的 Managed Codex，返回单次答案与经服务端校验的源码引用。
+选中至少一个元素后，在工作台显式切换 **Ask / Change**。Ask 可使用配置 Key 的执行器、通过兼容检查的 Managed Codex，或本机已登录的 Claude Code（2.1.283+），返回单次答案与经服务端校验的源码引用。Claude Code 以无工具、无 MCP、无设置文件的 headless 方式运行；勾选同意后，所选源码快照经你的 Claude 账户发送。
 
 Ask 不写文件、不创建 worktree、不运行项目检查，也不产生 Diff / Apply / Revert。“转为修改”只建立可编辑草稿，需要再次提交才能进入写入流程。它不是无目标全仓聊天，也不提供长期聊天历史或连续追问。模型列表可见不代表每个模型请求都验证成功。当前成熟度与放行证据见[问答专题](./docs/技术方案/上下文问答/00-索引与决策摘要.md)。
 

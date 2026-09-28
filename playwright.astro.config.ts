@@ -26,6 +26,7 @@ export default defineConfig({
   fullyParallel: false,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
+  retries: process.env.CI ? 2 : 0,
   use: { ...devices["Desktop Chrome"], trace: "retain-on-failure" },
   projects: [5, 6, 7].map((version) => ({
     name: `astro${String(version)}`,

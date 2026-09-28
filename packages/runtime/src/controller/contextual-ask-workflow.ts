@@ -32,6 +32,7 @@ export function createContextualAskWorkflow(
   let currentResult: AskAnswerResult | undefined;
   let currentQuestion = "";
   let capabilityLoaded = false;
+  let capabilityLoading = false;
   let composing = false;
   const consentByExecutor = new Map<string, boolean>();
   const api =
@@ -84,23 +85,31 @@ export function createContextualAskWorkflow(
     };
   }
 
-  async function loadCapability(): Promise<void> {
-    if (capabilityLoaded) return;
-    const requestRevision = revision;
+  // Capability does not depend on the selection, so one request serves every
+  // selection change; question cancellation must not strand the panel in its
+  // loading state.
+  function loadCapability(): void {
+    if (capabilityLoaded || capabilityLoading) return;
+    capabilityLoading = true;
     input.panel.renderCapability(undefined);
-    try {
-      const capability = await api.capability();
-      if (!isCurrent(requestRevision)) return;
-      capabilityLoaded = true;
-      input.panel.renderCapability(capability);
-      const executorId = input.panel.readExecutorId();
-      input.panel.setConsent(
-        executorId !== undefined && consentByExecutor.get(executorId) === true,
-      );
-    } catch (error: unknown) {
-      if (!isCurrent(requestRevision) || isAbortError(error)) return;
-      input.panel.renderError(contextualAskApiErrorCode(error));
-    }
+    void api
+      .capability()
+      .then((capability) => {
+        if (!mounted) return;
+        capabilityLoaded = true;
+        input.panel.renderCapability(capability);
+        const executorId = input.panel.readExecutorId();
+        input.panel.setConsent(
+          executorId !== undefined && consentByExecutor.get(executorId) === true,
+        );
+      })
+      .catch((error: unknown) => {
+        if (!mounted || isAbortError(error)) return;
+        input.panel.renderError(contextualAskApiErrorCode(error));
+      })
+      .finally(() => {
+        capabilityLoading = false;
+      });
   }
 
   function handleEvent(event: AskJobEvent, requestRevision: number): void {
@@ -315,7 +324,7 @@ export function createContextualAskWorkflow(
     input.panel.questionInput.addEventListener("compositionstart", compositionStart);
     input.panel.questionInput.addEventListener("compositionend", compositionEnd);
     input.panel.root.addEventListener("click", openSource);
-    void loadCapability();
+    loadCapability();
   }
 
   function dispose(): void {
@@ -345,7 +354,7 @@ export function createContextualAskWorkflow(
       currentResult = undefined;
       currentQuestion = "";
       input.panel.clear();
-      void loadCapability();
+      loadCapability();
     },
     cancelPending,
     dispose,

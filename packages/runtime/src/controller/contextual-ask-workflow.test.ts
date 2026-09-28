@@ -218,4 +218,57 @@ describe("Contextual Ask workflow", () => {
     expect(announce).toHaveBeenCalled();
     workflow.dispose();
   });
+
+  it("finishes a slow capability load across selection changes and question cancellation", async () => {
+    let resolveCapability: (value: ContextualAskCapability) => void = () => undefined;
+    const capabilityRequest = vi.fn<ContextualAskApi["capability"]>(
+      () =>
+        new Promise((resolve) => {
+          resolveCapability = resolve;
+        }),
+    );
+    const api: ContextualAskApi = {
+      capability: capabilityRequest,
+      cancelJob: vi.fn<ContextualAskApi["cancelJob"]>(),
+      cancelPending: vi.fn(),
+      createJob: vi.fn<ContextualAskApi["createJob"]>(),
+      dispose: vi.fn(),
+      events: vi.fn<ContextualAskApi["events"]>(),
+      result: vi.fn<ContextualAskApi["result"]>(),
+    };
+    const panel = createContextualAskPanel({
+      document,
+      locale: () => "en-US",
+      subscribeLocale: () => () => undefined,
+      changeRoot: document.createElement("div"),
+      changeActions: document.createElement("footer"),
+      announce: vi.fn(),
+      onModeChange: vi.fn(),
+      onExecutionChange: vi.fn(),
+      onViewChange: vi.fn(),
+    });
+    document.body.append(panel.root);
+    const workflow = createContextualAskWorkflow({
+      api,
+      createId: vi.fn(() => "request_1"),
+      fetch: vi.fn<typeof fetch>(),
+      getSelection: () => undefined,
+      onBusyChange: vi.fn(),
+      onConvert: vi.fn(),
+      onOpenSource: vi.fn(() => Promise.resolve()),
+      panel,
+      sessionToken: "session-token",
+    });
+
+    workflow.mount();
+    workflow.beginSelection();
+    workflow.cancelPending();
+    resolveCapability(capability);
+
+    await vi.waitFor(() => {
+      expect(panel.readExecutorId()).toBe(capability.executors[0]?.executorId);
+    });
+    expect(capabilityRequest).toHaveBeenCalledOnce();
+    workflow.dispose();
+  });
 });

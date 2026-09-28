@@ -130,20 +130,31 @@ export function contextualAskApiErrorCode(error: unknown): ErrorCode | undefined
 export function createContextualAskApi(
   options: ContextualAskApiOptions,
 ): ContextualAskApi {
+  // Job requests belong to one question and are cancelled with it. Session
+  // requests (capability) do not depend on the question and end only with
+  // the API itself.
   const pending = new Set<AbortController>();
+  const session = new Set<AbortController>();
 
   function cancelPending(): void {
     for (const controller of pending) controller.abort();
     pending.clear();
   }
 
+  function dispose(): void {
+    cancelPending();
+    for (const controller of session) controller.abort();
+    session.clear();
+  }
+
   async function request(
     endpoint: string,
     method: "GET" | "POST",
     body?: unknown,
+    scope: Set<AbortController> = pending,
   ): Promise<unknown> {
     const controller = new AbortController();
-    pending.add(controller);
+    scope.add(controller);
     try {
       const response = await options.fetch(endpoint, {
         method,
@@ -156,7 +167,7 @@ export function createContextualAskApi(
       });
       return await readEnvelope(response);
     } finally {
-      pending.delete(controller);
+      scope.delete(controller);
     }
   }
 
@@ -241,7 +252,12 @@ export function createContextualAskApi(
 
   return Object.freeze({
     async capability(): Promise<ContextualAskCapability> {
-      const data = await request(SPOTPATCH_ENDPOINTS.askCapability, "GET");
+      const data = await request(
+        SPOTPATCH_ENDPOINTS.askCapability,
+        "GET",
+        undefined,
+        session,
+      );
       if (!isContextualAskCapability(data)) throw new ContextualAskApiError();
       return deepFreeze(data);
     },
@@ -264,7 +280,7 @@ export function createContextualAskApi(
       }
       return deepFreeze(data);
     },
-    dispose: cancelPending,
+    dispose,
     events,
     async result(jobId: string): Promise<AskJobResultResponse> {
       const data = await request(getAskJobEndpoint(jobId, "result"), "GET");

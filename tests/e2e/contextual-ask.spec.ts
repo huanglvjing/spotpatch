@@ -208,38 +208,35 @@ test("loads Contextual Ask capability through a real same-origin browser GET", a
   const dialog = page.locator("spotpatch-root").getByRole("dialog");
   await dialog.getByRole("tab", { name: "Ask" }).click();
 
-  const response = await capabilityResponse;
-  expect(response.status()).toBe(200);
-  const capability = (await response.json()) as {
-    data: {
-      executors: {
-        effectiveModelLabel: string;
-        kind: string;
-        label: string;
-        readOnlyProven: boolean;
-        state: string;
-      }[];
-    };
-    ok: boolean;
-  };
-  expect(capability.ok).toBe(true);
-  expect(
-    capability.data.executors.some((candidate) => candidate.kind === "managed-codex"),
-  ).toBe(true);
+  expect((await capabilityResponse).status()).toBe(200);
+  // Assert what the runtime rendered rather than re-reading the body through
+  // the network layer: when slow local probes answer several pages at once,
+  // Chromium can report a fully delivered body as cancelled.
   const executor = dialog.getByRole("combobox", {
     name: "Read-only executor",
     exact: true,
   });
-  const readyExecutors = capability.data.executors.filter(
-    (candidate) => candidate.state === "ready" && candidate.readOnlyProven,
-  );
+  await expect(executor).not.toContainText("Checking available executors");
+  const readyExecutors = await dialog
+    .locator(".spotpatch-select-picker", {
+      has: page.getByRole("combobox", { name: "Read-only executor", exact: true }),
+    })
+    .locator("select")
+    .evaluate((select) =>
+      Array.from((select as HTMLSelectElement).options)
+        .filter((option) => option.value.length > 0)
+        .map((option) => option.text),
+    );
+  const unavailable = dialog.locator(".spotpatch-ask-executor-status");
+  const offered = `${readyExecutors.join(" ")} ${
+    (await unavailable.isVisible()) ? await unavailable.innerText() : ""
+  }`;
+  // Managed executors are always listed: selectable when ready, otherwise
+  // explained with a stable reason.
+  expect(offered).toContain("Managed Codex");
+  expect(offered).toContain("Claude Code");
   if (readyExecutors.length === 0) {
     await expect(executor).toContainText("No verified read-only executor");
-    await expect(dialog.locator(".spotpatch-ask-executor-status")).toContainText(
-      "Managed Codex",
-    );
-  } else {
-    await expect(executor).toContainText(readyExecutors[0]?.label ?? "");
   }
   if (readyExecutors.length <= 1) await expect(executor).toBeDisabled();
 });

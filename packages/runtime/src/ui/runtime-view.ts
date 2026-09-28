@@ -372,6 +372,7 @@ function createStyles(document: Document): HTMLStyleElement {
     }
     .spotpatch-reset-position,
     .spotpatch-close { padding: 0; font-size: 15px; }
+    .spotpatch-reset-position svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.5; }
     .spotpatch-repository:hover,
     .spotpatch-locale:hover,
     .spotpatch-reset-position:hover,
@@ -808,6 +809,25 @@ function createStyles(document: Document): HTMLStyleElement {
   return style;
 }
 
+/**
+ * Crosshair drawn as SVG: a "⌖" text glyph needs a symbol-font fallback with
+ * no matching weight, which made the first planner layout markedly slower and
+ * renders inconsistently across platforms.
+ */
+function createResetPositionIcon(document: Document): SVGSVGElement {
+  const namespace = "http://www.w3.org/2000/svg";
+  const icon = document.createElementNS(namespace, "svg");
+  icon.setAttribute("viewBox", "0 0 16 16");
+  icon.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(namespace, "path");
+  path.setAttribute(
+    "d",
+    "M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3M11 8a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z",
+  );
+  icon.append(path);
+  return icon;
+}
+
 function summaryLine(summary: string, prefix: string): string | undefined {
   const line = summary
     .split("\n")
@@ -979,7 +999,8 @@ export function createRuntimeView(
   repositoryLink.target = "_blank";
   repositoryLink.rel = "noopener noreferrer";
   const localeButton = createButton(document, "", "spotpatch-locale");
-  const resetPositionButton = createButton(document, "⌖", "spotpatch-reset-position");
+  const resetPositionButton = createButton(document, "", "spotpatch-reset-position");
+  resetPositionButton.append(createResetPositionIcon(document));
   const closeButton = createButton(document, "×", "spotpatch-close");
   headerControls.append(repositoryLink, localeButton, resetPositionButton, closeButton);
   brandRow.append(brand, headerControls);

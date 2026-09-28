@@ -24,6 +24,19 @@ const MOTION = Object.freeze({
   targetFeedbackSeconds: 0.22,
 });
 
+/** The planner shell's header, body and actions, revealed in that order. */
+const PLANNER_SECTION_COUNT = 3;
+
+function milliseconds(seconds: number): string {
+  return `${String(Math.round(seconds * 1_000))}ms`;
+}
+
+function sectionRevealDelay(index: number): string {
+  return milliseconds(
+    MOTION.sceneRevealDelaySeconds + MOTION.revealStaggerSeconds * index,
+  );
+}
+
 const ISLAND_SIZE = Object.freeze({
   checkingWidth: 440,
   compactHeight: 62,
@@ -387,6 +400,15 @@ export function createFloatingSurfaceMotionStyles(
       pointer-events: none;
       transform: translate3d(-160%, 0, 0);
     }
+    [data-motion-reveal="true"] .spotpatch-shell > * {
+      animation: spotpatch-motion-section-in ${milliseconds(MOTION.revealSeconds)} var(--spotpatch-ease-out) both;
+      animation-delay: ${sectionRevealDelay(0)};
+    }
+    [data-motion-reveal="true"] .spotpatch-shell > :nth-child(2) { animation-delay: ${sectionRevealDelay(1)}; }
+    [data-motion-reveal="true"] .spotpatch-shell > :nth-child(3) { animation-delay: ${sectionRevealDelay(2)}; }
+    @keyframes spotpatch-motion-section-in {
+      from { opacity: 0; transform: translate3d(0, 8px, 0); }
+    }
     @keyframes spotpatch-motion-copy-in {
       from { opacity: 0; filter: blur(2px); transform: translate3d(0, 4px, 0); }
     }
@@ -447,17 +469,10 @@ export function createFloatingSurfaceMotionController(
   document.addEventListener("visibilitychange", handleVisibility);
   handleVisibility();
 
-  // Header, body and actions are created once with the planner, so they can
-  // be captured here for the staggered reveal and for interruption cleanup.
-  const plannerSections = Array.from(
-    elements.planner.querySelectorAll<HTMLElement>(".spotpatch-shell > *"),
-  );
-
   const morphElements = [
     elements.surface,
     elements.pill,
     elements.planner,
-    ...plannerSections,
     elements.execution.root,
     elements.execution.mark,
     elements.execution.content,
@@ -512,6 +527,7 @@ export function createFloatingSurfaceMotionController(
         "borderRadius,filter,height,opacity,transform,visibility,width,willChange",
     });
     delete elements.surface.dataset.motionMorphing;
+    delete elements.planner.dataset.motionReveal;
     syncRecentVisibility();
   }
 
@@ -695,22 +711,27 @@ export function createFloatingSurfaceMotionController(
       );
     }
 
-    if (reveal) {
-      // The planner rises in sections (header, body, actions); compact
-      // scenes reveal as one piece.
-      const revealTargets =
-        activeScene === elements.planner && plannerSections.length > 0
-          ? plannerSections
-          : [activeScene];
+    if (reveal && activeScene === elements.planner) {
+      // The planner rises in sections (header, body, actions) through CSS, so
+      // opening it adds no computed-style reads to the click. The timeline
+      // only spans the reveal so completion and interruption clear it.
+      elements.planner.dataset.motionReveal = "true";
+      morphTimeline.call(
+        () => undefined,
+        [],
+        MOTION.sceneRevealDelaySeconds +
+          MOTION.revealSeconds +
+          MOTION.revealStaggerSeconds * (PLANNER_SECTION_COUNT - 1),
+      );
+    } else if (reveal) {
       morphTimeline.fromTo(
-        revealTargets,
+        activeScene,
         { autoAlpha: 0, y: 8 },
         {
           autoAlpha: 1,
           y: 0,
           duration: MOTION.revealSeconds,
           ease: "power3.out",
-          stagger: MOTION.revealStaggerSeconds,
           clearProps: "transform,opacity,visibility",
         },
         MOTION.sceneRevealDelaySeconds,

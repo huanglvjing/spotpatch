@@ -1,5 +1,29 @@
 # @spotpatch/vite
 
+## 1.16.0
+
+### Minor Changes
+
+- b42c755: Add Claude Code as a Contextual Ask executor. A signed-in local Claude Code 2.1.283 or later answers each question in a disposable headless session with no tools, MCP servers, settings sources, slash commands or persisted session; the authorized source snapshot is embedded in the prompt with line numbers, and every stream event is audited so any tool other than structured output aborts the run. Availability is probed without a model call, the `sonnet`, `opus` and `haiku` aliases are offered, and consent is required before source leaves the machine. `contextualAsk.defaultExecutor` accepts `{ kind: "claude-code" }`.
+
+### Patch Changes
+
+- f0ab188: Show Ask answers where they can be read. An answered question now collapses the composer into a question recap, so the answer card opens at the top of the planner with its executor and model, cascades in block by block, and renders backtick spans as inert inline code. Ask actions stay pinned to the bottom of the planner, the Ask / Change switch slides a shared indicator, and the data summary no longer breaks mid-phrase.
+- e5c889c: Keep the Ask executor list loading when the selection changes or a question is cancelled while local executors are still being probed. Capability requests are no longer aborted with question requests, one request serves every selection change, and its result is applied whenever it arrives, so the panel can no longer stay on "Checking available executors" indefinitely.
+- ed8f1bf: Fix Contextual Ask rejecting every element of a component that is rendered from another file as "The selected source changed". Authorization compared the selected file with the React render site (for example `main.tsx`) instead of the path that belongs to the same location; the claimed path is now paired with its own file id, and a registry-resolved component anchor is trusted as the server's own evidence.
+- b42c755: Keep Managed Codex usable with Codex 0.156 and later. The `account/read` response gained a `workspaceRouting` field, which the exact-key check rejected as a protocol incompatibility, disabling both Managed Codex Ask and managed changes. Account readiness is now parsed by one shared reader that validates only the fields SpotPatch depends on and ignores additions, matching the open-ended supported version range.
+- f0ab188: Unify the workbench, floating island and extension panels on one set of design tokens, replacing scattered literal colors. Fix the instruction editor that rendered flush against its card, define the missing panel shadow token, and raise sub-10.5px labels. Hover highlights now glide between elements, new targets and selection outlines animate in, and the planner reveals its sections in sequence; all motion respects `prefers-reduced-motion`. The planner sections reveal through CSS rather than per-section computed-style reads, and the reset-position control is an SVG icon instead of a symbol-font glyph, keeping the click-to-planner latency at its previous level.
+- Updated dependencies [f0ab188]
+- Updated dependencies [e5c889c]
+- Updated dependencies [ed8f1bf]
+- Updated dependencies [b42c755]
+- Updated dependencies [b42c755]
+- Updated dependencies [f0ab188]
+  - @spotpatch/runtime@1.15.5
+  - @spotpatch/dev-server@0.11.0
+  - @spotpatch/shared@1.15.0
+  - @spotpatch/bridge@0.5.0
+
 ## 1.15.5
 
 ### Patch Changes

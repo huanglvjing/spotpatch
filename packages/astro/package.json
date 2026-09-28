@@ -1,6 +1,6 @@
 {
   "name": "@spotpatch/astro",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "Development-only Astro integration for SpotPatch source-aware UI feedback.",
   "license": "MIT",
   "repository": {

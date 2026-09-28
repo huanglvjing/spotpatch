@@ -1,5 +1,17 @@
 # @spotpatch/dev-server
 
+## 0.11.0
+
+### Minor Changes
+
+- b42c755: Add Claude Code as a Contextual Ask executor. A signed-in local Claude Code 2.1.283 or later answers each question in a disposable headless session with no tools, MCP servers, settings sources, slash commands or persisted session; the authorized source snapshot is embedded in the prompt with line numbers, and every stream event is audited so any tool other than structured output aborts the run. Availability is probed without a model call, the `sonnet`, `opus` and `haiku` aliases are offered, and consent is required before source leaves the machine. `contextualAsk.defaultExecutor` accepts `{ kind: "claude-code" }`.
+
+### Patch Changes
+
+- ed8f1bf: Fix Contextual Ask rejecting every element of a component that is rendered from another file as "The selected source changed". Authorization compared the selected file with the React render site (for example `main.tsx`) instead of the path that belongs to the same location; the claimed path is now paired with its own file id, and a registry-resolved component anchor is trusted as the server's own evidence.
+- Updated dependencies [b42c755]
+  - @spotpatch/shared@1.15.0
+
 ## 0.10.1
 
 ### Patch Changes

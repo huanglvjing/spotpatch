@@ -1,5 +1,15 @@
 # @spotpatch/runtime
 
+## 1.15.5
+
+### Patch Changes
+
+- f0ab188: Show Ask answers where they can be read. An answered question now collapses the composer into a question recap, so the answer card opens at the top of the planner with its executor and model, cascades in block by block, and renders backtick spans as inert inline code. Ask actions stay pinned to the bottom of the planner, the Ask / Change switch slides a shared indicator, and the data summary no longer breaks mid-phrase.
+- e5c889c: Keep the Ask executor list loading when the selection changes or a question is cancelled while local executors are still being probed. Capability requests are no longer aborted with question requests, one request serves every selection change, and its result is applied whenever it arrives, so the panel can no longer stay on "Checking available executors" indefinitely.
+- f0ab188: Unify the workbench, floating island and extension panels on one set of design tokens, replacing scattered literal colors. Fix the instruction editor that rendered flush against its card, define the missing panel shadow token, and raise sub-10.5px labels. Hover highlights now glide between elements, new targets and selection outlines animate in, and the planner reveals its sections in sequence; all motion respects `prefers-reduced-motion`. The planner sections reveal through CSS rather than per-section computed-style reads, and the reset-position control is an SVG icon instead of a symbol-font glyph, keeping the click-to-planner latency at its previous level.
+- Updated dependencies [b42c755]
+  - @spotpatch/shared@1.15.0
+
 ## 1.15.4
 
 ### Patch Changes

@@ -1,5 +1,17 @@
 # @spotpatch/bridge
 
+## 0.5.0
+
+### Minor Changes
+
+- b42c755: Add Claude Code as a Contextual Ask executor. A signed-in local Claude Code 2.1.283 or later answers each question in a disposable headless session with no tools, MCP servers, settings sources, slash commands or persisted session; the authorized source snapshot is embedded in the prompt with line numbers, and every stream event is audited so any tool other than structured output aborts the run. Availability is probed without a model call, the `sonnet`, `opus` and `haiku` aliases are offered, and consent is required before source leaves the machine. `contextualAsk.defaultExecutor` accepts `{ kind: "claude-code" }`.
+
+### Patch Changes
+
+- b42c755: Keep Managed Codex usable with Codex 0.156 and later. The `account/read` response gained a `workspaceRouting` field, which the exact-key check rejected as a protocol incompatibility, disabling both Managed Codex Ask and managed changes. Account readiness is now parsed by one shared reader that validates only the fields SpotPatch depends on and ignores additions, matching the open-ended supported version range.
+- Updated dependencies [b42c755]
+  - @spotpatch/shared@1.15.0
+
 ## 0.4.4
 
 ### Patch Changes

@@ -718,7 +718,7 @@ export default withSpotPatch({ ai: { baseURL: ${JSON.stringify(provider.origin)}
     const executorKinds = capabilityPayload.data.executors.map(
       (executor) => executor.kind,
     );
-    assert.deepEqual(executorKinds, ["configured-key", "managed-codex"]);
+    assert.deepEqual(executorKinds, ["configured-key", "managed-codex", "claude-code"]);
     assert.equal(capabilityPayload.data.executors[0].state, "ready");
     assert.equal(provider.turns(), 2);
   } finally {

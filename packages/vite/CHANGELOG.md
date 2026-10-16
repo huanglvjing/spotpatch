@@ -1,5 +1,16 @@
 # @spotpatch/vite
 
+## 1.16.1
+
+### Patch Changes
+
+- 6f6ee2b: Preserve distinct rendered instances of shared source locations through selection, authorization, copied prompts, Ask and Agent handoffs. Verify capture-time DOM locators, include bounded local row/card evidence, and retire live bindings when selected content changes, unloads or is restored. Rebuild framework deliveries together for the optional instance protocol extension.
+- Updated dependencies [6f6ee2b]
+  - @spotpatch/shared@1.16.0
+  - @spotpatch/runtime@1.15.6
+  - @spotpatch/dev-server@0.11.1
+  - @spotpatch/bridge@0.5.1
+
 ## 1.16.0
 
 ### Minor Changes

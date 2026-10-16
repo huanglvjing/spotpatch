@@ -2,6 +2,7 @@ import { realpath } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  ELEMENT_INSTANCE_LIMITS,
   ERROR_CODES,
   SpotPatchError,
   redactSensitiveText,
@@ -103,23 +104,16 @@ function freezeMatchedRule(
 }
 
 function targetIdentity(target: ParsedTarget): string {
-  const source = target.source;
-
-  if (
-    source.fileId !== undefined &&
-    source.line !== undefined &&
-    source.column !== undefined
-  ) {
-    return `source:${source.fileId}:${String(source.line)}:${String(source.column)}`;
-  }
-
-  return [
-    "element",
-    source.origin,
-    source.relativePath ?? "",
+  if (target.element.instance !== undefined)
+    return `instance:${target.element.instance.id}`;
+  // Legacy captures have no opaque instance identity. Never equate source identity
+  // with a rendered target; page and DOM evidence must also agree.
+  return JSON.stringify([
+    target.page?.url ?? "",
+    target.source,
     target.element.selector,
     target.element.sanitizedHtml,
-  ].join("\0");
+  ]);
 }
 
 async function authorizeTarget(
@@ -177,6 +171,21 @@ async function authorizeTarget(
       ...(reactSource === undefined ? {} : { source: reactSource }),
     }),
     element: Object.freeze({
+      ...(target.element.instance === undefined
+        ? {}
+        : {
+            instance: Object.freeze({
+              ...target.element.instance,
+              label: redactSensitiveText(target.element.instance.label).slice(
+                0,
+                ELEMENT_INSTANCE_LIMITS.labelCharacters,
+              ),
+              context: redactSensitiveText(target.element.instance.context).slice(
+                0,
+                ELEMENT_INSTANCE_LIMITS.contextCharacters,
+              ),
+            }),
+          }),
       tagName: target.element.tagName,
       selector: target.element.selector,
       sanitizedHtml: target.element.sanitizedHtml,

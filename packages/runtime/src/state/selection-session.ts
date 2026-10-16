@@ -1,11 +1,14 @@
-import type {
-  CodeContext,
-  ElementContext,
-  PageContext,
-  ReactContext,
-  SourceRef,
-  SpotTargetContext,
-  StyleContext,
+import {
+  ELEMENT_INSTANCE_LIMITS,
+  ELEMENT_INSTANCE_STATES,
+  type ElementInstanceContext,
+  type CodeContext,
+  type ElementContext,
+  type PageContext,
+  type ReactContext,
+  type SourceRef,
+  type SpotTargetContext,
+  type StyleContext,
 } from "@spotpatch/shared";
 
 const STORAGE_PREFIX = "spotpatch:selection:";
@@ -104,6 +107,7 @@ function element(value: unknown): value is ElementContext {
   const rect = record(item?.rect);
   return (
     item !== undefined &&
+    (item.instance === undefined || instance(item.instance)) &&
     text(item.tagName) &&
     text(item.selector) &&
     text(item.sanitizedHtml) &&
@@ -114,6 +118,24 @@ function element(value: unknown): value is ElementContext {
     finiteNumber(rect.y) &&
     finiteNumber(rect.width) &&
     finiteNumber(rect.height)
+  );
+}
+
+function instance(value: unknown): value is ElementInstanceContext {
+  const item = record(value);
+  return (
+    item !== undefined &&
+    Object.keys(item).length === 5 &&
+    text(item.id) &&
+    item.id.length <= ELEMENT_INSTANCE_LIMITS.idCharacters &&
+    /^[A-Za-z0-9_-]+$/u.test(item.id) &&
+    ELEMENT_INSTANCE_STATES.some((state) => state === item.state) &&
+    (item.selectorStatus === "unique-at-capture" ||
+      item.selectorStatus === "unavailable") &&
+    text(item.label) &&
+    item.label.length <= ELEMENT_INSTANCE_LIMITS.labelCharacters &&
+    text(item.context) &&
+    item.context.length <= ELEMENT_INSTANCE_LIMITS.contextCharacters
   );
 }
 

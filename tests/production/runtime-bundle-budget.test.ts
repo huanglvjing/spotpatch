@@ -9,13 +9,16 @@ import { describe, expect, it } from "vitest";
 // execution island remains in the isolated Motion bundle. macOS Node 26
 // measured 48,894 bytes after adding the optional Contextual Ask extension
 // contract, while Ubuntu Node 22 measured 49,426 bytes. The complete Ask
-// transport and UI stay outside this bundle, and 50 KiB keeps a bounded
-// cross-platform zlib margin.
-const RUNTIME_GZIP_BUDGET_BYTES = 50 * 1024;
+// transport and UI stay outside this bundle. Rendered-instance capture,
+// verified locators and lifecycle tracking add about 2.7 KiB gzip on macOS
+// Node 26 (51,656 bytes). 52 KiB keeps
+// a bounded cross-platform margin; see technical design 25.
+const RUNTIME_GZIP_BUDGET_BYTES = 52 * 1024;
 // Astro's independently bundled bootstrap includes its lifecycle and native
-// framework configuration. macOS Node 26 measured 52,720 bytes; 54 KiB allows
-// a bounded cross-platform margin without relaxing the Vite budget.
-const ASTRO_RUNTIME_GZIP_BUDGET_BYTES = 54 * 1024;
+// framework configuration. With rendered-instance capture macOS Node 26
+// measured 55,443 bytes; 56 KiB allows
+// a bounded cross-platform margin.
+const ASTRO_RUNTIME_GZIP_BUDGET_BYTES = 56 * 1024;
 // Browser validation, NDJSON transport, localized UI, and answer rendering are
 // intentionally isolated. macOS Node 26 measured 15,657 bytes after adding the
 // answered-state recap, inline code, staggered answer entrance and sliding

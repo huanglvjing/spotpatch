@@ -46,6 +46,13 @@ describe("annotation factory", () => {
             componentStack: ["App"],
           } satisfies ReactContext,
           element: {
+            instance: {
+              id: "capture_1",
+              state: "captured",
+              selectorStatus: "unique-at-capture",
+              label: "Card 1",
+              context: "<article>Card 1</article>",
+            },
             tagName: "div",
             selector: "div",
             sanitizedHtml: "<div>",
@@ -77,6 +84,7 @@ describe("annotation factory", () => {
     expect(Object.isFrozen(annotation.targets[0]?.react.componentStack)).toBe(true);
     expect(Object.isFrozen(annotation.targets[0]?.page)).toBe(true);
     expect(Object.isFrozen(annotation.targets[0]?.element.rect)).toBe(true);
+    expect(Object.isFrozen(annotation.targets[0]?.element.instance)).toBe(true);
     expect(Object.isFrozen(annotation.targets[0]?.styles.computed)).toBe(true);
 
     const target = annotation.targets[0];

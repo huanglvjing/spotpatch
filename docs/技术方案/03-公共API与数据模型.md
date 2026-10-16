@@ -2,8 +2,8 @@
 doc-id: "03-public-api-models"
 title: "公共 API 与数据模型"
 status: "active"
-version: "1.9.0"
-last-updated: "2026-09-05"
+version: "1.10.0"
+last-updated: "2026-10-16"
 source-range: "规格书 §6、§6.1、§7；v1.1–v1.7 既有模型；v1.8 可选组件数据链路 Beta 配置与严格 DTO"
 参考文献/依赖:
   - "04-vite-plugin"
@@ -357,7 +357,18 @@ export interface ReactContext {
   readonly source?: SourceRef;
 }
 
+/** Capture evidence; never a framework key or source authorization token. */
+export interface ElementInstanceContext {
+  readonly id: string;
+  readonly state: "captured" | "changed" | "detached" | "restored";
+  readonly selectorStatus: "unique-at-capture" | "unavailable";
+  readonly label: string;
+  readonly context: string;
+}
+
 export interface ElementContext {
+  /** Optional for legacy v3 captures; required from the new Runtime. */
+  readonly instance?: ElementInstanceContext;
   readonly tagName: string;
   readonly selector: string;
   readonly sanitizedHtml: string;

@@ -2,8 +2,8 @@
 doc-id: "07-dom-css-collection"
 title: "DOM 与 CSS 上下文采集"
 status: "active"
-version: "1.0.0"
-last-updated: "2026-08-06"
+version: "1.1.0"
+last-updated: "2026-10-16"
 source-range: "规格书 §12.1–§12.2、§13、§13.1–§13.4"
 参考文献/依赖:
   - "03-public-api-models"
@@ -34,10 +34,13 @@ source-range: "规格书 §12.1–§12.2、§13、§13.1–§13.4"
 - `role`
 - `aria-*`
 - `data-testid`
+- 显式公开业务提示 `data-spotpatch-instance`
 - 布局和交互相关属性
 - 已清洗的 `href`、`src`
 
 所有采集结果在形成上下文前必须经过统一清洗；清洗名单和不可关闭的规则不得在采集器中复制 (见 doc-id:09-local-protocol-security)。
+
+DOM locator 必须在捕获时实测唯一且命中原 Element；无法生成时明确 unavailable，不用截断路径冒充唯一定位。卡片、列表、表格的局部实例上下文复用本采集器的清洗和预算，具体捕获、重排、复用语义见[重复渲染实例方案](./25-重复渲染实例选择与上下文.md)。
 
 ## CSS 上下文采集
 

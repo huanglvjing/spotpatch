@@ -106,6 +106,12 @@ The real product updates from Runtime, Agent Job and external-handoff events. An
 
 <p align="center"><img src="./docs/assets/readme-v2/en-US/planner.svg" alt="Planner design study with per-target requests, source coordinates and prompt preview; not a runtime screenshot" width="100%" /></p>
 
+### Repeated rendered instances (unreleased source)
+
+Cards or table rows rendered from the same component can be selected separately, preserving each instruction, a verified capture-time locator, and nearby content. Highlights follow the original DOM through reorder. Reused, removed, or restored nodes retain historical snapshots and require reselection for a live binding. Locators are not business IDs; the request still determines whether one instance or all instances should change.
+
+Hosts may expose a public hint on the card or row, such as `data-spotpatch-instance="product-42"`. Vite, Astro, and Next share this implementation without relying on React keys. Try “Repeated component instances” in the React playground or `/models/repeated/` in the Astro playground. See the [design, limits, and verification record](./docs/技术方案/25-重复渲染实例选择与上下文.md).
+
 ## Component data flow (Beta)
 
 Enable it explicitly when integrating manually:

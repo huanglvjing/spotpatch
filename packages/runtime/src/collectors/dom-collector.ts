@@ -1,4 +1,9 @@
-import type { ElementContext } from "@spotpatch/shared";
+import {
+  ELEMENT_INSTANCE_HINT_ATTRIBUTE,
+  type ElementContext,
+} from "@spotpatch/shared";
+
+import { createElementLocator } from "./element-locator.js";
 
 import {
   redactSensitiveText,
@@ -90,7 +95,10 @@ function escapeHtml(value: string): string {
 
 function isPreservedAttribute(name: string): boolean {
   return (
-    SAFE_ATTRIBUTE_NAMES.has(name) || name.startsWith("aria-") || name === "data-testid"
+    SAFE_ATTRIBUTE_NAMES.has(name) ||
+    name.startsWith("aria-") ||
+    name === "data-testid" ||
+    name === ELEMENT_INSTANCE_HINT_ATTRIBUTE
   );
 }
 
@@ -200,70 +208,6 @@ function truncateContext(value: string, maxCharacters: number): string {
   return `${value.slice(0, Math.max(0, maxCharacters - 1)).trimEnd()}…`;
 }
 
-function escapeCssIdentifier(value: string): string {
-  return Array.from(value)
-    .map((character) =>
-      /[a-z\d_-]/iu.test(character)
-        ? character
-        : `\\${character.charCodeAt(0).toString(16)} `,
-    )
-    .join("");
-}
-
-function escapeCssAttribute(value: string): string {
-  return value.replaceAll("\\", "\\\\").replaceAll('"', '\\"');
-}
-
-function selectorSegment(element: Element): string {
-  const tagName = element.tagName.toLowerCase();
-
-  if (element.id.length > 0) {
-    return `${tagName}#${escapeCssIdentifier(element.id)}`;
-  }
-
-  const testId = element.getAttribute("data-testid");
-
-  if (testId !== null && testId.length > 0) {
-    return `${tagName}[data-testid="${escapeCssAttribute(testId)}"]`;
-  }
-
-  const classes = Array.from(element.classList)
-    .slice(0, 2)
-    .map((name) => `.${escapeCssIdentifier(name)}`)
-    .join("");
-  const sameTagSiblings =
-    element.parentElement === null
-      ? []
-      : Array.from(element.parentElement.children).filter(
-          (sibling) => sibling.tagName === element.tagName,
-        );
-  const position = sameTagSiblings.indexOf(element);
-  const nth =
-    sameTagSiblings.length > 1 && position >= 0
-      ? `:nth-of-type(${String(position + 1)})`
-      : "";
-
-  return `${tagName}${classes}${nth}`;
-}
-
-function createSelector(element: Element): string {
-  const segments: string[] = [];
-  let current: Element | null = element;
-
-  while (current !== null && segments.length < 5) {
-    const segment = selectorSegment(current);
-    segments.unshift(segment);
-
-    if (current.id.length > 0 || current.hasAttribute("data-testid")) {
-      break;
-    }
-
-    current = current.parentElement;
-  }
-
-  return segments.join(" > ");
-}
-
 export function collectElementContext(
   options: CollectElementContextOptions,
 ): ElementContext {
@@ -282,7 +226,7 @@ export function collectElementContext(
 
   return Object.freeze({
     tagName: options.element.tagName.toLowerCase(),
-    selector: createSelector(options.element),
+    selector: createElementLocator(options.element),
     sanitizedHtml: truncateContext(lines.join("\n"), options.maxCharacters),
     ...(text.length === 0
       ? {}

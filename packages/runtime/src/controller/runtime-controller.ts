@@ -17,7 +17,11 @@ import {
 import { createAnnotation } from "../annotation/create-annotation.js";
 import { createRuntimeApi, type RuntimeApi } from "../api/runtime-api.js";
 import { collectStyleContext } from "../collectors/css-collector.js";
-import { collectElementContext } from "../collectors/dom-collector.js";
+import {
+  captureSelectedInstance,
+  changedInstanceState,
+  withInstanceState,
+} from "../state/selected-instance.js";
 import { isTextEntryTarget, matchesShortcut } from "../keyboard/shortcut.js";
 import { getElementRect, getVisibleElementRect } from "../picker/geometry.js";
 import { isSpotPatchUIEventTarget, pickElementAt } from "../picker/hit-test.js";
@@ -99,6 +103,7 @@ interface SelectedTarget {
   dataFlowReport: ComponentDataFlowReport | undefined;
   dataFlowStatus: "idle" | "loading" | "ready" | "error";
   element: Element | undefined;
+  instanceScope: Element | undefined;
   elementContext: ElementContext | undefined;
   instruction: string;
   marker: SourceMarker | undefined;
@@ -135,7 +140,12 @@ function sourceLabel(target: SelectedTarget, unavailable: string): string {
 }
 
 function targetStatus(target: SelectedTarget): SelectionTargetView["status"] {
-  if (target.apiStatus === "failed" || target.collectionStatus === "failed") {
+  if (
+    target.apiStatus === "failed" ||
+    target.collectionStatus === "failed" ||
+    (target.elementContext?.instance !== undefined &&
+      target.elementContext.instance.state !== "captured")
+  ) {
     return "warning";
   }
 
@@ -203,6 +213,7 @@ export function createController(
     dependencies.selectionSession ??
     createSelectionSession(browser.window, config.sessionId, config.maxTargets);
   const restoredSelection = selectionSession.load();
+  const instanceNamespace = createBrowserAnnotationId(browser.window);
   const sourceResolver = createSourceResolver({
     adapter:
       dependencies.reactAdapter ??
@@ -246,7 +257,8 @@ export function createController(
         dataFlowReport: undefined,
         dataFlowStatus: "idle",
         element: undefined,
-        elementContext: target.element,
+        instanceScope: undefined,
+        elementContext: withInstanceState(target.element, "restored"),
         instruction: target.instruction,
         marker,
         page: target.page,
@@ -460,6 +472,7 @@ export function createController(
   }
 
   function selectedAskSelection() {
+    refreshInstanceStates(mutationObserver?.takeRecords() ?? []);
     const snapshots = targets.flatMap((target) => {
       const snapshot = snapshotTarget(target);
       return snapshot === undefined ? [] : [snapshot];
@@ -481,6 +494,9 @@ export function createController(
         const summary = createSelectionSummary(
           {
             resolution: target.resolution,
+            ...(target.elementContext?.instance === undefined
+              ? {}
+              : { instance: target.elementContext.instance }),
             ...(target.code === undefined ? {} : { code: target.code }),
             ...(target.styles === undefined ? {} : { styles: target.styles }),
             apiStatus: target.apiStatus,
@@ -533,11 +549,19 @@ export function createController(
     view.renderTargets(
       targets.map((target) => ({
         id: target.id,
-        label:
+        ...(target.elementContext?.instance === undefined
+          ? {}
+          : { instanceState: target.elementContext.instance.state }),
+        label: [
           target.resolution.react.componentName ??
-          (target.element === undefined
-            ? (target.elementContext?.tagName ?? "Element")
-            : elementLabel(target.element)),
+            target.elementContext?.tagName ??
+            "Element",
+          (
+            target.elementContext?.instance?.label ?? target.elementContext?.textPreview
+          )?.slice(0, 80),
+        ]
+          .filter(Boolean)
+          .join(" · "),
         source: sourceLabel(target, view.messages().context.sourceUnavailable),
         canOpenEditor: target.marker !== undefined,
         status: targetStatus(target),
@@ -559,6 +583,7 @@ export function createController(
   }
 
   function selectedAnnotation(): SpotAnnotation | undefined {
+    refreshInstanceStates(mutationObserver?.takeRecords() ?? []);
     if (!canPreview()) {
       return undefined;
     }
@@ -740,6 +765,9 @@ export function createController(
 
     for (const target of targets) {
       target.element = undefined;
+      target.instanceScope = undefined;
+      if (target.elementContext !== undefined)
+        target.elementContext = withInstanceState(target.elementContext, "detached");
     }
 
     view.hideHighlight();
@@ -854,19 +882,12 @@ export function createController(
         return;
       }
 
-      let failed = false;
+      refreshInstanceStates(mutationObserver?.takeRecords() ?? []);
+      let failed = target.elementContext === undefined;
 
       try {
-        target.elementContext = collectElementContext({
-          element,
-          maxCharacters: config.budget.domCharacters,
-        });
-      } catch {
-        target.elementContext = undefined;
-        failed = true;
-      }
-
-      try {
+        if (target.element !== element)
+          throw new Error("Selected instance changed before style collection.");
         target.styles = collectStyleContext({
           document: browser.document,
           element,
@@ -895,26 +916,11 @@ export function createController(
     collectionTimers.set(target.id, timer);
   }
 
-  function duplicateTarget(
-    element: Element,
-    marker: SourceMarker | undefined,
-  ): SelectedTarget | undefined {
-    if (marker !== undefined) {
-      return targets.find(
-        (target) =>
-          target.marker?.fileId === marker.fileId &&
-          target.marker.line === marker.line &&
-          target.marker.column === marker.column,
-      );
-    }
-
-    return targets.find((target) => target.element === element);
-  }
-
   function selectElement(element: Element): void {
+    refreshInstanceStates(mutationObserver?.takeRecords() ?? []);
     const resolution = sourceResolver.resolve(element);
     const marker = sourceRefToMarker(resolution.source);
-    const duplicate = duplicateTarget(element, marker);
+    const duplicate = targets.find((target) => target.element === element);
 
     if (duplicate !== undefined) {
       activeTargetId = duplicate.id;
@@ -954,6 +960,7 @@ export function createController(
     const target: SelectedTarget = {
       id: `target-${String(targetSequence)}`,
       element,
+      instanceScope: undefined,
       resolution,
       marker,
       page: collectPageContext(browser.document, browser.window),
@@ -966,6 +973,17 @@ export function createController(
       dataFlowReport: undefined,
       dataFlowStatus: "idle",
     };
+    try {
+      const capture = captureSelectedInstance(
+        element,
+        `${instanceNamespace}_${target.id}`,
+        config.budget.domCharacters,
+      );
+      target.elementContext = capture.context;
+      target.instanceScope = capture.scope;
+    } catch {
+      target.collectionStatus = "failed";
+    }
     targets.push(target);
     if (!initialSelection) {
       contextualAskWorkflow?.selectionChanged();
@@ -1132,28 +1150,36 @@ export function createController(
     view.announce(view.messages().announcements.targetRemoved);
   }
 
-  function refreshSelectedGeometry(): void {
-    if (state.status === "idle" || targets.length === 0) {
-      return;
+  function refreshInstanceStates(records: readonly MutationRecord[]): void {
+    let changed = false;
+    for (const target of targets) {
+      if (target.element === undefined) continue;
+      const next =
+        target.page.url !== browser.window.location.href
+          ? "changed"
+          : changedInstanceState(
+              target.element,
+              target.instanceScope ?? target.element,
+              records,
+            );
+      if (next === undefined) continue;
+      resizeObserver?.unobserve(target.element);
+      target.element = undefined;
+      target.instanceScope = undefined;
+      if (target.elementContext !== undefined)
+        target.elementContext = withInstanceState(target.elementContext, next);
+      changed = true;
     }
-
-    const disconnected = targets.filter(
-      (target) => target.element !== undefined && !target.element.isConnected,
-    );
-
-    if (disconnected.length > 0) {
-      for (const target of disconnected) {
-        if (target.element !== undefined) {
-          resizeObserver?.unobserve(target.element);
-          target.element = undefined;
-        }
-      }
+    if (changed) {
       refreshSelectionView();
       persistSelection();
-      view.announce(view.messages().announcements.detachedTargetPreserved);
-      return;
+      contextualAskWorkflow?.selectionChanged();
     }
+  }
 
+  function refreshSelectedGeometry(): void {
+    if (state.status === "idle" || targets.length === 0) return;
+    refreshInstanceStates(mutationObserver?.takeRecords() ?? []);
     refreshHighlights();
   }
 
@@ -1244,6 +1270,16 @@ export function createController(
     }
   }
 
+  function composeSelectionPrompt(annotation: SpotAnnotation): string | undefined {
+    try {
+      return promptComposer.compose(annotation);
+    } catch (error: unknown) {
+      if (!(error instanceof RangeError)) throw error;
+      view.announce(view.messages().announcements.instanceBudgetExceeded);
+      return undefined;
+    }
+  }
+
   function handlePreview(): void {
     if (state.status !== "selected") {
       return;
@@ -1256,7 +1292,9 @@ export function createController(
       return;
     }
 
-    previewPrompt = promptComposer.compose(annotation);
+    const composed = composeSelectionPrompt(annotation);
+    if (composed === undefined) return;
+    previewPrompt = composed;
     transition({ type: "PREVIEW" });
     view.showPreview(previewPrompt);
     view.focusPrompt();
@@ -1266,6 +1304,13 @@ export function createController(
     if (state.status !== "previewing" || previewPrompt.length === 0) {
       return;
     }
+
+    const annotation = selectedAnnotation();
+    if (annotation === undefined) return;
+    const composed = composeSelectionPrompt(annotation);
+    if (composed === undefined) return;
+    previewPrompt = composed;
+    view.showPreview(previewPrompt);
 
     if (clipboard === undefined) {
       transition({ type: "COPY_FAILURE" });
@@ -1313,8 +1358,11 @@ export function createController(
       const annotation = selectedAnnotation();
 
       if (annotation !== undefined) {
-        previewPrompt = promptComposer.compose(annotation);
-        view.showPreview(previewPrompt);
+        const composed = composeSelectionPrompt(annotation);
+        if (composed !== undefined) {
+          previewPrompt = composed;
+          view.showPreview(previewPrompt);
+        }
       }
     }
   }
@@ -1385,6 +1433,8 @@ export function createController(
     browser.document.addEventListener("keydown", handleKeydown, true);
     browser.window.addEventListener("scroll", refreshSelectedGeometry, true);
     browser.window.addEventListener("resize", refreshSelectedGeometry);
+    browser.window.addEventListener("popstate", refreshSelectedGeometry);
+    browser.window.addEventListener("hashchange", refreshSelectedGeometry);
     view.triggerButton.addEventListener("click", activate);
     view.addTargetButton.addEventListener("click", beginAddTarget);
     view.reselectButton.addEventListener("click", handleReselect);
@@ -1423,10 +1473,15 @@ export function createController(
     }
 
     if (browser.mutationObserver !== undefined) {
-      mutationObserver = new browser.mutationObserver(refreshSelectedGeometry);
+      mutationObserver = new browser.mutationObserver((records) => {
+        refreshInstanceStates(records);
+        refreshHighlights();
+      });
       mutationObserver.observe(browser.document.documentElement, {
         childList: true,
         subtree: true,
+        attributes: true,
+        characterData: true,
       });
     }
 
@@ -1465,6 +1520,8 @@ export function createController(
     browser.document.removeEventListener("keydown", handleKeydown, true);
     browser.window.removeEventListener("scroll", refreshSelectedGeometry, true);
     browser.window.removeEventListener("resize", refreshSelectedGeometry);
+    browser.window.removeEventListener("popstate", refreshSelectedGeometry);
+    browser.window.removeEventListener("hashchange", refreshSelectedGeometry);
     view.triggerButton.removeEventListener("click", activate);
     view.addTargetButton.removeEventListener("click", beginAddTarget);
     view.reselectButton.removeEventListener("click", handleReselect);

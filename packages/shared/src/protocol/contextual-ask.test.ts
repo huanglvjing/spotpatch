@@ -50,6 +50,13 @@ function target(targetId: string, pathname = "/settings") {
       componentStack: ["Settings"],
     },
     element: {
+      instance: {
+        id: `capture_${targetId}`,
+        state: "captured" as const,
+        selectorStatus: "unique-at-capture" as const,
+        label: targetId,
+        context: `<article>${targetId}</article>`,
+      },
       tagName: "button",
       selector: "button.primary",
       sanitizedHtml: '<button class="primary">Save</button>',
@@ -232,6 +239,7 @@ describe("Contextual Ask selection and task contracts", () => {
       "调整个人资料按钮。",
     ]);
     expect(annotation.targets).not.toHaveProperty("0.targetId");
+    expect(annotation.targets[0]?.element.instance?.id).toBe("capture_target-1");
 
     type AskIsAssignableToChangeAdapter =
       ReturnType<typeof askEnvelope> extends Parameters<

@@ -114,6 +114,19 @@ jobs:
           include-hidden-files: true
           retention-days: 14
 
+  next-instances:
+    name: Next public entry instance selection (Ubuntu, Node 22)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          node-version: 22
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - run: pnpm test:next:instances
+
   package:
     name: Package validation
     runs-on: ubuntu-latest

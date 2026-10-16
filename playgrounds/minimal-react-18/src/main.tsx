@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { lazy, StrictMode, Suspense, type JSX, useState } from "react";
 import { createRoot } from "react-dom/client";
 
+import { RepeatedCardsFixture } from "./repeated-cards";
 import { BusinessCard } from "./business-card";
 import {
   CssModuleFixture,
@@ -45,6 +46,8 @@ function App(): JSX.Element {
           <DataFlowFixture />
         </div>
       </section>
+
+      <RepeatedCardsFixture />
 
       <section aria-labelledby="integration-fixtures" className="fixture-section">
         <h2 id="integration-fixtures">Integration fixtures</h2>

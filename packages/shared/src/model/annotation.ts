@@ -1,4 +1,5 @@
 import type { CodeContext } from "./code-context.js";
+import type { ElementInstanceContext } from "./element-instance.js";
 import type { ReactContext, SourceRef } from "./source-ref.js";
 import type { StyleContext } from "./style-context.js";
 
@@ -12,6 +13,7 @@ export interface PageContext {
 }
 
 export interface ElementContext {
+  readonly instance?: ElementInstanceContext;
   readonly tagName: string;
   readonly selector: string;
   readonly sanitizedHtml: string;

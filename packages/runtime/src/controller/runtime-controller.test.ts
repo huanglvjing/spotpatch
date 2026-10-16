@@ -11,6 +11,7 @@ import {
 } from "@spotpatch/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SelectionSession } from "../state/selection-session.js";
 import type { RuntimeApi } from "../api/runtime-api.js";
 import { createController } from "./runtime-controller.js";
 import type { RuntimeConfig } from "./runtime-config.js";
@@ -163,6 +164,174 @@ afterEach(() => {
 });
 
 describe("runtime controller", () => {
+  it.each(["file-a:10:2", "file-a:10:2:astro"])(
+    "keeps distinct rendered instances of %s and their instructions",
+    async (marker) => {
+      const elements = Array.from({ length: 20 }, (_, index) => {
+        const card = document.createElement("article");
+        card.innerHTML = `<h2>Product ${String(index + 1)}</h2><button data-testid="edit">Edit</button>`;
+        const button = card.querySelector("button");
+        if (button === null) throw new Error("Missing fixture button.");
+        button.setAttribute(SOURCE_MARKER_ATTRIBUTE, marker);
+        document.body.append(card);
+        vi.spyOn(button, "getBoundingClientRect").mockReturnValue(visibleRect());
+        return button;
+      });
+      const controller = createController(
+        {
+          ...config,
+          budget: {
+            ...budget,
+            totalCharacters: 12_000,
+            domCharacters: 1_000,
+            cssCharacters: 1_000,
+          },
+        },
+        { api: createApi() },
+      );
+      controller.mount();
+      const shadow = document.querySelector("spotpatch-root")?.shadowRoot;
+      const select = (element: Element | undefined) => {
+        if (element === undefined) throw new Error("Missing fixture element.");
+        setHitTarget(element);
+        element.dispatchEvent(
+          new MouseEvent("click", {
+            bubbles: true,
+            cancelable: true,
+            clientX: 20,
+            clientY: 30,
+          }),
+        );
+      };
+      try {
+        shadow?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+        select(elements[2]);
+        await vi.waitFor(() => {
+          expect(shadow?.querySelectorAll(".spotpatch-target-item")).toHaveLength(1);
+        });
+        const input = shadow?.querySelector<HTMLTextAreaElement>(
+          "textarea[data-target-instruction-id]",
+        );
+        if (!input) throw new Error("Missing target instruction.");
+        input.value = "Change only product 3.";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        findShadowButton(shadow, "Add element").click();
+        select(elements[6]);
+        expect(shadow?.querySelectorAll(".spotpatch-target-item")).toHaveLength(2);
+        const second = shadow?.querySelector<HTMLTextAreaElement>(
+          "textarea[data-target-instruction-id]",
+        );
+        if (!second) throw new Error("Missing second instruction.");
+        second.value = "Change only product 7.";
+        second.dispatchEvent(new Event("input", { bubbles: true }));
+        findShadowButton(shadow, "Add element").click();
+        select(elements[2]);
+        expect(shadow?.querySelectorAll(".spotpatch-target-item")).toHaveLength(2);
+        expect(
+          shadow?.querySelector<HTMLTextAreaElement>(
+            "textarea[data-target-instruction-id]",
+          )?.value,
+        ).toBe("Change only product 3.");
+        await vi.waitFor(() => {
+          expect(findShadowButton(shadow, "Preview prompt").disabled).toBe(false);
+        });
+        findShadowButton(shadow, "Preview prompt").click();
+        const prompt = shadow?.querySelector(".spotpatch-prompt")?.textContent;
+        expect(prompt).toContain("Product 3");
+        expect(prompt).toContain("Product 7");
+        expect(prompt).toContain("nth-of-type(3)");
+        expect(prompt).toContain("nth-of-type(7)");
+      } finally {
+        controller.dispose();
+      }
+    },
+  );
+
+  it("captures before asynchronous DOM reuse and never rebinds a changed or restored target", async () => {
+    const card = document.createElement("article");
+    card.innerHTML = "<h2>Original record</h2><button>Edit</button>";
+    document.body.append(card);
+    const element = card.querySelector("button");
+    if (element === null) throw new Error("Missing action.");
+    element.setAttribute(SOURCE_MARKER_ATTRIBUTE, "file-a:10:2");
+    vi.spyOn(element, "getBoundingClientRect").mockReturnValue(visibleRect());
+    const session = {
+      load: vi.fn<SelectionSession["load"]>(),
+      save: vi.fn<SelectionSession["save"]>(),
+      clear: vi.fn<SelectionSession["clear"]>(),
+    };
+    const runtimeConfig = {
+      ...config,
+      budget: { ...budget, totalCharacters: 12_000, domCharacters: 1_000 },
+    };
+    let controller = createController(runtimeConfig, {
+      api: createApi(),
+      selectionSession: session,
+    });
+    controller.mount();
+    let shadow = document.querySelector("spotpatch-root")?.shadowRoot;
+    const select = () => {
+      setHitTarget(element);
+      element.dispatchEvent(
+        new MouseEvent("click", {
+          bubbles: true,
+          cancelable: true,
+          clientX: 20,
+          clientY: 30,
+        }),
+      );
+    };
+    try {
+      shadow?.querySelector<HTMLButtonElement>(".spotpatch-trigger")?.click();
+      select();
+      // Recycle synchronously, before the old asynchronous collector would run.
+      card.querySelector("h2")?.replaceChildren("Replacement record");
+      await vi.waitFor(() => {
+        expect(session.save).toHaveBeenCalled();
+      });
+      const captured = session.save.mock.lastCall?.[0];
+      if (captured === undefined) throw new Error("Missing captured snapshot.");
+      expect(captured.targets[0]?.element.instance).toMatchObject({ state: "changed" });
+      expect(captured.targets[0]?.element.instance?.context).toContain(
+        "Original record",
+      );
+      expect(captured.targets[0]?.element.instance?.context).not.toContain(
+        "Replacement record",
+      );
+      findShadowButton(shadow, "Add element").click();
+      select();
+      expect(shadow?.querySelectorAll(".spotpatch-target-item")).toHaveLength(2);
+      await vi.waitFor(() => {
+        expect(session.save.mock.lastCall?.[0]?.targets).toHaveLength(2);
+      });
+      const snapshot = session.save.mock.lastCall?.[0];
+      if (snapshot === undefined) throw new Error("Missing persisted snapshot.");
+      expect(
+        new Set(snapshot.targets.map((target) => target.element.instance?.id)).size,
+      ).toBe(2);
+      controller.dispose();
+      session.load.mockReturnValue({ ...snapshot, open: true });
+      controller = createController(runtimeConfig, {
+        api: createApi(),
+        selectionSession: session,
+      });
+      controller.mount();
+      shadow = document.querySelector("spotpatch-root")?.shadowRoot;
+      expect(shadow?.querySelectorAll(".spotpatch-target-item")).toHaveLength(2);
+      expect(shadow?.querySelectorAll(".spotpatch-selection-highlight")).toHaveLength(
+        0,
+      );
+      expect(shadow?.querySelector(".spotpatch-summary")?.textContent).toContain(
+        "Restored snapshot",
+      );
+      findShadowButton(shadow, "Add element").click();
+      select();
+      expect(shadow?.querySelectorAll(".spotpatch-target-item")).toHaveLength(3);
+    } finally {
+      controller.dispose();
+    }
+  });
+
   it("limits hit testing to one animation frame and completes source actions", async () => {
     const target = document.createElement("button");
     target.textContent = "Application button";
@@ -366,8 +535,16 @@ describe("runtime controller", () => {
 
     previewButton.click();
     writeText.mockRejectedValueOnce(new Error("clipboard denied"));
+    // Copy must drain pending records even before MutationObserver delivers them.
+    target.textContent = "A different recycled record";
     findShadowButton(shadowRoot, "Copy prompt").click();
     await vi.waitFor(() => {
+      expect(writeText.mock.lastCall?.[0]).toContain('"state":"changed"');
+      expect(writeText.mock.lastCall?.[0]).toContain("Save profile");
+      expect(writeText.mock.lastCall?.[0]).not.toContain("A different recycled record");
+      expect(
+        shadowRoot?.querySelector(".spotpatch-target-item")?.textContent,
+      ).toContain("Page content changed");
       expect(controller.getState().status).toBe("previewing");
       expect(shadowRoot?.activeElement?.classList.contains("spotpatch-prompt")).toBe(
         true,

@@ -27,6 +27,13 @@ export {
 } from "./model/annotation.js";
 export type { CodeContext, ContextBudget } from "./model/code-context.js";
 export {
+  ELEMENT_INSTANCE_HINT_ATTRIBUTE,
+  ELEMENT_INSTANCE_LIMITS,
+  ELEMENT_INSTANCE_STATES,
+  INSTANCE_SELECTION_INSTRUCTIONS,
+  type ElementInstanceContext,
+} from "./model/element-instance.js";
+export {
   askAnswerBlockSchema,
   askAnswerDraftBlockSchema,
   askAnswerDraftSchema,

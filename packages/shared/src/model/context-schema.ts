@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  ELEMENT_INSTANCE_LIMITS,
+  ELEMENT_INSTANCE_STATES,
+} from "./element-instance.js";
 
 import {
   MAX_ANNOTATION_INSTRUCTION_CHARACTERS,
@@ -8,6 +12,18 @@ import {
 } from "./annotation.js";
 
 const boundedString = (maximum: number): z.ZodString => z.string().max(maximum);
+
+export const elementInstanceContextSchema = z.strictObject({
+  id: z
+    .string()
+    .min(1)
+    .max(ELEMENT_INSTANCE_LIMITS.idCharacters)
+    .regex(/^[A-Za-z0-9_-]+$/u),
+  state: z.enum(ELEMENT_INSTANCE_STATES),
+  selectorStatus: z.enum(["unique-at-capture", "unavailable"]),
+  label: boundedString(ELEMENT_INSTANCE_LIMITS.labelCharacters),
+  context: boundedString(ELEMENT_INSTANCE_LIMITS.contextCharacters),
+});
 
 export const sourceRefSchema = z.strictObject({
   fileId: boundedString(128).optional(),
@@ -57,6 +73,7 @@ export const spotTargetContextSchema = z.strictObject({
     source: sourceRefSchema.optional(),
   }),
   element: z.strictObject({
+    instance: elementInstanceContextSchema.optional(),
     tagName: boundedString(128),
     selector: boundedString(2_048),
     sanitizedHtml: boundedString(8_192),

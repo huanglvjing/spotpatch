@@ -41,6 +41,9 @@ function freezeReact(react: ReactContext): ReactContext {
 function freezeElement(element: ElementContext): ElementContext {
   return Object.freeze({
     ...element,
+    ...(element.instance === undefined
+      ? {}
+      : { instance: Object.freeze({ ...element.instance }) }),
     rect: Object.freeze({ ...element.rect }),
   });
 }

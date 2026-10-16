@@ -1,5 +1,6 @@
 import type {
   CodeContext,
+  ElementInstanceContext,
   SourceConfidence,
   SpotPatchRuntimeConfig,
   StyleContext,
@@ -11,6 +12,7 @@ export type ApiConnectionStatus = "connected" | "failed" | "loading" | "not-requ
 export type CollectionStatus = "failed" | "loading" | "ready";
 
 export interface SelectionSummaryInput {
+  readonly instance?: ElementInstanceContext;
   readonly apiStatus: ApiConnectionStatus;
   readonly code?: CodeContext;
   readonly collectionStatus: CollectionStatus;
@@ -22,6 +24,8 @@ export interface SelectionSummaryInput {
 }
 
 export interface SelectionSummaryMessages {
+  readonly instance: string;
+  readonly instanceStates: Readonly<Record<ElementInstanceContext["state"], string>>;
   readonly available: string;
   readonly adapter: string;
   readonly api: string;
@@ -80,6 +84,12 @@ export function createSelectionSummary(
     `${messages.confidence}: ${input.resolution.source.confidence} (${messages.confidenceLabels[input.resolution.source.confidence]})`,
     `${messages.origin}: ${input.resolution.source.origin}`,
   ];
+
+  if (input.instance !== undefined) {
+    lines.push(
+      `${messages.instance}: ${messages.instanceStates[input.instance.state]}`,
+    );
+  }
 
   if (input.resolution.react.componentName !== undefined) {
     lines.push(`${messages.component}: ${input.resolution.react.componentName}`);

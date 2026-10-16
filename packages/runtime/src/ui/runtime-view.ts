@@ -3,6 +3,7 @@ import type {
   AgentJobResult,
   AgentJobSnapshot,
   AgentWorkspaceHealthSnapshot,
+  ElementInstanceContext,
   ErrorCode,
   RuntimeAiConfig,
   SpotPatchLocale,
@@ -73,6 +74,7 @@ export interface SelectionTargetView {
   readonly canOpenEditor: boolean;
   readonly id: string;
   readonly instruction: string;
+  readonly instanceState?: ElementInstanceContext["state"];
   readonly label: string;
   readonly source: string;
   readonly status: "loading" | "ready" | "warning";
@@ -1676,6 +1678,9 @@ export function createRuntimeView(
   }
 
   function statusText(target: SelectionTargetView): string {
+    if (target.instanceState !== undefined && target.instanceState !== "captured") {
+      return messages.summary.instanceStates[target.instanceState];
+    }
     if (target.status === "ready") {
       return messages.targets.statusReady;
     }

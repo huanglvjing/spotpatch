@@ -96,6 +96,41 @@ const TITLES = [
 ] as const;
 
 describe("Prompt composer", () => {
+  it.each([3_000, 16_000])(
+    "preserves same-source instance evidence under a %i-character budget",
+    (maxCharacters) => {
+      const base = annotation.targets[0];
+      if (!base) throw new Error("Missing target.");
+      const targets = [3, 7].map((index) => ({
+        ...base,
+        instruction: `Update product ${String(index)} only.`,
+        element: {
+          ...base.element,
+          selector: `article:nth-of-type(${String(index)}) > button`,
+          instance: {
+            id: `capture_${String(index)}`,
+            state: "captured" as const,
+            selectorStatus: "unique-at-capture" as const,
+            label: `Product ${String(index)}`,
+            context: `<article><h2>Product ${String(index)}</h2><button>Edit</button></article>`,
+          },
+        },
+      }));
+      const multi = { ...annotation, targets };
+      const prompt = createPromptComposer({ maxCharacters }).compose(multi);
+      expect(prompt.length).toBeLessThanOrEqual(maxCharacters);
+      for (const target of targets) {
+        expect(prompt).toContain(target.element.instance.id);
+        expect(prompt).toContain(target.element.selector);
+        expect(prompt).toContain(target.element.instance.context);
+        expect(prompt).toContain(target.instruction);
+      }
+      expect(() => createPromptComposer({ maxCharacters: 500 }).compose(multi)).toThrow(
+        RangeError,
+      );
+    },
+  );
+
   it("renders every section in the required stable order", () => {
     const prompt = createPromptComposer({ maxCharacters: 16_000 }).compose(annotation);
     const positions = TITLES.map((title) => prompt.indexOf(title));

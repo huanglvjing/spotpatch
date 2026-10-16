@@ -106,6 +106,12 @@ export default defineConfig({
 
 <p align="center"><img src="./docs/assets/readme-v2/zh-CN/planner.svg" alt="工作台规范重绘：逐目标要求、源码位置和 Prompt 预览；非运行截图" width="100%" /></p>
 
+### 重复渲染的实例（当前源码，待发布）
+
+同一组件渲染的多张卡片或多行表格可分别选择，并保留各自的要求、捕获时唯一定位及局部内容。重排时高亮跟随原 DOM；节点被复用、移除或刷新恢复后，目标会标记为历史快照，需重新选择才能建立当前页面绑定。定位不是业务主键，也不自动决定修改一项还是所有项。
+
+宿主可在卡片或行容器上显式提供公开业务提示，例如 `data-spotpatch-instance="product-42"`。实现共享于 Vite、Astro、Next，不依赖 React key。演示见 React playground 的“Repeated component instances”及 Astro playground 的 `/models/repeated/`；完整设计、限制与验收记录见[重复渲染实例方案](./docs/技术方案/25-重复渲染实例选择与上下文.md)。
+
 ## 组件数据链路（Beta）
 
 手动配置时显式启用：

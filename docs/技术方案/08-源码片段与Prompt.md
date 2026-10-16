@@ -2,8 +2,8 @@
 doc-id: "08-code-prompt"
 title: "源码片段与 Prompt"
 status: "active"
-version: "1.5.0"
-last-updated: "2026-09-05"
+version: "1.6.0"
+last-updated: "2026-10-16"
 source-range: "规格书 §2.5、§16、§16.1–§16.2、§17、§17.1–§17.2；v1.1 Agent Prompt 边界；v1.2 多目标 Prompt；v1.3 逐目标说明与双语输出；v1.4 有界项目规范与验证元数据"
 参考文献/依赖:
   - "03-public-api-models"
@@ -172,6 +172,8 @@ export interface PromptComposer {
 ```
 
 多目标裁剪必须公平：在同一优先级上按目标轮转删除上下文，不能先耗尽第一个目标后让后续目标只剩截断标记。优先依次缩减每个目标的 computed style、完整组件栈、父级 DOM、CSS rule、远离选中行的代码和 warning，再缩减共享页面标题。用户写入的任何逐目标说明都不得被缩短、合并或删除；若配置预算无法同时容纳全部说明与最小上下文，Composer 必须明确拒绝并要求调整预算或说明，不能返回语义不完整的 Prompt。正常紧预算下仍须保留每个目标的说明、编号和源码位置；紧凑摘要不得产生不完整 JSON。
+
+新 Runtime 的实例证据（`element.instance` 与捕获时 selector）属于不可静默删除的最小上下文；复制 Prompt、修改 Agent 和 Ask 的压缩路径均须保留。预算不足时明确拒绝构造，不退化为只有共享源码坐标或目标编号。实例身份、历史状态与修改范围规则见[重复渲染实例方案](./25-重复渲染实例选择与上下文.md)。
 
 字符预算只是可预测的本地限制，不宣称等于模型 token。中文、代码和不同模型的 tokenizer 都会影响 token 数。
 

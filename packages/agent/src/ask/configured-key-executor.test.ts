@@ -427,6 +427,17 @@ describe("Configured Key Contextual Ask executor", () => {
     const targets = targetIds.map((targetId) => ({
       ...baseTarget,
       targetId,
+      element: {
+        ...baseTarget.element,
+        selector: `article[data-record="${targetId}"] > button`,
+        instance: {
+          id: `capture_${targetId}`,
+          state: "captured" as const,
+          selectorStatus: "unique-at-capture" as const,
+          label: targetId,
+          context: `<article>Record ${targetId}</article>`,
+        },
+      },
       code: { ...baseCode, excerpt: "x".repeat(16_000) },
     }));
     const crowded: ContextualAskExecutorInput = {
@@ -446,6 +457,13 @@ describe("Configured Key Contextual Ask executor", () => {
 
     const prompt = createConfiguredKeyAskPrompt(crowded);
 
+    for (const target of targets) {
+      expect(prompt.normalizedPreview).toContain(target.element.instance.id);
+      expect(prompt.normalizedPreview).toContain(target.element.instance.context);
+      expect(prompt.normalizedPreview).toContain(
+        JSON.stringify(target.element.selector),
+      );
+    }
     expect(prompt.initialObservedRanges).toEqual([]);
     expect(prompt.normalizedPreview.length).toBeLessThanOrEqual(
       Math.floor((CONTEXTUAL_ASK_LIMITS.maximumRequestBodyBytes * 3) / 4),

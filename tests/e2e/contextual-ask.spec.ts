@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 type ExecutorKind = "configured-key" | "managed-codex";
@@ -294,6 +296,9 @@ for (const executorKind of ["configured-key", "managed-codex"] as const) {
     if (executorKind === "configured-key" && process.platform === "darwin") {
       await expect(answer).toHaveScreenshot("contextual-ask-answer.png", {
         animations: "disabled",
+        // Compare the answer itself, without the sibling sticky toolbar covering
+        // its footer. Toolbar interactions and small-screen overflow are tested below.
+        stylePath: fileURLToPath(new URL("./answer-screenshot.css", import.meta.url)),
       });
     }
 

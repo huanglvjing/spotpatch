@@ -1,5 +1,6 @@
 import {
   CONTEXTUAL_ASK_LIMITS,
+  INSTANCE_SELECTION_INSTRUCTIONS,
   redactSensitiveText,
   sanitizeUrl,
   type SpotSelectionTarget,
@@ -85,8 +86,14 @@ function normalizeTarget(
       ...(target.react.source === undefined ? {} : { source: target.react.source }),
     },
     element: {
+      ...(target.element.instance === undefined
+        ? {}
+        : { instance: target.element.instance }),
       tagName: target.element.tagName,
-      selector: sliceText(target.element.selector, Math.max(160, detail / 16)),
+      selector:
+        target.element.instance === undefined
+          ? sliceText(target.element.selector, Math.max(160, detail / 16))
+          : target.element.selector,
       sanitizedHtml: sliceText(target.element.sanitizedHtml, Math.max(384, detail / 5)),
       ...(target.element.textPreview === undefined
         ? {}
@@ -143,6 +150,7 @@ function normalizeTarget(
 function minimalTarget(target: SpotSelectionTarget): Readonly<Record<string, unknown>> {
   return Object.freeze({
     targetId: target.targetId,
+    page: target.page,
     source: target.source,
     react: Object.freeze({
       supported: target.react.supported,
@@ -151,8 +159,14 @@ function minimalTarget(target: SpotSelectionTarget): Readonly<Record<string, unk
         : { componentName: sliceText(target.react.componentName, 256) }),
     }),
     element: Object.freeze({
+      ...(target.element.instance === undefined
+        ? {}
+        : { instance: target.element.instance }),
       tagName: target.element.tagName,
-      selector: sliceText(target.element.selector, 256),
+      selector:
+        target.element.instance === undefined
+          ? sliceText(target.element.selector, 256)
+          : target.element.selector,
       sanitizedHtml: sliceText(target.element.sanitizedHtml, 512),
     }),
     ...(target.code === undefined
@@ -220,6 +234,7 @@ export function createConfiguredKeyAskPrompt(
     ),
   );
   const compose = (targets: readonly Readonly<Record<string, unknown>>[]) => ({
+    instanceSemantics: INSTANCE_SELECTION_INSTRUCTIONS,
     task: Object.freeze({
       kind: "contextual-ask",
       question: input.envelope.task.question,

@@ -24,6 +24,15 @@ async function readArtifacts(paths: readonly string[]): Promise<string> {
 }
 
 describe("framework Runtime UI parity", () => {
+  it.each(["packages/vite/dist/runtime-client.js", "packages/astro/dist/client.js"])(
+    "ships shared instance selection in %s",
+    async (artifactPath) => {
+      const source = await readFile(artifactPath, "utf8");
+      expect(source).toContain("unique-at-capture");
+      expect(source).toContain("data-spotpatch-instance");
+      expect(source).toContain("Restored snapshot; not bound to the current page");
+    },
+  );
   it.each(BUNDLED_EXTERNAL_HANDOFF_ARTIFACTS)(
     "ships the shared Agent controls in the %s artifact",
     async (_, artifactPaths) => {

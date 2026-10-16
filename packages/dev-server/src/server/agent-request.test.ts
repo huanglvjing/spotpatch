@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
+  ELEMENT_INSTANCE_LIMITS,
   ERROR_CODES,
   SpotPatchError,
   agentJobCreateRequestSchema,
@@ -249,58 +250,109 @@ describe("Agent job request authorization", () => {
     );
   });
 
-  it("authorizes every distinct target and rejects duplicate or over-limit amplification", async () => {
-    const single = request();
-    const first = single.annotation.targets[0];
+  it.each([false, true])(
+    "authorizes distinct same-source instances (instance metadata: %s) and rejects duplicate or over-limit amplification",
+    async (withInstances) => {
+      const single = request();
+      const original = single.annotation.targets[0];
+      const first =
+        original === undefined
+          ? undefined
+          : {
+              ...original,
+              element: {
+                ...original.element,
+                ...(withInstances
+                  ? {
+                      instance: {
+                        id: "capture_1",
+                        state: "captured" as const,
+                        selectorStatus: "unique-at-capture" as const,
+                        label: "First card",
+                        context: "<article>First card</article>",
+                      },
+                    }
+                  : {}),
+              },
+            };
 
-    if (first === undefined) {
-      throw new Error("Expected a target fixture.");
-    }
+      if (first === undefined) {
+        throw new Error("Expected a target fixture.");
+      }
 
-    const second = {
-      ...first,
-      source: { ...first.source, line: 4, column: 3 },
-      element: {
-        ...first.element,
-        selector: "button.secondary",
-        sanitizedHtml: '<button class="secondary">Cancel</button>',
-      },
-    };
-    const multi = agentJobCreateRequestSchema.parse({
-      ...single,
-      annotation: { ...single.annotation, targets: [first, second] },
-    });
-    const authorized = await authorizeAgentJobRequest({
-      request: multi,
-      options: resolveOptions({ maxTargets: 2 }),
-      registry,
-      root,
-    });
-
-    expect(authorized.annotation.targets).toHaveLength(2);
-    expect(authorized.annotation.targets[1]?.code?.relativePath).toBe("src/App.tsx");
-
-    const duplicated = agentJobCreateRequestSchema.parse({
-      ...single,
-      annotation: { ...single.annotation, targets: [first, first] },
-    });
-    await expectErrorCode(
-      authorizeAgentJobRequest({
-        request: duplicated,
+      const second = {
+        ...first,
+        source: first.source,
+        element: {
+          ...first.element,
+          ...(withInstances
+            ? {
+                instance: {
+                  id: "capture_2",
+                  state: "captured",
+                  selectorStatus: "unique-at-capture",
+                  label: "token=x ".repeat(20),
+                  context: "token=x ".repeat(150),
+                },
+              }
+            : {}),
+          selector: "button.secondary",
+          sanitizedHtml: '<button class="secondary">Cancel</button>',
+        },
+      };
+      const multi = agentJobCreateRequestSchema.parse({
+        ...single,
+        annotation: { ...single.annotation, targets: [first, second] },
+      });
+      const authorized = await authorizeAgentJobRequest({
+        request: multi,
         options: resolveOptions({ maxTargets: 2 }),
         registry,
         root,
-      }),
-      ERROR_CODES.INVALID_REQUEST,
-    );
-    await expectErrorCode(
-      authorizeAgentJobRequest({
-        request: multi,
-        options: resolveOptions({ maxTargets: 1 }),
-        registry,
-        root,
-      }),
-      ERROR_CODES.INVALID_REQUEST,
-    );
-  });
+      });
+
+      expect(authorized.annotation.targets).toHaveLength(2);
+      if (withInstances) {
+        expect(authorized.annotation.targets[1]?.element.instance?.id).toBe(
+          "capture_2",
+        );
+        expect(
+          Object.isFrozen(authorized.annotation.targets[1]?.element.instance),
+        ).toBe(true);
+        const instance = authorized.annotation.targets[1]?.element.instance;
+        expect(instance?.label).not.toContain("token=x");
+        expect(instance?.context).not.toContain("token=x");
+        expect(instance?.label.length).toBeLessThanOrEqual(
+          ELEMENT_INSTANCE_LIMITS.labelCharacters,
+        );
+        expect(instance?.context.length).toBeLessThanOrEqual(
+          ELEMENT_INSTANCE_LIMITS.contextCharacters,
+        );
+      }
+      expect(authorized.annotation.targets[1]?.code?.relativePath).toBe("src/App.tsx");
+
+      const duplicated = agentJobCreateRequestSchema.parse({
+        ...single,
+        annotation: { ...single.annotation, targets: [first, first] },
+      });
+      await expectErrorCode(
+        authorizeAgentJobRequest({
+          request: duplicated,
+          options: resolveOptions({ maxTargets: 2 }),
+          registry,
+          root,
+        }),
+        ERROR_CODES.INVALID_REQUEST,
+      );
+      await expectErrorCode(
+        authorizeAgentJobRequest({
+          request: multi,
+          options: resolveOptions({ maxTargets: 1 }),
+          registry,
+          root,
+        }),
+        ERROR_CODES.INVALID_REQUEST,
+      );
+    },
+  );
 });

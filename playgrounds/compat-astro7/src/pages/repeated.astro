@@ -1,0 +1,13 @@
+---
+import RepeatedCard from '../components/RepeatedCard.astro';
+---
+<!doctype html>
+<html lang="en-US">
+  <head><title>Repeated native Astro instances</title></head>
+  <body>
+    <section data-testid="repeated-cards">
+      <h1>Repeated native Astro instances</h1>
+      {Array.from({ length: 20 }, (_, index) => <RepeatedCard product={index + 1} />)}
+    </section>
+  </body>
+</html>

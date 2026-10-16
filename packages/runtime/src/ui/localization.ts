@@ -159,13 +159,13 @@ export interface UiMessages {
     noSelectable: string;
     allTargetsRemoved: string;
     targetRemoved: string;
-    detachedTargetPreserved: string;
     contextWarning: string;
     contextCollected: string;
     editorOpening: string;
     editorOpened: string;
     editorFailed: string;
     completeInstructions: string;
+    instanceBudgetExceeded: string;
     promptCopied: string;
     clipboardUnavailable: string;
     copyFailed: string;
@@ -403,6 +403,14 @@ const ERROR_MESSAGES_ZH = Object.freeze({
 } satisfies Record<ErrorCode, string>);
 
 const SUMMARY_MESSAGES_EN = Object.freeze({
+  instance: "Selected instance",
+  instanceStates: {
+    captured: "Captured element; locator describes selection time",
+    changed:
+      "Page content changed; snapshot preserved. Select again to confirm the current instance",
+    detached: "Element unloaded; historical snapshot preserved",
+    restored: "Restored snapshot; not bound to the current page",
+  },
   adapter: "React adapter",
   api: "API",
   apiStatuses: Object.freeze({
@@ -446,6 +454,13 @@ const SUMMARY_MESSAGES_EN = Object.freeze({
 } satisfies SelectionSummaryMessages);
 
 const SUMMARY_MESSAGES_ZH = Object.freeze({
+  instance: "选中实例",
+  instanceStates: {
+    captured: "已捕获元素；定位信息对应选择时刻",
+    changed: "页面内容已变化，已保留快照；请重新选择以确认当前实例",
+    detached: "元素已卸载，已保留历史快照",
+    restored: "已恢复历史快照，未绑定当前页面",
+  },
   adapter: "React 适配器",
   api: "API",
   apiStatuses: Object.freeze({
@@ -648,15 +663,15 @@ export const UI_MESSAGES = Object.freeze({
         `The selection limit of ${String(maximum)} elements has been reached.`,
       chooseAdditional: (selected: number, maximum: number) =>
         `Choose another element. ${String(selected)} of ${String(maximum)} selected.`,
-      duplicate: "That source target is already selected.",
+      duplicate: "That page element is already selected.",
+      instanceBudgetExceeded:
+        "The prompt cannot preserve every selected instance within its budget. Remove some targets or increase the context budget.",
       sourceProbable:
         "A probable React component was found without an authorized file token.",
       sourceMissing: "No authorized source marker was found for the selected element.",
       noSelectable: "No selectable element was found.",
       allTargetsRemoved: "All targets were removed. Choose an element to continue.",
       targetRemoved: "Selected target removed.",
-      detachedTargetPreserved:
-        "The page element was unloaded; its collected context remains selected.",
       contextWarning: "Browser context collection completed with a warning.",
       contextCollected: "Browser context collected.",
       editorOpening: "Opening source…",
@@ -829,13 +844,14 @@ export const UI_MESSAGES = Object.freeze({
         `已达到 ${String(maximum)} 个元素的选择上限。`,
       chooseAdditional: (selected: number, maximum: number) =>
         `请选择另一个元素，当前已选 ${String(selected)} / ${String(maximum)}。`,
-      duplicate: "该源码目标已经在当前选择中。",
+      duplicate: "该页面元素已经在当前选择中。",
+      instanceBudgetExceeded:
+        "上下文预算无法完整保留所有选中实例，请减少目标数量或提高上下文预算。",
       sourceProbable: "找到可能的 React 组件，但没有获授权的源码标记。",
       sourceMissing: "选中元素没有获授权的源码标记。",
       noSelectable: "当前位置没有可选择的元素。",
       allTargetsRemoved: "已移除全部目标，请重新选择元素。",
       targetRemoved: "已移除选中目标。",
-      detachedTargetPreserved: "页面元素已卸载，已采集的上下文仍保留在选择中。",
       contextWarning: "浏览器上下文采集完成，但存在警告。",
       contextCollected: "浏览器上下文采集完成。",
       editorOpening: "正在打开源码……",

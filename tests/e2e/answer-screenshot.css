@@ -1,0 +1,4 @@
+/* Isolate the answer's visual baseline from its sibling sticky action bar. */
+.spotpatch-ask-actions {
+  visibility: hidden !important;
+}

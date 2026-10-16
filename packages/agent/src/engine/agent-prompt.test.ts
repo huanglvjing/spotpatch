@@ -93,6 +93,48 @@ describe("Agent prompt", () => {
     expect(multiPrompt).toContain("src/Second.tsx");
     expect(multiPrompt).toContain("Align the first action.");
     expect(multiPrompt).toContain("Rename the second action.");
+    const instances = {
+      ...multi,
+      targets: multi.targets.map((target, index) => ({
+        ...target,
+        source: first.source,
+        element: {
+          ...target.element,
+          selector: `article:nth-of-type(${String(index + 1)}) > button`,
+          instance: {
+            id: `capture_${String(index)}`,
+            state: "restored" as const,
+            selectorStatus: "unique-at-capture" as const,
+            label: `Product ${String(index)}`,
+            context: `<article>Product ${String(index)}</article>`,
+          },
+        },
+      })),
+    };
+    const instancePrompt = composeAgentUserPrompt(instances, 4_096);
+    expect(instancePrompt.length).toBeLessThanOrEqual(4_096);
+    for (const target of instances.targets) {
+      expect(instancePrompt).toContain(target.element.instance.id);
+      expect(instancePrompt).toContain(target.element.instance.context);
+      expect(instancePrompt).toContain(target.element.selector);
+    }
+    const oversized = {
+      ...instances,
+      targets: Array.from({ length: 8 }, (_, index) => ({
+        ...first,
+        element: {
+          ...first.element,
+          instance: {
+            id: `capture_${String(index)}`,
+            state: "captured" as const,
+            selectorStatus: "unique-at-capture" as const,
+            label: "Card",
+            context: "x".repeat(1_200),
+          },
+        },
+      })),
+    };
+    expect(() => composeAgentUserPrompt(oversized, 4_096)).toThrow(RangeError);
   });
 
   it("includes bounded project conventions and public check metadata", () => {

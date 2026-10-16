@@ -45,7 +45,8 @@
     "test:package-beta": "node scripts/verify-contextual-ask-beta-package.mjs",
     "test:production-leakage": "pnpm build && vitest run tests/production",
     "test:unit": "vitest run packages scripts tests/unit",
-    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present typecheck"
+    "typecheck": "tsc --noEmit -p tsconfig.json && pnpm -r --if-present typecheck",
+    "test:next:instances": "vitest run tests/next/repeated-instances.test.ts"
   },
   "devDependencies": {
     "@emnapi/core": "1.11.3",

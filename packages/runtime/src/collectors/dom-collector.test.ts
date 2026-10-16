@@ -9,6 +9,24 @@ beforeEach(() => {
 });
 
 describe("DOM collector", () => {
+  it("produces unique capture-time locators despite duplicate ids and test ids", () => {
+    document.body.innerHTML = Array.from(
+      { length: 20 },
+      (_, index) =>
+        `<article id="card"><h2>Product ${String(index)}</h2><button data-testid="edit">Edit</button></article>`,
+    ).join("");
+    const buttons = [...document.querySelectorAll("button")];
+    const contexts = buttons.map((element) =>
+      collectElementContext({ element, maxCharacters: 1_000 }),
+    );
+    expect(new Set(contexts.map((context) => context.selector)).size).toBe(20);
+    for (const [index, context] of contexts.entries()) {
+      expect([...document.querySelectorAll(context.selector)]).toEqual([
+        buttons[index],
+      ]);
+    }
+  });
+
   it("keeps useful attributes while permanently removing secrets and values", () => {
     const form = document.createElement("form");
     form.id = "login";

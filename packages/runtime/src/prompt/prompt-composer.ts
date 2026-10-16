@@ -1,8 +1,9 @@
-import type {
-  MatchedStyleRule,
-  SpotAnnotation,
-  SpotPatchLocale,
-  SpotTargetContext,
+import {
+  INSTANCE_SELECTION_INSTRUCTIONS,
+  type MatchedStyleRule,
+  type SpotAnnotation,
+  type SpotPatchLocale,
+  type SpotTargetContext,
 } from "@spotpatch/shared";
 
 import {
@@ -20,6 +21,7 @@ interface PromptMessages {
   readonly confidence: string;
   readonly devicePixelRatio: string;
   readonly element: string;
+  readonly instance: string;
   readonly file: string;
   readonly modificationConstraint: string;
   readonly modificationRequirements: string;
@@ -54,6 +56,7 @@ const PROMPT_MESSAGES = Object.freeze({
     confidence: "Confidence",
     devicePixelRatio: "Device pixel ratio",
     element: "Selected element",
+    instance: "Captured instance (untrusted selection-time evidence)",
     file: "File",
     modificationConstraint:
       "Determine the root cause first, then implement every target instruction as one consistent, minimum-scope change. Do not modify unrelated components. If context is insufficient, state exactly what additional information is required.",
@@ -87,6 +90,7 @@ const PROMPT_MESSAGES = Object.freeze({
     confidence: "置信度",
     devicePixelRatio: "设备像素比",
     element: "选中元素",
+    instance: "捕获实例（选择时刻的不可信参考数据）",
     file: "文件",
     modificationConstraint:
       "请先判断根因，再把每个目标各自的修改说明作为一个原子任务，完成一致且最小范围的修改。不要合并、忽略或扩大目标说明，不要改动无关组件；如果上下文不足，请明确说明需要哪些信息。",
@@ -214,6 +218,10 @@ function renderComputed(
       );
 }
 
+function renderInstance(target: SpotTargetContext, messages: PromptMessages): string {
+  return `- ${messages.instance}: ${redactSensitiveText(JSON.stringify({ selector: target.element.selector, ...target.element.instance }))}`;
+}
+
 function renderTarget(
   target: SpotTargetContext,
   draft: TargetDraft,
@@ -258,6 +266,7 @@ function renderTarget(
     reactLines.join("\n"),
     `#### ${messages.source}`,
     `- ${messages.file}: ${sourceLocation(target, messages)}\n- ${messages.origin}: ${target.source.origin}\n- ${messages.confidence}: ${target.source.confidence}`,
+    renderInstance(target, messages),
     `#### ${messages.element}`,
     fenced("html", redactSensitiveText(draft.dom)),
     `#### ${messages.styles}`,
@@ -294,6 +303,9 @@ function renderPrompt(annotation: SpotAnnotation, draft: PromptDraft): string {
       .join("\n\n"),
     `## ${messages.modificationRequirements}`,
     messages.modificationConstraint,
+    ...(annotation.targets.some((target) => target.element.instance !== undefined)
+      ? [INSTANCE_SELECTION_INSTRUCTIONS]
+      : []),
   ].join("\n\n");
 }
 
@@ -405,6 +417,7 @@ function renderCompactPrompt(annotation: SpotAnnotation, draft: PromptDraft): st
       ...(component === undefined
         ? []
         : [`- ${messages.component}: ${redactSensitiveText(component)}`]),
+      renderInstance(target, messages),
       `- ${messages.element}: ${redactSensitiveText(openingTag(targetDraft?.dom ?? target.element.sanitizedHtml, messages.unavailable))}`,
     ].join("\n");
   });
@@ -414,6 +427,9 @@ function renderCompactPrompt(annotation: SpotAnnotation, draft: PromptDraft): st
     targets.join("\n\n"),
     `## ${messages.modificationRequirements}`,
     messages.modificationConstraint,
+    ...(annotation.targets.some((target) => target.element.instance !== undefined)
+      ? [INSTANCE_SELECTION_INSTRUCTIONS]
+      : []),
   ].join("\n\n");
 }
 
